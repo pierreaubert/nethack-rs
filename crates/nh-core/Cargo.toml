@@ -1,0 +1,18 @@
+[package]
+name = "nh-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Core game logic for NetHack clone"
+
+[dependencies]
+bitflags.workspace = true
+thiserror.workspace = true
+strum.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

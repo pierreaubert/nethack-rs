@@ -1,0 +1,95 @@
+//! Map display widget
+
+use ratatui::prelude::*;
+use ratatui::widgets::{Block, Borders, Widget};
+
+use nh_core::dungeon::{CellType, Level};
+use nh_core::player::You;
+use nh_core::{COLNO, ROWNO};
+
+/// Widget for rendering the dungeon map
+pub struct MapWidget<'a> {
+    level: &'a Level,
+    player: &'a You,
+}
+
+impl<'a> MapWidget<'a> {
+    pub fn new(level: &'a Level, player: &'a You) -> Self {
+        Self { level, player }
+    }
+
+    fn cell_display(&self, x: usize, y: usize) -> (char, Style) {
+        // Player position
+        if x as i8 == self.player.pos.x && y as i8 == self.player.pos.y {
+            return ('@', Style::default().fg(Color::White).bold());
+        }
+
+        // Monster at position
+        if let Some(monster) = self.level.monster_at(x as i8, y as i8) {
+            let symbol = if monster.name.is_empty() { 'M' } else { monster.name.chars().next().unwrap_or('M') };
+            let color = if monster.is_hostile() {
+                Color::Red
+            } else if monster.is_pet() {
+                Color::White
+            } else {
+                Color::Yellow
+            };
+            return (symbol, Style::default().fg(color));
+        }
+
+        // Objects at position
+        if !self.level.object_grid[x][y].is_empty() {
+            // TODO: Get top object symbol
+            return ('*', Style::default().fg(Color::Yellow));
+        }
+
+        // Terrain
+        let cell = &self.level.cells[x][y];
+        let symbol = cell.typ.symbol();
+        let color = match cell.typ {
+            CellType::Stone => Color::Black,
+            CellType::Room | CellType::Corridor => {
+                if cell.lit {
+                    Color::White
+                } else {
+                    Color::DarkGray
+                }
+            }
+            CellType::VWall | CellType::HWall | CellType::TLCorner | CellType::TRCorner
+            | CellType::BLCorner | CellType::BRCorner | CellType::CrossWall | CellType::TUWall
+            | CellType::TDWall | CellType::TLWall | CellType::TRWall => Color::Gray,
+            CellType::Door => Color::Yellow,
+            CellType::Stairs | CellType::Ladder => Color::White,
+            CellType::Pool | CellType::Moat | CellType::Water => Color::Blue,
+            CellType::Lava => Color::Red,
+            CellType::Fountain => Color::Cyan,
+            CellType::Altar => Color::Gray,
+            CellType::Throne => Color::Yellow,
+            CellType::Tree => Color::Green,
+            _ => Color::White,
+        };
+
+        (symbol, Style::default().fg(color))
+    }
+}
+
+impl Widget for MapWidget<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title("NetHack");
+
+        let inner = block.inner(area);
+        block.render(area, buf);
+
+        for y in 0..ROWNO.min(inner.height as usize) {
+            for x in 0..COLNO.min(inner.width as usize) {
+                let (ch, style) = self.cell_display(x, y);
+                if let Some(cell) = buf.cell_mut(Position::new(inner.x + x as u16, inner.y + y as u16)) {
+                    cell.set_char(ch);
+                    cell.set_style(style);
+                }
+            }
+        }
+    }
+}

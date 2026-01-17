@@ -1,0 +1,19 @@
+[package]
+name = "nethack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "NetHack clone in Rust"
+
+[[bin]]
+name = "nethack"
+path = "src/main.rs"
+
+[dependencies]
+nh-core.workspace = true
+nh-data.workspace = true
+nh-ui.workspace = true
+nh-save.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true

@@ -1,0 +1,12 @@
+[package]
+name = "nh-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Terminal UI layer using ratatui for NetHack clone"
+
+[dependencies]
+nh-core.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
