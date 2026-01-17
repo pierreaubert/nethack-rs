@@ -21,6 +21,22 @@ impl MapPosition {
 #[derive(Component)]
 pub struct TileMarker;
 
+/// Identifies the material type used by a tile for fog of war material swapping
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TileMaterialType {
+    Floor,
+    Corridor,
+    Wall,
+    Door,
+    Stairs,
+    Water,
+    Lava,
+    Stone,
+    Tree,
+    Fountain,
+    Ice,
+}
+
 /// Marker for the player entity
 #[derive(Component)]
 pub struct PlayerMarker;

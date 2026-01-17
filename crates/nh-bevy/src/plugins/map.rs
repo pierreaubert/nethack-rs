@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::components::{DoorAnimation, DoorMarker, MapPosition, TileMarker};
+use crate::components::{DoorAnimation, DoorMarker, MapPosition, TileMaterialType, TileMarker};
 use crate::resources::GameStateResource;
 
 pub struct MapPlugin;
@@ -10,6 +10,7 @@ pub struct MapPlugin;
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MapState>()
+            .insert_resource(TextureVariants::new())
             .add_systems(Startup, (setup_tile_assets, spawn_map).chain())
             .add_systems(
                 Update,
@@ -26,6 +27,62 @@ impl Plugin for MapPlugin {
 #[derive(Resource, Default)]
 struct MapState {
     current_dlevel: Option<nh_core::dungeon::DLevel>,
+    room_change_count: usize,
+}
+
+/// Tracks texture variants for each tile type
+#[derive(Resource, Default)]
+struct TextureVariants {
+    /// Map from texture name to (current_index, max_count)
+    variants: std::collections::HashMap<String, (usize, usize)>,
+}
+
+impl TextureVariants {
+    /// Count how many variants exist for a texture (e.g., room-1.jpeg, room-2.jpeg, ...)
+    fn count_variants(name: &str) -> usize {
+        let mut count = 0;
+        for i in 1.. {
+            let path = format!("crates/nh-bevy/assets/textures/{}-{}.jpeg", name, i);
+            if std::path::Path::new(&path).exists() {
+                count = i;
+            } else {
+                break;
+            }
+        }
+        count
+    }
+
+    /// Initialize variant counts for all texture types
+    fn new() -> Self {
+        let texture_names = [
+            "floor", "corridor", "wall", "door", "stairs",
+            "water", "lava", "stone", "tree", "fountain", "ice", "room",
+        ];
+
+        let mut variants = std::collections::HashMap::new();
+        for name in texture_names {
+            let count = Self::count_variants(name);
+            if count > 0 {
+                variants.insert(name.to_string(), (1, count)); // Start at variant 1
+            }
+        }
+
+        Self { variants }
+    }
+
+    /// Get current texture path for a name, or None if no variants exist
+    fn get_texture_path(&self, name: &str) -> Option<String> {
+        self.variants.get(name).map(|(idx, _)| {
+            format!("textures/{}-{}.jpeg", name, idx)
+        })
+    }
+
+    /// Advance to next variant for all textures (wraps around)
+    fn advance_all(&mut self) {
+        for (_, (idx, max)) in self.variants.iter_mut() {
+            *idx = (*idx % *max) + 1;
+        }
+    }
 }
 
 /// Animate water and lava materials
@@ -59,6 +116,9 @@ fn check_level_change(
     tile_meshes: Res<TileMeshes>,
     tile_materials: Res<TileMaterials>,
     map_query: Query<Entity, With<TileMarker>>,
+    mut texture_variants: ResMut<TextureVariants>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     if !game_state.is_changed() {
         return;
@@ -74,7 +134,15 @@ fn check_level_change(
 
     if map_state.current_dlevel != Some(current_dlevel) {
         info!("Level changed from {:?} to {:?}", map_state.current_dlevel, current_dlevel);
-        
+
+        // Advance texture variants for visual variety
+        texture_variants.advance_all();
+        map_state.room_change_count += 1;
+        info!("Texture variants advanced (room change #{})", map_state.room_change_count);
+
+        // Update material textures with new variants
+        update_material_textures(&tile_materials, &mut materials, &texture_variants, &asset_server);
+
         // Despawn old map
         for entity in map_query.iter() {
             commands.entity(entity).despawn_recursive();
@@ -82,9 +150,39 @@ fn check_level_change(
 
         // Spawn new map
         spawn_map_internal(&mut commands, &game_state.0.current_level, &tile_meshes, &tile_materials);
-        
+
         // Update state
         map_state.current_dlevel = Some(current_dlevel);
+    }
+}
+
+/// Update material textures to use current variant
+fn update_material_textures(
+    tile_materials: &TileMaterials,
+    materials: &mut Assets<StandardMaterial>,
+    texture_variants: &TextureVariants,
+    asset_server: &AssetServer,
+) {
+    let material_mappings: [(&Handle<StandardMaterial>, &str); 11] = [
+        (&tile_materials.floor, "room"),
+        (&tile_materials.corridor, "corridor"),
+        (&tile_materials.wall, "wall"),
+        (&tile_materials.door, "door"),
+        (&tile_materials.stairs, "stairs"),
+        (&tile_materials.water, "water"),
+        (&tile_materials.lava, "lava"),
+        (&tile_materials.stone, "stone"),
+        (&tile_materials.tree, "tree"),
+        (&tile_materials.fountain, "fountain"),
+        (&tile_materials.ice, "ice"),
+    ];
+
+    for (handle, name) in material_mappings {
+        if let Some(material) = materials.get_mut(handle) {
+            material.base_color_texture = texture_variants.get_texture_path(name).map(|path| {
+                asset_server.load(path)
+            });
+        }
     }
 }
 
@@ -112,6 +210,18 @@ pub struct TileMaterials {
     pub tree: Handle<StandardMaterial>,
     pub fountain: Handle<StandardMaterial>,
     pub ice: Handle<StandardMaterial>,
+    // Unexplored variants (alpha 0.3 for semi-transparent fog of war)
+    pub floor_unexplored: Handle<StandardMaterial>,
+    pub corridor_unexplored: Handle<StandardMaterial>,
+    pub wall_unexplored: Handle<StandardMaterial>,
+    pub door_unexplored: Handle<StandardMaterial>,
+    pub stairs_unexplored: Handle<StandardMaterial>,
+    pub water_unexplored: Handle<StandardMaterial>,
+    pub lava_unexplored: Handle<StandardMaterial>,
+    pub stone_unexplored: Handle<StandardMaterial>,
+    pub tree_unexplored: Handle<StandardMaterial>,
+    pub fountain_unexplored: Handle<StandardMaterial>,
+    pub ice_unexplored: Handle<StandardMaterial>,
 }
 
 fn setup_tile_assets(
@@ -119,6 +229,7 @@ fn setup_tile_assets(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
+    texture_variants: Res<TextureVariants>,
 ) {
     // Create meshes
     let floor_mesh = meshes.add(Plane3d::new(Vec3::Y, Vec2::splat(0.5)));
@@ -129,20 +240,12 @@ fn setup_tile_assets(
         wall: wall_mesh,
     });
 
-    // Helper to create material with optional texture
-    let mut create_material = |path: &str, color: Color, roughness: f32, emissive: Option<LinearRgba>| -> Handle<StandardMaterial> {
-        // Check if texture exists relative to assets/
-        let texture_path = format!("textures/{}.png", path);
-        // We can't synchronously check file existence for assets in Bevy generally, 
-        // but we can try to load it. If it's missing, it will just show black/pink or fail silently depending on config.
-        // To be safe and keep the colors as fallback, we can check file system (assuming local).
-        
-        let fs_path = std::path::Path::new("crates/nh-bevy/assets").join(&texture_path);
-        let texture = if fs_path.exists() {
-            Some(asset_server.load(texture_path))
-        } else {
-            None
-        };
+    // Helper to create material with optional texture using variant system
+    let create_material = |materials: &mut Assets<StandardMaterial>, name: &str, color: Color, roughness: f32, emissive: Option<LinearRgba>| -> Handle<StandardMaterial> {
+        // Try to get texture path from variants (e.g., "wall" -> "textures/wall-1.jpeg")
+        let texture = texture_variants.get_texture_path(name).map(|path| {
+            asset_server.load(path)
+        });
 
         materials.add(StandardMaterial {
             base_color: color,
@@ -154,19 +257,51 @@ fn setup_tile_assets(
         })
     };
 
+    // Helper to create unexplored material variant (alpha 0.3)
+    let create_unexplored = |materials: &mut Assets<StandardMaterial>, name: &str, color: Color, roughness: f32, emissive: Option<LinearRgba>| -> Handle<StandardMaterial> {
+        let texture = texture_variants.get_texture_path(name).map(|path| {
+            asset_server.load(path)
+        });
+
+        // Apply alpha 0.3 to the color
+        let unexplored_color = color.with_alpha(0.3);
+
+        materials.add(StandardMaterial {
+            base_color: unexplored_color,
+            base_color_texture: texture,
+            perceptual_roughness: roughness,
+            emissive: emissive.unwrap_or(LinearRgba::BLACK),
+            alpha_mode: AlphaMode::Blend,
+            ..default()
+        })
+    };
+
     // Create materials with distinct colors/textures
     commands.insert_resource(TileMaterials {
-        floor: create_material("floor", Color::srgb(0.6, 0.5, 0.4), 0.9, None),
-        corridor: create_material("corridor", Color::srgb(0.4, 0.4, 0.4), 0.9, None),
-        wall: create_material("wall", Color::srgb(0.5, 0.5, 0.5), 0.8, None),
-        door: create_material("door", Color::srgb(0.5, 0.3, 0.15), 0.7, None),
-        stairs: create_material("stairs", Color::srgb(0.7, 0.7, 0.7), 0.6, None),
-        water: create_material("water", Color::srgba(0.2, 0.4, 0.8, 0.7), 0.1, None),
-        lava: create_material("lava", Color::srgb(1.0, 0.4, 0.1), 0.3, Some(LinearRgba::new(1.0, 0.3, 0.0, 1.0))),
-        stone: create_material("stone", Color::srgb(0.2, 0.2, 0.2), 1.0, None),
-        tree: create_material("tree", Color::srgb(0.2, 0.5, 0.2), 0.9, None),
-        fountain: create_material("fountain", Color::srgb(0.4, 0.6, 0.8), 0.3, None),
-        ice: create_material("ice", Color::srgba(0.8, 0.9, 1.0, 0.8), 0.1, None),
+        // Normal materials
+        floor: create_material(&mut materials, "room", Color::srgb(0.6, 0.5, 0.4), 0.9, None),
+        corridor: create_material(&mut materials, "corridor", Color::srgb(0.4, 0.4, 0.4), 0.9, None),
+        wall: create_material(&mut materials, "wall", Color::srgb(0.5, 0.5, 0.5), 0.8, None),
+        door: create_material(&mut materials, "door", Color::srgb(0.5, 0.3, 0.15), 0.7, None),
+        stairs: create_material(&mut materials, "stairs", Color::srgb(0.7, 0.7, 0.7), 0.6, None),
+        water: create_material(&mut materials, "water", Color::srgba(0.2, 0.4, 0.8, 0.7), 0.1, None),
+        lava: create_material(&mut materials, "lava", Color::srgb(1.0, 0.4, 0.1), 0.3, Some(LinearRgba::new(1.0, 0.3, 0.0, 1.0))),
+        stone: create_material(&mut materials, "stone", Color::srgb(0.2, 0.2, 0.2), 1.0, None),
+        tree: create_material(&mut materials, "tree", Color::srgb(0.2, 0.5, 0.2), 0.9, None),
+        fountain: create_material(&mut materials, "fountain", Color::srgb(0.4, 0.6, 0.8), 0.3, None),
+        ice: create_material(&mut materials, "ice", Color::srgba(0.8, 0.9, 1.0, 0.8), 0.1, None),
+        // Unexplored variants (alpha 0.3)
+        floor_unexplored: create_unexplored(&mut materials, "room", Color::srgb(0.6, 0.5, 0.4), 0.9, None),
+        corridor_unexplored: create_unexplored(&mut materials, "corridor", Color::srgb(0.4, 0.4, 0.4), 0.9, None),
+        wall_unexplored: create_unexplored(&mut materials, "wall", Color::srgb(0.5, 0.5, 0.5), 0.8, None),
+        door_unexplored: create_unexplored(&mut materials, "door", Color::srgb(0.5, 0.3, 0.15), 0.7, None),
+        stairs_unexplored: create_unexplored(&mut materials, "stairs", Color::srgb(0.7, 0.7, 0.7), 0.6, None),
+        water_unexplored: create_unexplored(&mut materials, "water", Color::srgba(0.2, 0.4, 0.8, 0.7), 0.1, None),
+        lava_unexplored: create_unexplored(&mut materials, "lava", Color::srgb(1.0, 0.4, 0.1), 0.3, Some(LinearRgba::new(1.0, 0.3, 0.0, 1.0))),
+        stone_unexplored: create_unexplored(&mut materials, "stone", Color::srgb(0.2, 0.2, 0.2), 1.0, None),
+        tree_unexplored: create_unexplored(&mut materials, "tree", Color::srgb(0.2, 0.5, 0.2), 0.9, None),
+        fountain_unexplored: create_unexplored(&mut materials, "fountain", Color::srgb(0.4, 0.6, 0.8), 0.3, None),
+        ice_unexplored: create_unexplored(&mut materials, "ice", Color::srgba(0.8, 0.9, 1.0, 0.8), 0.1, None),
     });
 }
 
@@ -226,24 +361,32 @@ fn spawn_tile(
     use nh_core::dungeon::CellType;
 
     let world_pos = map_pos.to_world();
+    let explored = cell.explored;
+
+    // Helper to pick normal or unexplored material
+    let mat = |normal: &Handle<StandardMaterial>, unexplored: &Handle<StandardMaterial>| {
+        if explored { normal.clone() } else { unexplored.clone() }
+    };
 
     match cell.typ {
         // Floor types - flat plane at y=0
         CellType::Room => {
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Floor,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.floor.clone()),
+                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
                 Transform::from_translation(world_pos),
             ));
         }
         CellType::Corridor => {
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Corridor,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.corridor.clone()),
+                MeshMaterial3d(mat(&materials.corridor, &materials.corridor_unexplored)),
                 Transform::from_translation(world_pos),
             ));
         }
@@ -263,9 +406,10 @@ fn spawn_tile(
         | CellType::DBWall => {
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Wall,
                 map_pos,
                 Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(materials.wall.clone()),
+                MeshMaterial3d(mat(&materials.wall, &materials.wall_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.5),
             ));
         }
@@ -274,44 +418,36 @@ fn spawn_tile(
         CellType::Door => {
             let door_state = cell.door_state();
             let is_open = door_state.contains(nh_core::dungeon::DoorState::OPEN);
-            
-            // Determine orientation: check if horizontal walls are adjacent
-            // Note: We don't have easy access to neighbors here without passing level ref
-            // For now, assume East-West if x is odd (checkerboard) as a hack, 
-            // or we could check neighbors if we passed 'level' to spawn_tile.
-            // Let's assume North-South (Z-axis aligned) by default, rotated 90 deg if East-West.
-            
-            // Better: defaulting to Z-axis aligned (North-South). 
-            // If it's open, it rotates 90 degrees relative to its frame.
-            
-            let base_rotation = Quat::IDENTITY; // Aligned with Z axis (North-South)
+
+            let base_rotation = Quat::IDENTITY;
             let open_rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
-            
             let rotation = if is_open { open_rotation } else { base_rotation };
 
             // Floor under door
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Corridor,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.corridor.clone()),
+                MeshMaterial3d(mat(&materials.corridor, &materials.corridor_unexplored)),
                 Transform::from_translation(world_pos),
             ));
 
             // Door itself - thin slab
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Door,
                 DoorMarker {
                     x: map_pos.x,
                     y: map_pos.y,
                     is_open,
                 },
                 map_pos,
-                Mesh3d(meshes.wall.clone()), // Reusing wall mesh (cube)
-                MeshMaterial3d(materials.door.clone()),
+                Mesh3d(meshes.wall.clone()),
+                MeshMaterial3d(mat(&materials.door, &materials.door_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.5)
                     .with_rotation(rotation)
-                    .with_scale(Vec3::new(0.2, 1.0, 1.0)), // Thin door
+                    .with_scale(Vec3::new(0.2, 1.0, 1.0)),
             ));
         }
 
@@ -319,9 +455,10 @@ fn spawn_tile(
         CellType::Stairs | CellType::Ladder => {
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Stairs,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.stairs.clone()),
+                MeshMaterial3d(mat(&materials.stairs, &materials.stairs_unexplored)),
                 Transform::from_translation(world_pos),
             ));
         }
@@ -330,9 +467,10 @@ fn spawn_tile(
         CellType::Pool | CellType::Moat | CellType::Water => {
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Water,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.water.clone()),
+                MeshMaterial3d(mat(&materials.water, &materials.water_unexplored)),
                 Transform::from_translation(world_pos - Vec3::Y * 0.3),
             ));
         }
@@ -340,9 +478,10 @@ fn spawn_tile(
         CellType::Lava => {
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Lava,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.lava.clone()),
+                MeshMaterial3d(mat(&materials.lava, &materials.lava_unexplored)),
                 Transform::from_translation(world_pos - Vec3::Y * 0.2),
             ));
         }
@@ -352,36 +491,40 @@ fn spawn_tile(
             // Floor
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Floor,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.floor.clone()),
+                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
                 Transform::from_translation(world_pos),
             ));
             // Fountain pedestal
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Fountain,
                 map_pos,
                 Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(materials.fountain.clone()),
+                MeshMaterial3d(mat(&materials.fountain, &materials.fountain_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.15)
                     .with_scale(Vec3::new(0.4, 0.3, 0.4)),
             ));
         }
 
         CellType::Throne | CellType::Altar | CellType::Grave | CellType::Sink => {
-            // Floor with special feature (simplified as smaller cube)
+            // Floor with special feature
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Floor,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.floor.clone()),
+                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
                 Transform::from_translation(world_pos),
             ));
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Stone,
                 map_pos,
                 Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(materials.stone.clone()),
+                MeshMaterial3d(mat(&materials.stone, &materials.stone_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.15)
                     .with_scale(Vec3::new(0.5, 0.3, 0.5)),
             ));
@@ -391,17 +534,19 @@ fn spawn_tile(
             // Floor
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Floor,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.floor.clone()),
+                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
                 Transform::from_translation(world_pos),
             ));
             // Tree as tall cube
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Tree,
                 map_pos,
                 Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(materials.tree.clone()),
+                MeshMaterial3d(mat(&materials.tree, &materials.tree_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.75)
                     .with_scale(Vec3::new(0.6, 1.5, 0.6)),
             ));
@@ -410,27 +555,30 @@ fn spawn_tile(
         CellType::Ice => {
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Ice,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.ice.clone()),
+                MeshMaterial3d(mat(&materials.ice, &materials.ice_unexplored)),
                 Transform::from_translation(world_pos),
             ));
         }
 
         CellType::IronBars => {
-            // Floor with bars (simplified as grid-like cube)
+            // Floor with bars
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Corridor,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.corridor.clone()),
+                MeshMaterial3d(mat(&materials.corridor, &materials.corridor_unexplored)),
                 Transform::from_translation(world_pos),
             ));
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Stone,
                 map_pos,
                 Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(materials.stone.clone()),
+                MeshMaterial3d(mat(&materials.stone, &materials.stone_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.5)
                     .with_scale(Vec3::new(0.1, 1.0, 1.0)),
             ));
@@ -439,34 +587,34 @@ fn spawn_tile(
         CellType::DrawbridgeDown => {
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Door,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(materials.door.clone()),
+                MeshMaterial3d(mat(&materials.door, &materials.door_unexplored)),
                 Transform::from_translation(world_pos),
             ));
         }
 
-        // Stone/unexplored - dark cube
+        // Stone - always spawn (semi-transparent if unexplored)
         CellType::Stone => {
-            // Only render stone if explored, otherwise leave empty for fog of war
-            if cell.explored {
-                commands.spawn((
-                    TileMarker,
-                    map_pos,
-                    Mesh3d(meshes.wall.clone()),
-                    MeshMaterial3d(materials.stone.clone()),
-                    Transform::from_translation(world_pos + Vec3::Y * 0.5),
-                ));
-            }
+            commands.spawn((
+                TileMarker,
+                TileMaterialType::Stone,
+                map_pos,
+                Mesh3d(meshes.wall.clone()),
+                MeshMaterial3d(mat(&materials.stone, &materials.stone_unexplored)),
+                Transform::from_translation(world_pos + Vec3::Y * 0.5),
+            ));
         }
 
         // Secret door/corridor - looks like wall
         CellType::SecretDoor | CellType::SecretCorridor => {
             commands.spawn((
                 TileMarker,
+                TileMaterialType::Wall,
                 map_pos,
                 Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(materials.wall.clone()),
+                MeshMaterial3d(mat(&materials.wall, &materials.wall_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.5),
             ));
         }

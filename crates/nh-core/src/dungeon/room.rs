@@ -272,8 +272,11 @@ impl RoomType {
     }
 }
 
+/// Maximum number of subrooms per room (from C mkroom.h)
+pub const MAX_SUBROOMS: usize = 24;
+
 /// Rectangle representing a room
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Room {
     /// X coordinate of room interior (left edge)
     pub x: usize,
@@ -293,6 +296,10 @@ pub struct Room {
     pub first_door_idx: u8,
     /// Whether this room has irregular shape
     pub irregular: bool,
+    /// Parent room index (if this is a subroom)
+    pub parent: Option<usize>,
+    /// Subroom indices
+    pub subrooms: Vec<usize>,
 }
 
 impl Default for Room {
@@ -307,6 +314,8 @@ impl Default for Room {
             door_count: 0,
             first_door_idx: 0,
             irregular: false,
+            parent: None,
+            subrooms: Vec::new(),
         }
     }
 }
@@ -324,6 +333,8 @@ impl Room {
             door_count: 0,
             first_door_idx: 0,
             irregular: false,
+            parent: None,
+            subrooms: Vec::new(),
         }
     }
 
@@ -339,6 +350,42 @@ impl Room {
             door_count: 0,
             first_door_idx: 0,
             irregular: false,
+            parent: None,
+            subrooms: Vec::new(),
+        }
+    }
+
+    /// Create a subroom within a parent room
+    pub fn new_subroom(x: usize, y: usize, width: usize, height: usize, parent_idx: usize) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+            room_type: RoomType::Ordinary,
+            lit: true,
+            door_count: 0,
+            first_door_idx: 0,
+            irregular: false,
+            parent: Some(parent_idx),
+            subrooms: Vec::new(),
+        }
+    }
+
+    /// Check if this is a subroom
+    pub fn is_subroom(&self) -> bool {
+        self.parent.is_some()
+    }
+
+    /// Check if this room has subrooms
+    pub fn has_subrooms(&self) -> bool {
+        !self.subrooms.is_empty()
+    }
+
+    /// Add a subroom index
+    pub fn add_subroom(&mut self, subroom_idx: usize) {
+        if self.subrooms.len() < MAX_SUBROOMS {
+            self.subrooms.push(subroom_idx);
         }
     }
 

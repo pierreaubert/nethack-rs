@@ -22,6 +22,41 @@ fn default_monster_grid() -> Vec<Vec<Option<MonsterId>>> {
     vec![vec![None; ROWNO]; COLNO]
 }
 
+/// Engraving types (from engrave.c)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum EngravingType {
+    #[default]
+    Dust = 0,      // Written in dust (easily erased)
+    Engrave = 1,   // Engraved (permanent)
+    Burn = 2,      // Burned (permanent)
+    Mark = 3,      // Marked with marker
+    BloodStain = 4, // Written in blood
+    Headstone = 5, // Grave inscription
+}
+
+/// An engraving on the floor
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Engraving {
+    pub x: i8,
+    pub y: i8,
+    pub text: String,
+    pub engr_type: EngravingType,
+    pub time: i64,
+}
+
+impl Engraving {
+    pub fn new(x: i8, y: i8, text: String, engr_type: EngravingType) -> Self {
+        Self {
+            x,
+            y,
+            text,
+            engr_type,
+            time: 0,
+        }
+    }
+}
+
 /// Level flags
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct LevelFlags {
@@ -48,6 +83,7 @@ pub struct LevelFlags {
     pub arboreal: bool,
     pub wizard_bones: bool,
     pub corridor_maze: bool,
+    pub has_branch: bool,
 }
 
 /// Trap on the level
@@ -126,6 +162,9 @@ pub struct Level {
     /// Traps
     pub traps: Vec<Trap>,
 
+    /// Engravings
+    pub engravings: Vec<Engraving>,
+
     /// Stairways
     pub stairs: Vec<Stairway>,
 
@@ -157,6 +196,7 @@ impl Level {
             buried_objects: Vec::new(),
             monsters: Vec::new(),
             traps: Vec::new(),
+            engravings: Vec::new(),
             stairs: Vec::new(),
             flags: LevelFlags::default(),
             next_object_id: 1,

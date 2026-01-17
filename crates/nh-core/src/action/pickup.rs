@@ -8,13 +8,40 @@ pub fn do_pickup(state: &mut GameState) -> ActionResult {
     let x = state.player.pos.x;
     let y = state.player.pos.y;
 
-    let objects = state.current_level.objects_at(x, y);
-    if objects.is_empty() {
+    // Get IDs of objects at this position
+    let object_ids: Vec<_> = state.current_level.objects_at(x, y)
+        .iter()
+        .map(|o| o.id)
+        .collect();
+
+    if object_ids.is_empty() {
         state.message("There is nothing here to pick up.");
         return ActionResult::NoTime;
     }
 
-    state.message("You pick up items.");
+    let mut picked_up = Vec::new();
+
+    // Remove each object from the level and add to inventory
+    for id in object_ids {
+        if let Some(obj) = state.current_level.remove_object(id) {
+            let name = obj.display_name();
+            state.add_to_inventory(obj);
+            picked_up.push(name);
+        }
+    }
+
+    if picked_up.is_empty() {
+        state.message("There is nothing here to pick up.");
+        return ActionResult::NoTime;
+    }
+
+    // Format pickup message
+    if picked_up.len() == 1 {
+        state.message(format!("You pick up {}.", picked_up[0]));
+    } else {
+        state.message(format!("You pick up {} items.", picked_up.len()));
+    }
+
     ActionResult::Success
 }
 
@@ -29,12 +56,18 @@ pub fn do_drop(state: &mut GameState, obj_letter: char) -> ActionResult {
         return ActionResult::Failed("You'll have to take that off first.".to_string());
     }
 
-    let obj_name = obj.name.clone().unwrap_or_else(|| "item".to_string());
-    state.message(format!("You drop the {}.", obj_name));
+    let obj_name = obj.display_name();
 
-    state.remove_from_inventory(obj_letter);
-
-    ActionResult::Success
+    // Remove from inventory and place on floor
+    if let Some(obj) = state.remove_from_inventory(obj_letter) {
+        let x = state.player.pos.x;
+        let y = state.player.pos.y;
+        state.current_level.add_object(obj, x, y);
+        state.message(format!("You drop {}.", obj_name));
+        ActionResult::Success
+    } else {
+        ActionResult::Failed("Failed to drop item.".to_string())
+    }
 }
 
 #[cfg(test)]
@@ -68,5 +101,58 @@ mod tests {
         let mut state = GameState::new(GameRng::from_entropy());
         let result = do_pickup(&mut state);
         assert!(matches!(result, ActionResult::NoTime));
+    }
+
+    #[test]
+    fn test_pickup_item_from_floor() {
+        let mut state = GameState::new(GameRng::from_entropy());
+        
+        // Place an item on the floor at player position
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Food;
+        obj.name = Some("apple".to_string());
+        let x = state.player.pos.x;
+        let y = state.player.pos.y;
+        state.current_level.add_object(obj, x, y);
+        
+        // Verify item is on floor
+        assert_eq!(state.current_level.objects_at(x, y).len(), 1);
+        assert!(state.inventory.is_empty());
+        
+        // Pick up
+        let result = do_pickup(&mut state);
+        assert!(matches!(result, ActionResult::Success));
+        
+        // Verify item moved to inventory
+        assert!(state.current_level.objects_at(x, y).is_empty());
+        assert_eq!(state.inventory.len(), 1);
+        assert_eq!(state.inventory[0].name, Some("apple".to_string()));
+    }
+
+    #[test]
+    fn test_drop_item_to_floor() {
+        let mut state = GameState::new(GameRng::from_entropy());
+        
+        // Add item to inventory
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Food;
+        obj.name = Some("bread".to_string());
+        state.add_to_inventory(obj);
+        
+        let letter = state.inventory[0].inv_letter;
+        let x = state.player.pos.x;
+        let y = state.player.pos.y;
+        
+        // Verify item is in inventory
+        assert_eq!(state.inventory.len(), 1);
+        assert!(state.current_level.objects_at(x, y).is_empty());
+        
+        // Drop
+        let result = do_drop(&mut state, letter);
+        assert!(matches!(result, ActionResult::Success));
+        
+        // Verify item moved to floor
+        assert!(state.inventory.is_empty());
+        assert_eq!(state.current_level.objects_at(x, y).len(), 1);
     }
 }

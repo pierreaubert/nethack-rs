@@ -345,4 +345,42 @@ impl Object {
         self.quantity += other.quantity;
         self.weight += other.weight;
     }
+
+    /// Get display name for the object
+    pub fn display_name(&self) -> String {
+        if let Some(ref name) = self.name {
+            if self.quantity > 1 {
+                format!("{} {}", self.quantity, name)
+            } else {
+                name.clone()
+            }
+        } else {
+            // Fallback to class name
+            let class_name = match self.class {
+                ObjectClass::Weapon => "weapon",
+                ObjectClass::Armor => "armor",
+                ObjectClass::Ring => "ring",
+                ObjectClass::Amulet => "amulet",
+                ObjectClass::Tool => "tool",
+                ObjectClass::Food => "food",
+                ObjectClass::Potion => "potion",
+                ObjectClass::Scroll => "scroll",
+                ObjectClass::Spellbook => "spellbook",
+                ObjectClass::Wand => "wand",
+                ObjectClass::Coin => "gold piece",
+                ObjectClass::Gem => "gem",
+                ObjectClass::Rock => "rock",
+                ObjectClass::Ball => "ball",
+                ObjectClass::Chain => "chain",
+                ObjectClass::Venom => "venom",
+                ObjectClass::Random => "strange object",
+                ObjectClass::IllObj => "strange object",
+            };
+            if self.quantity > 1 {
+                format!("{} {}s", self.quantity, class_name)
+            } else {
+                format!("a {}", class_name)
+            }
+        }
+    }
 }

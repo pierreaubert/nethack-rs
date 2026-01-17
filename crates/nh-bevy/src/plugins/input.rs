@@ -2,6 +2,7 @@
 
 use bevy::prelude::*;
 
+use crate::components::CameraMode;
 use crate::plugins::game::AppState;
 use crate::plugins::ui::direction::{DirectionAction, DirectionSelectState};
 use crate::plugins::ui::item_picker::{ItemPickerState, PickerAction};
@@ -35,6 +36,7 @@ fn keyboard_to_command(
     discoveries_state: Res<DiscoveriesState>,
     msg_history: Res<MessageHistory>,
     game_state: Res<GameStateResource>,
+    camera_mode: Res<State<CameraMode>>,
 ) {
     // Don't process game input when UI panels are active
     if inv_state.open
@@ -57,11 +59,11 @@ fn keyboard_to_command(
             .filter(|(_, item)| action.filter(item))
             .map(|(i, _)| i)
             .collect();
-            
+
         // If no items match, we could show a message, but for now just open empty or don't open?
         // Standard NetHack behavior: "You don't have anything to eat."
         if filtered.is_empty() {
-             // For now we just don't open, maybe log? 
+             // For now we just don't open, maybe log?
              // Ideally we'd show a flash message.
              // But let's open it anyway so user sees "No applicable items found"
         }
@@ -72,7 +74,28 @@ fn keyboard_to_command(
         picker_state.filtered_indices = filtered;
     };
 
-    // Vi-keys movement (hjklyubn)
+    // Transform direction based on camera mode for intuitive 3D movement
+    // In 3D views, the camera looks toward +Z (south in map terms), so we need to
+    // invert North/South and diagonal directions for arrow keys to feel natural
+    let transform_for_camera = |dir: Direction| -> Direction {
+        match camera_mode.get() {
+            CameraMode::TopDown | CameraMode::Isometric | CameraMode::ThirdPerson | CameraMode::FirstPerson => {
+                // In all 3D views, +Z is "forward" visually, which is South in map coords
+                // So we swap North↔South for intuitive up/down arrow behavior
+                match dir {
+                    Direction::North => Direction::South,
+                    Direction::South => Direction::North,
+                    Direction::NorthEast => Direction::SouthEast,
+                    Direction::NorthWest => Direction::SouthWest,
+                    Direction::SouthEast => Direction::NorthEast,
+                    Direction::SouthWest => Direction::NorthWest,
+                    other => other,
+                }
+            }
+        }
+    };
+
+    // Vi-keys movement (hjklyubn) - keep original mapping for roguelike purists
     let direction = if input.just_pressed(KeyCode::KeyH) {
         Some(Direction::West)
     } else if input.just_pressed(KeyCode::KeyJ) {
@@ -90,11 +113,11 @@ fn keyboard_to_command(
     } else if input.just_pressed(KeyCode::KeyN) {
         Some(Direction::SouthEast)
     }
-    // Arrow keys
+    // Arrow keys - transform for camera-relative movement
     else if input.just_pressed(KeyCode::ArrowUp) {
-        Some(Direction::North)
+        Some(transform_for_camera(Direction::North))
     } else if input.just_pressed(KeyCode::ArrowDown) {
-        Some(Direction::South)
+        Some(transform_for_camera(Direction::South))
     } else if input.just_pressed(KeyCode::ArrowLeft) {
         Some(Direction::West)
     } else if input.just_pressed(KeyCode::ArrowRight) {

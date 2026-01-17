@@ -1,12 +1,14 @@
 //! Level generation (mklev.c, mkroom.c)
 //!
 //! Generates dungeon levels with rooms and corridors.
+//! Uses the rectangle system (rect.c) for efficient room placement.
 
 use crate::monster::{Monster, MonsterId};
 use crate::rng::GameRng;
 use crate::{COLNO, ROWNO};
 
 use super::corridor::generate_corridors;
+use super::rect::{NhRect, RectManager};
 use super::room::{Room, RoomType};
 use super::shop::populate_shop;
 use super::special_rooms::{is_vault, needs_population, populate_special_room, populate_vault};
@@ -122,6 +124,15 @@ pub fn generate_rooms_and_corridors(level: &mut Level, rng: &mut GameRng) {
 
     // Place monsters
     place_monsters(level, &rooms, rng);
+
+    // Place traps
+    place_traps(level, &rooms, rng);
+
+    // Place fountains, sinks, and altars
+    place_dungeon_features(level, &rooms, rng);
+
+    // Place branch entrances if this level has one
+    place_branch_entrance(level, &rooms, rng);
 }
 
 /// Place doors at room entrances
@@ -320,7 +331,7 @@ fn place_monsters(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
             0
         };
 
-        let room = rooms[room_idx];
+        let room = &rooms[room_idx];
         let (x, y) = room.random_point(rng);
 
         // Check if position is empty
@@ -501,6 +512,615 @@ fn set_level_flags_for_room(flags: &mut LevelFlags, room_type: RoomType) {
         _ if room_type.is_shop() => flags.has_shop = true,
         _ => {}
     }
+}
+
+/// Place traps in the level
+/// Matches C's mktrap() logic from mklev.c
+fn place_traps(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
+    use super::Trap;
+
+    if rooms.is_empty() {
+        return;
+    }
+
+    let depth = level.dlevel.depth();
+
+    // Number of traps: rnd(depth) at depth 1-3, rnd(depth)-1 at depth 4+
+    // Minimum 0, maximum ~10
+    let num_traps = if depth <= 3 {
+        rng.rnd(depth.max(1) as u32) as usize
+    } else {
+        rng.rnd(depth as u32).saturating_sub(1) as usize
+    };
+
+    let num_traps = num_traps.min(10);
+
+    for _ in 0..num_traps {
+        // Pick a random room (avoid first room with stairs)
+        let room_idx = if rooms.len() > 1 {
+            rng.rn2(rooms.len() as u32 - 1) as usize + 1
+        } else {
+            0
+        };
+
+        let room = &rooms[room_idx];
+        let (x, y) = room.random_point(rng);
+
+        // Don't place trap on stairs or existing trap
+        if level.cells[x][y].typ == CellType::Stairs {
+            continue;
+        }
+        if level.traps.iter().any(|t| t.x == x as i8 && t.y == y as i8) {
+            continue;
+        }
+
+        // Select trap type based on depth
+        let trap_type = select_trap_type(depth, rng);
+
+        level.traps.push(Trap {
+            x: x as i8,
+            y: y as i8,
+            trap_type,
+            activated: false,
+            seen: false,
+        });
+    }
+}
+
+/// Select a trap type based on depth
+/// Matches C's rndtrap() from mklev.c
+fn select_trap_type(depth: i32, rng: &mut GameRng) -> super::TrapType {
+    use super::TrapType;
+
+    // Trap availability by depth (approximate C logic)
+    let available: Vec<TrapType> = match depth {
+        1..=3 => vec![
+            TrapType::Arrow,
+            TrapType::Dart,
+            TrapType::Pit,
+            TrapType::Squeaky,
+            TrapType::BearTrap,
+        ],
+        4..=7 => vec![
+            TrapType::Arrow,
+            TrapType::Dart,
+            TrapType::Pit,
+            TrapType::SpikedPit,
+            TrapType::Squeaky,
+            TrapType::BearTrap,
+            TrapType::SleepingGas,
+            TrapType::RustTrap,
+        ],
+        8..=12 => vec![
+            TrapType::Arrow,
+            TrapType::Dart,
+            TrapType::Pit,
+            TrapType::SpikedPit,
+            TrapType::BearTrap,
+            TrapType::SleepingGas,
+            TrapType::RustTrap,
+            TrapType::FireTrap,
+            TrapType::Teleport,
+            TrapType::RockFall,
+        ],
+        _ => vec![
+            TrapType::Arrow,
+            TrapType::Dart,
+            TrapType::Pit,
+            TrapType::SpikedPit,
+            TrapType::BearTrap,
+            TrapType::SleepingGas,
+            TrapType::FireTrap,
+            TrapType::Teleport,
+            TrapType::RockFall,
+            TrapType::LandMine,
+            TrapType::RollingBoulder,
+            TrapType::Hole,
+            TrapType::TrapDoor,
+            TrapType::Polymorph,
+            TrapType::MagicTrap,
+        ],
+    };
+
+    let idx = rng.rn2(available.len() as u32) as usize;
+    available[idx]
+}
+
+/// Place fountains, sinks, and altars
+/// Matches C's mkfount(), mksink(), mkaltar() from mklev.c
+fn place_dungeon_features(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
+    if rooms.is_empty() {
+        return;
+    }
+
+    let depth = level.dlevel.depth();
+
+    // Fountains: 1/3 chance per level, more common at lower depths
+    // C: rn2(depth) < 3 gives ~30% at depth 10
+    if rng.rn2(depth.max(1) as u32) < 2 {
+        let num_fountains = rng.rnd(2) as usize; // 1-2 fountains
+        for _ in 0..num_fountains {
+            if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
+                level.cells[x][y].typ = CellType::Fountain;
+                level.flags.fountain_count += 1;
+            }
+        }
+    }
+
+    // Sinks: 1/5 chance, only at depth 5+
+    if depth >= 5 && rng.one_in(5) {
+        if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
+            level.cells[x][y].typ = CellType::Sink;
+            level.flags.sink_count += 1;
+        }
+    }
+
+    // Altars: 1/6 chance at depth 3+, not in temples (temples have their own)
+    if depth >= 3 && rng.one_in(6) && !level.flags.has_temple {
+        if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
+            level.cells[x][y].typ = CellType::Altar;
+        }
+    }
+
+    // Graves: 1/8 chance at depth 5+
+    if depth >= 5 && rng.one_in(8) {
+        let num_graves = rng.rnd(3) as usize; // 1-3 graves
+        for _ in 0..num_graves {
+            if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
+                level.cells[x][y].typ = CellType::Grave;
+            }
+        }
+    }
+
+    // Gold piles: random gold scattered in rooms
+    // C: mkgold() places gold with amount based on depth
+    let num_gold_piles = rng.rnd(3) as usize; // 1-3 gold piles per level
+    for _ in 0..num_gold_piles {
+        if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
+            place_gold_pile(level, x, y, depth, rng);
+        }
+    }
+}
+
+/// Place a gold pile at a location
+fn place_gold_pile(level: &mut Level, x: usize, y: usize, depth: i32, rng: &mut GameRng) {
+    use crate::object::{Object, ObjectClass, ObjectId};
+
+    // Gold amount formula from C: rnd(10 + depth * 2) + 5
+    let amount = (rng.rnd((10 + depth * 2).max(1) as u32) + 5) as i32;
+
+    let mut gold = Object::new(ObjectId(0), 0, ObjectClass::Coin);
+    gold.quantity = amount;
+    gold.name = Some("gold piece".to_string());
+
+    level.add_object(gold, x as i8, y as i8);
+}
+
+/// Place branch entrance (stairs/portal to another dungeon branch)
+fn place_branch_entrance(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
+    use super::level::Stairway;
+    use super::topology::DungeonSystem;
+    use super::TrapType;
+
+    let dungeon_system = DungeonSystem::new();
+
+    // Check if this level has a branch entrance
+    if let Some(branch) = dungeon_system.get_branch_from(&level.dlevel) {
+        // Find a spot for the branch entrance
+        if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
+            // Place the entrance based on branch type
+            match branch.branch_type {
+                super::topology::BranchType::Stairs => {
+                    // Stairs to another branch
+                    level.cells[x][y].typ = CellType::Stairs;
+                    level.stairs.push(Stairway {
+                        x: x as i8,
+                        y: y as i8,
+                        destination: branch.end2,
+                        up: branch.end1_up,
+                    });
+                    level.flags.has_branch = true;
+                }
+                super::topology::BranchType::Portal => {
+                    // Magic portal
+                    level.add_trap(x as i8, y as i8, TrapType::MagicPortal);
+                    level.flags.has_branch = true;
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// Generate rooms using the rectangle system for efficient placement
+/// This is an alternative to the simple overlap-checking approach
+#[allow(dead_code)]
+pub fn generate_rooms_with_rects(level: &mut Level, rng: &mut GameRng) -> Vec<Room> {
+    let mut rect_mgr = RectManager::new(COLNO as u8, ROWNO as u8);
+    let mut rooms = Vec::new();
+    let num_rooms = (rng.rnd(4) + 5) as usize; // 6-9 rooms
+
+    for _ in 0..num_rooms {
+        // Try to find a position using the rectangle system
+        let width = (rng.rnd(7) + 2) as u8; // 3-9
+        let height = (rng.rnd(5) + 2) as u8; // 3-7
+
+        if let Some((_rect, x, y)) = rect_mgr.pick_room_position(width, height, rng) {
+            let room = Room::new(x as usize, y as usize, width as usize, height as usize);
+
+            // Carve the room
+            for rx in room.x..(room.x + room.width) {
+                for ry in room.y..(room.y + room.height) {
+                    level.cells[rx][ry].typ = CellType::Room;
+                    level.cells[rx][ry].lit = room.lit;
+                }
+            }
+
+            // Create walls around the room
+            for rx in room.x.saturating_sub(1)..=(room.x + room.width).min(COLNO - 1) {
+                for ry in room.y.saturating_sub(1)..=(room.y + room.height).min(ROWNO - 1) {
+                    let is_vertical_edge = rx == room.x.saturating_sub(1) || rx == room.x + room.width;
+                    let is_horizontal_edge = ry == room.y.saturating_sub(1) || ry == room.y + room.height;
+
+                    if is_vertical_edge && !is_horizontal_edge && level.cells[rx][ry].typ != CellType::Room {
+                        level.cells[rx][ry].typ = CellType::VWall;
+                    } else if is_horizontal_edge && !is_vertical_edge && level.cells[rx][ry].typ != CellType::Room {
+                        level.cells[rx][ry].typ = CellType::HWall;
+                    } else if is_vertical_edge && is_horizontal_edge && level.cells[rx][ry].typ != CellType::Room {
+                        level.cells[rx][ry].typ = CellType::TLCorner;
+                    }
+                }
+            }
+
+            // Split the rectangle to mark this space as used
+            let room_rect = NhRect::new(
+                x.saturating_sub(1),
+                y.saturating_sub(1),
+                x + width + 1,
+                y + height + 1,
+            );
+            rect_mgr.split_rects(&room_rect);
+
+            rooms.push(room);
+        }
+
+        if !rect_mgr.has_space() {
+            break;
+        }
+    }
+
+    rooms
+}
+
+/// Generate an irregular (non-rectangular) room
+#[allow(dead_code)]
+pub fn generate_irregular_room(level: &mut Level, x: usize, y: usize, max_w: usize, max_h: usize, rng: &mut GameRng) -> Room {
+    let mut room = Room::new(x, y, max_w, max_h);
+    room.irregular = true;
+
+    // Create an irregular shape by randomly removing corners and edges
+    let mut cells_to_carve: Vec<(usize, usize)> = Vec::new();
+
+    // Start with a rectangular base
+    for rx in x..(x + max_w).min(COLNO - 1) {
+        for ry in y..(y + max_h).min(ROWNO - 1) {
+            cells_to_carve.push((rx, ry));
+        }
+    }
+
+    // Randomly remove some cells from corners and edges
+    let remove_count = rng.rn2((max_w * max_h / 4) as u32) as usize;
+    for _ in 0..remove_count {
+        if cells_to_carve.len() <= max_w * max_h / 2 {
+            break; // Don't remove too many
+        }
+
+        // Prefer removing from edges
+        let idx = rng.rn2(cells_to_carve.len() as u32) as usize;
+        let (cx, cy) = cells_to_carve[idx];
+
+        // Only remove if it's on an edge
+        let is_edge = cx == x || cx == x + max_w - 1 || cy == y || cy == y + max_h - 1;
+        if is_edge {
+            cells_to_carve.swap_remove(idx);
+        }
+    }
+
+    // Carve the irregular room
+    for (rx, ry) in &cells_to_carve {
+        level.cells[*rx][*ry].typ = CellType::Room;
+        level.cells[*rx][*ry].lit = room.lit;
+    }
+
+    // Add walls around carved cells
+    for (rx, ry) in &cells_to_carve {
+        for dx in -1i32..=1 {
+            for dy in -1i32..=1 {
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
+                let wx = (*rx as i32 + dx) as usize;
+                let wy = (*ry as i32 + dy) as usize;
+                if wx < COLNO && wy < ROWNO && level.cells[wx][wy].typ == CellType::Stone {
+                    // Determine wall type
+                    if dx == 0 {
+                        level.cells[wx][wy].typ = CellType::HWall;
+                    } else if dy == 0 {
+                        level.cells[wx][wy].typ = CellType::VWall;
+                    } else {
+                        level.cells[wx][wy].typ = CellType::TLCorner;
+                    }
+                }
+            }
+        }
+    }
+
+    room
+}
+
+/// Create a subroom within an existing room
+#[allow(dead_code)]
+pub fn create_subroom(
+    level: &mut Level,
+    rooms: &mut Vec<Room>,
+    parent_idx: usize,
+    rng: &mut GameRng,
+) -> Option<usize> {
+    if parent_idx >= rooms.len() {
+        return None;
+    }
+
+    let parent = &rooms[parent_idx];
+
+    // Subroom must be smaller than parent
+    if parent.width < 5 || parent.height < 4 {
+        return None;
+    }
+
+    // Calculate subroom size (at least 2x2, at most half of parent)
+    let max_w = parent.width / 2;
+    let max_h = parent.height / 2;
+    if max_w < 2 || max_h < 2 {
+        return None;
+    }
+
+    let sub_w = 2 + rng.rn2((max_w - 1) as u32) as usize;
+    let sub_h = 2 + rng.rn2((max_h - 1) as u32) as usize;
+
+    // Position subroom within parent
+    let max_x = parent.x + parent.width - sub_w - 1;
+    let max_y = parent.y + parent.height - sub_h - 1;
+
+    if max_x <= parent.x || max_y <= parent.y {
+        return None;
+    }
+
+    let sub_x = parent.x + 1 + rng.rn2((max_x - parent.x) as u32) as usize;
+    let sub_y = parent.y + 1 + rng.rn2((max_y - parent.y) as u32) as usize;
+
+    // Create the subroom
+    let subroom = Room::new_subroom(sub_x, sub_y, sub_w, sub_h, parent_idx);
+    let subroom_idx = rooms.len();
+
+    // Carve subroom (it's already inside the parent, so just mark it)
+    // Subrooms typically have different properties (e.g., closets, alcoves)
+
+    // Add internal walls around subroom
+    for rx in sub_x.saturating_sub(1)..=(sub_x + sub_w).min(COLNO - 1) {
+        for ry in sub_y.saturating_sub(1)..=(sub_y + sub_h).min(ROWNO - 1) {
+            let is_edge_x = rx == sub_x.saturating_sub(1) || rx == sub_x + sub_w;
+            let is_edge_y = ry == sub_y.saturating_sub(1) || ry == sub_y + sub_h;
+
+            if (is_edge_x || is_edge_y) && !(rx >= sub_x && rx < sub_x + sub_w && ry >= sub_y && ry < sub_y + sub_h) {
+                // This is a wall position
+                if level.cells[rx][ry].typ == CellType::Room {
+                    level.cells[rx][ry].typ = CellType::VWall;
+                }
+            }
+        }
+    }
+
+    // Add a door to connect subroom to parent
+    let door_x = sub_x + sub_w / 2;
+    let door_y = sub_y.saturating_sub(1);
+    if door_y > 0 && level.cells[door_x][door_y].typ.is_wall() {
+        level.cells[door_x][door_y].typ = CellType::Door;
+    }
+
+    rooms.push(subroom);
+
+    // Update parent's subroom list
+    rooms[parent_idx].add_subroom(subroom_idx);
+
+    Some(subroom_idx)
+}
+
+/// Find an empty spot in a random room
+fn find_empty_room_spot(level: &Level, rooms: &[Room], rng: &mut GameRng) -> Option<(usize, usize)> {
+    if rooms.is_empty() {
+        return None;
+    }
+
+    // Try up to 20 times to find an empty spot
+    for _ in 0..20 {
+        let room_idx = rng.rn2(rooms.len() as u32) as usize;
+        let room = &rooms[room_idx];
+        let (x, y) = room.random_point(rng);
+
+        // Check if spot is empty floor
+        if level.cells[x][y].typ == CellType::Room
+            && level.monster_at(x as i8, y as i8).is_none()
+        {
+            return Some((x, y));
+        }
+    }
+
+    None
+}
+
+/// Create a niche (small wall alcove) in a room
+/// Niches can contain level teleporters, trapdoors, or iron bars
+#[allow(dead_code)]
+pub fn make_niche(level: &mut Level, rooms: &[Room], trap_type: Option<crate::dungeon::TrapType>, rng: &mut GameRng) -> bool {
+    if rooms.is_empty() {
+        return false;
+    }
+
+    // Try to find a suitable room
+    for _ in 0..8 {
+        let room_idx = rng.rn2(rooms.len() as u32) as usize;
+        let room = &rooms[room_idx];
+
+        // Only ordinary rooms
+        if room.room_type != RoomType::Ordinary {
+            continue;
+        }
+
+        // Find a wall position for the niche
+        if let Some((nx, ny, dir)) = find_niche_position(level, room, rng) {
+            // Create the niche alcove
+            level.cells[nx][ny].typ = CellType::Corridor;
+
+            // Add trap if specified
+            if let Some(trap) = trap_type {
+                level.add_trap(nx as i8, ny as i8, trap);
+            } else if rng.one_in(4) {
+                // 25% chance of iron bars
+                level.cells[nx][ny].typ = CellType::IronBars;
+            }
+
+            // Add secret door to hide the niche
+            let door_x = match dir {
+                0 | 1 => nx,
+                2 => nx + 1,
+                _ => nx.saturating_sub(1),
+            };
+            let door_y = match dir {
+                0 => ny + 1,
+                1 => ny.saturating_sub(1),
+                _ => ny,
+            };
+
+            if door_x < COLNO && door_y < ROWNO {
+                level.cells[door_x][door_y].typ = CellType::SecretDoor;
+            }
+
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Find a valid position for a niche in a room wall
+fn find_niche_position(level: &Level, room: &Room, rng: &mut GameRng) -> Option<(usize, usize, u8)> {
+    // Try each wall direction: 0=top, 1=bottom, 2=left, 3=right
+    let directions: Vec<u8> = vec![0, 1, 2, 3];
+
+    for _ in 0..10 {
+        let dir = directions[rng.rn2(4) as usize];
+
+        let (nx, ny) = match dir {
+            0 => {
+                // Top wall - niche goes up
+                let x = room.x + rng.rn2(room.width as u32) as usize;
+                let y = room.y.saturating_sub(2);
+                (x, y)
+            }
+            1 => {
+                // Bottom wall - niche goes down
+                let x = room.x + rng.rn2(room.width as u32) as usize;
+                let y = room.y + room.height + 1;
+                (x, y)
+            }
+            2 => {
+                // Left wall - niche goes left
+                let x = room.x.saturating_sub(2);
+                let y = room.y + rng.rn2(room.height as u32) as usize;
+                (x, y)
+            }
+            _ => {
+                // Right wall - niche goes right
+                let x = room.x + room.width + 1;
+                let y = room.y + rng.rn2(room.height as u32) as usize;
+                (x, y)
+            }
+        };
+
+        // Check if position is valid (stone)
+        if nx > 0 && nx < COLNO - 1 && ny > 0 && ny < ROWNO - 1 {
+            if level.cells[nx][ny].typ == CellType::Stone {
+                return Some((nx, ny, dir));
+            }
+        }
+    }
+
+    None
+}
+
+/// Create niches on a level (called during level generation)
+#[allow(dead_code)]
+pub fn make_niches(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
+    use super::TrapType;
+
+    // Create 1-3 niches
+    let num_niches = 1 + rng.rn2(3) as usize;
+
+    for i in 0..num_niches {
+        let trap_type = if i == 0 && rng.one_in(3) {
+            Some(TrapType::Teleport) // Level teleporter
+        } else if rng.one_in(4) {
+            Some(TrapType::TrapDoor) // Trapdoor
+        } else {
+            None
+        };
+
+        make_niche(level, rooms, trap_type, rng);
+    }
+}
+
+/// Create a vault teleporter (teleport trap leading into vault)
+#[allow(dead_code)]
+pub fn make_vault_teleporter(level: &mut Level, rooms: &[Room], rng: &mut GameRng) -> bool {
+    use super::TrapType;
+
+    // Find a vault room
+    let vault_room = rooms.iter().find(|r| r.room_type == RoomType::Vault);
+
+    if vault_room.is_none() {
+        return false;
+    }
+
+    // Create a niche with a teleport trap that leads to the vault
+    make_niche(level, rooms, Some(TrapType::Teleport), rng)
+}
+
+/// Create Knox portal (magic portal to Fort Ludios from a vault)
+#[allow(dead_code)]
+pub fn make_knox_portal(level: &mut Level, rooms: &[Room], rng: &mut GameRng) -> bool {
+    use super::TrapType;
+
+    // Find a vault room
+    let vault_room = rooms.iter().find(|r| r.room_type == RoomType::Vault);
+
+    if let Some(vault) = vault_room {
+        // Place magic portal in the vault
+        let px = vault.x + vault.width / 2;
+        let py = vault.y + vault.height / 2;
+
+        if px < COLNO && py < ROWNO {
+            level.add_trap(px as i8, py as i8, TrapType::MagicPortal);
+            return true;
+        }
+    }
+
+    // If no vault, try to place in a random room
+    if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
+        level.add_trap(x as i8, y as i8, TrapType::MagicPortal);
+        return true;
+    }
+
+    false
 }
 
 #[cfg(test)]
@@ -700,5 +1320,148 @@ mod tests {
         // Note: This test may occasionally fail if RNG doesn't produce a morgue
         // That's acceptable as it's probabilistic
         println!("Found dark cell in morgue: {}", found_dark_cell);
+    }
+
+    #[test]
+    fn test_trap_generation() {
+        let mut rng = GameRng::new(42);
+        let dlevel = DLevel {
+            dungeon_num: 0,
+            level_num: 10, // Deep enough for varied traps
+        };
+        let mut level = Level::new(dlevel);
+
+        generate_rooms_and_corridors(&mut level, &mut rng);
+
+        // Should have some traps at depth 10
+        println!("Generated {} traps at depth 10", level.traps.len());
+
+        // Traps should be in valid positions
+        for trap in &level.traps {
+            assert!(trap.x >= 0 && trap.x < COLNO as i8);
+            assert!(trap.y >= 0 && trap.y < ROWNO as i8);
+        }
+    }
+
+    #[test]
+    fn test_trap_type_by_depth() {
+        let mut rng = GameRng::new(42);
+
+        // Shallow depth should only get basic traps
+        let shallow_traps: Vec<_> = (0..100)
+            .map(|_| select_trap_type(2, &mut rng))
+            .collect();
+
+        // Should not have advanced traps at depth 2
+        use super::super::TrapType;
+        assert!(
+            !shallow_traps.contains(&TrapType::LandMine),
+            "LandMine should not appear at depth 2"
+        );
+        assert!(
+            !shallow_traps.contains(&TrapType::Polymorph),
+            "Polymorph trap should not appear at depth 2"
+        );
+
+        // Deep depth should have variety - count unique trap names
+        let deep_traps: Vec<_> = (0..100)
+            .map(|_| select_trap_type(20, &mut rng))
+            .collect();
+
+        // Count unique types by comparing with each other
+        let mut unique_count = 0;
+        for (i, trap) in deep_traps.iter().enumerate() {
+            if !deep_traps[..i].contains(trap) {
+                unique_count += 1;
+            }
+        }
+        assert!(
+            unique_count > 5,
+            "Deep levels should have trap variety, got {} types",
+            unique_count
+        );
+    }
+
+    #[test]
+    fn test_dungeon_features_generation() {
+        // Generate multiple levels to check feature placement
+        let mut fountain_count = 0;
+        let mut sink_count = 0;
+        let mut altar_count = 0;
+        let mut grave_count = 0;
+        let mut gold_count = 0;
+
+        for seed in 0..50 {
+            let mut rng = GameRng::new(seed);
+            let dlevel = DLevel {
+                dungeon_num: 0,
+                level_num: 10,
+            };
+            let mut level = Level::new(dlevel);
+
+            generate_rooms_and_corridors(&mut level, &mut rng);
+
+            // Count features
+            for x in 0..COLNO {
+                for y in 0..ROWNO {
+                    match level.cells[x][y].typ {
+                        CellType::Fountain => fountain_count += 1,
+                        CellType::Sink => sink_count += 1,
+                        CellType::Altar => altar_count += 1,
+                        CellType::Grave => grave_count += 1,
+                        _ => {}
+                    }
+                }
+            }
+
+            // Count gold piles
+            gold_count += level
+                .objects
+                .iter()
+                .filter(|o| o.class == crate::object::ObjectClass::Coin)
+                .count();
+        }
+
+        println!("Over 50 levels at depth 10:");
+        println!("  Fountains: {}", fountain_count);
+        println!("  Sinks: {}", sink_count);
+        println!("  Altars: {}", altar_count);
+        println!("  Graves: {}", grave_count);
+        println!("  Gold piles: {}", gold_count);
+
+        // Should have generated some of each feature type
+        assert!(fountain_count > 0, "Should generate fountains");
+        assert!(gold_count > 0, "Should generate gold piles");
+    }
+
+    #[test]
+    fn test_gold_pile_amounts() {
+        let mut rng = GameRng::new(42);
+
+        // Test at different depths
+        for depth in [1, 5, 10, 20] {
+            let dlevel = DLevel {
+                dungeon_num: 0,
+                level_num: depth,
+            };
+            let mut level = Level::new(dlevel);
+
+            generate_rooms_and_corridors(&mut level, &mut rng);
+
+            let gold_piles: Vec<_> = level
+                .objects
+                .iter()
+                .filter(|o| o.class == crate::object::ObjectClass::Coin)
+                .collect();
+
+            if !gold_piles.is_empty() {
+                let avg_amount: i32 =
+                    gold_piles.iter().map(|g| g.quantity).sum::<i32>() / gold_piles.len() as i32;
+                println!("Depth {}: {} gold piles, avg {} gold", depth, gold_piles.len(), avg_amount);
+
+                // Gold amounts should scale with depth
+                assert!(avg_amount > 0, "Gold piles should have positive amounts");
+            }
+        }
     }
 }

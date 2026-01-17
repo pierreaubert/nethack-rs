@@ -184,8 +184,8 @@ fn spawn_entities_internal(
         }
     }
 
-    // Spawn floor objects (still billboards)
-    spawn_floor_objects(commands, state);
+    // Spawn floor objects as 3D models
+    spawn_floor_objects(commands, state, meshes, materials);
 }
 
 // spawn_monsters function is removed as it is integrated into spawn_entities_internal
@@ -369,10 +369,16 @@ fn spawn_allegiance_indicator(
     ));
 }
 
-fn spawn_floor_objects(commands: &mut Commands, state: &nh_core::GameState) {
+fn spawn_floor_objects(
+    commands: &mut Commands,
+    state: &nh_core::GameState,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) {
     use std::collections::HashMap;
 
     let level = &state.current_level;
+    let mut model_builder = ModelBuilder::new(meshes, materials);
 
     // Group objects by position to detect piles
     let mut objects_by_pos: HashMap<(i8, i8), Vec<&nh_core::object::Object>> = HashMap::new();
@@ -388,90 +394,29 @@ fn spawn_floor_objects(commands: &mut Commands, state: &nh_core::GameState) {
 
     for ((x, y), objects) in objects_by_pos {
         let map_pos = MapPosition { x, y };
-        // Objects render slightly lower than monsters/player
-        let world_pos = map_pos.to_world() + Vec3::Y * 0.25;
+        let world_pos = map_pos.to_world();
 
         if objects.len() == 1 {
-            // Single object - show its symbol
+            // Single object - spawn 3D model
             let obj = objects[0];
-            let (symbol, color) = object_symbol_and_color(obj);
+            let entity = model_builder.spawn_object(commands, obj, Transform::from_translation(world_pos));
 
-            commands.spawn((
+            // Add marker components to the spawned entity
+            commands.entity(entity).insert((
                 FloorObjectMarker { object_id: obj.id },
-                Billboard,
                 map_pos,
-                Text2d::new(symbol.to_string()),
-                TextFont {
-                    font_size: 48.0,
-                    ..default()
-                },
-                TextColor(color),
-                Transform::from_translation(world_pos).with_scale(Vec3::splat(0.015)),
-                Anchor::Center,
             ));
         } else {
-            // Multiple objects - show pile indicator
-            commands.spawn((
+            // Multiple objects - spawn pile indicator
+            let entity = model_builder.spawn_pile(commands, objects.len(), Transform::from_translation(world_pos));
+
+            // Add marker components
+            commands.entity(entity).insert((
                 PileMarker { x, y },
-                Billboard,
                 map_pos,
-                Text2d::new(format!("({})", objects.len())),
-                TextFont {
-                    font_size: 40.0,
-                    ..default()
-                },
-                TextColor(Color::srgb(1.0, 0.8, 0.2)), // Gold color for piles
-                Transform::from_translation(world_pos).with_scale(Vec3::splat(0.015)),
-                Anchor::Center,
             ));
         }
     }
-}
-
-fn object_symbol_and_color(obj: &nh_core::object::Object) -> (char, Color) {
-    use nh_core::object::ObjectClass;
-
-    let symbol = match obj.class {
-        ObjectClass::Weapon => ')',
-        ObjectClass::Armor => '[',
-        ObjectClass::Ring => '=',
-        ObjectClass::Amulet => '"',
-        ObjectClass::Tool => '(',
-        ObjectClass::Food => '%',
-        ObjectClass::Potion => '!',
-        ObjectClass::Scroll => '?',
-        ObjectClass::Spellbook => '+',
-        ObjectClass::Wand => '/',
-        ObjectClass::Coin => '$',
-        ObjectClass::Gem => '*',
-        ObjectClass::Rock => '*',
-        ObjectClass::Ball => '0',
-        ObjectClass::Chain => '_',
-        ObjectClass::Venom => '.',
-        ObjectClass::Random | ObjectClass::IllObj => '?',
-    };
-
-    let color = match obj.class {
-        ObjectClass::Weapon => Color::srgb(0.7, 0.7, 0.8),
-        ObjectClass::Armor => Color::srgb(0.6, 0.6, 0.8),
-        ObjectClass::Ring => Color::srgb(1.0, 0.84, 0.0),
-        ObjectClass::Amulet => Color::srgb(1.0, 0.65, 0.0),
-        ObjectClass::Tool => Color::srgb(0.55, 0.35, 0.17),
-        ObjectClass::Food => Color::srgb(0.55, 0.27, 0.07),
-        ObjectClass::Potion => Color::srgb(1.0, 0.4, 0.7),
-        ObjectClass::Scroll => Color::srgb(0.96, 0.96, 0.86),
-        ObjectClass::Spellbook => Color::srgb(0.54, 0.17, 0.89),
-        ObjectClass::Wand => Color::srgb(0.0, 0.75, 1.0),
-        ObjectClass::Coin => Color::srgb(1.0, 0.84, 0.0),
-        ObjectClass::Gem => Color::srgb(0.0, 1.0, 1.0),
-        ObjectClass::Rock => Color::srgb(0.5, 0.5, 0.5),
-        ObjectClass::Ball => Color::srgb(0.4, 0.4, 0.4),
-        ObjectClass::Chain => Color::srgb(0.75, 0.75, 0.75),
-        ObjectClass::Venom => Color::srgb(0.0, 0.5, 0.0),
-        ObjectClass::Random | ObjectClass::IllObj => Color::srgb(1.0, 0.0, 1.0),
-    };
-
-    (symbol, color)
 }
 
 fn billboard_face_camera(
@@ -568,6 +513,8 @@ fn sync_floor_objects(
     existing_objects: Query<Entity, With<FloorObjectMarker>>,
     existing_piles: Query<Entity, With<PileMarker>>,
     mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Only sync when game state changes
     if !game_state.is_changed() {
@@ -583,8 +530,8 @@ fn sync_floor_objects(
         commands.entity(entity).despawn_recursive();
     }
 
-    // Respawn floor objects
-    spawn_floor_objects(&mut commands, &game_state.0);
+    // Respawn floor objects as 3D models
+    spawn_floor_objects(&mut commands, &game_state.0, &mut meshes, &mut materials);
 }
 
 /// Update monster indicators (health bars, status effects) when game state changes
