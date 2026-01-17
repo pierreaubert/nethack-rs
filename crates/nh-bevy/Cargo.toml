@@ -1,0 +1,21 @@
+[package]
+name = "nh-bevy"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "nh-bevy"
+path = "src/main.rs"
+
+[dependencies]
+# Internal crates
+nh-core = { path = "../nh-core" }
+nh-data = { path = "../nh-data" }
+nh-save = { path = "../nh-save" }
+
+# Bevy
+bevy = { version = "0.15", features = ["dynamic_linking"] }
+bevy_egui = "0.31"
+
+# Utilities
+fastrand = "2.0"

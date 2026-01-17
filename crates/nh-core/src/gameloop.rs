@@ -150,6 +150,37 @@ impl GameState {
     pub fn inventory_weight(&self) -> u32 {
         self.inventory.iter().map(|o| o.weight * o.quantity as u32).sum()
     }
+
+    /// Calculate total armor class from worn equipment and dexterity
+    /// NetHack AC: base 10, lower is better
+    /// Armor bonus is subtracted, dexterity bonus is added (negative for good dex)
+    pub fn calculate_armor_class(&self) -> i8 {
+        const BASE_AC: i8 = 10;
+
+        // Sum AC from all worn armor pieces
+        let armor_ac: i32 = self
+            .inventory
+            .iter()
+            .filter(|obj| obj.is_worn() && obj.is_armor())
+            .map(|obj| obj.effective_ac() as i32)
+            .sum();
+
+        // Dexterity bonus (negative = better AC)
+        let dex_bonus = self.player.attr_current.dexterity_ac_bonus();
+
+        // Calculate final AC: base - armor protection + dex bonus
+        // armor_ac is how much protection we have (positive = good)
+        // dex_bonus is -4 to +3 (negative = better)
+        let ac = BASE_AC as i32 - armor_ac + dex_bonus as i32;
+
+        // Clamp to i8 range
+        ac.clamp(-128, 127) as i8
+    }
+
+    /// Update player's armor class based on current equipment
+    pub fn update_armor_class(&mut self) {
+        self.player.armor_class = self.calculate_armor_class();
+    }
 }
 
 /// Game loop controller
@@ -693,5 +724,158 @@ impl GameLoop {
         if state.turns % energy_rate as u64 == 0 && state.player.energy < state.player.energy_max {
             state.player.energy += 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::object::{ObjectClass, ObjectId};
+    use crate::player::Attribute;
+
+    /// Create a test state with normal dexterity (10) for neutral AC bonus
+    fn test_state() -> GameState {
+        let mut state = GameState::default();
+        // Set dexterity to 10 for neutral AC bonus (0)
+        state.player.attr_current.set(Attribute::Dexterity, 10);
+        state
+    }
+
+    #[test]
+    fn test_base_armor_class() {
+        let state = test_state();
+        // Base AC should be 10 when no armor is worn
+        // Dexterity 10 gives +0 bonus
+        assert_eq!(state.calculate_armor_class(), 10);
+    }
+
+    #[test]
+    fn test_armor_class_with_dexterity() {
+        let mut state = test_state();
+
+        // High dexterity (18+) gives -4 AC bonus
+        state.player.attr_current.set(Attribute::Dexterity, 18);
+        assert_eq!(state.calculate_armor_class(), 6); // 10 - 0 + (-4) = 6
+
+        // Low dexterity (3) gives +3 AC penalty
+        state.player.attr_current.set(Attribute::Dexterity, 3);
+        assert_eq!(state.calculate_armor_class(), 13); // 10 - 0 + 3 = 13
+    }
+
+    #[test]
+    fn test_armor_class_with_worn_armor() {
+        let mut state = test_state();
+
+        // Create a piece of armor with base AC 3 (like plate mail)
+        let mut armor = Object::new(ObjectId(1), 0, ObjectClass::Armor);
+        armor.base_ac = 3;
+        armor.worn_mask = 1; // Mark as worn
+        armor.inv_letter = 'a';
+
+        state.inventory.push(armor);
+
+        // AC should be 10 - 3 = 7 (with neutral dex)
+        assert_eq!(state.calculate_armor_class(), 7);
+    }
+
+    #[test]
+    fn test_armor_class_with_enchanted_armor() {
+        let mut state = test_state();
+
+        // Create +2 armor with base AC 3
+        let mut armor = Object::new(ObjectId(1), 0, ObjectClass::Armor);
+        armor.base_ac = 3;
+        armor.enchantment = 2;
+        armor.worn_mask = 1;
+        armor.inv_letter = 'a';
+
+        state.inventory.push(armor);
+
+        // AC should be 10 - (3 + 2) = 5
+        assert_eq!(state.calculate_armor_class(), 5);
+    }
+
+    #[test]
+    fn test_armor_class_with_eroded_armor() {
+        let mut state = test_state();
+
+        // Create rusted armor (erosion1 = 2)
+        let mut armor = Object::new(ObjectId(1), 0, ObjectClass::Armor);
+        armor.base_ac = 3;
+        armor.erosion1 = 2;
+        armor.worn_mask = 1;
+        armor.inv_letter = 'a';
+
+        state.inventory.push(armor);
+
+        // AC should be 10 - (3 - 2) = 9
+        assert_eq!(state.calculate_armor_class(), 9);
+    }
+
+    #[test]
+    fn test_armor_class_multiple_pieces() {
+        let mut state = test_state();
+
+        // Armor: base AC 3
+        let mut suit = Object::new(ObjectId(1), 0, ObjectClass::Armor);
+        suit.base_ac = 3;
+        suit.worn_mask = 1;
+        suit.inv_letter = 'a';
+        state.inventory.push(suit);
+
+        // Shield: base AC 1
+        let mut shield = Object::new(ObjectId(2), 0, ObjectClass::Armor);
+        shield.base_ac = 1;
+        shield.worn_mask = 2;
+        shield.inv_letter = 'b';
+        state.inventory.push(shield);
+
+        // Helm: base AC 1
+        let mut helm = Object::new(ObjectId(3), 0, ObjectClass::Armor);
+        helm.base_ac = 1;
+        helm.worn_mask = 4;
+        helm.inv_letter = 'c';
+        state.inventory.push(helm);
+
+        // AC should be 10 - (3 + 1 + 1) = 5
+        assert_eq!(state.calculate_armor_class(), 5);
+    }
+
+    #[test]
+    fn test_unworn_armor_not_counted() {
+        let mut state = test_state();
+
+        // Create armor that's in inventory but not worn
+        let mut armor = Object::new(ObjectId(1), 0, ObjectClass::Armor);
+        armor.base_ac = 5;
+        armor.worn_mask = 0; // Not worn
+        armor.inv_letter = 'a';
+
+        state.inventory.push(armor);
+
+        // AC should still be 10 (armor not worn)
+        assert_eq!(state.calculate_armor_class(), 10);
+    }
+
+    #[test]
+    fn test_update_armor_class() {
+        let mut state = test_state();
+        state.update_armor_class();
+
+        // Initial AC should be 10 (no armor, neutral dex)
+        assert_eq!(state.player.armor_class, 10);
+
+        // Add some armor
+        let mut armor = Object::new(ObjectId(1), 0, ObjectClass::Armor);
+        armor.base_ac = 4;
+        armor.worn_mask = 1;
+        armor.inv_letter = 'a';
+        state.inventory.push(armor);
+
+        // Update AC
+        state.update_armor_class();
+
+        // AC should now be 6
+        assert_eq!(state.player.armor_class, 6);
     }
 }

@@ -793,6 +793,31 @@ pub static ARTIFACTS: &[Artifact] = &[
         cost: 4000,
         color: NO_COLOR,
     },
+    // The Palantir of Westernesse - Ranger's alternate quest artifact (for elves)
+    Artifact {
+        name: "The Palantir of Westernesse",
+        otyp: ObjectType::CrystalBall,
+        spfx: spfx(&[
+            ArtifactFlags::NOGEN,
+            ArtifactFlags::RESTR,
+            ArtifactFlags::INTEL,
+        ]),
+        cspfx: spfx(&[
+            ArtifactFlags::ESP,
+            ArtifactFlags::REGEN,
+            ArtifactFlags::HSPDAM,
+        ]),
+        mtype: 0,
+        attk: NO_ATTK,
+        defn: NO_ATTK,
+        cary: NO_ATTK,
+        inv_prop: InvokeProperty::Taming,
+        alignment: Alignment::Chaotic,
+        role: NON_PM,
+        race: PM_ELF,
+        cost: 8000,
+        color: NO_COLOR,
+    },
     // The Master Key of Thievery - Rogue's quest artifact
     Artifact {
         name: "The Master Key of Thievery",

@@ -6,6 +6,8 @@ members = [
     "crates/nh-ui",
     "crates/nh-save",
     "crates/nethack",
+    "crates/nh-test-compare",
+    "crates/nh-bevy",
 ]
 
 [workspace.package]

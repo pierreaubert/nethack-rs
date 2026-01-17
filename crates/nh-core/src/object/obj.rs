@@ -167,6 +167,19 @@ pub struct Object {
 
     /// Unpaid flag
     pub unpaid: bool,
+
+    /// Base AC value (for armor, set from ObjClassDef.bonus)
+    /// In NetHack, lower AC is better. Base is 10, this is subtracted.
+    pub base_ac: i8,
+
+    /// Weapon damage dice (number of dice, from ObjClassDef.w_small_damage or w_large_damage)
+    pub damage_dice: u8,
+
+    /// Weapon damage sides (sides per die)
+    pub damage_sides: u8,
+
+    /// Weapon to-hit bonus (from ObjClassDef.bonus for weapons)
+    pub weapon_tohit: i8,
 }
 
 impl Default for Object {
@@ -207,6 +220,10 @@ impl Default for Object {
             name: None,
             shop_price: 0,
             unpaid: false,
+            base_ac: 0,
+            damage_dice: 0,
+            damage_sides: 0,
+            weapon_tohit: 0,
         }
     }
 }
@@ -280,6 +297,24 @@ impl Object {
     /// Get effective enchantment (accounting for erosion)
     pub fn effective_enchantment(&self) -> i8 {
         self.enchantment - self.erosion() as i8
+    }
+
+    /// Check if this is armor
+    pub const fn is_armor(&self) -> bool {
+        matches!(self.class, ObjectClass::Armor)
+    }
+
+    /// Get effective AC contribution for armor
+    /// Returns the AC bonus this armor provides (higher = more protection)
+    /// Accounts for base AC, enchantment, and erosion
+    pub fn effective_ac(&self) -> i8 {
+        if !self.is_armor() {
+            return 0;
+        }
+        // base_ac is the base protection
+        // enchantment improves it (positive = better)
+        // erosion degrades it (each point of erosion reduces AC by 1)
+        self.base_ac + self.enchantment - self.erosion() as i8
     }
 
     /// Check if can merge with another object

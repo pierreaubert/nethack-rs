@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
+use super::MonsterResistances;
 use crate::combat::AttackSet;
 use crate::object::Object;
 
@@ -189,6 +190,12 @@ pub struct Monster {
     /// Current alignment
     pub alignment: i8,
 
+    /// Armor class (from PerMonst, lower is better)
+    pub ac: i8,
+
+    /// Resistances (from PerMonst)
+    pub resistances: MonsterResistances,
+
     /// Hit points
     pub hp: i32,
     pub hp_max: i32,
@@ -262,6 +269,8 @@ impl Monster {
             movement: 0,
             level: 0,
             alignment: 0,
+            ac: 10, // Default AC, set from PerMonst when spawning
+            resistances: MonsterResistances::empty(), // Set from PerMonst when spawning
             hp: 1,
             hp_max: 1,
             state: MonsterState::active(),
@@ -332,5 +341,47 @@ impl Monster {
         let dx = (self.x - x).abs();
         let dy = (self.y - y).abs();
         dx <= 1 && dy <= 1 && (dx > 0 || dy > 0)
+    }
+
+    // Resistance checks
+
+    /// Check if monster has fire resistance
+    pub fn resists_fire(&self) -> bool {
+        self.resistances.contains(MonsterResistances::FIRE)
+    }
+
+    /// Check if monster has cold resistance
+    pub fn resists_cold(&self) -> bool {
+        self.resistances.contains(MonsterResistances::COLD)
+    }
+
+    /// Check if monster has sleep resistance
+    pub fn resists_sleep(&self) -> bool {
+        self.resistances.contains(MonsterResistances::SLEEP)
+    }
+
+    /// Check if monster has disintegration resistance
+    pub fn resists_disint(&self) -> bool {
+        self.resistances.contains(MonsterResistances::DISINT)
+    }
+
+    /// Check if monster has shock/electric resistance
+    pub fn resists_elec(&self) -> bool {
+        self.resistances.contains(MonsterResistances::ELEC)
+    }
+
+    /// Check if monster has poison resistance
+    pub fn resists_poison(&self) -> bool {
+        self.resistances.contains(MonsterResistances::POISON)
+    }
+
+    /// Check if monster has acid resistance
+    pub fn resists_acid(&self) -> bool {
+        self.resistances.contains(MonsterResistances::ACID)
+    }
+
+    /// Check if monster has stone/petrification resistance
+    pub fn resists_stone(&self) -> bool {
+        self.resistances.contains(MonsterResistances::STONE)
     }
 }

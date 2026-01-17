@@ -79,7 +79,7 @@ fn main() -> io::Result<()> {
 
 /// Create a new game with initial state
 fn create_new_game() -> GameState {
-    let mut rng = GameRng::from_entropy();
+    let rng = GameRng::from_entropy();
 
     // Create player
     let mut player = You::new(
@@ -108,7 +108,13 @@ fn create_new_game() -> GameState {
 
     // Create game state (includes generated level with basic monsters)
     let mut state = GameState::new(rng);
+    
+    // Preserve the spawn position from level generation
+    let spawn_pos = state.player.pos;
+    let spawn_prev = state.player.prev_pos;
     state.player = player;
+    state.player.pos = spawn_pos;
+    state.player.prev_pos = spawn_prev;
 
     // Populate monsters with actual data from nh-data
     populate_monster_data(&mut state.current_level, &mut state.rng);
