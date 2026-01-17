@@ -326,8 +326,7 @@ fn render_game_over_screen(
     mut contexts: EguiContexts,
     mut next_state: ResMut<NextState<AppState>>,
     mut exit: EventWriter<AppExit>,
-    game_state: Res<GameStateResource>,
-    mut game_state_mut: ResMut<GameStateResource>,
+    mut game_state: ResMut<GameStateResource>,
 ) {
     // Dark overlay
     egui::Area::new(egui::Id::new("game_over_bg"))
@@ -417,7 +416,7 @@ fn render_game_over_screen(
                     .clicked()
                 {
                     // Reset game state
-                    game_state_mut.0 = nh_core::GameState::default();
+                    game_state.0 = nh_core::GameState::default();
                     next_state.set(AppState::Playing);
                 }
 
@@ -428,7 +427,7 @@ fn render_game_over_screen(
                     .clicked()
                 {
                     // Reset game state
-                    game_state_mut.0 = nh_core::GameState::default();
+                    game_state.0 = nh_core::GameState::default();
                     next_state.set(AppState::MainMenu);
                 }
 

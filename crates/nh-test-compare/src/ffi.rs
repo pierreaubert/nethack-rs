@@ -19,7 +19,7 @@ pub struct Isaac64Ctx {
     pub c: u64,
 }
 
-extern "C" {
+unsafe extern "C" {
     /// Initialize ISAAC64 context with seed bytes
     pub fn isaac64_init(ctx: *mut Isaac64Ctx, seed: *const c_uchar, nseed: c_int);
 

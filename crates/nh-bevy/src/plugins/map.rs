@@ -9,14 +9,97 @@ pub struct MapPlugin;
 
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (setup_tile_assets, spawn_map).chain())
-            .add_systems(Update, (sync_door_states, animate_doors));
+        app.init_resource::<MapState>()
+            .add_systems(Startup, (setup_tile_assets, spawn_map).chain())
+            .add_systems(
+                Update,
+                (
+                    sync_door_states,
+                    animate_doors,
+                    check_level_change,
+                    animate_liquids,
+                ),
+            );
+    }
+}
+
+#[derive(Component)]
+struct LiquidEffect {
+    is_lava: bool,
+    base_alpha: f32,
+    phase_offset: f32,
+}
+
+#[derive(Resource, Default)]
+struct MapState {
+    current_dlevel: Option<nh_core::dungeon::DLevel>,
+}
+
+/// Animate water and lava materials
+fn animate_liquids(
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    query: Query<(&MeshMaterial3d<StandardMaterial>, &LiquidEffect)>,
+) {
+    let t = time.elapsed_secs();
+
+    for (handle, effect) in query.iter() {
+        if let Some(material) = materials.get_mut(handle) {
+            let phase = t + effect.phase_offset;
+            
+            if effect.is_lava {
+                // Pulse emissive for lava
+                let pulse = (phase * 2.0).sin() * 0.5 + 0.5; // 0..1
+                let intensity = 1.0 + pulse * 2.0; // 1..3
+                material.emissive = LinearRgba::new(1.0, 0.3 * intensity, 0.0, 1.0);
+            } else {
+                // Wave alpha for water
+                let wave = (phase * 1.5).sin() * 0.1;
+                let alpha = (effect.base_alpha + wave).clamp(0.0, 1.0);
+                material.base_color.set_alpha(alpha);
+            }
+        }
+    }
+}
+
+/// Check if level changed and respawn map
+fn check_level_change(
+    mut commands: Commands,
+    game_state: Res<GameStateResource>,
+    mut map_state: ResMut<MapState>,
+    tile_meshes: Res<TileMeshes>,
+    tile_materials: Res<TileMaterials>,
+    map_query: Query<Entity, With<TileMarker>>,
+) {
+    if !game_state.is_changed() {
+        return;
+    }
+
+    let current_dlevel = game_state.0.current_level.dlevel;
+
+    // Initialize on first run
+    if map_state.current_dlevel.is_none() {
+        map_state.current_dlevel = Some(current_dlevel);
+        return;
+    }
+
+    if map_state.current_dlevel != Some(current_dlevel) {
+        info!("Level changed from {:?} to {:?}", map_state.current_dlevel, current_dlevel);
+        
+        // Despawn old map
+        for entity in map_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
+
+        // Spawn new map
+        spawn_map_internal(&mut commands, &game_state.0.current_level, &tile_meshes, &tile_materials);
+        
+        // Update state
+        map_state.current_dlevel = Some(current_dlevel);
     }
 }
 
 /// Door height constants
-const DOOR_OPEN_HEIGHT: f32 = 0.2;
-const DOOR_CLOSED_HEIGHT: f32 = 0.8;
 const DOOR_ANIMATION_DURATION: f32 = 0.25;
 
 /// Tile mesh handles
@@ -126,7 +209,15 @@ pub fn spawn_map(
     tile_materials: Res<TileMaterials>,
 ) {
     let level = &game_state.0.current_level;
+    spawn_map_internal(&mut commands, level, &tile_meshes, &tile_materials);
+}
 
+fn spawn_map_internal(
+    commands: &mut Commands,
+    level: &nh_core::dungeon::Level,
+    tile_meshes: &TileMeshes,
+    tile_materials: &TileMaterials,
+) {
     // Spawn tiles for entire map
     for y in 0..nh_core::ROWNO {
         for x in 0..nh_core::COLNO {
@@ -136,7 +227,7 @@ pub fn spawn_map(
                 y: y as i8,
             };
 
-            spawn_tile(&mut commands, cell, map_pos, &tile_meshes, &tile_materials);
+            spawn_tile(commands, cell, map_pos, tile_meshes, tile_materials);
         }
     }
 
@@ -211,15 +302,24 @@ fn spawn_tile(
             ));
         }
 
-        // Door - variable height based on state
+        // Door - rotates based on state
         CellType::Door => {
             let door_state = cell.door_state();
             let is_open = door_state.contains(nh_core::dungeon::DoorState::OPEN);
-            let height = if is_open {
-                DOOR_OPEN_HEIGHT
-            } else {
-                DOOR_CLOSED_HEIGHT
-            };
+            
+            // Determine orientation: check if horizontal walls are adjacent
+            // Note: We don't have easy access to neighbors here without passing level ref
+            // For now, assume East-West if x is odd (checkerboard) as a hack, 
+            // or we could check neighbors if we passed 'level' to spawn_tile.
+            // Let's assume North-South (Z-axis aligned) by default, rotated 90 deg if East-West.
+            
+            // Better: defaulting to Z-axis aligned (North-South). 
+            // If it's open, it rotates 90 degrees relative to its frame.
+            
+            let base_rotation = Quat::IDENTITY; // Aligned with Z axis (North-South)
+            let open_rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+            
+            let rotation = if is_open { open_rotation } else { base_rotation };
 
             // Floor under door
             commands.spawn((
@@ -230,7 +330,7 @@ fn spawn_tile(
                 Transform::from_translation(world_pos),
             ));
 
-            // Door itself
+            // Door itself - thin slab
             commands.spawn((
                 TileMarker,
                 DoorMarker {
@@ -239,10 +339,11 @@ fn spawn_tile(
                     is_open,
                 },
                 map_pos,
-                Mesh3d(meshes.wall.clone()),
+                Mesh3d(meshes.wall.clone()), // Reusing wall mesh (cube)
                 MeshMaterial3d(materials.door.clone()),
-                Transform::from_translation(world_pos + Vec3::Y * height * 0.5)
-                    .with_scale(Vec3::new(1.0, height, 1.0)),
+                Transform::from_translation(world_pos + Vec3::Y * 0.5)
+                    .with_rotation(rotation)
+                    .with_scale(Vec3::new(0.2, 1.0, 1.0)), // Thin door
             ));
         }
 
@@ -262,6 +363,11 @@ fn spawn_tile(
             commands.spawn((
                 TileMarker,
                 map_pos,
+                LiquidEffect {
+                    is_lava: false,
+                    base_alpha: 0.7,
+                    phase_offset: (map_pos.x as f32 + map_pos.y as f32) * 0.5,
+                },
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(materials.water.clone()),
                 Transform::from_translation(world_pos - Vec3::Y * 0.3),
@@ -272,6 +378,11 @@ fn spawn_tile(
             commands.spawn((
                 TileMarker,
                 map_pos,
+                LiquidEffect {
+                    is_lava: true,
+                    base_alpha: 1.0,
+                    phase_offset: (map_pos.x as f32 + map_pos.y as f32) * 0.5,
+                },
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(materials.lava.clone()),
                 Transform::from_translation(world_pos - Vec3::Y * 0.2),
@@ -428,17 +539,17 @@ fn sync_door_states(
 
         if is_now_open != door.is_open {
             // Door state changed - trigger animation
-            let current_height = transform.scale.y;
-            let target_height = if is_now_open {
-                DOOR_OPEN_HEIGHT
+            let current_rotation = transform.rotation;
+            let target_rotation = if is_now_open {
+                Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)
             } else {
-                DOOR_CLOSED_HEIGHT
+                Quat::IDENTITY
             };
 
             commands.entity(entity).insert(DoorAnimation {
                 timer: Timer::from_seconds(DOOR_ANIMATION_DURATION, TimerMode::Once),
-                start_height: current_height,
-                target_height,
+                start_rotation: current_rotation,
+                target_rotation,
             });
 
             door.is_open = is_now_open;
@@ -450,21 +561,16 @@ fn sync_door_states(
 fn animate_doors(
     time: Res<Time>,
     mut commands: Commands,
-    mut door_query: Query<(Entity, &mut Transform, &MapPosition, &mut DoorAnimation)>,
+    mut door_query: Query<(Entity, &mut Transform, &mut DoorAnimation)>,
 ) {
-    for (entity, mut transform, map_pos, mut anim) in door_query.iter_mut() {
+    for (entity, mut transform, mut anim) in door_query.iter_mut() {
         anim.timer.tick(time.delta());
 
         let t = anim.timer.fraction();
         // Smooth ease-out interpolation
         let t = 1.0 - (1.0 - t).powi(2);
 
-        let height = anim.start_height + (anim.target_height - anim.start_height) * t;
-        transform.scale.y = height;
-
-        // Adjust Y position to keep door bottom on ground
-        let world_pos = map_pos.to_world();
-        transform.translation.y = world_pos.y + height * 0.5;
+        transform.rotation = anim.start_rotation.slerp(anim.target_rotation, t);
 
         if anim.timer.finished() {
             commands.entity(entity).remove::<DoorAnimation>();

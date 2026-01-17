@@ -87,34 +87,32 @@ impl SoundEffect {
     /// Get the asset path for this sound effect
     /// Returns None if the sound file doesn't exist yet
     pub fn asset_path(&self) -> Option<&'static str> {
-        // TODO: Add actual sound files to assets/sounds/
-        // For now, return None to indicate no sound file available
         match self {
-            SoundEffect::Footstep => None, // Some("sounds/footstep.ogg")
-            SoundEffect::FootstepWater => None,
-            SoundEffect::FootstepStone => None,
-            SoundEffect::Hit => None,
-            SoundEffect::Miss => None,
-            SoundEffect::CriticalHit => None,
-            SoundEffect::PlayerHurt => None,
-            SoundEffect::MonsterDeath => None,
-            SoundEffect::PlayerDeath => None,
-            SoundEffect::Pickup => None,
-            SoundEffect::Drop => None,
-            SoundEffect::Equip => None,
-            SoundEffect::Unequip => None,
-            SoundEffect::Eat => None,
-            SoundEffect::Drink => None,
-            SoundEffect::DoorOpen => None,
-            SoundEffect::DoorClose => None,
-            SoundEffect::DoorLocked => None,
-            SoundEffect::StairsUp => None,
-            SoundEffect::StairsDown => None,
-            SoundEffect::MenuSelect => None,
-            SoundEffect::MenuBack => None,
-            SoundEffect::LevelUp => None,
-            SoundEffect::SecretFound => None,
-            SoundEffect::TrapTriggered => None,
+            SoundEffect::Footstep => Some("sounds/footstep.ogg"),
+            SoundEffect::FootstepWater => Some("sounds/footstep_water.ogg"),
+            SoundEffect::FootstepStone => Some("sounds/footstep_stone.ogg"),
+            SoundEffect::Hit => Some("sounds/hit.ogg"),
+            SoundEffect::Miss => Some("sounds/miss.ogg"),
+            SoundEffect::CriticalHit => Some("sounds/critical.ogg"),
+            SoundEffect::PlayerHurt => Some("sounds/hurt.ogg"),
+            SoundEffect::MonsterDeath => Some("sounds/monster_death.ogg"),
+            SoundEffect::PlayerDeath => Some("sounds/player_death.ogg"),
+            SoundEffect::Pickup => Some("sounds/pickup.ogg"),
+            SoundEffect::Drop => Some("sounds/drop.ogg"),
+            SoundEffect::Equip => Some("sounds/equip.ogg"),
+            SoundEffect::Unequip => Some("sounds/equip.ogg"),
+            SoundEffect::Eat => Some("sounds/eat.ogg"),
+            SoundEffect::Drink => Some("sounds/drink.ogg"),
+            SoundEffect::DoorOpen => Some("sounds/door_open.ogg"),
+            SoundEffect::DoorClose => Some("sounds/door_close.ogg"),
+            SoundEffect::DoorLocked => Some("sounds/door_close.ogg"),
+            SoundEffect::StairsUp => Some("sounds/stairs.ogg"),
+            SoundEffect::StairsDown => Some("sounds/stairs.ogg"),
+            SoundEffect::MenuSelect => Some("sounds/menu_select.ogg"),
+            SoundEffect::MenuBack => Some("sounds/menu_back.ogg"),
+            SoundEffect::LevelUp => Some("sounds/level_up.ogg"),
+            SoundEffect::SecretFound => Some("sounds/secret.ogg"),
+            SoundEffect::TrapTriggered => Some("sounds/trap.ogg"),
         }
     }
 }
@@ -122,25 +120,21 @@ impl SoundEffect {
 /// Play sound effects when events are triggered
 fn play_sound_effects(
     mut sound_events: EventReader<SoundEffect>,
-    _asset_server: Res<AssetServer>,
-    _settings: Res<GameSettings>,
-    mut _commands: Commands,
+    asset_server: Res<AssetServer>,
+    settings: Res<GameSettings>,
+    mut commands: Commands,
 ) {
     for effect in sound_events.read() {
-        if let Some(_path) = effect.asset_path() {
-            // TODO: When sound files are added:
-            // let sound = asset_server.load(path);
-            // commands.spawn((
-            //     AudioPlayer::new(sound),
-            //     PlaybackSettings {
-            //         volume: Volume::new(settings.sfx_volume),
-            //         ..default()
-            //     },
-            // ));
-            //
-            // For now, just log that a sound would play
-            #[cfg(debug_assertions)]
-            info!("Would play sound: {:?}", effect);
+        if let Some(path) = effect.asset_path() {
+            let sound = asset_server.load(path);
+            commands.spawn((
+                AudioPlayer::new(sound),
+                PlaybackSettings {
+                    volume: bevy::audio::Volume::new(settings.sfx_volume),
+                    mode: bevy::audio::PlaybackMode::Despawn,
+                    ..default()
+                },
+            ));
         }
     }
 }

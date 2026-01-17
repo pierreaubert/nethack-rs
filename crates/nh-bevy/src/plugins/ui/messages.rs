@@ -118,10 +118,11 @@ fn update_message_history(
 fn render_messages(
     mut contexts: EguiContexts,
     mut history: ResMut<MessageHistory>,
+    _game_state: Res<GameStateResource>,
     input: Res<ButtonInput<KeyCode>>,
 ) {
-    // Toggle full log with 'P' key
-    if input.just_pressed(KeyCode::KeyP) {
+    // Toggle full log with 'P' key or 'V' (standard NetHack)
+    if input.just_pressed(KeyCode::KeyP) || (input.just_pressed(KeyCode::KeyV) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))) {
         history.show_full_log = !history.show_full_log;
     }
 

@@ -4,7 +4,9 @@ use bevy::prelude::*;
 
 use crate::plugins::game::AppState;
 use crate::plugins::ui::direction::{DirectionAction, DirectionSelectState};
-use crate::plugins::ui::InventoryState;
+use crate::plugins::ui::item_picker::{ItemPickerState, PickerAction};
+use crate::plugins::ui::messages::MessageHistory;
+use crate::plugins::ui::{DiscoveriesState, InventoryState};
 use crate::resources::GameStateResource;
 
 pub struct InputPlugin;
@@ -28,15 +30,47 @@ fn keyboard_to_command(
     input: Res<ButtonInput<KeyCode>>,
     mut commands: EventWriter<GameCommand>,
     inv_state: Res<InventoryState>,
-    dir_state: Res<DirectionSelectState>,
-    mut dir_state_mut: ResMut<DirectionSelectState>,
+    mut dir_state: ResMut<DirectionSelectState>,
+    mut picker_state: ResMut<ItemPickerState>,
+    discoveries_state: Res<DiscoveriesState>,
+    msg_history: Res<MessageHistory>,
+    game_state: Res<GameStateResource>,
 ) {
     // Don't process game input when UI panels are active
-    if inv_state.open || dir_state.active {
+    if inv_state.open
+        || dir_state.active
+        || picker_state.active
+        || discoveries_state.open
+        || msg_history.show_full_log
+    {
         return;
     }
 
     use nh_core::action::{Command, Direction};
+
+    // Helper to open item picker
+    let mut open_picker = |action: PickerAction| {
+        let inventory = &game_state.0.inventory;
+        let filtered: Vec<usize> = inventory
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| action.filter(item))
+            .map(|(i, _)| i)
+            .collect();
+            
+        // If no items match, we could show a message, but for now just open empty or don't open?
+        // Standard NetHack behavior: "You don't have anything to eat."
+        if filtered.is_empty() {
+             // For now we just don't open, maybe log? 
+             // Ideally we'd show a flash message.
+             // But let's open it anyway so user sees "No applicable items found"
+        }
+
+        picker_state.active = true;
+        picker_state.action = Some(action);
+        picker_state.selected_index = 0;
+        picker_state.filtered_indices = filtered;
+    };
 
     // Vi-keys movement (hjklyubn)
     let direction = if input.just_pressed(KeyCode::KeyH) {
@@ -70,7 +104,11 @@ fn keyboard_to_command(
     };
 
     if let Some(dir) = direction {
-        commands.send(GameCommand(Command::Move(dir)));
+        if input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight) {
+             commands.send(GameCommand(Command::Run(dir)));
+        } else {
+             commands.send(GameCommand(Command::Move(dir)));
+        }
         return;
     }
 
@@ -95,19 +133,54 @@ fn keyboard_to_command(
         commands.send(GameCommand(Command::GoDown));
     } else if input.just_pressed(KeyCode::KeyO) {
         // 'o' - open (needs direction)
-        dir_state_mut.active = true;
-        dir_state_mut.action = Some(DirectionAction::Open);
+        dir_state.active = true;
+        dir_state.action = Some(DirectionAction::Open);
     } else if input.just_pressed(KeyCode::KeyC) && !input.pressed(KeyCode::ShiftLeft) {
         // 'c' - close (needs direction)
-        dir_state_mut.active = true;
-        dir_state_mut.action = Some(DirectionAction::Close);
+        dir_state.active = true;
+        dir_state.action = Some(DirectionAction::Close);
     } else if input.just_pressed(KeyCode::KeyD) && input.pressed(KeyCode::ControlLeft) {
         // Ctrl+D - kick (needs direction)
-        dir_state_mut.active = true;
-        dir_state_mut.action = Some(DirectionAction::Kick);
+        dir_state.active = true;
+        dir_state.action = Some(DirectionAction::Kick);
+    } else if input.just_pressed(KeyCode::KeyF) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)) {
+        // 'F' - fight (needs direction)
+        dir_state.active = true;
+        dir_state.action = Some(DirectionAction::Fight);
+    } else if input.just_pressed(KeyCode::Backslash) {
+        // '\' - discoveries
+        commands.send(GameCommand(Command::Discoveries));
+    } else if input.just_pressed(KeyCode::KeyV) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)) {
+        // 'V' - history
+        commands.send(GameCommand(Command::History));
     }
-    // Note: 'i' for inventory is handled by the inventory plugin itself
-    // Note: 'e' for eat would need item selection UI
+    
+    // Item commands
+    else if input.just_pressed(KeyCode::KeyE) {
+        open_picker(PickerAction::Eat);
+    } else if input.just_pressed(KeyCode::KeyQ) && !input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::Quaff);
+    } else if input.just_pressed(KeyCode::KeyR) && !input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::Read);
+    } else if input.just_pressed(KeyCode::KeyZ) && !input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::Zap);
+    } else if input.just_pressed(KeyCode::KeyA) && !input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::Apply);
+    } else if input.just_pressed(KeyCode::KeyW) && !input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::Wield);
+    } else if input.just_pressed(KeyCode::KeyW) && input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::Wear);
+    } else if input.just_pressed(KeyCode::KeyT) && input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::TakeOff);
+    } else if input.just_pressed(KeyCode::KeyP) && input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::PutOn);
+    } else if input.just_pressed(KeyCode::KeyR) && input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::Remove);
+    } else if input.just_pressed(KeyCode::KeyD) && !input.pressed(KeyCode::ShiftLeft) && !input.pressed(KeyCode::ControlLeft) {
+        open_picker(PickerAction::Drop);
+    } else if input.just_pressed(KeyCode::KeyT) && !input.pressed(KeyCode::ShiftLeft) {
+        open_picker(PickerAction::Throw);
+    }
 }
 
 fn process_game_command(

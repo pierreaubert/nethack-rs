@@ -28,6 +28,8 @@ pub enum DirectionAction {
     Close,
     Kick,
     Fight,
+    Zap(char),
+    Throw(char),
 }
 
 impl DirectionAction {
@@ -37,16 +39,20 @@ impl DirectionAction {
             DirectionAction::Close => "close",
             DirectionAction::Kick => "kick",
             DirectionAction::Fight => "fight",
+            DirectionAction::Zap(_) => "zap",
+            DirectionAction::Throw(_) => "throw",
         }
     }
 
     pub fn to_command(&self, dir: nh_core::action::Direction) -> nh_core::action::Command {
         use nh_core::action::Command;
         match self {
-            DirectionAction::Open => Command::Open,
-            DirectionAction::Close => Command::Close,
-            DirectionAction::Kick => Command::Kick,
+            DirectionAction::Open => Command::Open(dir),
+            DirectionAction::Close => Command::Close(dir),
+            DirectionAction::Kick => Command::Kick(dir),
             DirectionAction::Fight => Command::Fight(dir),
+            DirectionAction::Zap(c) => Command::Zap(*c, dir),
+            DirectionAction::Throw(c) => Command::Throw(*c, dir),
         }
     }
 }

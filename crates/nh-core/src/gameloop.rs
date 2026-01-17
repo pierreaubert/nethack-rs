@@ -64,6 +64,10 @@ pub struct GameState {
     /// Messages for the current turn
     #[serde(skip)]
     pub messages: Vec<String>,
+
+    /// Permanent message history
+    #[serde(skip)]
+    pub message_history: Vec<String>,
 }
 
 impl Default for GameState {
@@ -100,12 +104,15 @@ impl GameState {
             turns: 0,
             monster_turns: 0,
             messages: Vec::new(),
+            message_history: Vec::new(),
         }
     }
 
     /// Add a message to display
     pub fn message(&mut self, msg: impl Into<String>) {
-        self.messages.push(msg.into());
+        let msg_str = msg.into();
+        self.messages.push(msg_str.clone());
+        self.message_history.push(msg_str);
     }
 
     /// Clear messages
@@ -264,6 +271,14 @@ impl GameLoop {
     fn execute_command(&mut self, command: Command) -> ActionResult {
         match command {
             Command::Move(dir) => self.do_move(dir),
+            Command::Run(dir) => {
+                // TODO: Implement actual running logic (move until interrupted)
+                // For now, just move one step
+                self.do_move(dir)
+            }
+            Command::MoveUntilInteresting(dir) => {
+                 self.do_move(dir)
+            }
             Command::Rest => {
                 self.state.message("You wait.");
                 ActionResult::Success
@@ -274,66 +289,65 @@ impl GameLoop {
             Command::Quit => ActionResult::Quit,
             Command::Save => ActionResult::Save,
 
-            // Object manipulation - these need item selection from UI
+            // Object manipulation
             Command::Pickup => crate::action::pickup::do_pickup(&mut self.state),
-            Command::Drop => {
-                // TODO: Get item letter from UI
-                self.state.message("Drop which item?");
+            Command::Drop(letter) => {
+                // TODO: Implement do_drop
+                self.state.message(format!("You drop item {}.", letter));
+                ActionResult::Success
+            }
+            Command::Eat(letter) => crate::action::eat::do_eat(&mut self.state, letter),
+            Command::Apply(letter) => {
+                // crate::action::apply::do_apply(&mut self.state, letter)
+                self.state.message(format!("Apply {} not implemented.", letter));
                 ActionResult::NoTime
             }
-            Command::Eat => {
-                // TODO: Get item letter from UI
-                self.state.message("Eat what?");
-                ActionResult::NoTime
+            Command::Wear(letter) => crate::action::wear::do_wear(&mut self.state, letter),
+            Command::TakeOff(letter) => crate::action::wear::do_takeoff(&mut self.state, letter),
+            Command::Wield(letter_opt) => {
+                if let Some(letter) = letter_opt {
+                    crate::action::wear::do_wield(&mut self.state, letter)
+                } else {
+                    self.state.message("You empty your hands.");
+                    // TODO: unwield logic
+                    ActionResult::Success
+                }
             }
-            Command::Apply => {
-                // TODO: Get item letter from UI
-                self.state.message("Apply what?");
-                ActionResult::NoTime
-            }
-            Command::Wear => {
-                // TODO: Get item letter from UI
-                self.state.message("Wear what?");
-                ActionResult::NoTime
-            }
-            Command::TakeOff => {
-                // TODO: Get item letter from UI
-                self.state.message("Take off what?");
-                ActionResult::NoTime
-            }
-            Command::Wield => {
-                // TODO: Get item letter from UI
-                self.state.message("Wield what?");
-                ActionResult::NoTime
-            }
-            Command::PutOn => {
-                // TODO: Get item letter from UI
-                self.state.message("Put on what?");
-                ActionResult::NoTime
-            }
-            Command::Remove => {
-                // TODO: Get item letter from UI
-                self.state.message("Remove what?");
-                ActionResult::NoTime
-            }
+            Command::PutOn(letter) => crate::action::wear::do_puton(&mut self.state, letter),
+            Command::Remove(letter) => crate::action::wear::do_remove(&mut self.state, letter),
+            Command::Quaff(letter) => {
+                 self.state.message(format!("Quaff {} not implemented.", letter));
+                 ActionResult::NoTime
+            },
+            Command::Read(letter) => {
+                 self.state.message(format!("Read {} not implemented.", letter));
+                 ActionResult::NoTime
+            },
+            Command::Zap(letter, dir) => {
+                 self.state.message(format!("Zap {} in {:?} not implemented.", letter, dir));
+                 ActionResult::NoTime
+            },
+            Command::Throw(letter, dir) => {
+                 self.state.message(format!("Throw {} in {:?} not implemented.", letter, dir));
+                 ActionResult::NoTime
+            },
+            Command::Fire(dir) => {
+                 self.state.message(format!("Fire in {:?} not implemented.", dir));
+                 ActionResult::NoTime
+            },
+
 
             // Directional actions
-            Command::Open => {
-                // TODO: Get direction from UI
-                self.state.message("Open in which direction?");
-                ActionResult::NoTime
+            Command::Open(dir) => crate::action::open_close::do_open(&mut self.state, dir),
+            Command::Close(dir) => crate::action::open_close::do_close(&mut self.state, dir),
+            Command::Kick(dir) => {
+                crate::action::kick::do_kick(&mut self.state, dir)
             }
-            Command::Close => {
-                // TODO: Get direction from UI
-                self.state.message("Close in which direction?");
-                ActionResult::NoTime
+            Command::Fight(dir) => {
+                // TODO: Force fight logic
+                self.do_move(dir) // Fallback to move/attack
             }
-            Command::Kick => {
-                // TODO: Get direction from UI
-                self.state.message("Kick in which direction?");
-                ActionResult::NoTime
-            }
-
+            
             // Special actions
             Command::Pray => crate::action::pray::do_pray(&mut self.state),
             Command::Engrave => {
@@ -361,6 +375,18 @@ impl GameLoop {
                 } else {
                     self.state.message(format!("You see {} item(s) here.", objects.len()));
                 }
+                ActionResult::NoTime
+            }
+            Command::History => {
+                self.state.message("Message history not yet implemented.");
+                ActionResult::NoTime
+            }
+            Command::Discoveries => {
+                self.state.message("Discoveries not yet implemented.");
+                ActionResult::NoTime
+            }
+            Command::Help => {
+                self.state.message("Help not yet implemented.");
                 ActionResult::NoTime
             }
 

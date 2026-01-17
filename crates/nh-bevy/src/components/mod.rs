@@ -57,6 +57,6 @@ pub struct DoorMarker {
 #[derive(Component)]
 pub struct DoorAnimation {
     pub timer: Timer,
-    pub start_height: f32,
-    pub target_height: f32,
+    pub start_rotation: Quat,
+    pub target_rotation: Quat,
 }

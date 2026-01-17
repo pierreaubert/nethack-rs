@@ -19,7 +19,8 @@ pub struct EntityPlugin;
 
 impl Plugin for EntityPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_entities.after(super::map::spawn_map))
+        app.init_resource::<EntityState>()
+            .add_systems(Startup, spawn_entities.after(super::map::spawn_map))
             .add_systems(
                 Update,
                 (
@@ -27,10 +28,16 @@ impl Plugin for EntityPlugin {
                     sync_entity_positions,
                     sync_floor_objects,
                     update_monster_indicators,
+                    check_level_change,
                 )
                     .run_if(in_state(AppState::Playing)),
             );
     }
+}
+
+#[derive(Resource, Default)]
+struct EntityState {
+    current_dlevel: Option<nh_core::dungeon::DLevel>,
 }
 
 /// Marker for floor object entities
@@ -64,13 +71,57 @@ pub struct AllegianceIndicator {
     pub monster_id: nh_core::monster::MonsterId,
 }
 
+/// Check if level changed and respawn entities
+fn check_level_change(
+    mut commands: Commands,
+    game_state: Res<GameStateResource>,
+    mut entity_state: ResMut<EntityState>,
+    player_query: Query<Entity, With<PlayerMarker>>,
+    monster_query: Query<Entity, With<MonsterMarker>>,
+    object_query: Query<Entity, With<FloorObjectMarker>>,
+    pile_query: Query<Entity, With<PileMarker>>,
+    indicator_query: Query<Entity, Or<(With<HealthIndicator>, With<StatusIndicator>, With<AllegianceIndicator>)>>,
+) {
+    if !game_state.is_changed() {
+        return;
+    }
+
+    let current_dlevel = game_state.0.current_level.dlevel;
+
+    // Initialize on first run
+    if entity_state.current_dlevel.is_none() {
+        entity_state.current_dlevel = Some(current_dlevel);
+        return;
+    }
+
+    if entity_state.current_dlevel != Some(current_dlevel) {
+        info!("Level changed for entities from {:?} to {:?}", entity_state.current_dlevel, current_dlevel);
+        
+        // Despawn all entities
+        for entity in player_query.iter() { commands.entity(entity).despawn_recursive(); }
+        for entity in monster_query.iter() { commands.entity(entity).despawn_recursive(); }
+        for entity in object_query.iter() { commands.entity(entity).despawn_recursive(); }
+        for entity in pile_query.iter() { commands.entity(entity).despawn_recursive(); }
+        for entity in indicator_query.iter() { commands.entity(entity).despawn_recursive(); }
+
+        // Spawn new entities
+        spawn_entities_internal(&mut commands, &game_state.0);
+        
+        // Update state
+        entity_state.current_dlevel = Some(current_dlevel);
+    }
+}
+
 fn spawn_entities(
     mut commands: Commands,
     game_state: Res<GameStateResource>,
     _asset_server: Res<AssetServer>,
 ) {
     let state = &game_state.0;
+    spawn_entities_internal(&mut commands, state);
+}
 
+fn spawn_entities_internal(commands: &mut Commands, state: &nh_core::GameState) {
     // Spawn player
     let player_pos = MapPosition {
         x: state.player.pos.x,
@@ -93,10 +144,10 @@ fn spawn_entities(
     ));
 
     // Spawn monsters
-    spawn_monsters(&mut commands, state);
+    spawn_monsters(commands, state);
 
     // Spawn floor objects
-    spawn_floor_objects(&mut commands, state);
+    spawn_floor_objects(commands, state);
 }
 
 fn spawn_monsters(commands: &mut Commands, state: &nh_core::GameState) {

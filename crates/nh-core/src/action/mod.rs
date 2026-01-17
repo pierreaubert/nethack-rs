@@ -27,22 +27,22 @@ pub enum Command {
 
     // Combat
     Fight(Direction),
-    Fire,
-    Throw,
+    Fire(Direction),
+    Throw(char, Direction),
 
     // Object manipulation
     Pickup,
-    Drop,
-    Eat,
-    Quaff,
-    Read,
-    Zap,
-    Apply,
-    Wear,
-    TakeOff,
-    PutOn,
-    Remove,
-    Wield,
+    Drop(char),
+    Eat(char),
+    Quaff(char),
+    Read(char),
+    Zap(char, Direction),
+    Apply(char),
+    Wear(char),
+    TakeOff(char),
+    PutOn(char),
+    Remove(char),
+    Wield(Option<char>),
 
     // Information
     Inventory,
@@ -53,9 +53,9 @@ pub enum Command {
     History,
 
     // Actions
-    Open,
-    Close,
-    Kick,
+    Open(Direction),
+    Close(Direction),
+    Kick(Direction),
     Search,
     Pray,
     Offer,
