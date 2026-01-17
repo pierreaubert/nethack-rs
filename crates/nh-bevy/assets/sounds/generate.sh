@@ -1,0 +1,3 @@
+#!/bin/sh
+python4 ./sounds.py
+for w in game_sfx/*.wav; do k=${w#game_sfx/}; ffmpeg -i "$w" ${k%.wav}.ogg; done

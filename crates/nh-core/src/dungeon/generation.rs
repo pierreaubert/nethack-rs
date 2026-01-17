@@ -80,38 +80,38 @@ pub fn generate_rooms_and_corridors(level: &mut Level, rng: &mut GameRng) {
 
     // Select and assign special room type based on depth
     let depth = level.dlevel.depth();
-    if let Some(special_type) = select_special_room_type(rng, depth, &mut level.flags) {
-        if let Some(room_idx) = pick_room_for_special(&rooms, special_type) {
-            rooms[room_idx].room_type = special_type;
+    if let Some(special_type) = select_special_room_type(rng, depth, &mut level.flags)
+        && let Some(room_idx) = pick_room_for_special(&rooms, special_type)
+    {
+        rooms[room_idx].room_type = special_type;
 
-            // Set lighting based on room type (morgues and vaults are dark)
-            rooms[room_idx].lit = !matches!(special_type, RoomType::Morgue | RoomType::Vault);
+        // Set lighting based on room type (morgues and vaults are dark)
+        rooms[room_idx].lit = !matches!(special_type, RoomType::Morgue | RoomType::Vault);
 
-            // Update level flags (already done in select_special_room_type for most,
-            // but this ensures consistency)
-            set_level_flags_for_room(&mut level.flags, special_type);
+        // Update level flags (already done in select_special_room_type for most,
+        // but this ensures consistency)
+        set_level_flags_for_room(&mut level.flags, special_type);
 
-            // Update cell lighting if room is dark
-            if !rooms[room_idx].lit {
-                let room = &rooms[room_idx];
-                for x in room.x..room.x + room.width {
-                    for y in room.y..room.y + room.height {
-                        level.cells[x][y].lit = false;
-                    }
+        // Update cell lighting if room is dark
+        if !rooms[room_idx].lit {
+            let room = &rooms[room_idx];
+            for x in room.x..room.x + room.width {
+                for y in room.y..room.y + room.height {
+                    level.cells[x][y].lit = false;
                 }
             }
+        }
 
-            // Populate special room with monsters and features
-            if special_type.is_shop() {
-                // Shops get shopkeepers and inventory
-                populate_shop(level, &rooms[room_idx], rng);
-            } else if is_vault(special_type) {
-                // Vaults get gold piles (and possibly teleport trap)
-                populate_vault(level, &rooms[room_idx], rng);
-            } else if needs_population(special_type) {
-                // Other special rooms get their themed monsters
-                populate_special_room(level, &rooms[room_idx], rng);
-            }
+        // Populate special room with monsters and features
+        if special_type.is_shop() {
+            // Shops get shopkeepers and inventory
+            populate_shop(level, &rooms[room_idx], rng);
+        } else if is_vault(special_type) {
+            // Vaults get gold piles (and possibly teleport trap)
+            populate_vault(level, &rooms[room_idx], rng);
+        } else if needs_population(special_type) {
+            // Other special rooms get their themed monsters
+            populate_special_room(level, &rooms[room_idx], rng);
         }
     }
 

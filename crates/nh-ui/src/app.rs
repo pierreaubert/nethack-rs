@@ -90,6 +90,11 @@ impl App {
         self.game_loop.state()
     }
 
+    /// Get mutable game state
+    pub fn state_mut(&mut self) -> &mut GameState {
+        self.game_loop.state_mut()
+    }
+
     /// Check if app should quit
     pub fn should_quit(&self) -> bool {
         self.should_quit
@@ -440,6 +445,19 @@ impl App {
                     nh_core::action::ActionResult::NoTime
                 }
             }
+            "quaff" if parts.len() > 1 => {
+                let letter = parts[1].chars().next().unwrap_or(' ');
+                nh_core::action::quaff::do_quaff(self.game_loop.state_mut(), letter)
+            }
+            "read" if parts.len() > 1 => {
+                let letter = parts[1].chars().next().unwrap_or(' ');
+                nh_core::action::read::do_read(self.game_loop.state_mut(), letter)
+            }
+            "zap" if parts.len() > 1 => {
+                let letter = parts[1].chars().next().unwrap_or(' ');
+                // Zap needs a direction - for now, zap forward
+                nh_core::action::zap::do_zap(self.game_loop.state_mut(), letter, None)
+            }
             _ => {
                 self.game_loop.state_mut().message("Unknown command.");
                 nh_core::action::ActionResult::NoTime
@@ -529,7 +547,7 @@ impl App {
         let items: Vec<_> = state
             .inventory
             .iter()
-            .filter(|obj| filter.map_or(true, |f| obj.class == f))
+            .filter(|obj| filter.is_none_or(|f| obj.class == f))
             .collect();
 
         let block = Block::default()

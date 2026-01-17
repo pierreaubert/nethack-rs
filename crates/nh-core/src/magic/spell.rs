@@ -491,14 +491,20 @@ fn cast_fireball(
         let mdx = (monster.x - x).abs();
         let mdy = (monster.y - y).abs();
         if mdx <= 1 && mdy <= 1 {
-            // TODO: Check fire resistance
-            monster.hp -= damage;
-            result.messages.push(format!(
-                "The {} is engulfed in flames for {} damage!",
-                monster.name, damage
-            ));
-            if monster.hp <= 0 {
-                result.killed.push(monster.id);
+            if monster.resists_fire() {
+                result.messages.push(format!(
+                    "The {} is not affected by the flames.",
+                    monster.name
+                ));
+            } else {
+                monster.hp -= damage;
+                result.messages.push(format!(
+                    "The {} is engulfed in flames for {} damage!",
+                    monster.name, damage
+                ));
+                if monster.hp <= 0 {
+                    result.killed.push(monster.id);
+                }
             }
         }
     }
@@ -583,16 +589,17 @@ fn cast_finger_of_death(
         }
 
         if let Some(monster) = level.monster_at_mut(x, y) {
-            // TODO: Check magic resistance
-            if rng.percent(90) {
-                monster.hp = 0;
-                result.messages.push(format!("The {} dies!", monster.name));
-                result.killed.push(monster.id);
-            } else {
+            // Disintegration resistance or high level monsters can resist death magic
+            let resist_chance = (monster.level as u32) * 3;
+            if monster.resists_disint() || rng.percent(resist_chance) {
                 result.messages.push(format!(
                     "The {} resists the death magic!",
                     monster.name
                 ));
+            } else {
+                monster.hp = 0;
+                result.messages.push(format!("The {} dies!", monster.name));
+                result.killed.push(monster.id);
             }
             break;
         }
@@ -702,19 +709,19 @@ fn cast_clairvoyance(level: &mut Level, player: &You, result: &mut SpellResult) 
 }
 
 fn cast_haste(player: &mut You, rng: &mut GameRng, result: &mut SpellResult) {
-    let duration = rng.dice(5, 10) as u32;
+    let duration = rng.dice(5, 10);
     player.properties.set_timeout(Property::Speed, duration);
     result.messages.push("You feel yourself speeding up!".to_string());
 }
 
 fn cast_invisibility(player: &mut You, rng: &mut GameRng, result: &mut SpellResult) {
-    let duration = rng.dice(10, 10) as u32;
+    let duration = rng.dice(10, 10);
     player.properties.set_timeout(Property::Invisibility, duration);
     result.messages.push("You vanish!".to_string());
 }
 
 fn cast_levitation(player: &mut You, rng: &mut GameRng, result: &mut SpellResult) {
-    let duration = rng.dice(10, 10) as u32;
+    let duration = rng.dice(10, 10);
     player.properties.set_timeout(Property::Levitation, duration);
     result.messages.push("You float into the air!".to_string());
 }
@@ -816,10 +823,13 @@ fn cast_sleep(
         }
 
         if let Some(monster) = level.monster_at_mut(x, y) {
-            // TODO: Check sleep resistance
-            monster.state.sleeping = true;
-            monster.sleep_timeout = rng.dice(4, 6) as u16;
-            result.messages.push(format!("The {} falls asleep!", monster.name));
+            if monster.resists_sleep() {
+                result.messages.push(format!("The {} resists!", monster.name));
+            } else {
+                monster.state.sleeping = true;
+                monster.sleep_timeout = rng.dice(4, 6) as u16;
+                result.messages.push(format!("The {} falls asleep!", monster.name));
+            }
             break;
         }
     }
@@ -929,12 +939,10 @@ fn cast_turn_undead(player: &You, level: &mut Level, rng: &mut GameRng, result: 
         // TODO: Check if undead
         let dx = (monster.x - px).abs();
         let dy = (monster.y - py).abs();
-        if dx <= 6 && dy <= 6 {
-            if rng.percent(70) {
-                monster.state.fleeing = true;
-                monster.flee_timeout = rng.dice(2, 6) as u16;
-                turned += 1;
-            }
+        if dx <= 6 && dy <= 6 && rng.percent(70) {
+            monster.state.fleeing = true;
+            monster.flee_timeout = rng.dice(2, 6) as u16;
+            turned += 1;
         }
     }
 

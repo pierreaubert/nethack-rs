@@ -2,8 +2,9 @@
 //!
 //! Shopkeepers, priests, vault guards, quests, etc.
 
+pub mod shk;  // Shopkeepers
+
 // TODO: Implement these modules
-// mod shk;     // Shopkeepers
 // mod priest;  // Priests/temples
 // mod vault;   // Vault guards
 // mod quest;   // Quest system

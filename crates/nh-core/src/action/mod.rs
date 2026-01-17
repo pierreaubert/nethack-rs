@@ -12,6 +12,10 @@ pub mod kick;
 pub mod engrave;
 pub mod teleport;
 pub mod trap;
+pub mod quaff;
+pub mod read;
+pub mod zap;
+pub mod throw;
 
 /// Player command types
 #[derive(Debug, Clone, PartialEq, Eq)]

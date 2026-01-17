@@ -7,7 +7,7 @@ mod monst;
 mod permonst;
 
 pub use ai::{process_monster_ai, AiAction};
-pub use monst::{Monster, MonsterId, MonsterState};
+pub use monst::{Monster, MonsterId, MonsterState, SpeedState};
 pub use permonst::{MonsterFlags, MonsterResistances, MonsterSize, MonsterSound, PerMonst};
 
 /// Reference to a monster instance

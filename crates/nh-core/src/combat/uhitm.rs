@@ -108,9 +108,15 @@ pub fn player_attack_monster(
             rng.dice(dice_num as u32, dice_sides as u32) as i32
         }
         None => {
-            // Bare hands - 1d2 for most
-            // TODO: Check if player is a Monk for better unarmed damage
-            rng.dice(1, 2) as i32
+            // Bare hands - Monks get better unarmed damage based on level
+            if player.role == crate::player::Role::Monk {
+                // Monks deal 1d(level/2 + 1) damage, minimum 1d2, maximum 1d16
+                let sides = ((player.exp_level / 2) + 1).clamp(2, 16) as u32;
+                rng.dice(1, sides) as i32
+            } else {
+                // Non-monks deal 1d2 bare-handed
+                rng.dice(1, 2) as i32
+            }
         }
     };
 

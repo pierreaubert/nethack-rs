@@ -13,6 +13,7 @@ use crate::components::{Billboard, MapPosition, MonsterMarker, PlayerMarker};
 use crate::plugins::animation::AnimationEvent;
 use crate::plugins::camera::MainCamera;
 use crate::plugins::game::AppState;
+use crate::plugins::models::ModelBuilder;
 use crate::resources::GameStateResource;
 
 pub struct EntityPlugin;
@@ -76,6 +77,8 @@ fn check_level_change(
     mut commands: Commands,
     game_state: Res<GameStateResource>,
     mut entity_state: ResMut<EntityState>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     player_query: Query<Entity, With<PlayerMarker>>,
     monster_query: Query<Entity, With<MonsterMarker>>,
     object_query: Query<Entity, With<FloorObjectMarker>>,
@@ -105,7 +108,7 @@ fn check_level_change(
         for entity in indicator_query.iter() { commands.entity(entity).despawn_recursive(); }
 
         // Spawn new entities
-        spawn_entities_internal(&mut commands, &game_state.0);
+        spawn_entities_internal(&mut commands, &game_state.0, &mut meshes, &mut materials);
         
         // Update state
         entity_state.current_dlevel = Some(current_dlevel);
@@ -115,102 +118,79 @@ fn check_level_change(
 fn spawn_entities(
     mut commands: Commands,
     game_state: Res<GameStateResource>,
-    _asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let state = &game_state.0;
-    spawn_entities_internal(&mut commands, state);
+    spawn_entities_internal(&mut commands, state, &mut meshes, &mut materials);
 }
 
-fn spawn_entities_internal(commands: &mut Commands, state: &nh_core::GameState) {
+fn spawn_entities_internal(
+    commands: &mut Commands, 
+    state: &nh_core::GameState,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) {
+    let mut model_builder = ModelBuilder::new(meshes, materials);
+
     // Spawn player
     let player_pos = MapPosition {
         x: state.player.pos.x,
         y: state.player.pos.y,
     };
-    let world_pos = player_pos.to_world() + Vec3::Y * 0.5;
-
-    commands.spawn((
-        PlayerMarker,
-        Billboard,
-        player_pos,
-        Text2d::new("@"),
-        TextFont {
-            font_size: 64.0,
-            ..default()
-        },
-        TextColor(Color::WHITE),
-        Transform::from_translation(world_pos).with_scale(Vec3::splat(0.02)),
-        Anchor::Center,
-    ));
+    let world_pos = player_pos.to_world();
+    
+    model_builder.spawn_player(commands, &state.player, Transform::from_translation(world_pos));
 
     // Spawn monsters
-    spawn_monsters(commands, state);
-
-    // Spawn floor objects
-    spawn_floor_objects(commands, state);
-}
-
-fn spawn_monsters(commands: &mut Commands, state: &nh_core::GameState) {
     let monsters = nh_data::monsters::MONSTERS;
     for monster in &state.current_level.monsters {
         let map_pos = MapPosition {
             x: monster.x,
             y: monster.y,
         };
-        let world_pos = map_pos.to_world() + Vec3::Y * 0.5;
+        let world_pos = map_pos.to_world();
+        let monster_def = &monsters[monster.monster_type as usize];
+        
+        let _entity = model_builder.spawn_monster(commands, monster, monster_def, Transform::from_translation(world_pos));
 
-        // Get monster symbol and color from permonst data
-        let permonst = &monsters[monster.monster_type as usize];
-        let symbol = permonst.symbol;
-        let base_color = nethack_color_to_bevy(permonst.color);
-
-        // Apply health-based color tint
+        // Spawn indicators (health, status, etc) - attached to the monster entity or separate?
+        // The original code spawned them separately. Let's keep them separate for now but link them by ID.
+        // Or we could parent them?
+        // For simplicity and backward compat with the update system, I'll keep the indicator spawning logic here,
+        // but I need to make sure I have the entity ID if I want to parent.
+        // `spawn_monster` returns ID.
+        
+        // Re-implement indicator spawning
         let hp_percent = if monster.hp_max > 0 {
             (monster.hp as f32 / monster.hp_max as f32).clamp(0.0, 1.0)
         } else {
             1.0
         };
-        let color = health_tinted_color(base_color, hp_percent);
-
-        // Calculate size based on monster size
-        let base_scale = 0.02;
-        let size_scale = monster_size_scale(permonst.size);
-        let scale = base_scale * size_scale;
-
-        // Spawn monster billboard
-        commands.spawn((
-            MonsterMarker {
-                monster_id: monster.id,
-            },
-            Billboard,
-            map_pos,
-            Text2d::new(symbol.to_string()),
-            TextFont {
-                font_size: 64.0,
-                ..default()
-            },
-            TextColor(color),
-            Transform::from_translation(world_pos).with_scale(Vec3::splat(scale)),
-            Anchor::Center,
-        ));
-
+        
         // Spawn health indicator for damaged monsters
         if hp_percent < 1.0 && hp_percent > 0.0 {
-            spawn_health_indicator(commands, monster, world_pos, hp_percent);
+            spawn_health_indicator(commands, monster, world_pos + Vec3::Y * 0.5, hp_percent);
         }
 
         // Spawn status indicator if any status effects
         if has_visible_status(monster) {
-            spawn_status_indicator(commands, monster, world_pos);
+            spawn_status_indicator(commands, monster, world_pos + Vec3::Y * 0.5);
         }
 
         // Spawn allegiance indicator for pets/peaceful
         if monster.state.tame || monster.state.peaceful {
-            spawn_allegiance_indicator(commands, monster, world_pos);
+            spawn_allegiance_indicator(commands, monster, world_pos + Vec3::Y * 0.5);
         }
     }
+
+    // Spawn floor objects (still billboards)
+    spawn_floor_objects(commands, state);
 }
 
+// spawn_monsters function is removed as it is integrated into spawn_entities_internal
+
+/*
 /// Get size scale multiplier based on MonsterSize
 fn monster_size_scale(size: nh_core::monster::MonsterSize) -> f32 {
     use nh_core::monster::MonsterSize;
@@ -223,6 +203,7 @@ fn monster_size_scale(size: nh_core::monster::MonsterSize) -> f32 {
         MonsterSize::Gigantic => 2.0,
     }
 }
+*/
 
 /// Apply health-based color tinting (red tint for low HP)
 fn health_tinted_color(base_color: Color, hp_percent: f32) -> Color {

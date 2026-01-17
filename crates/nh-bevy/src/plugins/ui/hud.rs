@@ -1,5 +1,6 @@
 //! Status HUD - HP, energy, hunger, conditions, etc.
 
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
@@ -13,7 +14,11 @@ impl Plugin for HudPlugin {
     }
 }
 
-fn render_hud(mut contexts: EguiContexts, game_state: Res<GameStateResource>) {
+fn render_hud(
+    mut contexts: EguiContexts,
+    game_state: Res<GameStateResource>,
+    diagnostics: Res<DiagnosticsStore>,
+) {
     let player = &game_state.0.player;
     let state = &game_state.0;
 
@@ -27,6 +32,22 @@ fn render_hud(mut contexts: EguiContexts, game_state: Res<GameStateResource>) {
                 .rounding(egui::Rounding::same(4.0))
                 .show(ui, |ui| {
                     ui.set_min_width(200.0);
+
+                    // FPS
+                    if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
+                        if let Some(value) = fps.smoothed() {
+                            ui.label(
+                                egui::RichText::new(format!("FPS: {:.0}", value))
+                                    .color(if value < 30.0 {
+                                        egui::Color32::RED
+                                    } else {
+                                        egui::Color32::GREEN
+                                    })
+                                    .small(),
+                            );
+                            ui.add_space(2.0);
+                        }
+                    }
 
                     // Player name and level
                     ui.horizontal(|ui| {

@@ -167,11 +167,19 @@ fn apply_damage_effect(
         DamageType::Fire => {
             // Fire resistance negates fire damage effects
             if player.properties.has(Property::FireResistance) {
-                // TODO: Still might burn inventory items (with lower chance)
-                None
+                // With resistance, 1/20 chance to still burn items
+                if rng.one_in(20) {
+                    Some(CombatEffect::ItemDestroyed)
+                } else {
+                    None
+                }
             } else {
-                // TODO: Burn inventory items
-                None
+                // Without resistance, 1/3 chance to burn scrolls/potions
+                if rng.one_in(3) {
+                    Some(CombatEffect::ItemDestroyed)
+                } else {
+                    None
+                }
             }
         }
 
@@ -180,8 +188,12 @@ fn apply_damage_effect(
             if player.properties.has(Property::ColdResistance) {
                 None
             } else {
-                // TODO: Freeze potions
-                None
+                // 1/3 chance to freeze and shatter potions
+                if rng.one_in(3) {
+                    Some(CombatEffect::ItemDestroyed)
+                } else {
+                    None
+                }
             }
         }
 
@@ -190,8 +202,12 @@ fn apply_damage_effect(
             if player.properties.has(Property::ShockResistance) {
                 None
             } else {
-                // TODO: Destroy rings, wands
-                None
+                // 1/3 chance to destroy rings or wands
+                if rng.one_in(3) {
+                    Some(CombatEffect::ItemDestroyed)
+                } else {
+                    None
+                }
             }
         }
 
@@ -286,8 +302,12 @@ fn apply_damage_effect(
             if player.properties.has(Property::SickResistance) {
                 None
             } else {
-                // TODO: Apply sickness effect
-                Some(CombatEffect::Poisoned)
+                // Apply sickness - drain constitution over time
+                let current_con = player.attr_current.get(Attribute::Constitution);
+                if current_con > 3 {
+                    player.attr_current.modify(Attribute::Constitution, -1);
+                }
+                Some(CombatEffect::Diseased)
             }
         }
 
@@ -296,8 +316,14 @@ fn apply_damage_effect(
             if player.properties.has(Property::AcidResistance) {
                 None
             } else {
-                // TODO: Corrode armor
-                None
+                // Corrode armor - reduce AC temporarily
+                // In real NetHack this would erode specific armor pieces
+                if rng.one_in(3) {
+                    player.armor_class = player.armor_class.saturating_add(1);
+                    Some(CombatEffect::ArmorCorroded)
+                } else {
+                    None
+                }
             }
         }
 

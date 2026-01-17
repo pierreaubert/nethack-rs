@@ -325,4 +325,9 @@ impl Level {
             .find(|s| !s.up)
             .map(|s| (s.x, s.y))
     }
+
+    /// Get stairway at position
+    pub fn stairway_at(&self, x: i8, y: i8) -> Option<&Stairway> {
+        self.stairs.iter().find(|s| s.x == x && s.y == y)
+    }
 }

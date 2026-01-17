@@ -1,11 +1,12 @@
 //! Main game plugin that orchestrates all sub-plugins
 
 use bevy::prelude::*;
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 
 use crate::plugins::{
     animation::AnimationPlugin, audio::AudioPlugin, camera::CameraPlugin, effects::EffectsPlugin,
-    entities::EntityPlugin, fog::FogOfWarPlugin, input::InputPlugin, lighting::LightingPlugin,
-    map::MapPlugin, navigation::NavigationPlugin, ui::UiPlugin,
+    entities::EntityPlugin, fog::FogOfWarPlugin, gamepad::GamepadPlugin, input::InputPlugin,
+    lighting::LightingPlugin, map::MapPlugin, navigation::NavigationPlugin, ui::UiPlugin,
 };
 use crate::resources::GameStateResource;
 
@@ -18,12 +19,16 @@ impl Plugin for GamePlugin {
         let game_state = nh_core::GameState::default();
         app.insert_resource(GameStateResource(game_state));
 
+        // Add core bevy plugins
+        app.add_plugins(FrameTimeDiagnosticsPlugin::default());
+
         // Add sub-plugins in dependency order
         app.add_plugins((
             MapPlugin,
             EntityPlugin,
             CameraPlugin,
             InputPlugin,
+            GamepadPlugin,
             NavigationPlugin,
             UiPlugin,
             AnimationPlugin,

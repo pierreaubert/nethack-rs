@@ -119,4 +119,6 @@ pub enum CombatEffect {
     GoldStolen,
     Engulfed,
     Grabbed,
+    ItemDestroyed,
+    ArmorCorroded,
 }

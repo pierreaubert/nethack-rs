@@ -42,7 +42,7 @@ impl Widget for StatusWidget<'_> {
         let mut line2 = format!(
             "{} $:{} AC:{} Xp:{}/{} T:{}",
             p.level,
-            0, // TODO: Gold count
+            p.gold,
             p.armor_class,
             p.exp_level,
             p.exp,

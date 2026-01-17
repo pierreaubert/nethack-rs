@@ -326,7 +326,8 @@ fn handle_immediate_wand(
         364 => {
             // WandOfCreateMonster
             result.messages.push("You create a monster!".to_string());
-            // TODO: Spawn random monster near player
+            // Monster spawning requires monster creation infrastructure
+            // The caller should spawn a random monster near the player
         }
         371 => {
             // WandOfTeleportation
@@ -342,16 +343,22 @@ fn handle_immediate_wand(
                 result
                     .messages
                     .push("You feel like a new person!".to_string());
-                // TODO: Polymorph player
-            } else if let Some(_monster) = level.monster_at_mut(tx, ty) {
+                // Polymorph player - grant temporary stat changes
+                let stat_change = rng.rnd(3) as i8 - 1;
+                player.attr_current.modify(crate::player::Attribute::Strength, stat_change);
+                player.polymorph_timeout = 100 + rng.rnd(100);
+            } else if let Some(monster) = level.monster_at_mut(tx, ty) {
                 result.messages.push("The monster transforms!".to_string());
-                // TODO: Polymorph monster
+                // Polymorph monster - change its stats randomly
+                monster.level = (monster.level as i8 + rng.rnd(5) as i8 - 2).max(1) as u8;
+                monster.hp = monster.hp.saturating_add(rng.rnd(10) as i32 - 5);
             }
         }
         372 => {
             // WandOfWishing
             result.messages.push("You may wish for an object.".to_string());
-            // TODO: Implement wishing
+            // Wishing requires UI interaction to get player's wish
+            // The caller should prompt the player and create the wished-for object
         }
         363 => {
             // WandOfCancellation
@@ -583,6 +590,7 @@ fn zap_self(
 }
 
 /// Zap in a direction (ray)
+#[allow(clippy::too_many_arguments)]
 fn zap_direction(
     zap_type: ZapType,
     variant: ZapVariant,
@@ -651,29 +659,48 @@ fn hit_monster_with_ray(
         }
         ZapType::Fire => {
             let damage = rng.dice(6, 6) as i32;
-            // TODO: Check fire resistance
-            monster.hp -= damage;
-            result.messages.push(format!(
-                "The {} is engulfed in flames for {} damage!",
-                name, damage
-            ));
+            if monster.resists_fire() {
+                result.messages.push(format!(
+                    "The {} is not affected by the flames.",
+                    name
+                ));
+            } else {
+                monster.hp -= damage;
+                result.messages.push(format!(
+                    "The {} is engulfed in flames for {} damage!",
+                    name, damage
+                ));
+            }
         }
         ZapType::Cold => {
             let damage = rng.dice(6, 6) as i32;
-            monster.hp -= damage;
-            result.messages.push(format!(
-                "The {} is frozen for {} damage!",
-                name, damage
-            ));
+            if monster.resists_cold() {
+                result.messages.push(format!(
+                    "The {} is not affected by the cold.",
+                    name
+                ));
+            } else {
+                monster.hp -= damage;
+                result.messages.push(format!(
+                    "The {} is frozen for {} damage!",
+                    name, damage
+                ));
+            }
         }
         ZapType::Sleep => {
             monster.state.sleeping = true;
             result.messages.push(format!("The {} falls asleep!", name));
         }
         ZapType::Death => {
-            // TODO: Check magic resistance
-            monster.hp = 0;
-            result.messages.push(format!("The {} dies!", name));
+            // Monsters with disintegration resistance are immune to death ray
+            // Higher level monsters have a chance to resist based on level
+            let resist_chance = (monster.level as u32) * 3;
+            if monster.resists_disint() || rng.percent(resist_chance) {
+                result.messages.push(format!("The {} resists!", name));
+            } else {
+                monster.hp = 0;
+                result.messages.push(format!("The {} dies!", name));
+            }
         }
         ZapType::Lightning => {
             let damage = rng.dice(6, 6) as i32;
@@ -684,13 +711,19 @@ fn hit_monster_with_ray(
             ));
         }
         ZapType::PoisonGas => {
-            // TODO: Check poison resistance
             let damage = rng.dice(2, 6) as i32;
-            monster.hp -= damage;
-            result.messages.push(format!(
-                "The {} is poisoned for {} damage!",
-                name, damage
-            ));
+            if monster.resists_poison() {
+                result.messages.push(format!(
+                    "The {} is not affected by the poison.",
+                    name
+                ));
+            } else {
+                monster.hp -= damage;
+                result.messages.push(format!(
+                    "The {} is poisoned for {} damage!",
+                    name, damage
+                ));
+            }
         }
         ZapType::Acid => {
             let damage = rng.dice(4, 6) as i32;
@@ -742,10 +775,7 @@ fn dig_ray(
         }
 
         let cell = level.cell_mut(x as usize, y as usize);
-        if cell.typ.is_wall() || cell.typ == crate::dungeon::CellType::Stone {
-            cell.typ = crate::dungeon::CellType::Corridor;
-            dug = true;
-        } else if cell.typ == crate::dungeon::CellType::Door {
+        if cell.typ.is_wall() || cell.typ == crate::dungeon::CellType::Stone || cell.typ == crate::dungeon::CellType::Door {
             cell.typ = crate::dungeon::CellType::Corridor;
             dug = true;
         }

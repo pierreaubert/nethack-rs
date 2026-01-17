@@ -250,9 +250,17 @@ impl Object {
     }
 
     /// Check if object is a container
+    ///
+    /// Container object types (matching nh-data/objects.rs):
+    /// - LargeBox = 360
+    /// - Chest = 361
+    /// - IceBox = 362
+    /// - Sack = 363
+    /// - OilskinSack = 364
+    /// - BagOfHolding = 365
+    /// - BagOfTricks = 366
     pub fn is_container(&self) -> bool {
-        // TODO: Check specific object types
-        matches!(self.class, ObjectClass::Tool) && !self.contents.is_empty()
+        matches!(self.object_type, 360..=366)
     }
 
     /// Check if object is worn

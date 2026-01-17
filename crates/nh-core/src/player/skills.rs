@@ -193,12 +193,12 @@ impl Skill {
         if !self.can_advance() {
             return false;
         }
-        if let Some(next) = self.level.advance() {
-            if next <= self.max_level {
-                self.practice = 0;
-                self.level = next;
-                return true;
-            }
+        if let Some(next) = self.level.advance()
+            && next <= self.max_level
+        {
+            self.practice = 0;
+            self.level = next;
+            return true;
         }
         false
     }

@@ -2,6 +2,8 @@
 //!
 //! Handles all combat between monsters (including pets).
 
+#![allow(dead_code)] // Functions are part of public API, used by other crates
+
 use super::{Attack, CombatEffect, CombatResult, DamageType};
 use crate::monster::Monster;
 use crate::rng::GameRng;
@@ -96,30 +98,18 @@ fn apply_monster_damage_effect(
         DamageType::Physical => None,
 
         DamageType::Fire => {
-            // Fire resistance blocks fire effects
-            if defender.resists_fire() {
-                None
-            } else {
-                None // No special effect beyond damage
-            }
+            // Fire resistance blocks fire effects, but no special effect beyond damage
+            None
         }
 
         DamageType::Cold => {
-            // Cold resistance blocks cold effects
-            if defender.resists_cold() {
-                None
-            } else {
-                None
-            }
+            // Cold resistance blocks cold effects, but no special effect beyond damage
+            None
         }
 
         DamageType::Electric => {
-            // Electric resistance blocks shock effects
-            if defender.resists_elec() {
-                None
-            } else {
-                None
-            }
+            // Electric resistance blocks shock effects, but no special effect beyond damage
+            None
         }
 
         DamageType::Acid => {
@@ -265,8 +255,8 @@ pub fn monster_attack_monster(
     // Check for attacker death (cockatrice, etc.)
     let attacker_died = if special_effect == Some(CombatEffect::Petrifying) {
         // If defender was petrifying, attacker might die from touching stone
-        // TODO: Check if attacker has petrification resistance
-        false
+        // Attacker survives if they have stone resistance
+        !attacker.resists_stone()
     } else {
         false
     };

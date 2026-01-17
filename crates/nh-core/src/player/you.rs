@@ -314,7 +314,32 @@ impl You {
     /// Gain experience points
     pub fn gain_exp(&mut self, exp: u64) {
         self.exp = self.exp.saturating_add(exp);
-        // TODO: Check for level up
+        self.check_level_up();
+    }
+
+    /// Check if player should level up based on current experience
+    pub fn check_level_up(&mut self) {
+        use crate::{EXP_THRESHOLDS, MAXULEV};
+
+        while (self.exp_level as usize) < MAXULEV {
+            let next_level = self.exp_level as usize; // 0-indexed threshold for next level
+            if next_level < EXP_THRESHOLDS.len() && self.exp >= EXP_THRESHOLDS[next_level] {
+                self.exp_level += 1;
+                if self.exp_level > self.max_exp_level {
+                    self.max_exp_level = self.exp_level;
+                    // Gain HP on level up (based on constitution)
+                    let hp_gain = 1 + (self.attr_current.get(super::Attribute::Constitution) as i32 / 3);
+                    self.hp_max += hp_gain;
+                    self.hp += hp_gain;
+                    // Gain energy on level up
+                    let energy_gain = 1 + (self.attr_current.get(super::Attribute::Wisdom) as i32 / 5);
+                    self.energy_max += energy_gain;
+                    self.energy += energy_gain;
+                }
+            } else {
+                break;
+            }
+        }
     }
 
     /// Take damage
@@ -367,5 +392,68 @@ impl Encumbrance {
             Encumbrance::Overtaxed => Some("Overtaxed"),
             Encumbrance::Overloaded => Some("Overloaded"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::Attribute;
+
+    #[test]
+    fn test_gain_exp_no_level_up() {
+        let mut player = You::default();
+        player.exp_level = 1;
+        player.exp = 0;
+        player.attr_current.set(Attribute::Constitution, 12);
+        player.attr_current.set(Attribute::Wisdom, 10);
+
+        // Gain 10 exp - not enough to level up (need 20 for level 2)
+        player.gain_exp(10);
+
+        assert_eq!(player.exp, 10);
+        assert_eq!(player.exp_level, 1);
+    }
+
+    #[test]
+    fn test_gain_exp_level_up() {
+        let mut player = You::default();
+        player.exp_level = 1;
+        player.exp = 0;
+        player.hp = 10;
+        player.hp_max = 10;
+        player.energy = 5;
+        player.energy_max = 5;
+        player.attr_current.set(Attribute::Constitution, 12);
+        player.attr_current.set(Attribute::Wisdom, 10);
+
+        // Gain 25 exp - enough to level up to 2 (need 20)
+        player.gain_exp(25);
+
+        assert_eq!(player.exp, 25);
+        assert_eq!(player.exp_level, 2);
+        assert_eq!(player.max_exp_level, 2);
+        assert!(player.hp_max > 10, "HP should increase on level up");
+        assert!(player.energy_max > 5, "Energy should increase on level up");
+    }
+
+    #[test]
+    fn test_gain_exp_multiple_levels() {
+        let mut player = You::default();
+        player.exp_level = 1;
+        player.exp = 0;
+        player.hp = 10;
+        player.hp_max = 10;
+        player.energy = 5;
+        player.energy_max = 5;
+        player.attr_current.set(Attribute::Constitution, 12);
+        player.attr_current.set(Attribute::Wisdom, 10);
+
+        // Gain 100 exp - enough to level up to 4 (need 80 for level 4)
+        player.gain_exp(100);
+
+        assert_eq!(player.exp, 100);
+        assert_eq!(player.exp_level, 4);
+        assert_eq!(player.max_exp_level, 4);
     }
 }

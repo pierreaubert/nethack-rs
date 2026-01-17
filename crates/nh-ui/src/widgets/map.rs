@@ -37,10 +37,22 @@ impl<'a> MapWidget<'a> {
             return (symbol, Style::default().fg(color));
         }
 
-        // Objects at position
-        if !self.level.object_grid[x][y].is_empty() {
-            // TODO: Get top object symbol
-            return ('*', Style::default().fg(Color::Yellow));
+        // Objects at position - show top object's class symbol
+        let objects = self.level.objects_at(x as i8, y as i8);
+        if let Some(obj) = objects.first() {
+            let symbol = obj.class.symbol();
+            let color = match obj.class {
+                nh_core::object::ObjectClass::Coin => Color::Yellow,
+                nh_core::object::ObjectClass::Gem => Color::Cyan,
+                nh_core::object::ObjectClass::Potion => Color::Magenta,
+                nh_core::object::ObjectClass::Scroll => Color::White,
+                nh_core::object::ObjectClass::Wand => Color::LightBlue,
+                nh_core::object::ObjectClass::Weapon => Color::Gray,
+                nh_core::object::ObjectClass::Armor => Color::Gray,
+                nh_core::object::ObjectClass::Food => Color::LightRed,
+                _ => Color::Yellow,
+            };
+            return (symbol, Style::default().fg(color));
         }
 
         // Terrain

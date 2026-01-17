@@ -23,13 +23,6 @@ impl Plugin for MapPlugin {
     }
 }
 
-#[derive(Component)]
-struct LiquidEffect {
-    is_lava: bool,
-    base_alpha: f32,
-    phase_offset: f32,
-}
-
 #[derive(Resource, Default)]
 struct MapState {
     current_dlevel: Option<nh_core::dungeon::DLevel>,
@@ -39,26 +32,22 @@ struct MapState {
 fn animate_liquids(
     time: Res<Time>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    query: Query<(&MeshMaterial3d<StandardMaterial>, &LiquidEffect)>,
+    tile_materials: Res<TileMaterials>,
 ) {
     let t = time.elapsed_secs();
 
-    for (handle, effect) in query.iter() {
-        if let Some(material) = materials.get_mut(handle) {
-            let phase = t + effect.phase_offset;
-            
-            if effect.is_lava {
-                // Pulse emissive for lava
-                let pulse = (phase * 2.0).sin() * 0.5 + 0.5; // 0..1
-                let intensity = 1.0 + pulse * 2.0; // 1..3
-                material.emissive = LinearRgba::new(1.0, 0.3 * intensity, 0.0, 1.0);
-            } else {
-                // Wave alpha for water
-                let wave = (phase * 1.5).sin() * 0.1;
-                let alpha = (effect.base_alpha + wave).clamp(0.0, 1.0);
-                material.base_color.set_alpha(alpha);
-            }
-        }
+    // Animate Water
+    if let Some(water) = materials.get_mut(&tile_materials.water) {
+        let wave = (t * 1.5).sin() * 0.1;
+        // Base alpha 0.7
+        water.base_color.set_alpha((0.7 + wave).clamp(0.0, 1.0));
+    }
+
+    // Animate Lava
+    if let Some(lava) = materials.get_mut(&tile_materials.lava) {
+        let pulse = (t * 2.0).sin() * 0.5 + 0.5; // 0..1
+        let intensity = 1.0 + pulse * 2.0; // 1..3
+        lava.emissive = LinearRgba::new(1.0, 0.3 * intensity, 0.0, 1.0);
     }
 }
 
@@ -129,6 +118,7 @@ fn setup_tile_assets(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     // Create meshes
     let floor_mesh = meshes.add(Plane3d::new(Vec3::Y, Vec2::splat(0.5)));
@@ -139,66 +129,44 @@ fn setup_tile_assets(
         wall: wall_mesh,
     });
 
-    // Create materials with distinct colors
+    // Helper to create material with optional texture
+    let mut create_material = |path: &str, color: Color, roughness: f32, emissive: Option<LinearRgba>| -> Handle<StandardMaterial> {
+        // Check if texture exists relative to assets/
+        let texture_path = format!("textures/{}.png", path);
+        // We can't synchronously check file existence for assets in Bevy generally, 
+        // but we can try to load it. If it's missing, it will just show black/pink or fail silently depending on config.
+        // To be safe and keep the colors as fallback, we can check file system (assuming local).
+        
+        let fs_path = std::path::Path::new("crates/nh-bevy/assets").join(&texture_path);
+        let texture = if fs_path.exists() {
+            Some(asset_server.load(texture_path))
+        } else {
+            None
+        };
+
+        materials.add(StandardMaterial {
+            base_color: color,
+            base_color_texture: texture,
+            perceptual_roughness: roughness,
+            emissive: emissive.unwrap_or(LinearRgba::BLACK),
+            alpha_mode: if color.alpha() < 1.0 { AlphaMode::Blend } else { AlphaMode::Opaque },
+            ..default()
+        })
+    };
+
+    // Create materials with distinct colors/textures
     commands.insert_resource(TileMaterials {
-        floor: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.6, 0.5, 0.4), // Tan floor
-            perceptual_roughness: 0.9,
-            ..default()
-        }),
-        corridor: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.4, 0.4, 0.4), // Gray corridor
-            perceptual_roughness: 0.9,
-            ..default()
-        }),
-        wall: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.5, 0.5, 0.5), // Gray walls
-            perceptual_roughness: 0.8,
-            ..default()
-        }),
-        door: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.5, 0.3, 0.15), // Brown door
-            perceptual_roughness: 0.7,
-            ..default()
-        }),
-        stairs: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.7, 0.7, 0.7), // Light gray stairs
-            perceptual_roughness: 0.6,
-            ..default()
-        }),
-        water: materials.add(StandardMaterial {
-            base_color: Color::srgba(0.2, 0.4, 0.8, 0.7), // Blue water
-            alpha_mode: AlphaMode::Blend,
-            perceptual_roughness: 0.1,
-            ..default()
-        }),
-        lava: materials.add(StandardMaterial {
-            base_color: Color::srgb(1.0, 0.4, 0.1), // Orange lava
-            emissive: LinearRgba::new(1.0, 0.3, 0.0, 1.0),
-            perceptual_roughness: 0.3,
-            ..default()
-        }),
-        stone: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.2, 0.2, 0.2), // Dark stone
-            perceptual_roughness: 1.0,
-            ..default()
-        }),
-        tree: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.2, 0.5, 0.2), // Green tree
-            perceptual_roughness: 0.9,
-            ..default()
-        }),
-        fountain: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.4, 0.6, 0.8), // Light blue fountain
-            perceptual_roughness: 0.3,
-            ..default()
-        }),
-        ice: materials.add(StandardMaterial {
-            base_color: Color::srgba(0.8, 0.9, 1.0, 0.8), // White-blue ice
-            alpha_mode: AlphaMode::Blend,
-            perceptual_roughness: 0.1,
-            ..default()
-        }),
+        floor: create_material("floor", Color::srgb(0.6, 0.5, 0.4), 0.9, None),
+        corridor: create_material("corridor", Color::srgb(0.4, 0.4, 0.4), 0.9, None),
+        wall: create_material("wall", Color::srgb(0.5, 0.5, 0.5), 0.8, None),
+        door: create_material("door", Color::srgb(0.5, 0.3, 0.15), 0.7, None),
+        stairs: create_material("stairs", Color::srgb(0.7, 0.7, 0.7), 0.6, None),
+        water: create_material("water", Color::srgba(0.2, 0.4, 0.8, 0.7), 0.1, None),
+        lava: create_material("lava", Color::srgb(1.0, 0.4, 0.1), 0.3, Some(LinearRgba::new(1.0, 0.3, 0.0, 1.0))),
+        stone: create_material("stone", Color::srgb(0.2, 0.2, 0.2), 1.0, None),
+        tree: create_material("tree", Color::srgb(0.2, 0.5, 0.2), 0.9, None),
+        fountain: create_material("fountain", Color::srgb(0.4, 0.6, 0.8), 0.3, None),
+        ice: create_material("ice", Color::srgba(0.8, 0.9, 1.0, 0.8), 0.1, None),
     });
 }
 
@@ -363,11 +331,6 @@ fn spawn_tile(
             commands.spawn((
                 TileMarker,
                 map_pos,
-                LiquidEffect {
-                    is_lava: false,
-                    base_alpha: 0.7,
-                    phase_offset: (map_pos.x as f32 + map_pos.y as f32) * 0.5,
-                },
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(materials.water.clone()),
                 Transform::from_translation(world_pos - Vec3::Y * 0.3),
@@ -378,11 +341,6 @@ fn spawn_tile(
             commands.spawn((
                 TileMarker,
                 map_pos,
-                LiquidEffect {
-                    is_lava: true,
-                    base_alpha: 1.0,
-                    phase_offset: (map_pos.x as f32 + map_pos.y as f32) * 0.5,
-                },
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(materials.lava.clone()),
                 Transform::from_translation(world_pos - Vec3::Y * 0.2),

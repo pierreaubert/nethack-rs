@@ -56,9 +56,11 @@ pub fn process_monster_ai(
         return AiAction::Waited;
     }
 
-    // Peaceful/tame monsters don't attack
+    // Peaceful/tame monsters - pets follow player, others wander
     if monster.is_peaceful() {
-        // TODO: Implement pet AI
+        if monster.is_pet() {
+            return pet_ai(monster_id, level, player, rng);
+        }
         return wander_randomly(monster_id, level, rng);
     }
 
@@ -164,6 +166,52 @@ fn try_alternative_move(
     }
 
     // Couldn't move anywhere
+    AiAction::Waited
+}
+
+/// Pet AI - follow player and attack hostile monsters
+fn pet_ai(
+    monster_id: MonsterId,
+    level: &mut Level,
+    player: &You,
+    rng: &mut GameRng,
+) -> AiAction {
+    let monster = level.monster(monster_id).unwrap();
+    let mx = monster.x;
+    let my = monster.y;
+    let px = player.pos.x;
+    let py = player.pos.y;
+
+    // Check for adjacent hostile monsters to attack
+    for dx in -1..=1i8 {
+        for dy in -1..=1i8 {
+            if dx == 0 && dy == 0 {
+                continue;
+            }
+            let tx = mx + dx;
+            let ty = my + dy;
+            if let Some(target) = level.monster_at(tx, ty)
+                && target.is_hostile()
+                && target.id != monster_id
+            {
+                // Attack the hostile monster (monster-vs-monster combat handled elsewhere)
+                return AiAction::Moved(tx, ty); // Signal attack intent
+            }
+        }
+    }
+
+    // If close to player, sometimes wander
+    let dist_sq = monster.distance_sq(px, py);
+    if dist_sq <= 4 && rng.one_in(3) {
+        return wander_randomly(monster_id, level, rng);
+    }
+
+    // Follow player if not too close
+    if dist_sq > 4 {
+        return move_towards(monster_id, level, px, py, rng);
+    }
+
+    // Stay near player
     AiAction::Waited
 }
 

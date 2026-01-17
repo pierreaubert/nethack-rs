@@ -17,6 +17,7 @@ use nh_core::dungeon::Level;
 use nh_core::player::{Gender, Race, Role, You};
 use nh_core::{GameLoopResult, GameRng, GameState};
 use nh_data::monsters;
+use nh_save::{save_game, load_game, default_save_path, delete_save};
 use nh_ui::App;
 
 fn main() -> io::Result<()> {
@@ -27,8 +28,24 @@ fn main() -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Create game state
-    let state = create_new_game();
+    // Try to load existing save, or create new game
+    let player_name = "Player"; // Default player name
+    let save_path = default_save_path(player_name);
+    
+    let state = if save_path.exists() {
+        match load_game(&save_path) {
+            Ok(loaded_state) => {
+                eprintln!("Loaded saved game for {}", loaded_state.player.name);
+                loaded_state
+            }
+            Err(e) => {
+                eprintln!("Failed to load save: {}, starting new game", e);
+                create_new_game()
+            }
+        }
+    } else {
+        create_new_game()
+    };
 
     // Create app
     let mut app = App::new(state);
@@ -46,17 +63,35 @@ fn main() -> io::Result<()> {
                 let result = app.execute(command);
 
                 match result {
-                    GameLoopResult::PlayerDied(_msg) => {
-                        // TODO: Show death message
+                    GameLoopResult::PlayerDied(msg) => {
+                        // Delete save file on death (permadeath)
+                        let save_path = default_save_path(&app.state().player.name);
+                        let _ = delete_save(&save_path);
+                        
+                        // Show death message
+                        app.state_mut().message(format!("You died: {}", msg));
+                        terminal.draw(|frame| app.render(frame))?;
+                        std::thread::sleep(Duration::from_secs(2));
                         break;
                     }
                     GameLoopResult::PlayerQuit => break,
                     GameLoopResult::SaveAndQuit => {
-                        // TODO: Save game
+                        // Save game
+                        let save_path = default_save_path(&app.state().player.name);
+                        if let Err(e) = save_game(app.state(), &save_path) {
+                            eprintln!("Failed to save game: {}", e);
+                        }
                         break;
                     }
                     GameLoopResult::PlayerWon => {
-                        // TODO: Show victory
+                        // Delete save file on victory
+                        let save_path = default_save_path(&app.state().player.name);
+                        let _ = delete_save(&save_path);
+                        
+                        // Show victory message
+                        app.state_mut().message("Congratulations! You have ascended!");
+                        terminal.draw(|frame| app.render(frame))?;
+                        std::thread::sleep(Duration::from_secs(3));
                         break;
                     }
                     GameLoopResult::Continue => {}

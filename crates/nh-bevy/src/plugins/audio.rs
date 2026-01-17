@@ -126,6 +126,15 @@ fn play_sound_effects(
 ) {
     for effect in sound_events.read() {
         if let Some(path) = effect.asset_path() {
+            // Check if file exists to avoid Bevy's ERROR log spam
+            // Bevy typically looks in 'assets/' relative to the executable or crate root
+            let asset_path = std::path::Path::new("crates/nh-bevy/assets").join(path);
+            if !asset_path.exists() {
+                #[cfg(debug_assertions)]
+                warn!("Sound file not found: {:?} (expected at {:?})", effect, asset_path);
+                continue;
+            }
+
             let sound = asset_server.load(path);
             commands.spawn((
                 AudioPlayer::new(sound),

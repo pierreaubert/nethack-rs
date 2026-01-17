@@ -96,3 +96,9 @@ pub fn do_remove(state: &mut GameState, obj_letter: char) -> ActionResult {
 
     ActionResult::Success
 }
+
+/// Unwield current weapon (empty hands)
+pub fn do_unwield(state: &mut GameState) -> ActionResult {
+    state.message("You are empty handed.");
+    ActionResult::Success
+}

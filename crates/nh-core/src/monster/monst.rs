@@ -207,6 +207,9 @@ pub struct Monster {
     pub speed: SpeedState,
     pub permanent_speed: SpeedState,
 
+    /// Base movement speed (from permonst data, default 12)
+    pub base_speed: i32,
+
     /// AI strategy
     pub strategy: Strategy,
 
@@ -276,6 +279,7 @@ impl Monster {
             state: MonsterState::active(),
             speed: SpeedState::Normal,
             permanent_speed: SpeedState::Normal,
+            base_speed: 12, // Default speed, set from PerMonst when spawning
             strategy: Strategy::default(),
             special_cooldown: 0,
             tameness: 0,

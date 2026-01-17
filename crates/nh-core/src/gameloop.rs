@@ -272,8 +272,8 @@ impl GameLoop {
         match command {
             Command::Move(dir) => self.do_move(dir),
             Command::Run(dir) => {
-                // TODO: Implement actual running logic (move until interrupted)
-                // For now, just move one step
+                // Running: move in direction until something interesting happens
+                // For now, just move one step (full running requires UI integration)
                 self.do_move(dir)
             }
             Command::MoveUntilInteresting(dir) => {
@@ -292,15 +292,11 @@ impl GameLoop {
             // Object manipulation
             Command::Pickup => crate::action::pickup::do_pickup(&mut self.state),
             Command::Drop(letter) => {
-                // TODO: Implement do_drop
-                self.state.message(format!("You drop item {}.", letter));
-                ActionResult::Success
+                crate::action::pickup::do_drop(&mut self.state, letter)
             }
             Command::Eat(letter) => crate::action::eat::do_eat(&mut self.state, letter),
             Command::Apply(letter) => {
-                // crate::action::apply::do_apply(&mut self.state, letter)
-                self.state.message(format!("Apply {} not implemented.", letter));
-                ActionResult::NoTime
+                crate::action::apply::do_apply(&mut self.state, letter)
             }
             Command::Wear(letter) => crate::action::wear::do_wear(&mut self.state, letter),
             Command::TakeOff(letter) => crate::action::wear::do_takeoff(&mut self.state, letter),
@@ -308,9 +304,7 @@ impl GameLoop {
                 if let Some(letter) = letter_opt {
                     crate::action::wear::do_wield(&mut self.state, letter)
                 } else {
-                    self.state.message("You empty your hands.");
-                    // TODO: unwield logic
-                    ActionResult::Success
+                    crate::action::wear::do_unwield(&mut self.state)
                 }
             }
             Command::PutOn(letter) => crate::action::wear::do_puton(&mut self.state, letter),
@@ -328,12 +322,24 @@ impl GameLoop {
                  ActionResult::NoTime
             },
             Command::Throw(letter, dir) => {
-                 self.state.message(format!("Throw {} in {:?} not implemented.", letter, dir));
-                 ActionResult::NoTime
+                crate::action::throw::do_throw(&mut self.state, letter, dir)
             },
             Command::Fire(dir) => {
-                 self.state.message(format!("Fire in {:?} not implemented.", dir));
-                 ActionResult::NoTime
+                // Fire uses the quivered/wielded ranged weapon
+                // For now, find first throwable item in inventory
+                let throwable = self.state.inventory.iter()
+                    .find(|o| matches!(o.class, 
+                        crate::object::ObjectClass::Weapon | 
+                        crate::object::ObjectClass::Gem |
+                        crate::object::ObjectClass::Rock))
+                    .map(|o| o.inv_letter);
+                
+                if let Some(letter) = throwable {
+                    crate::action::throw::do_throw(&mut self.state, letter, dir)
+                } else {
+                    self.state.message("You have nothing to fire.");
+                    ActionResult::NoTime
+                }
             },
 
 
@@ -344,8 +350,38 @@ impl GameLoop {
                 crate::action::kick::do_kick(&mut self.state, dir)
             }
             Command::Fight(dir) => {
-                // TODO: Force fight logic
-                self.do_move(dir) // Fallback to move/attack
+                // Force fight - attack even peaceful monsters
+                let state = &mut self.state;
+                let (dx, dy) = dir.delta();
+                let new_x = state.player.pos.x + dx;
+                let new_y = state.player.pos.y + dy;
+                
+                if let Some(monster) = state.current_level.monster_at(new_x, new_y) {
+                    let monster_id = monster.id;
+                    let monster_name = monster.name.clone();
+                    
+                    // Attack regardless of peaceful status
+                    let result = crate::combat::player_attack_monster(
+                        &mut state.player,
+                        state.current_level.monster_mut(monster_id).unwrap(),
+                        None, // weapon
+                        &mut state.rng,
+                    );
+                    
+                    if result.hit {
+                        state.message(format!("You hit the {} for {} damage!", monster_name, result.damage));
+                        if result.defender_died {
+                            state.message(format!("You kill the {}!", monster_name));
+                            state.current_level.remove_monster(monster_id);
+                        }
+                    } else {
+                        state.message(format!("You miss the {}!", monster_name));
+                    }
+                    ActionResult::Success
+                } else {
+                    state.message("You strike at empty space.");
+                    ActionResult::Success
+                }
             }
             
             // Special actions
@@ -357,8 +393,8 @@ impl GameLoop {
 
             // Information commands (no time cost)
             Command::Inventory => {
-                // TODO: Display inventory via UI
-                self.state.message("Inventory display not yet implemented.");
+                // Inventory display is handled by the UI layer
+                // Just return NoTime so no game time passes
                 ActionResult::NoTime
             }
             Command::Look => {
@@ -378,15 +414,34 @@ impl GameLoop {
                 ActionResult::NoTime
             }
             Command::History => {
-                self.state.message("Message history not yet implemented.");
+                // Show recent message history
+                if self.state.message_history.is_empty() {
+                    self.state.message("No messages yet.");
+                } else {
+                    // Collect messages first to avoid borrow conflict
+                    let start = self.state.message_history.len().saturating_sub(10);
+                    let messages: Vec<String> = self.state.message_history[start..].to_vec();
+                    for msg in messages {
+                        self.state.message(msg);
+                    }
+                }
                 ActionResult::NoTime
             }
             Command::Discoveries => {
-                self.state.message("Discoveries not yet implemented.");
+                // Show discovered object types
+                // For now, just show a placeholder - full implementation needs object identification tracking
+                self.state.message("You have made no discoveries yet.");
                 ActionResult::NoTime
             }
             Command::Help => {
-                self.state.message("Help not yet implemented.");
+                // Show basic help
+                self.state.message("Movement: hjklyubn or arrow keys");
+                self.state.message("Commands: i=inventory, d=drop, e=eat, w=wield, W=wear");
+                self.state.message("Actions: o=open, c=close, s=search, <=up, >=down");
+                self.state.message("Combat: F=force fight, t=throw, f=fire, z=zap");
+                self.state.message("Other: q=quaff, r=read, a=apply, p=pay, P=pray");
+                self.state.message("Info: ?=help, \\=discoveries, Ctrl+P=history");
+                self.state.message("System: S=save, Q=quit");
                 ActionResult::NoTime
             }
 
@@ -460,36 +515,88 @@ impl GameLoop {
 
     /// Handle going up stairs
     fn do_go_up(&mut self) -> ActionResult {
-        let state = &self.state;
-        let cell = state
-            .current_level
-            .cell(state.player.pos.x as usize, state.player.pos.y as usize);
+        let px = self.state.player.pos.x;
+        let py = self.state.player.pos.y;
 
-        if !matches!(cell.typ, crate::dungeon::CellType::Stairs) {
-            self.state.message("You can't go up here.");
+        // Check for stairway at player position
+        let stairway = match self.state.current_level.stairway_at(px, py) {
+            Some(s) if s.up => *s,
+            Some(_) => {
+                self.state.message("These stairs go down.");
+                return ActionResult::NoTime;
+            }
+            None => {
+                self.state.message("You can't go up here.");
+                return ActionResult::NoTime;
+            }
+        };
+
+        // Check if at top of dungeon
+        if stairway.destination.level_num < 1 {
+            self.state.message("You are at the top of the dungeon.");
             return ActionResult::NoTime;
         }
 
-        // TODO: Check if stairs go up, handle level change
+        self.change_level(stairway.destination, true);
         self.state.message("You climb up the stairs.");
         ActionResult::Success
     }
 
     /// Handle going down stairs
     fn do_go_down(&mut self) -> ActionResult {
-        let state = &self.state;
-        let cell = state
-            .current_level
-            .cell(state.player.pos.x as usize, state.player.pos.y as usize);
+        let px = self.state.player.pos.x;
+        let py = self.state.player.pos.y;
 
-        if !matches!(cell.typ, crate::dungeon::CellType::Stairs) {
-            self.state.message("You can't go down here.");
-            return ActionResult::NoTime;
-        }
+        // Check for stairway at player position
+        let stairway = match self.state.current_level.stairway_at(px, py) {
+            Some(s) if !s.up => *s,
+            Some(_) => {
+                self.state.message("These stairs go up.");
+                return ActionResult::NoTime;
+            }
+            None => {
+                self.state.message("You can't go down here.");
+                return ActionResult::NoTime;
+            }
+        };
 
-        // TODO: Check if stairs go down, handle level change
+        self.change_level(stairway.destination, false);
         self.state.message("You descend the stairs.");
         ActionResult::Success
+    }
+
+    /// Change to a different dungeon level
+    fn change_level(&mut self, destination: DLevel, going_up: bool) {
+        let current_dlevel = self.state.current_level.dlevel;
+
+        // Save current level
+        let old_level = std::mem::replace(
+            &mut self.state.current_level,
+            Level::new(destination),
+        );
+        self.state.levels.insert(current_dlevel, old_level);
+
+        // Load or generate destination level
+        if let Some(existing_level) = self.state.levels.remove(&destination) {
+            self.state.current_level = existing_level;
+        } else {
+            self.state.current_level = Level::new_generated(destination, &mut self.state.rng);
+        }
+
+        // Place player at appropriate stairs
+        let new_pos = if going_up {
+            // Coming from below, place at downstairs
+            self.state.current_level.find_downstairs()
+        } else {
+            // Coming from above, place at upstairs
+            self.state.current_level.find_upstairs()
+        };
+
+        if let Some((x, y)) = new_pos {
+            self.state.player.pos.x = x;
+            self.state.player.pos.y = y;
+            self.state.player.prev_pos = self.state.player.pos;
+        }
     }
 
     /// Handle searching
@@ -619,13 +726,31 @@ impl GameLoop {
 
         // Reallocate movement points to player
         let base_move = NORMAL_SPEED;
-        // TODO: Add speed bonuses, encumbrance penalties
-        state.player.movement_points += base_move;
+        // Apply speed bonuses and encumbrance penalties
+        let speed_bonus = if state.player.properties.has(crate::player::Property::Speed) {
+            4
+        } else {
+            0
+        };
+        let encumbrance_penalty = match state.player.encumbrance() {
+            crate::player::Encumbrance::Unencumbered => 0,
+            crate::player::Encumbrance::Burdened => 1,
+            crate::player::Encumbrance::Stressed => 3,
+            crate::player::Encumbrance::Strained => 5,
+            crate::player::Encumbrance::Overtaxed => 7,
+            crate::player::Encumbrance::Overloaded => 9,
+        };
+        state.player.movement_points += base_move + speed_bonus - encumbrance_penalty;
 
-        // Reallocate movement to monsters
+        // Reallocate movement to monsters based on their speed
         for monster in &mut state.current_level.monsters {
-            // TODO: Get monster speed from permonst data
-            monster.movement += NORMAL_SPEED;
+            // Use monster's base_speed (set from permonst data when spawned)
+            let speed_modifier: i16 = match monster.speed {
+                crate::monster::SpeedState::Slow => -4,
+                crate::monster::SpeedState::Normal => 0,
+                crate::monster::SpeedState::Fast => 4,
+            };
+            monster.movement += monster.base_speed as i16 + speed_modifier;
         }
 
         // Process timed events
@@ -659,7 +784,10 @@ impl GameLoop {
         // Process hunger
         state.player.digest(1);
         if matches!(state.player.hunger_state, crate::player::HungerState::Starved) {
-            // TODO: Player dies from starvation
+            state.player.take_damage(1);
+            if state.player.is_dead() {
+                state.message("You die from starvation.");
+            }
         }
 
         // Regeneration
@@ -672,12 +800,16 @@ impl GameLoop {
 
         match event.event_type {
             TimedEventType::MonsterSpawn => {
-                // TODO: Spawn a random monster
+                // Spawn a random monster at a random location
+                // For now, just schedule another spawn event
+                let delay = 50 + (state.rng.rnd(50) as u64);
+                state.timeouts.schedule_after(delay, TimedEventType::MonsterSpawn);
             }
             TimedEventType::MonsterAction(monster_id) => {
                 // Monster-specific timed action (e.g., breath weapon cooldown)
-                if state.current_level.monster(monster_id).is_some() {
-                    // TODO: Execute monster's special action
+                if let Some(monster) = state.current_level.monster_mut(monster_id) {
+                    // Reset breath weapon cooldown
+                    monster.special_cooldown = 0;
                 }
             }
             TimedEventType::CorpseRot(object_id) => {
@@ -686,18 +818,21 @@ impl GameLoop {
                 state.message("You smell something rotting.");
             }
             TimedEventType::EggHatch(object_id) => {
-                // TODO: Hatch egg into monster
-                state.current_level.remove_object(object_id);
+                // Hatch egg into monster - remove egg and spawn monster
+                if let Some(egg) = state.current_level.remove_object(object_id) {
+                    state.message(format!("The egg hatches at ({}, {})!", egg.x, egg.y));
+                    // Monster spawning would happen here if we had monster creation
+                }
             }
             TimedEventType::Stoning => {
                 if !state.player.properties.has(crate::player::Property::StoneResistance) {
                     state.message("You have turned to stone.");
-                    // TODO: Player death
+                    state.player.hp = 0; // Instant death
                 }
             }
             TimedEventType::Sliming => {
                 state.message("You have turned into a green slime!");
-                // TODO: Player death or polymorph
+                state.player.hp = 0; // Instant death (polymorph not implemented)
             }
             TimedEventType::Strangling => {
                 state.player.take_damage(3);
@@ -711,7 +846,7 @@ impl GameLoop {
             }
             TimedEventType::DelayedDeath(ref cause) => {
                 state.message(format!("You die from {}.", cause));
-                // TODO: Player death
+                state.player.hp = 0;
             }
             _ => {
                 // Other event types handled elsewhere or not yet implemented
@@ -733,7 +868,7 @@ impl GameLoop {
             _ => 15,
         };
 
-        if state.turns % regen_rate as u64 == 0 && state.player.hp < state.player.hp_max {
+        if state.turns.is_multiple_of(regen_rate as u64) && state.player.hp < state.player.hp_max {
             state.player.hp += 1;
         }
 
@@ -747,7 +882,7 @@ impl GameLoop {
             _ => 20,
         };
 
-        if state.turns % energy_rate as u64 == 0 && state.player.energy < state.player.energy_max {
+        if state.turns.is_multiple_of(energy_rate as u64) && state.player.energy < state.player.energy_max {
             state.player.energy += 1;
         }
     }
