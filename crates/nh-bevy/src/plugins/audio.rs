@@ -135,8 +135,10 @@ fn play_sound_effects(
     for effect in sound_events.read() {
         if let Some(path) = effect.asset_path() {
             // Check if file exists in the asset folder
-            let asset_path = std::path::PathBuf::from("crates/nh-bevy/assets").join(path);
-            if !asset_path.exists() {
+            // Try both workspace-relative and crate-relative paths
+            let workspace_path = std::path::PathBuf::from("crates/nh-bevy/assets").join(path);
+            let crate_path = std::path::PathBuf::from("assets").join(path);
+            if !workspace_path.exists() && !crate_path.exists() {
                 if !warned.contains(path) {
                     warn!("Sound file not found: {:?}", effect);
                     warned.insert(path.to_string());

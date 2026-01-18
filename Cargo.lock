@@ -3518,6 +3518,7 @@ dependencies = [
  "anyhow",
  "cc",
  "chrono",
+ "clap",
  "itertools",
  "libc",
  "nh-core",

@@ -339,16 +339,38 @@ fn place_monsters(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
             continue; // Skip if occupied
         }
 
-        // Create a basic monster (data will be populated by nethack binary)
-        let mut monster = Monster::new(MonsterId(0), rng.rn2(10) as i16, x as i8, y as i8);
+        // Create a basic monster with a random type
+        let monster_type = rng.rn2(10) as i16;
+        let mut monster = Monster::new(MonsterId(0), monster_type, x as i8, y as i8);
         monster.state = crate::monster::MonsterState::active();
         monster.hp = 5 + rng.rnd(10) as i32;
         monster.hp_max = monster.hp;
-        monster.name = format!("Monster {}", rng.rn2(100));
+        monster.name = random_monster_name(monster_type, rng).to_string();
 
         // Add to level
         level.add_monster(monster);
     }
+}
+
+/// Common monster names for random spawning
+/// These are basic monsters that can appear on early dungeon levels
+const RANDOM_MONSTER_NAMES: &[&str] = &[
+    "grid bug",
+    "lichen",
+    "newt",
+    "jackal",
+    "fox",
+    "kobold",
+    "goblin",
+    "gnome",
+    "orc",
+    "hobgoblin",
+];
+
+/// Get a random monster name based on monster type index
+fn random_monster_name(monster_type: i16, _rng: &mut GameRng) -> &'static str {
+    let idx = (monster_type as usize) % RANDOM_MONSTER_NAMES.len();
+    RANDOM_MONSTER_NAMES[idx]
 }
 
 /// Select a special room type based on dungeon depth

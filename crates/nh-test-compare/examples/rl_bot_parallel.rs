@@ -1,7 +1,15 @@
-//! Multi-Threaded RL Bot Training - High CPU Utilization
+//! Multi-Threaded RL Bot Training with CLI Arguments
 //!
-//! Uses 8+ worker threads running episodes in parallel.
-//! Each worker is completely independent - no locks during episode collection.
+//! Usage:
+//!   cargo run --example rl_bot_parallel -p nh-test-compare -- [OPTIONS]
+//!
+//! Options:
+//!   -e, --episodes <N>     Number of episodes to run (default: 2000)
+//!   -w, --workers <N>      Number of worker threads (default: 8)
+//!   -s, --steps <N>        Max steps per episode (default: 5000)
+//!   -b, --batch <N>        Batch size for replay memory (default: 64)
+//!   -i, --interval <N>     Checkpoint save interval (default: 500)
+//!   --help                 Show this help message
 
 use nh_test_compare::state::common::{GameAction, UnifiedGameState};
 use nh_test_compare::state::rust_extractor::RustGameEngine;
@@ -10,11 +18,74 @@ use nh_core::{GameLoop, GameState, GameRng};
 use std::sync::{Arc, Mutex, atomic::AtomicUsize};
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::fs::{self, File};
+use std::io::Write;
 use std::collections::VecDeque;
 use rand::Rng;
-use serde::{Serialize, Deserialize};
+use clap::{Parser, ValueEnum};
+
+// ============================================================================
+// CLI Arguments
+// ============================================================================
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum LogLevel {
+    Info,
+    Debug,
+    Quiet,
+}
+
+#[derive(Debug, Clone, Copy, Parser)]
+#[command(name = "rl_bot_parallel")]
+#[command(author = "NetHack RL")]
+#[command(version = "1.0")]
+#[command(about = "Multi-threaded RL training for NetHack bot", long_about = None)]
+struct Args {
+    /// Number of episodes to run
+    #[arg(short, long, default_value = "2000")]
+    episodes: usize,
+
+    /// Number of worker threads
+    #[arg(short, long, default_value = "8")]
+    workers: usize,
+
+    /// Max steps per episode
+    #[arg(short, long, default_value = "5000")]
+    steps: usize,
+
+    /// Batch size for replay memory
+    #[arg(short, long, default_value = "64")]
+    batch: usize,
+
+    /// Checkpoint save interval
+    #[arg(short, long, default_value = "500")]
+    interval: usize,
+
+    /// Replay memory capacity
+    #[arg(long, default_value = "100000")]
+    memory: usize,
+
+    /// Exploration decay rate
+    #[arg(long, default_value = "0.995")]
+    decay: f64,
+
+    /// Starting exploration rate
+    #[arg(long, default_value = "1.0")]
+    exploration_start: f64,
+
+    /// Ending exploration rate
+    #[arg(long, default_value = "0.01")]
+    exploration_end: f64,
+
+    /// Discount factor (gamma)
+    #[arg(long, default_value = "0.99")]
+    gamma: f64,
+
+    /// Log level
+    #[arg(long, value_enum, default_value = "info")]
+    log_level: LogLevel,
+}
 
 // ============================================================================
 // Configuration
@@ -27,7 +98,6 @@ struct Config {
     memory_size: usize,
     batch_size: usize,
     num_workers: usize,
-    sync_interval: usize,
     save_interval: usize,
     exploration_start: f64,
     exploration_end: f64,
@@ -35,20 +105,19 @@ struct Config {
     gamma: f64,
 }
 
-impl Default for Config {
-    fn default() -> Self {
+impl From<Args> for Config {
+    fn from(args: Args) -> Self {
         Self {
-            num_episodes: 2000,
-            max_steps: 5000,
-            memory_size: 100000,
-            batch_size: 64,
-            num_workers: 8,
-            sync_interval: 50,
-            save_interval: 500,
-            exploration_start: 1.0,
-            exploration_end: 0.01,
-            exploration_decay: 0.995,
-            gamma: 0.99,
+            num_episodes: args.episodes,
+            max_steps: args.steps,
+            memory_size: args.memory,
+            batch_size: args.batch,
+            num_workers: args.workers,
+            save_interval: args.interval,
+            exploration_start: args.exploration_start,
+            exploration_end: args.exploration_end,
+            exploration_decay: args.decay,
+            gamma: args.gamma,
         }
     }
 }
@@ -57,7 +126,7 @@ impl Default for Config {
 // Message Types
 // ============================================================================
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 struct WorkerMessage {
     worker_id: usize,
     episode: usize,
@@ -69,7 +138,7 @@ struct WorkerMessage {
     avg_q: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 struct TransitionData {
     state: Vec<f64>,
     action: usize,
@@ -106,33 +175,22 @@ impl ReplayMemory {
             self.memory.push_back(t.clone());
         }
     }
-    
-    fn sample(&self, batch_size: usize) -> Vec<TransitionData> {
-        let mut rng = rand::thread_rng();
-        let mut samples = Vec::with_capacity(batch_size);
-        let len = self.memory.len();
-        
-        for _ in 0..batch_size.min(len) {
-            let idx = rng.gen_range(0..len);
-            if let Some(t) = self.memory.get(idx).cloned() {
-                samples.push(t);
-            }
-        }
-        samples
-    }
-    
-    fn len(&self) -> usize {
-        self.memory.len()
-    }
 }
 
 // ============================================================================
 // Multi-Threaded Training
 // ============================================================================
 
-fn train_multithreaded(config: Config) {
-    println!("=== Multi-Threaded RL Training ===");
-    println!("Episodes: {}, Workers: {}, Batch: {}", config.num_episodes, config.num_workers, config.batch_size);
+fn train_multithreaded(config: Config, args: &Args) {
+    let log_level = args.log_level;
+    
+    if matches!(log_level, LogLevel::Info | LogLevel::Debug) {
+        println!("=== Multi-Threaded RL Training ===");
+        println!("Episodes: {}, Workers: {}, Steps: {}", config.num_episodes, config.num_workers, config.max_steps);
+        println!("Memory: {}, Batch: {}, Interval: {}", config.memory_size, config.batch_size, config.save_interval);
+        println!("Exploration: {:.3} -> {:.3} (decay: {:.4})", config.exploration_start, config.exploration_end, config.exploration_decay);
+        println!();
+    }
     
     let target_dir = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
     let checkpoints_dir = format!("{}/checkpoints", target_dir);
@@ -143,10 +201,8 @@ fn train_multithreaded(config: Config) {
     let completed_episodes = Arc::new(AtomicUsize::new(0));
     let start_time = Instant::now();
     
-    // Create channel for results
     let (episodes_tx, episodes_rx) = mpsc::channel();
     
-    // Launch workers - each gets its own closure with cloned atoms
     let mut handles = Vec::new();
     for worker_id in 0..config.num_workers {
         let config = config.clone();
@@ -173,7 +229,6 @@ fn train_multithreaded(config: Config) {
                     break;
                 }
                 
-                // Run episode
                 let exploration_rate = (config.exploration_start * config.exploration_decay.powf(global_ep as f64))
                     .max(config.exploration_end);
                 
@@ -181,7 +236,6 @@ fn train_multithreaded(config: Config) {
                     seed, exploration_rate, config.max_steps,
                 );
                 
-                // Send results
                 let msg = WorkerMessage {
                     worker_id,
                     episode: global_ep,
@@ -201,7 +255,6 @@ fn train_multithreaded(config: Config) {
         }));
     }
     
-    // Collect results
     let mut total_episodes = 0;
     let mut total_reward = 0.0;
     let mut deaths = 0;
@@ -214,38 +267,39 @@ fn train_multithreaded(config: Config) {
         if msg.died { deaths += 1; }
         if msg.won { wins += 1; }
         
-        // Add to replay memory
         replay_memory.lock().unwrap().push(&msg.transitions);
         
         batch_rewards.push(msg.reward);
         
-        // Progress
         if total_episodes % 50 == 0 {
             let elapsed = start_time.elapsed().as_secs_f64();
             let eps_per_sec = total_episodes as f64 / elapsed;
             let active = active_workers.load(std::sync::atomic::Ordering::Relaxed);
             let avg_batch: f64 = batch_rewards.iter().sum::<f64>() / batch_rewards.len() as f64;
             
-            println!("Episode {:5}: {:.1} eps/sec | Active: {} | Avg Reward: {:7.2} | Deaths: {} | Wins: {}",
-                total_episodes, eps_per_sec, active, avg_batch, deaths, wins);
+            if matches!(log_level, LogLevel::Info | LogLevel::Debug) {
+                println!("Episode {:5}: {:.1} eps/sec | Active: {} | Avg Reward: {:7.2} | Deaths: {} | Wins: {}",
+                    total_episodes, eps_per_sec, active, avg_batch, deaths, wins);
+            }
             
             batch_rewards.clear();
         }
         
-        // Save checkpoint
         if total_episodes % config.save_interval == 0 {
             let path = format!("{}/model_episode_{}.txt", checkpoints_dir, total_episodes);
             let mut file = File::create(&path).unwrap();
+            let avg_reward_batch: f64 = batch_rewards.iter().sum::<f64>() / batch_rewards.len() as f64;
             
-            // Write checkpoint metadata
             writeln!(file, "# NetHack RL Bot Checkpoint").unwrap();
             writeln!(file, "episode: {}", total_episodes).unwrap();
             writeln!(file, "workers: {}", config.num_workers).unwrap();
-            writeln!(file, "avg_reward: {:.4}", avg_batch).unwrap();
+            writeln!(file, "avg_reward: {:.4}", avg_reward_batch).unwrap();
             writeln!(file, "total_episodes: {}", total_episodes).unwrap();
-            writeln!(file, "timestamp: {}", chrono::Utc::now().timestamp()).unwrap();
+            writeln!(file, "eps_per_sec: {:.1}", total_episodes as f64 / start_time.elapsed().as_secs_f64()).unwrap();
             
-            println!("  -> Saved checkpoint at episode {}", total_episodes);
+            if matches!(log_level, LogLevel::Info | LogLevel::Debug) {
+                println!("  -> Saved checkpoint at episode {}", total_episodes);
+            }
         }
         
         if total_episodes >= config.num_episodes {
@@ -253,7 +307,6 @@ fn train_multithreaded(config: Config) {
         }
     }
     
-    // Wait for workers
     for handle in handles {
         let _ = handle.join();
     }
@@ -261,14 +314,19 @@ fn train_multithreaded(config: Config) {
     let total_time = start_time.elapsed().as_secs_f64();
     let avg_reward = total_reward / total_episodes as f64;
     
-    println!("\n=== Training Complete ===");
-    println!("Total time: {:.1} seconds ({:.2} minutes)", total_time, total_time / 60.0);
-    println!("Total episodes: {}", total_episodes);
-    println!("Episodes/second: {:.1}", total_episodes as f64 / total_time);
-    println!("Average reward: {:.2}", avg_reward);
-    println!("Total deaths: {} ({:.1}%)", deaths, deaths as f64 / total_episodes as f64 * 100.0);
-    println!("Total wins: {} ({:.1}%)", wins, wins as f64 / total_episodes as f64 * 100.0);
-    println!("\nCheckpoints saved to: {}/", checkpoints_dir);
+    if matches!(log_level, LogLevel::Info | LogLevel::Debug) {
+        println!("\n=== Training Complete ===");
+        println!("Total time: {:.1} seconds ({:.2} minutes)", total_time, total_time / 60.0);
+        println!("Total episodes: {}", total_episodes);
+        println!("Episodes/second: {:.1}", total_episodes as f64 / total_time);
+        println!("Average reward: {:.2}", avg_reward);
+        println!("Total deaths: {} ({:.1}%)", deaths, deaths as f64 / total_episodes as f64 * 100.0);
+        println!("Total wins: {} ({:.1}%)", wins, wins as f64 / total_episodes as f64 * 100.0);
+        println!("\nCheckpoints saved to: {}/", checkpoints_dir);
+    } else {
+        println!("{:.1} eps/sec, {:.2} avg reward, {} deaths, {} wins",
+            total_episodes as f64 / total_time, avg_reward, deaths, wins);
+    }
 }
 
 fn run_episode_threaded(
@@ -422,19 +480,8 @@ fn calculate_reward(old_state: &UnifiedGameState, new_state: &UnifiedGameState, 
 }
 
 fn main() {
-    let config = Config::default();
+    let args = Args::parse();
+    let config = Config::from(args.clone());
     
-    println!("NetHack RL Bot - Multi-Threaded Training");
-    println!("========================================\n");
-    println!("Workers: {}", config.num_workers);
-    println!("Each worker runs episodes independently.");
-    println!("CPU cores will be fully utilized.\n");
-    
-    train_multithreaded(config);
-    
-    println!("\n=== Usage ===");
-    println!("# To use more CPU cores, edit num_workers:");
-    println!("num_workers: 12,  // For 12 cores");
-    println!("");
-    println!("# Checkpoints: target/checkpoints/model_episode_*.txt");
+    train_multithreaded(config, &args);
 }
