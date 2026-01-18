@@ -5,6 +5,7 @@
 use std::io;
 use std::time::Duration;
 
+use clap::Parser;
 use crossterm::{
     event,
     execute,
@@ -12,39 +13,81 @@ use crossterm::{
 };
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use strum::IntoEnumIterator;
 
 use nh_core::dungeon::Level;
-use nh_core::player::{Gender, Race, Role, You};
+use nh_core::player::{AlignmentType, Gender, Race, Role, You};
 use nh_core::{GameLoopResult, GameRng, GameState};
 use nh_data::monsters;
 use nh_save::{save_game, load_game, default_save_path, delete_save};
 use nh_ui::App;
 
+/// NetHack clone in Rust
+#[derive(Parser, Debug)]
+#[command(name = "nethack")]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Player name
+    #[arg(short = 'u', long = "name")]
+    name: Option<String>,
+
+    /// Role/profession (e.g., Valkyrie, Wizard, Rogue)
+    #[arg(short = 'p', long = "role")]
+    role: Option<String>,
+
+    /// Race (e.g., Human, Elf, Dwarf)
+    #[arg(short = 'r', long = "race")]
+    race: Option<String>,
+
+    /// Gender (male/female)
+    #[arg(short = 'g', long = "gender")]
+    gender: Option<String>,
+
+    /// Alignment (lawful/neutral/chaotic)
+    #[arg(short = 'a', long = "align")]
+    alignment: Option<String>,
+
+    /// Random character (pick all options randomly)
+    #[arg(short = '@', long = "random")]
+    random: bool,
+
+    /// Wizard (debug) mode
+    #[arg(short = 'D', long = "wizard")]
+    wizard: bool,
+
+    /// Discovery (explore) mode
+    #[arg(short = 'X', long = "discover")]
+    discover: bool,
+}
+
 fn main() -> io::Result<()> {
+    // Parse command-line arguments before terminal setup
+    let args = Args::parse();
+    
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-
-    // Try to load existing save, or create new game
-    let player_name = "Player"; // Default player name
-    let save_path = default_save_path(player_name);
     
-    let state = if save_path.exists() {
-        match load_game(&save_path) {
-            Ok(loaded_state) => {
-                eprintln!("Loaded saved game for {}", loaded_state.player.name);
-                loaded_state
+    // If name provided via CLI, check for existing save
+    let state = if let Some(ref player_name) = args.name {
+        let save_path = default_save_path(player_name);
+        if save_path.exists() {
+            match load_game(&save_path) {
+                Ok(loaded_state) => loaded_state,
+                Err(_) => {
+                    let _ = delete_save(&save_path);
+                    run_character_creation(&mut terminal, &args)?
+                }
             }
-            Err(e) => {
-                eprintln!("Failed to load save: {}, starting new game", e);
-                create_new_game()
-            }
+        } else {
+            run_character_creation(&mut terminal, &args)?
         }
     } else {
-        create_new_game()
+        // No name provided - TUI will ask for it
+        run_character_creation(&mut terminal, &args)?
     };
 
     // Create app
@@ -112,24 +155,220 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-/// Create a new game with initial state
-fn create_new_game() -> GameState {
+/// Run TUI character creation and return the new game state
+fn run_character_creation(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    args: &Args,
+) -> io::Result<GameState> {
+    // If command-line args specify everything including name, skip TUI entirely
+    if args.name.is_some() && args.random {
+        let name = args.name.clone().unwrap();
+        return create_new_game_with_args(&name, args);
+    }
+    if args.name.is_some() && args.role.is_some() && args.race.is_some() && args.gender.is_some() && args.alignment.is_some() {
+        let name = args.name.clone().unwrap();
+        return create_new_game_with_args(&name, args);
+    }
+    
+    // Create a temporary game state for the character creation UI
+    let temp_state = GameState::new(GameRng::from_entropy());
+    let mut app = App::new(temp_state);
+    
+    // Start character creation - with name if provided via CLI
+    if let Some(ref name) = args.name {
+        app.start_character_creation_with_name(name.clone());
+    } else {
+        app.start_character_creation();
+    }
+    
+    // Character creation loop
+    loop {
+        terminal.draw(|frame| app.render(frame))?;
+        
+        if event::poll(Duration::from_millis(100))? {
+            let evt = event::read()?;
+            app.handle_event(evt);
+            
+            // Check if character creation is complete
+            if let Some(choices) = app.get_character_choices() {
+                app.finish_character_creation();
+                
+                // Create the actual game with the chosen options
+                return Ok(create_new_game_with_choices(
+                    &choices.name,
+                    choices.role,
+                    choices.race,
+                    choices.gender,
+                    choices.alignment,
+                    args.wizard,
+                    args.discover,
+                ));
+            }
+            
+            // Check if user quit during character creation
+            if app.should_quit() {
+                // Restore terminal before exiting
+                disable_raw_mode()?;
+                execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+                terminal.show_cursor()?;
+                std::process::exit(0);
+            }
+        }
+    }
+}
+
+/// Create new game using command-line args (only called when all args provided)
+fn create_new_game_with_args(player_name: &str, args: &Args) -> io::Result<GameState> {
+    let mut rng = GameRng::from_entropy();
+    
+    // Parse role from args or pick random
+    let role = if args.random {
+        random_role(&mut rng)
+    } else if let Some(ref role_str) = args.role {
+        parse_role(role_str).unwrap_or_else(|| random_role(&mut rng))
+    } else {
+        random_role(&mut rng)
+    };
+    
+    // Parse race from args or pick random
+    let race = if args.random {
+        random_race(&mut rng)
+    } else if let Some(ref race_str) = args.race {
+        parse_race(race_str).unwrap_or_else(|| random_race(&mut rng))
+    } else {
+        random_race(&mut rng)
+    };
+    
+    // Parse gender from args or pick random
+    let gender = if args.random {
+        random_gender(&mut rng)
+    } else if let Some(ref gender_str) = args.gender {
+        parse_gender(gender_str).unwrap_or_else(|| random_gender(&mut rng))
+    } else {
+        random_gender(&mut rng)
+    };
+    
+    // Parse alignment from args or pick random
+    let alignment = if args.random {
+        random_alignment(&mut rng)
+    } else if let Some(ref align_str) = args.alignment {
+        parse_alignment(align_str).unwrap_or_else(|| random_alignment(&mut rng))
+    } else {
+        random_alignment(&mut rng)
+    };
+    
+    Ok(create_new_game_with_choices(player_name, role, race, gender, alignment, args.wizard, args.discover))
+}
+
+/// Parse role from string
+fn parse_role(s: &str) -> Option<Role> {
+    let s = s.to_lowercase();
+    for role in Role::iter() {
+        if role.to_string().to_lowercase().starts_with(&s) {
+            return Some(role);
+        }
+    }
+    None
+}
+
+/// Parse race from string
+fn parse_race(s: &str) -> Option<Race> {
+    let s = s.to_lowercase();
+    for race in Race::iter() {
+        if race.to_string().to_lowercase().starts_with(&s) {
+            return Some(race);
+        }
+    }
+    None
+}
+
+/// Parse gender from string
+fn parse_gender(s: &str) -> Option<Gender> {
+    let s = s.to_lowercase();
+    if s.starts_with('m') {
+        Some(Gender::Male)
+    } else if s.starts_with('f') {
+        Some(Gender::Female)
+    } else {
+        None
+    }
+}
+
+/// Parse alignment from string
+fn parse_alignment(s: &str) -> Option<AlignmentType> {
+    let s = s.to_lowercase();
+    if s.starts_with('l') {
+        Some(AlignmentType::Lawful)
+    } else if s.starts_with('n') {
+        Some(AlignmentType::Neutral)
+    } else if s.starts_with('c') {
+        Some(AlignmentType::Chaotic)
+    } else {
+        None
+    }
+}
+
+/// Random role selection
+fn random_role(rng: &mut GameRng) -> Role {
+    let roles: Vec<Role> = Role::iter().collect();
+    roles[rng.rn2(roles.len() as u32) as usize]
+}
+
+/// Random race selection
+fn random_race(rng: &mut GameRng) -> Race {
+    let races: Vec<Race> = Race::iter().collect();
+    races[rng.rn2(races.len() as u32) as usize]
+}
+
+/// Random gender selection
+fn random_gender(rng: &mut GameRng) -> Gender {
+    if rng.one_in(2) { Gender::Male } else { Gender::Female }
+}
+
+/// Random alignment selection
+fn random_alignment(rng: &mut GameRng) -> AlignmentType {
+    let aligns: Vec<AlignmentType> = AlignmentType::iter().collect();
+    aligns[rng.rn2(aligns.len() as u32) as usize]
+}
+
+/// Create a new game with specified choices
+fn create_new_game_with_choices(
+    name: &str, 
+    role: Role, 
+    race: Race, 
+    gender: Gender,
+    alignment: AlignmentType,
+    wizard_mode: bool,
+    discover_mode: bool,
+) -> GameState {
     let rng = GameRng::from_entropy();
 
     // Create player
     let mut player = You::new(
-        "Player".to_string(),
-        Role::Valkyrie,
-        Race::Human,
-        Gender::Female,
+        name.to_string(),
+        role,
+        race,
+        gender,
     );
+    player.alignment.typ = alignment;
+    player.original_alignment = alignment;
 
-    // Initialize player stats
+    // Initialize player stats based on role
     player.hp = 16;
     player.hp_max = 16;
     player.energy = 1;
     player.energy_max = 1;
     player.armor_class = 10;
+    
+    // Set game modes - wizard mode gives extra powers for debugging
+    if wizard_mode {
+        player.hp = 100;
+        player.hp_max = 100;
+        player.energy = 100;
+        player.energy_max = 100;
+    }
+    
+    let _ = discover_mode; // TODO: implement discover mode effects
 
     // Set initial attributes (average values)
     use nh_core::player::Attribute;
@@ -156,7 +395,35 @@ fn create_new_game() -> GameState {
 
     state.flags.started = true;
 
-    state.message("Welcome to NetHack!  You are a Valkyrie.");
+    // Add welcome and intro messages
+    let rank = role.rank_title(1, gender);
+    state.message(format!("Welcome to NetHack! You are a {} {} {} {}.", 
+        alignment, race, gender, role));
+    state.message(format!("You are a {}.", rank));
+    
+    // Wizard mode notification
+    if wizard_mode {
+        state.message("You are in wizard mode - debugging powers enabled!");
+    }
+    
+    // Add role-specific intro
+    match role {
+        Role::Valkyrie => state.message("You must prove yourself worthy to enter Valhalla."),
+        Role::Wizard => state.message("You seek the secrets of the Mazes of Menace."),
+        Role::Archeologist => state.message("You seek ancient treasures and lost artifacts."),
+        Role::Barbarian => state.message("You seek glory through conquest and battle."),
+        Role::Caveman => state.message("You seek to survive in this hostile world."),
+        Role::Healer => state.message("You seek to cure the sick and aid the wounded."),
+        Role::Knight => state.message("You seek to uphold honor and chivalry."),
+        Role::Monk => state.message("You seek enlightenment through discipline."),
+        Role::Priest => state.message("You seek to spread the faith of your deity."),
+        Role::Ranger => state.message("You seek to protect the wilderness."),
+        Role::Rogue => state.message("You seek fortune through cunning and stealth."),
+        Role::Samurai => state.message("You seek to restore honor to your family."),
+        Role::Tourist => state.message("You seek adventure and souvenirs."),
+    }
+    
+    state.message("Be careful! The dungeon is full of monsters.");
 
     state
 }

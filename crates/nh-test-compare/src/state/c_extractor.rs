@@ -24,40 +24,40 @@ impl<'a> CGameWrapper<'a> {
         let json_value: serde_json::Value = serde_json::from_str(&json)
             .unwrap_or_else(|_| serde_json::json!({}));
 
-        let player_info = &json_value["player"];
+        let player_obj = &json_value["player"];
 
         UnifiedGameState {
             player: UnifiedPlayer {
                 name: "Player".to_string(),
-                role: c_char_to_string(&player_info["role"]),
-                race: c_char_to_string(&player_info["race"]),
-                gender: match player_info["gender"].as_i64().unwrap_or(0) {
+                role: c_char_to_string(&json_value["role"]),
+                race: c_char_to_string(&json_value["race"]),
+                gender: match json_value["gender"].as_i64().unwrap_or(0) {
                     0 => "Male".to_string(),
                     _ => "Female".to_string(),
                 },
-                alignment: match player_info["alignment"].as_i64().unwrap_or(0) {
+                alignment: match json_value["alignment"].as_i64().unwrap_or(0) {
                     -1 => "Chaotic".to_string(),
                     0 => "Neutral".to_string(),
                     _ => "Lawful".to_string(),
                 },
             },
             position: (
-                player_info["x"].as_i64().unwrap_or(40) as i32,
-                player_info["y"].as_i64().unwrap_or(10) as i32,
+                player_obj["x"].as_i64().unwrap_or(40) as i32,
+                player_obj["y"].as_i64().unwrap_or(10) as i32,
             ),
-            hp: player_info["hp"].as_i64().unwrap_or(10) as i32,
-            max_hp: player_info["max_hp"].as_i64().unwrap_or(10) as i32,
-            energy: player_info["energy"].as_i64().unwrap_or(10) as i32,
-            max_energy: player_info["max_energy"].as_i64().unwrap_or(10) as i32,
-            armor_class: player_info["armor_class"].as_i64().unwrap_or(10) as i32,
-            gold: player_info["gold"].as_i64().unwrap_or(0) as i32,
-            experience_level: player_info["experience_level"].as_i64().unwrap_or(1) as i32,
-            strength: player_info["strength"].as_i64().unwrap_or(10) as i32,
-            dexterity: player_info["dexterity"].as_i64().unwrap_or(10) as i32,
-            constitution: player_info["constitution"].as_i64().unwrap_or(10) as i32,
-            intelligence: player_info["intelligence"].as_i64().unwrap_or(10) as i32,
-            wisdom: player_info["wisdom"].as_i64().unwrap_or(10) as i32,
-            charisma: player_info["charisma"].as_i64().unwrap_or(10) as i32,
+            hp: player_obj["hp"].as_i64().unwrap_or(10) as i32,
+            max_hp: player_obj["max_hp"].as_i64().unwrap_or(10) as i32,
+            energy: player_obj["energy"].as_i64().unwrap_or(10) as i32,
+            max_energy: player_obj["max_energy"].as_i64().unwrap_or(10) as i32,
+            armor_class: player_obj["armor_class"].as_i64().unwrap_or(10) as i32,
+            gold: player_obj["gold"].as_i64().unwrap_or(0) as i32,
+            experience_level: player_obj["experience_level"].as_i64().unwrap_or(1) as i32,
+            strength: player_obj["strength"].as_i64().unwrap_or(10) as i32,
+            dexterity: player_obj["dexterity"].as_i64().unwrap_or(10) as i32,
+            constitution: player_obj["constitution"].as_i64().unwrap_or(10) as i32,
+            intelligence: player_obj["intelligence"].as_i64().unwrap_or(10) as i32,
+            wisdom: player_obj["wisdom"].as_i64().unwrap_or(10) as i32,
+            charisma: player_obj["charisma"].as_i64().unwrap_or(10) as i32,
             current_level: json_value["current_level"].as_i64().unwrap_or(1) as i32,
             dungeon_depth: json_value["dungeon_depth"].as_i64().unwrap_or(1) as i32,
             dungeon_visited: vec![1], // Simplified - not tracked in C wrapper yet

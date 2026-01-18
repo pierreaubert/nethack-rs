@@ -102,6 +102,13 @@ static char g_role[32] = "";
 static char g_race[32] = "";
 static int g_gender = 0;
 static int g_alignment = 0;
+static int g_x = 40;
+static int g_y = 10;
+static int g_ac = 10;
+static int g_hp = 10;
+static int g_max_hp = 10;
+static int g_level = 1;
+static int g_weight = 0;
 
 /* ============================================================================
  * Stub implementations for FFI testing
@@ -118,6 +125,13 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
     strncpy(g_race, race ? race : "Human", sizeof(g_race) - 1);
     g_gender = gender;
     g_alignment = alignment;
+    g_x = 40;
+    g_y = 10;
+    g_ac = 10;
+    g_hp = 10;
+    g_max_hp = 10;
+    g_level = 1;
+    g_weight = 0;
     
     g_initialized = true;
     g_game_over = false;
@@ -135,6 +149,9 @@ void nh_ffi_free(void) {
     g_last_message[0] = '\0';
     g_role[0] = '\0';
     g_race[0] = '\0';
+    g_x = 40;
+    g_y = 10;
+    g_weight = 0;
 }
 
 /* Reset game to initial state */
@@ -147,18 +164,34 @@ int nh_ffi_reset(unsigned long seed) {
     g_turn_count = 0;
     g_game_over = false;
     g_last_message[0] = '\0';
+    g_x = 40;
+    g_y = 10;
+    g_ac = 10;
+    g_hp = 10;
+    g_max_hp = 10;
+    g_level = 1;
+    g_weight = 0;
     
     return 0;
 }
 
+/* Setup status for testing */
+void nh_ffi_test_setup_status(int hp, int max_hp, int level, int ac) {
+    g_hp = hp;
+    g_max_hp = max_hp;
+    g_level = level;
+    g_ac = ac;
+    g_initialized = true;
+}
+
 /* Get player HP */
 int nh_ffi_get_hp(void) {
-    return g_initialized ? 10 : -1;
+    return g_initialized ? g_hp : -1;
 }
 
 /* Get player max HP */
 int nh_ffi_get_max_hp(void) {
-    return g_initialized ? 10 : -1;
+    return g_initialized ? g_max_hp : -1;
 }
 
 /* Get player energy */
@@ -174,8 +207,8 @@ int nh_ffi_get_max_energy(void) {
 /* Get player position */
 void nh_ffi_get_position(int* x, int* y) {
     if (g_initialized) {
-        *x = 40;
-        *y = 10;
+        *x = g_x;
+        *y = g_y;
     } else {
         *x = -1;
         *y = -1;
@@ -184,7 +217,7 @@ void nh_ffi_get_position(int* x, int* y) {
 
 /* Get armor class */
 int nh_ffi_get_armor_class(void) {
-    return g_initialized ? 10 : -1;
+    return g_initialized ? g_ac : -1;
 }
 
 /* Get gold */
@@ -194,7 +227,28 @@ int nh_ffi_get_gold(void) {
 
 /* Get experience level */
 int nh_ffi_get_experience_level(void) {
-    return g_initialized ? 1 : -1;
+    return g_initialized ? g_level : -1;
+}
+
+/* Wear item stub */
+int nh_ffi_wear_item(int item_id) {
+    (void)item_id;
+    if (!g_initialized) return -1;
+    g_ac -= 1; /* Simple stub: wearing anything reduces AC by 1 */
+    return 0;
+}
+
+/* Add item stub */
+int nh_ffi_add_item_to_inv(int item_id, int weight) {
+    (void)item_id;
+    if (!g_initialized) return -1;
+    g_weight += weight;
+    return 0;
+}
+
+/* Get carrying weight */
+int nh_ffi_get_weight(void) {
+    return g_initialized ? g_weight : -1;
 }
 
 /* Get current level */
@@ -260,27 +314,35 @@ int nh_ffi_exec_cmd(char cmd) {
     /* Process command - simplified implementation */
     switch (cmd) {
         case 'h': /* west */
+            g_x--;
             nh_ffi_set_message("You move west.");
             break;
         case 'j': /* south */
+            g_y++;
             nh_ffi_set_message("You move south.");
             break;
         case 'k': /* north */
+            g_y--;
             nh_ffi_set_message("You move north.");
             break;
         case 'l': /* east */
+            g_x++;
             nh_ffi_set_message("You move east.");
             break;
         case 'y': /* northwest */
+            g_x--; g_y--;
             nh_ffi_set_message("You move northwest.");
             break;
         case 'u': /* northeast */
+            g_x++; g_y--;
             nh_ffi_set_message("You move northeast.");
             break;
         case 'b': /* southwest */
+            g_x--; g_y++;
             nh_ffi_set_message("You move southwest.");
             break;
         case 'n': /* southeast */
+            g_x++; g_y++;
             nh_ffi_set_message("You move southeast.");
             break;
         case '.': /* wait */
@@ -377,6 +439,8 @@ int nh_ffi_exec_cmd_dir(char cmd, int dx, int dy) {
     }
     
     g_turn_count++;
+    g_x += dx;
+    g_y += dy;
     nh_ffi_set_message("You move.");
     
     return 0;
@@ -424,7 +488,7 @@ char* nh_ffi_get_state_json(void) {
         nh_ffi_get_max_hp(),
         nh_ffi_get_energy(),
         nh_ffi_get_max_energy(),
-        40, 10, /* position */
+        g_x, g_y, /* position */
         nh_ffi_get_current_level(),
         nh_ffi_get_armor_class(),
         nh_ffi_get_gold(),
@@ -503,4 +567,27 @@ char* nh_ffi_get_result_message(void) {
         return strdup("You died!");
     }
     return strdup("Game continues");
+}
+
+/* ============================================================================
+ * Logic/Calculation Wrappers (Phase 2 Stub)
+ * ============================================================================ */
+
+/* RNG wrapper */
+int nh_ffi_rng_rn2(int limit) {
+    /* Stub: return 0 or simple mod */
+    if (limit <= 0) return 0;
+    return 0; /* Deterministic for stub */
+}
+
+/* Damage calc wrapper */
+int nh_ffi_calc_base_damage(int weapon_id, int small_monster) {
+    (void)weapon_id;
+    (void)small_monster;
+    return 4; /* 1d6 average */
+}
+
+/* AC wrapper */
+int nh_ffi_get_ac(void) {
+    return g_initialized ? g_ac : 10;
 }

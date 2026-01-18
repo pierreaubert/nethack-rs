@@ -1,7 +1,22 @@
+# rust
 /target
+
+# ML training
+/logs
+/checkpoints
 *.log
 
+# Emacs
 *~
 .*~
 #*
 .#*
+
+# AI agents
+/docs
+.claude
+CLAUDE.md
+.agents
+AGENTS.md
+GEMINI.md
+

@@ -17,3 +17,5 @@ nh-ui.workspace = true
 nh-save.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
+strum.workspace = true
+clap.workspace = true

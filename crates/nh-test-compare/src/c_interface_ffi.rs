@@ -58,6 +58,15 @@ unsafe extern "C" {
     pub fn nh_ffi_is_game_over() -> c_int;
     pub fn nh_ffi_is_game_won() -> c_int;
     pub fn nh_ffi_get_result_message() -> *mut c_char;
+
+    // Logic/Calculation Wrappers (Phase 2)
+    pub fn nh_ffi_rng_rn2(limit: c_int) -> c_int;
+    pub fn nh_ffi_calc_base_damage(weapon_id: c_int, small_monster: c_int) -> c_int;
+    pub fn nh_ffi_get_ac() -> c_int;
+    pub fn nh_ffi_test_setup_status(hp: c_int, max_hp: c_int, level: c_int, ac: c_int);
+    pub fn nh_ffi_wear_item(item_id: c_int) -> c_int;
+    pub fn nh_ffi_add_item_to_inv(item_id: c_int, weight: c_int) -> c_int;
+    pub fn nh_ffi_get_weight() -> c_int;
 }
 
 // ============================================================================
@@ -341,6 +350,51 @@ impl FfiGameEngine {
         };
         unsafe { nh_ffi_free_string(msg_ptr as *mut c_void) };
         result
+    }
+
+    /// Generate a random number [0, limit) using the C engine's RNG
+    pub fn rng_rn2(&self, limit: i32) -> i32 {
+        unsafe { nh_ffi_rng_rn2(limit as c_int) as i32 }
+    }
+
+    /// Calculate base damage for a weapon against a monster size
+    pub fn calc_base_damage(&self, weapon_id: i32, small_monster: bool) -> i32 {
+        unsafe { nh_ffi_calc_base_damage(weapon_id as c_int, small_monster as c_int) as i32 }
+    }
+
+    /// Get current Armor Class
+    pub fn ac(&self) -> i32 {
+        unsafe { nh_ffi_get_ac() as i32 }
+    }
+
+    /// Setup specific status for testing (test-only FFI)
+    pub fn test_setup_status(&self, hp: i32, max_hp: i32, level: i32, ac: i32) {
+        unsafe { nh_ffi_test_setup_status(hp as c_int, max_hp as c_int, level as c_int, ac as c_int) };
+    }
+
+    /// Wear an item (stub)
+    pub fn wear_item(&self, item_id: i32) -> Result<(), String> {
+        let res = unsafe { nh_ffi_wear_item(item_id as c_int) };
+        if res < 0 {
+            Err("Failed to wear item".to_string())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Add item to inventory (stub)
+    pub fn add_item_to_inv(&self, item_id: i32, weight: i32) -> Result<(), String> {
+        let res = unsafe { nh_ffi_add_item_to_inv(item_id as c_int, weight as c_int) };
+        if res < 0 {
+            Err("Failed to add item".to_string())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Get current carrying weight
+    pub fn carrying_weight(&self) -> i32 {
+        unsafe { nh_ffi_get_weight() as i32 }
     }
 }
 
