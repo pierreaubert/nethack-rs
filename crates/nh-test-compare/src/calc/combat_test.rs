@@ -4,7 +4,8 @@ use crate::c_interface_ffi::FfiGameEngine;
 
 #[test]
 fn test_base_damage_calculation() {
-    let engine = FfiGameEngine::new();
+    let mut engine = FfiGameEngine::new();
+    engine.init("Tourist", "Human", 0, 0).unwrap();
     
     // Test case 1: Long sword (id=1, placeholder) vs small monster
     // In our stub, it returns 4. In real NetHack, it depends on weapon.
@@ -18,14 +19,16 @@ fn test_base_damage_calculation() {
 
 #[test]
 fn test_ac_access() {
-    let engine = FfiGameEngine::new();
-    // Default stub AC is 10
+    let mut engine = FfiGameEngine::new();
+    engine.init("Tourist", "Human", 0, 0).unwrap();
+    // Default AC should be 10
     assert_eq!(engine.ac(), 10);
 }
 
 #[test]
 fn test_rng_access() {
-    let engine = FfiGameEngine::new();
+    let mut engine = FfiGameEngine::new();
+    engine.init("Tourist", "Human", 0, 0).unwrap();
     // Stub rng_rn2 returns 0
     assert_eq!(engine.rng_rn2(10), 0);
 }

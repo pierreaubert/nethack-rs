@@ -65,8 +65,8 @@ impl Default for Config {
             priority_beta_start: 0.4,
             priority_beta_frames: 100000,
             num_workers: 4,
-            save_dir: "checkpoints".to_string(),
-            log_dir: "logs".to_string(),
+            save_dir: "target/checkpoints".to_string(),
+            log_dir: "target/logs".to_string(),
         }
     }
 }
@@ -646,9 +646,13 @@ fn train_advanced_rl_bot(config: Config) {
     println!("Dueling DQN + PER + Double DQN");
     println!("Episodes: {}, Workers: {}, Memory: {}", config.num_episodes, config.num_workers, config.memory_size);
     
+    let target_dir = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
+    let save_dir = format!("{}/checkpoints", target_dir);
+    let log_dir = format!("{}/logs", target_dir);
+    
     // Create save/log directories
-    std::fs::create_dir_all(&config.save_dir).ok();
-    std::fs::create_dir_all(&config.log_dir).ok();
+    std::fs::create_dir_all(&save_dir).ok();
+    std::fs::create_dir_all(&log_dir).ok();
     
     // Initialize network and replay memory
     let network = DuelingQNetwork::new(STATE_SIZE, ACTION_SIZE);
@@ -661,7 +665,7 @@ fn train_advanced_rl_bot(config: Config) {
     );
     
     // Initialize logger
-    let mut logger = TensorBoardLogger::new(&config.log_dir);
+    let mut logger = TensorBoardLogger::new(&log_dir);
     
     // Shared network for workers
     let shared_network = Arc::new(Mutex::new(network));
@@ -763,7 +767,7 @@ fn train_advanced_rl_bot(config: Config) {
             // Save best model
             if avg_reward > best_reward {
                 best_reward = avg_reward;
-                let path = format!("{}/best_model.txt", config.save_dir);
+                let path = format!("{}/best_model.txt", save_dir);
                 shared_network.lock().unwrap().save(&path);
                 println!("  -> Saved best model (reward: {:.2})", best_reward);
             }
@@ -773,31 +777,29 @@ fn train_advanced_rl_bot(config: Config) {
         
         // Save checkpoint
         if episode % 500 == 0 && episode > 0 {
-            let path = format!("{}/checkpoint_{}.txt", config.save_dir, episode);
+            let path = format!("{}/checkpoint_{}.txt", save_dir, episode);
             shared_network.lock().unwrap().save(&path);
         }
     }
     
     // Final save
-    let path = format!("{}/final_model.txt", config.save_dir);
+    let path = format!("{}/final_model.txt", save_dir);
     shared_network.lock().unwrap().save(&path);
     
     let total_time = start_time.elapsed().as_secs();
     println!("\n=== Training Complete ===");
     println!("Total time: {:.1} minutes", total_time as f64 / 60.0);
     println!("Best reward: {:.2}", best_reward);
-    println!("Saved to: {}/", config.save_dir);
+    println!("Saved to: {}/", save_dir);
 }
 
 fn main() {
     let config = Config::default();
-    let save_dir = config.save_dir.clone();
-    let log_dir = config.log_dir.clone();
     train_advanced_rl_bot(config);
     
     println!("\n=== Next Steps ===");
-    println!("1. View logs: cat {}/events.txt", log_dir);
-    println!("2. Load model: network.load('checkpoints/final_model.txt')");
+    println!("1. View logs: cat target/logs/events.txt");
+    println!("2. Load model: network.load('target/checkpoints/final_model.txt')");
     println!("3. Run evaluation: evaluate_bot()");
     println!("4. Hyperparameter tuning: Adjust learning_rate, gamma, etc.");
 }

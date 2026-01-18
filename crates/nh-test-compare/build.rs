@@ -12,19 +12,44 @@ fn main() {
     
     if real_nethack_src.exists() {
         println!("Building with real NetHack 3.6.7 source");
+        let nethack_root = real_nethack_src.parent().unwrap();
+        let nethack_include = nethack_root.join("include");
         
-        // Build with real NetHack source - compile ALL C files in a single builder
-        // to ensure all symbols are available for linking
         let mut builder = cc::Build::new();
         builder.opt_level(2);
+        builder.include(&nethack_include);
+        
+        // NetHack defines
+        builder.define("DLB", None);
+        builder.define("REAL_NETHACK", None);
+        builder.define("__has_attribute(x)", Some("1"));
+        
+        // C99 compatibility for bool type
+        builder.define("__STDC_VERSION__", Some("199901L"));
         
         // Always need isaac64_standalone.c for FFI RNG tests
         builder.file(c_src.join("isaac64_standalone.c"));
         
         // Compile the FFI wrapper
         builder.file(nethack_src.join("nethack_ffi.c"));
-        
         builder.compile("nethack_c");
+
+        // Link against ncurses for terminal functions
+        println!("cargo:rustc-link-lib=ncurses");
+
+        // Link against existing NetHack object files
+        // We skip unixmain.o to avoid duplicate 'main' symbol
+        let obj_files = std::fs::read_dir(&real_nethack_src).unwrap();
+        for entry in obj_files {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.extension().map_or(false, |ext| ext == "o") {
+                let file_name = path.file_name().unwrap().to_str().unwrap();
+                if file_name != "unixmain.o" && file_name != "nethack_ffi.o" {
+                    println!("cargo:rustc-link-arg={}", path.display());
+                }
+            }
+        }
     } else {
         println!("Building standalone NetHack FFI stub");
         
