@@ -12,6 +12,9 @@ use crate::rng::GameRng;
 use crate::world::{Context, Flags, TimeoutManager};
 use crate::NORMAL_SPEED;
 
+/// Default sight range for visibility calculation (in lit rooms)
+const SIGHT_RANGE: i32 = 15;
+
 /// Result of a game loop tick
 #[derive(Debug, Clone)]
 pub enum GameLoopResult {
@@ -91,6 +94,10 @@ impl GameState {
         player.pos.x = start_x;
         player.pos.y = start_y;
         player.prev_pos = player.pos;
+
+        // Initialize visibility from starting position
+        let mut current_level = current_level;
+        current_level.update_visibility(start_x, start_y, SIGHT_RANGE);
 
         Self {
             player,
@@ -530,6 +537,9 @@ impl GameLoop {
         state.player.pos.y = new_y;
         state.player.moved = true;
 
+        // Update visibility from new position
+        state.current_level.update_visibility(new_x, new_y, SIGHT_RANGE);
+
         ActionResult::Success
     }
 
@@ -616,6 +626,8 @@ impl GameLoop {
             self.state.player.pos.x = x;
             self.state.player.pos.y = y;
             self.state.player.prev_pos = self.state.player.pos;
+            // Update visibility on new level
+            self.state.current_level.update_visibility(x, y, SIGHT_RANGE);
         }
     }
 

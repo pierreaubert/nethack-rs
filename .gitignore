@@ -1,5 +1,6 @@
 # rust
 /target
+paniclog
 
 # ML training
 /logs

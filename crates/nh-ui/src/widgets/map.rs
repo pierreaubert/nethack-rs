@@ -19,46 +19,59 @@ impl<'a> MapWidget<'a> {
     }
 
     fn cell_display(&self, x: usize, y: usize) -> (char, Style) {
-        // Player position
-        if x as i8 == self.player.pos.x && y as i8 == self.player.pos.y {
+        let xi = x as i8;
+        let yi = y as i8;
+        let is_visible = self.level.is_visible(xi, yi);
+        let is_explored = self.level.is_explored(xi, yi);
+
+        // If not explored, show nothing (space)
+        if !is_explored {
+            return (' ', Style::default());
+        }
+
+        // Player position (always visible)
+        if xi == self.player.pos.x && yi == self.player.pos.y {
             return ('@', Style::default().fg(Color::White).bold());
         }
 
-        // Monster at position
-        if let Some(monster) = self.level.monster_at(x as i8, y as i8) {
-            let symbol = if monster.name.is_empty() { 'M' } else { monster.name.chars().next().unwrap_or('M') };
-            let color = if monster.is_hostile() {
-                Color::Red
-            } else if monster.is_pet() {
-                Color::White
-            } else {
-                Color::Yellow
-            };
-            return (symbol, Style::default().fg(color));
+        // Only show monsters and objects if currently visible
+        if is_visible {
+            // Monster at position
+            if let Some(monster) = self.level.monster_at(xi, yi) {
+                let symbol = if monster.name.is_empty() { 'M' } else { monster.name.chars().next().unwrap_or('M') };
+                let color = if monster.is_hostile() {
+                    Color::Red
+                } else if monster.is_pet() {
+                    Color::White
+                } else {
+                    Color::Yellow
+                };
+                return (symbol, Style::default().fg(color));
+            }
+
+            // Objects at position - show top object's class symbol
+            let objects = self.level.objects_at(xi, yi);
+            if let Some(obj) = objects.first() {
+                let symbol = obj.class.symbol();
+                let color = match obj.class {
+                    nh_core::object::ObjectClass::Coin => Color::Yellow,
+                    nh_core::object::ObjectClass::Gem => Color::Cyan,
+                    nh_core::object::ObjectClass::Potion => Color::Magenta,
+                    nh_core::object::ObjectClass::Scroll => Color::White,
+                    nh_core::object::ObjectClass::Wand => Color::LightBlue,
+                    nh_core::object::ObjectClass::Weapon => Color::Gray,
+                    nh_core::object::ObjectClass::Armor => Color::Gray,
+                    nh_core::object::ObjectClass::Food => Color::LightRed,
+                    _ => Color::Yellow,
+                };
+                return (symbol, Style::default().fg(color));
+            }
         }
 
-        // Objects at position - show top object's class symbol
-        let objects = self.level.objects_at(x as i8, y as i8);
-        if let Some(obj) = objects.first() {
-            let symbol = obj.class.symbol();
-            let color = match obj.class {
-                nh_core::object::ObjectClass::Coin => Color::Yellow,
-                nh_core::object::ObjectClass::Gem => Color::Cyan,
-                nh_core::object::ObjectClass::Potion => Color::Magenta,
-                nh_core::object::ObjectClass::Scroll => Color::White,
-                nh_core::object::ObjectClass::Wand => Color::LightBlue,
-                nh_core::object::ObjectClass::Weapon => Color::Gray,
-                nh_core::object::ObjectClass::Armor => Color::Gray,
-                nh_core::object::ObjectClass::Food => Color::LightRed,
-                _ => Color::Yellow,
-            };
-            return (symbol, Style::default().fg(color));
-        }
-
-        // Terrain
+        // Terrain (shown if explored, dimmed if not currently visible)
         let cell = &self.level.cells[x][y];
         let symbol = cell.typ.symbol();
-        let color = match cell.typ {
+        let base_color = match cell.typ {
             CellType::Stone => Color::Black,
             CellType::Room | CellType::Corridor => {
                 if cell.lit {
@@ -79,6 +92,13 @@ impl<'a> MapWidget<'a> {
             CellType::Throne => Color::Yellow,
             CellType::Tree => Color::Green,
             _ => Color::White,
+        };
+
+        // Dim explored but not visible cells
+        let color = if is_visible {
+            base_color
+        } else {
+            Color::DarkGray
         };
 
         (symbol, Style::default().fg(color))

@@ -19,6 +19,12 @@ anyhow = "1.0"
 thiserror = "1.0"
 rand = { workspace = true }
 rand_chacha = { workspace = true }
+ndarray = { version = "0.16", features = ["rayon"] }
+nalgebra = "0.33"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.9.1", features = ["metal"] }
+candle-nn = { version = "0.9.1", features = ["metal"] }
 itertools = "0.13"
 regex = "1.10"
 chrono = "0.4"

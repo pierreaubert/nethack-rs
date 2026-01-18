@@ -346,7 +346,7 @@ impl Object {
         self.weight += other.weight;
     }
 
-    /// Get display name for the object
+    /// Get display name for the object (simple version, use xname/doname for full)
     pub fn display_name(&self) -> String {
         if let Some(ref name) = self.name {
             if self.quantity > 1 {
@@ -356,31 +356,391 @@ impl Object {
             }
         } else {
             // Fallback to class name
-            let class_name = match self.class {
-                ObjectClass::Weapon => "weapon",
-                ObjectClass::Armor => "armor",
-                ObjectClass::Ring => "ring",
-                ObjectClass::Amulet => "amulet",
-                ObjectClass::Tool => "tool",
-                ObjectClass::Food => "food",
-                ObjectClass::Potion => "potion",
-                ObjectClass::Scroll => "scroll",
-                ObjectClass::Spellbook => "spellbook",
-                ObjectClass::Wand => "wand",
-                ObjectClass::Coin => "gold piece",
-                ObjectClass::Gem => "gem",
-                ObjectClass::Rock => "rock",
-                ObjectClass::Ball => "ball",
-                ObjectClass::Chain => "chain",
-                ObjectClass::Venom => "venom",
-                ObjectClass::Random => "strange object",
-                ObjectClass::IllObj => "strange object",
-            };
+            let class_name = self.class_name();
             if self.quantity > 1 {
                 format!("{} {}s", self.quantity, class_name)
             } else {
                 format!("a {}", class_name)
             }
         }
+    }
+
+    /// Get the generic class name for this object
+    pub const fn class_name(&self) -> &'static str {
+        match self.class {
+            ObjectClass::Weapon => "weapon",
+            ObjectClass::Armor => "armor",
+            ObjectClass::Ring => "ring",
+            ObjectClass::Amulet => "amulet",
+            ObjectClass::Tool => "tool",
+            ObjectClass::Food => "food",
+            ObjectClass::Potion => "potion",
+            ObjectClass::Scroll => "scroll",
+            ObjectClass::Spellbook => "spellbook",
+            ObjectClass::Wand => "wand",
+            ObjectClass::Coin => "gold piece",
+            ObjectClass::Gem => "gem",
+            ObjectClass::Rock => "rock",
+            ObjectClass::Ball => "ball",
+            ObjectClass::Chain => "chain",
+            ObjectClass::Venom => "venom",
+            ObjectClass::Random => "strange object",
+            ObjectClass::IllObj => "strange object",
+        }
+    }
+
+    /// Get erosion description prefix
+    pub fn erosion_prefix(&self) -> String {
+        let mut prefix = String::new();
+
+        // First erosion type (rust/burn)
+        if self.erosion1 > 0 {
+            match self.erosion1 {
+                2 => prefix.push_str("very "),
+                3 => prefix.push_str("thoroughly "),
+                _ => {}
+            }
+            // Assume metal = rusty, otherwise burnt
+            if matches!(self.class, ObjectClass::Weapon | ObjectClass::Armor) {
+                prefix.push_str("rusty ");
+            } else {
+                prefix.push_str("burnt ");
+            }
+        }
+
+        // Second erosion type (corrode/rot)
+        if self.erosion2 > 0 {
+            match self.erosion2 {
+                2 => prefix.push_str("very "),
+                3 => prefix.push_str("thoroughly "),
+                _ => {}
+            }
+            if matches!(self.class, ObjectClass::Weapon | ObjectClass::Armor) {
+                prefix.push_str("corroded ");
+            } else {
+                prefix.push_str("rotted ");
+            }
+        }
+
+        // Erosion-proof status (if known)
+        if self.rust_known && self.erosion_proof {
+            match self.class {
+                ObjectClass::Weapon | ObjectClass::Armor => prefix.push_str("rustproof "),
+                _ => prefix.push_str("fireproof "),
+            }
+        }
+
+        prefix
+    }
+
+    /// Get BUC status prefix (if known)
+    pub fn buc_prefix(&self) -> &'static str {
+        if !self.buc_known {
+            return "";
+        }
+        match self.buc {
+            BucStatus::Blessed => "blessed ",
+            BucStatus::Cursed => "cursed ",
+            BucStatus::Uncursed => {
+                // Only show "uncursed" for items where it matters
+                if matches!(
+                    self.class,
+                    ObjectClass::Weapon
+                        | ObjectClass::Armor
+                        | ObjectClass::Ring
+                        | ObjectClass::Amulet
+                        | ObjectClass::Wand
+                        | ObjectClass::Tool
+                        | ObjectClass::Potion
+                        | ObjectClass::Scroll
+                ) {
+                    "uncursed "
+                } else {
+                    ""
+                }
+            }
+        }
+    }
+
+    /// Get enchantment string (e.g., "+2" or "-1")
+    pub fn enchantment_str(&self) -> String {
+        if !self.known {
+            return String::new();
+        }
+        match self.class {
+            ObjectClass::Weapon | ObjectClass::Armor => {
+                format!("{:+} ", self.enchantment)
+            }
+            ObjectClass::Ring | ObjectClass::Wand => {
+                if self.enchantment != 0 {
+                    format!("{:+} ", self.enchantment)
+                } else {
+                    String::new()
+                }
+            }
+            _ => String::new(),
+        }
+    }
+
+    /// Get worn/wielded suffix
+    pub fn worn_suffix(&self) -> &'static str {
+        if self.worn_mask == 0 {
+            return "";
+        }
+        match self.class {
+            ObjectClass::Weapon => " (weapon in hand)",
+            ObjectClass::Armor => " (being worn)",
+            ObjectClass::Amulet => " (being worn)",
+            ObjectClass::Ring => " (on finger)",
+            ObjectClass::Tool => " (being worn)",
+            _ => " (in use)",
+        }
+    }
+
+    /// Get charges suffix for wands (if known)
+    pub fn charges_suffix(&self) -> String {
+        if self.known && self.class == ObjectClass::Wand {
+            format!(" ({}:{})", self.recharged, self.enchantment)
+        } else {
+            String::new()
+        }
+    }
+
+    /// Full object name for display (like NetHack's doname)
+    /// This builds a complete description including quantity, BUC, enchantment,
+    /// erosion, the base name, and any suffixes.
+    ///
+    /// # Arguments
+    /// * `base_name` - The base name of the object (from OBJECTS array or custom name)
+    pub fn doname(&self, base_name: &str) -> String {
+        let mut parts = Vec::new();
+
+        // Quantity
+        if self.quantity > 1 {
+            parts.push(format!("{}", self.quantity));
+        }
+
+        // BUC status
+        let buc = self.buc_prefix();
+        if !buc.is_empty() {
+            parts.push(buc.trim().to_string());
+        }
+
+        // Enchantment
+        let ench = self.enchantment_str();
+        if !ench.is_empty() {
+            parts.push(ench.trim().to_string());
+        }
+
+        // Greased
+        if self.greased {
+            parts.push("greased".to_string());
+        }
+
+        // Erosion-proof and erosion
+        let erosion = self.erosion_prefix();
+        if !erosion.is_empty() {
+            parts.push(erosion.trim().to_string());
+        }
+
+        // Poisoned (for weapons)
+        if self.poisoned {
+            parts.push("poisoned".to_string());
+        }
+
+        // Base name
+        parts.push(base_name.to_string());
+
+        // Build the main string
+        let mut result = parts.join(" ");
+
+        // Add suffixes
+        result.push_str(&self.charges_suffix());
+        result.push_str(self.worn_suffix());
+
+        // Container contents
+        if self.is_container() && !self.contents.is_empty() {
+            result.push_str(&format!(" (containing {} item{})",
+                self.contents.len(),
+                if self.contents.len() == 1 { "" } else { "s" }
+            ));
+        }
+
+        // Lit status for light sources
+        if self.lit {
+            result.push_str(" (lit)");
+        }
+
+        result
+    }
+
+    /// Simple name without quantity or article (like NetHack's xname)
+    pub fn xname(&self, base_name: &str) -> String {
+        let mut parts = Vec::new();
+
+        // Poisoned (for weapons)
+        if self.poisoned {
+            parts.push("poisoned".to_string());
+        }
+
+        // Greased
+        if self.greased {
+            parts.push("greased".to_string());
+        }
+
+        // Erosion
+        let erosion = self.erosion_prefix();
+        if !erosion.is_empty() {
+            parts.push(erosion.trim().to_string());
+        }
+
+        // Base name
+        parts.push(base_name.to_string());
+
+        parts.join(" ")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_buc_prefix() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+
+        // Unknown BUC
+        obj.buc_known = false;
+        assert_eq!(obj.buc_prefix(), "");
+
+        // Known blessed
+        obj.buc_known = true;
+        obj.buc = BucStatus::Blessed;
+        assert_eq!(obj.buc_prefix(), "blessed ");
+
+        // Known cursed
+        obj.buc = BucStatus::Cursed;
+        assert_eq!(obj.buc_prefix(), "cursed ");
+
+        // Known uncursed (weapon shows it)
+        obj.buc = BucStatus::Uncursed;
+        assert_eq!(obj.buc_prefix(), "uncursed ");
+
+        // Known uncursed food (doesn't show it)
+        obj.class = ObjectClass::Food;
+        assert_eq!(obj.buc_prefix(), "");
+    }
+
+    #[test]
+    fn test_enchantment_str() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.enchantment = 2;
+
+        // Unknown
+        obj.known = false;
+        assert_eq!(obj.enchantment_str(), "");
+
+        // Known weapon
+        obj.known = true;
+        assert_eq!(obj.enchantment_str(), "+2 ");
+
+        // Negative
+        obj.enchantment = -1;
+        assert_eq!(obj.enchantment_str(), "-1 ");
+
+        // Food doesn't show enchantment
+        obj.class = ObjectClass::Food;
+        assert_eq!(obj.enchantment_str(), "");
+    }
+
+    #[test]
+    fn test_erosion_prefix() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+
+        // No erosion
+        assert_eq!(obj.erosion_prefix(), "");
+
+        // Rusty
+        obj.erosion1 = 1;
+        assert_eq!(obj.erosion_prefix(), "rusty ");
+
+        // Very rusty
+        obj.erosion1 = 2;
+        assert_eq!(obj.erosion_prefix(), "very rusty ");
+
+        // Thoroughly rusty and corroded
+        obj.erosion1 = 3;
+        obj.erosion2 = 1;
+        assert_eq!(obj.erosion_prefix(), "thoroughly rusty corroded ");
+
+        // Rustproof
+        obj.erosion1 = 0;
+        obj.erosion2 = 0;
+        obj.rust_known = true;
+        obj.erosion_proof = true;
+        assert_eq!(obj.erosion_prefix(), "rustproof ");
+    }
+
+    #[test]
+    fn test_doname() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 1;
+        obj.buc_known = true;
+        obj.buc = BucStatus::Uncursed;
+        obj.known = true;
+        obj.enchantment = 2;
+
+        let name = obj.doname("long sword");
+        assert!(name.contains("uncursed"));
+        assert!(name.contains("+2"));
+        assert!(name.contains("long sword"));
+    }
+
+    #[test]
+    fn test_doname_with_quantity() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 5;
+
+        let name = obj.doname("arrow");
+        assert!(name.starts_with("5 "));
+        assert!(name.contains("arrow"));
+    }
+
+    #[test]
+    fn test_worn_suffix() {
+        let mut obj = Object::default();
+
+        // Not worn
+        assert_eq!(obj.worn_suffix(), "");
+
+        // Weapon wielded
+        obj.class = ObjectClass::Weapon;
+        obj.worn_mask = 1;
+        assert_eq!(obj.worn_suffix(), " (weapon in hand)");
+
+        // Armor worn
+        obj.class = ObjectClass::Armor;
+        assert_eq!(obj.worn_suffix(), " (being worn)");
+    }
+
+    #[test]
+    fn test_charges_suffix() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Wand;
+        obj.enchantment = 5;
+        obj.recharged = 1;
+
+        // Unknown
+        obj.known = false;
+        assert_eq!(obj.charges_suffix(), "");
+
+        // Known
+        obj.known = true;
+        assert_eq!(obj.charges_suffix(), " (1:5)");
     }
 }

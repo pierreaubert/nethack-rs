@@ -17,6 +17,8 @@ mod shop;
 mod special_level;
 mod special_rooms;
 mod topology;
+pub mod trap;
+pub mod economy;
 
 pub use cell::{Cell, CellType, DoorState};
 pub use corridor::{generate_corridors, ConnectivityTracker};

@@ -38,6 +38,8 @@ pub enum UiMode {
     },
     /// Showing help
     Help,
+    /// Death screen showing final statistics
+    DeathScreen { cause: String },
 }
 
 /// Character creation state machine
@@ -169,6 +171,10 @@ impl App {
                 }
                 UiMode::Help => {
                     self.handle_help_input(key);
+                    None
+                }
+                UiMode::DeathScreen { .. } => {
+                    self.handle_death_screen_input(key);
                     None
                 }
             }
@@ -415,7 +421,10 @@ impl App {
         let result = self.game_loop.tick(command);
 
         match &result {
-            GameLoopResult::PlayerDied(_) | GameLoopResult::PlayerQuit => {
+            GameLoopResult::PlayerDied(cause) => {
+                self.mode = UiMode::DeathScreen { cause: cause.clone() };
+            }
+            GameLoopResult::PlayerQuit => {
                 self.should_quit = true;
             }
             GameLoopResult::SaveAndQuit => {
@@ -572,6 +581,9 @@ impl App {
                 self.render_direction_select(frame, prompt);
             }
             UiMode::Help => self.render_help(frame),
+            UiMode::DeathScreen { cause } => {
+                self.render_death_screen(frame, cause);
+            }
         }
     }
 
@@ -1033,6 +1045,199 @@ Press ESC or SPACE to close"#;
     pub fn finish_character_creation(&mut self) {
         self.mode = UiMode::Normal;
     }
+
+    /// Handle death screen input
+    fn handle_death_screen_input(&mut self, key: crossterm::event::KeyEvent) {
+        match key.code {
+            KeyCode::Char(' ') | KeyCode::Enter | KeyCode::Esc | KeyCode::Char('q') => {
+                self.should_quit = true;
+            }
+            _ => {}
+        }
+    }
+
+    /// Render the death screen modal with player statistics
+    fn render_death_screen(&self, frame: &mut Frame, cause: &str) {
+        use nh_core::player::Attribute;
+        use ratatui::style::Stylize;
+
+        let area = centered_rect(70, 85, frame.area());
+        frame.render_widget(Clear, area);
+
+        let state = self.game_loop.state();
+        let player = &state.player;
+
+        let mut lines: Vec<Line> = Vec::new();
+
+        // Title
+        lines.push(Line::from(vec![
+            Span::styled("  R.I.P.  ", Style::default().fg(Color::Red).bold()),
+        ]));
+        lines.push(Line::from(""));
+
+        // Player identity
+        lines.push(Line::from(vec![
+            Span::styled(&player.name, Style::default().fg(Color::White).bold()),
+            Span::raw(" the "),
+            Span::styled(format!("{:?}", player.role), Style::default().fg(Color::Yellow)),
+        ]));
+        lines.push(Line::from(""));
+
+        // Cause of death
+        lines.push(Line::from(vec![
+            Span::raw("Killed by: "),
+            Span::styled(cause, Style::default().fg(Color::Red)),
+        ]));
+        lines.push(Line::from(""));
+
+        // Basic stats
+        lines.push(Line::from(Span::styled("── Statistics ──", Style::default().fg(Color::Cyan))));
+        lines.push(Line::from(format!(
+            "  Race: {:?}    Gender: {:?}    Alignment: {:?}",
+            player.race, player.gender, player.alignment.typ
+        )));
+        lines.push(Line::from(format!(
+            "  Level: {}    Experience: {}",
+            player.exp_level, player.exp
+        )));
+        lines.push(Line::from(format!(
+            "  HP: {}/{}    Energy: {}/{}",
+            player.hp.max(0), player.hp_max, player.energy, player.energy_max
+        )));
+        lines.push(Line::from(format!(
+            "  Gold: {}    Turns: {}",
+            player.gold, player.turns_played
+        )));
+        lines.push(Line::from(format!(
+            "  Dungeon Level: {}",
+            player.level.depth()
+        )));
+        lines.push(Line::from(""));
+
+        // Attributes
+        lines.push(Line::from(Span::styled("── Attributes ──", Style::default().fg(Color::Cyan))));
+        lines.push(Line::from(format!(
+            "  Str: {:2}  Dex: {:2}  Con: {:2}  Int: {:2}  Wis: {:2}  Cha: {:2}",
+            player.attr_current.get(Attribute::Strength),
+            player.attr_current.get(Attribute::Dexterity),
+            player.attr_current.get(Attribute::Constitution),
+            player.attr_current.get(Attribute::Intelligence),
+            player.attr_current.get(Attribute::Wisdom),
+            player.attr_current.get(Attribute::Charisma)
+        )));
+        lines.push(Line::from(""));
+
+        // Conducts
+        lines.push(Line::from(Span::styled("── Conducts ──", Style::default().fg(Color::Cyan))));
+        let mut conducts_maintained: Vec<&str> = Vec::new();
+        let mut conducts_broken: Vec<String> = Vec::new();
+
+        if player.conduct.is_foodless() {
+            conducts_maintained.push("foodless");
+        } else if player.conduct.food > 0 {
+            conducts_broken.push(format!("ate {} times", player.conduct.food));
+        }
+
+        if player.conduct.is_vegan() {
+            conducts_maintained.push("vegan");
+        } else if player.conduct.is_vegetarian() {
+            conducts_maintained.push("vegetarian");
+        } else if player.conduct.unvegetarian > 0 {
+            conducts_broken.push(format!("ate meat {} times", player.conduct.unvegetarian));
+        }
+
+        if player.conduct.is_atheist() {
+            conducts_maintained.push("atheist");
+        } else if player.conduct.gnostic > 0 {
+            conducts_broken.push(format!("prayed {} times", player.conduct.gnostic));
+        }
+
+        if player.conduct.is_weaponless() {
+            conducts_maintained.push("weaponless");
+        } else if player.conduct.weaphit > 0 {
+            conducts_broken.push(format!("hit with weapon {} times", player.conduct.weaphit));
+        }
+
+        if player.conduct.is_pacifist() {
+            conducts_maintained.push("pacifist");
+        } else if player.conduct.killer > 0 {
+            conducts_broken.push(format!("killed {} creatures", player.conduct.killer));
+        }
+
+        if player.conduct.is_illiterate() {
+            conducts_maintained.push("illiterate");
+        } else if player.conduct.literate > 0 {
+            conducts_broken.push(format!("read {} times", player.conduct.literate));
+        }
+
+        if player.conduct.is_wishless() {
+            conducts_maintained.push("wishless");
+        } else if player.conduct.wishes > 0 {
+            conducts_broken.push(format!("made {} wishes", player.conduct.wishes));
+        }
+
+        if player.conduct.is_genocideless() {
+            conducts_maintained.push("genocideless");
+        } else if player.conduct.genocides > 0 {
+            conducts_broken.push(format!("genocided {} times", player.conduct.genocides));
+        }
+
+        if !conducts_maintained.is_empty() {
+            lines.push(Line::from(vec![
+                Span::raw("  Maintained: "),
+                Span::styled(conducts_maintained.join(", "), Style::default().fg(Color::Green)),
+            ]));
+        }
+        if !conducts_broken.is_empty() {
+            for broken in &conducts_broken {
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled(broken, Style::default().fg(Color::DarkGray)),
+                ]));
+            }
+        }
+        if conducts_maintained.is_empty() && conducts_broken.is_empty() {
+            lines.push(Line::from("  No special conducts tracked"));
+        }
+
+        lines.push(Line::from(""));
+
+        // Inventory summary
+        lines.push(Line::from(Span::styled("── Inventory ──", Style::default().fg(Color::Cyan))));
+        let inv_count = state.inventory.len();
+        if inv_count == 0 {
+            lines.push(Line::from("  No items"));
+        } else {
+            lines.push(Line::from(format!("  {} item{}", inv_count, if inv_count == 1 { "" } else { "s" })));
+            // Show first few items
+            for (i, item) in state.inventory.iter().take(5).enumerate() {
+                let item_name = item.name.as_deref().map(|s| s.to_string())
+                    .unwrap_or_else(|| format!("{:?}", item.class));
+                lines.push(Line::from(format!("    {} - {}", (b'a' + i as u8) as char, item_name)));
+            }
+            if inv_count > 5 {
+                lines.push(Line::from(format!("    ... and {} more", inv_count - 5)));
+            }
+        }
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Press SPACE or ENTER to exit",
+            Style::default().fg(Color::DarkGray),
+        )));
+
+        let block = Block::default()
+            .title(" Game Over ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Red));
+
+        let paragraph = Paragraph::new(lines)
+            .block(block)
+            .alignment(ratatui::layout::Alignment::Center);
+
+        frame.render_widget(paragraph, area);
+    }
 }
 
 /// Helper function to create a centered rect
@@ -1054,4 +1259,31 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_death_screen_mode_transition() {
+        // Test that UiMode::DeathScreen can be created
+        let mode = UiMode::DeathScreen {
+            cause: "killed by a goblin".to_string(),
+        };
+        assert!(matches!(mode, UiMode::DeathScreen { .. }));
+    }
+
+    #[test]
+    fn test_death_screen_cause_stored() {
+        let cause = "killed by a grid bug";
+        let mode = UiMode::DeathScreen {
+            cause: cause.to_string(),
+        };
+        if let UiMode::DeathScreen { cause: stored_cause } = mode {
+            assert_eq!(stored_cause, cause);
+        } else {
+            panic!("Expected DeathScreen mode");
+        }
+    }
 }

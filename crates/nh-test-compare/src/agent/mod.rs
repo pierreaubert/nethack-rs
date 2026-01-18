@@ -350,7 +350,8 @@ mod tests {
         // Should select random actions initially
         let action = player.select_action(&state);
         assert!(matches!(action, GameAction::MoveNorth | GameAction::MoveSouth | 
-                         GameAction::MoveEast | GameAction::MoveWest | GameAction::Wait));
+                         GameAction::MoveEast | GameAction::MoveWest | GameAction::Wait |
+                         GameAction::GoDown | GameAction::GoUp | GameAction::Pickup));
     }
 
     #[test]

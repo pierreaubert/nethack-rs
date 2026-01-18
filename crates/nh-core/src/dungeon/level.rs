@@ -22,6 +22,16 @@ fn default_monster_grid() -> Vec<Vec<Option<MonsterId>>> {
     vec![vec![None; ROWNO]; COLNO]
 }
 
+/// Create default explored grid (all false)
+fn default_explored() -> Vec<Vec<bool>> {
+    vec![vec![false; ROWNO]; COLNO]
+}
+
+/// Create default visible grid (all false)
+fn default_visible() -> Vec<Vec<bool>> {
+    vec![vec![false; ROWNO]; COLNO]
+}
+
 /// Engraving types (from engrave.c)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[repr(u8)]
@@ -171,6 +181,14 @@ pub struct Level {
     /// Level flags
     pub flags: LevelFlags,
 
+    /// Explored cells (player has seen at some point)
+    #[serde(default = "default_explored")]
+    pub explored: Vec<Vec<bool>>,
+
+    /// Currently visible cells (in player's field of view)
+    #[serde(skip, default = "default_visible")]
+    pub visible: Vec<Vec<bool>>,
+
     /// Next object ID to assign
     next_object_id: u32,
 
@@ -199,6 +217,8 @@ impl Level {
             engravings: Vec::new(),
             stairs: Vec::new(),
             flags: LevelFlags::default(),
+            explored: default_explored(),
+            visible: default_visible(),
             next_object_id: 1,
             next_monster_id: 1,
         }
@@ -369,5 +389,203 @@ impl Level {
     /// Get stairway at position
     pub fn stairway_at(&self, x: i8, y: i8) -> Option<&Stairway> {
         self.stairs.iter().find(|s| s.x == x && s.y == y)
+    }
+
+    /// Check if a cell is explored (player has seen it before)
+    pub fn is_explored(&self, x: i8, y: i8) -> bool {
+        if !self.is_valid_pos(x, y) {
+            return false;
+        }
+        self.explored[x as usize][y as usize]
+    }
+
+    /// Check if a cell is currently visible (in player's field of view)
+    pub fn is_visible(&self, x: i8, y: i8) -> bool {
+        if !self.is_valid_pos(x, y) {
+            return false;
+        }
+        self.visible[x as usize][y as usize]
+    }
+
+    /// Mark a cell as explored
+    pub fn set_explored(&mut self, x: i8, y: i8) {
+        if self.is_valid_pos(x, y) {
+            self.explored[x as usize][y as usize] = true;
+        }
+    }
+
+    /// Update visibility from player position
+    /// Uses simple raycasting for line of sight
+    pub fn update_visibility(&mut self, player_x: i8, player_y: i8, sight_range: i32) {
+        // Clear current visibility
+        for col in &mut self.visible {
+            for cell in col {
+                *cell = false;
+            }
+        }
+
+        // Player's position is always visible
+        if self.is_valid_pos(player_x, player_y) {
+            self.visible[player_x as usize][player_y as usize] = true;
+            self.explored[player_x as usize][player_y as usize] = true;
+        }
+
+        // Cast rays in all directions
+        let range = sight_range;
+        for dx in -range..=range {
+            for dy in -range..=range {
+                // Skip if outside sight range (circular)
+                if dx * dx + dy * dy > range * range {
+                    continue;
+                }
+
+                let target_x = player_x + dx as i8;
+                let target_y = player_y + dy as i8;
+
+                if self.is_valid_pos(target_x, target_y) {
+                    if self.has_line_of_sight(player_x, player_y, target_x, target_y) {
+                        self.visible[target_x as usize][target_y as usize] = true;
+                        self.explored[target_x as usize][target_y as usize] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Check if there's line of sight between two points (Bresenham's algorithm)
+    pub fn has_line_of_sight(&self, x0: i8, y0: i8, x1: i8, y1: i8) -> bool {
+        let mut x = x0 as i32;
+        let mut y = y0 as i32;
+        let x1 = x1 as i32;
+        let y1 = y1 as i32;
+
+        let dx = (x1 - x).abs();
+        let dy = -(y1 - y).abs();
+        let sx = if x < x1 { 1 } else { -1 };
+        let sy = if y < y1 { 1 } else { -1 };
+        let mut err = dx + dy;
+
+        loop {
+            // Check if current position blocks sight (but allow seeing the blocking tile)
+            if x != x0 as i32 || y != y0 as i32 {
+                if !self.is_valid_pos(x as i8, y as i8) {
+                    return false;
+                }
+                let cell = &self.cells[x as usize][y as usize];
+                // Walls and closed doors block sight
+                if cell.blocks_sight() {
+                    // Can see the blocking tile itself, but not beyond
+                    return x == x1 && y == y1;
+                }
+            }
+
+            if x == x1 && y == y1 {
+                return true;
+            }
+
+            let e2 = 2 * err;
+            if e2 >= dy {
+                err += dy;
+                x += sx;
+            }
+            if e2 <= dx {
+                err += dx;
+                y += sy;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dungeon::CellType;
+
+    #[test]
+    fn test_visibility_initial_state() {
+        let level = Level::new(DLevel::default());
+        // Initially nothing is explored or visible
+        assert!(!level.is_explored(10, 10));
+        assert!(!level.is_visible(10, 10));
+    }
+
+    #[test]
+    fn test_visibility_update() {
+        let mut level = Level::new(DLevel::default());
+        // Create a simple room
+        for x in 5..15 {
+            for y in 5..15 {
+                level.cells[x][y] = Cell::floor();
+            }
+        }
+
+        // Update visibility from center of room
+        level.update_visibility(10, 10, 5);
+
+        // Player position should be visible and explored
+        assert!(level.is_visible(10, 10));
+        assert!(level.is_explored(10, 10));
+
+        // Nearby cells should be visible
+        assert!(level.is_visible(11, 10));
+        assert!(level.is_visible(10, 11));
+
+        // Far cells should not be visible
+        assert!(!level.is_visible(0, 0));
+        assert!(!level.is_explored(0, 0));
+    }
+
+    #[test]
+    fn test_visibility_persists_explored() {
+        let mut level = Level::new(DLevel::default());
+        // Create a simple room
+        for x in 5..25 {
+            for y in 5..15 {
+                level.cells[x][y] = Cell::floor();
+            }
+        }
+
+        // Update visibility from one position
+        level.update_visibility(10, 10, 5);
+        assert!(level.is_explored(10, 10));
+        assert!(level.is_explored(12, 10));
+
+        // Move to new position
+        level.update_visibility(20, 10, 5);
+
+        // Old position should still be explored but not visible
+        assert!(level.is_explored(10, 10));
+        assert!(!level.is_visible(10, 10));
+
+        // New position should be visible and explored
+        assert!(level.is_visible(20, 10));
+        assert!(level.is_explored(20, 10));
+    }
+
+    #[test]
+    fn test_line_of_sight_blocked_by_wall() {
+        let mut level = Level::new(DLevel::default());
+        // Create a room with a wall in the middle
+        for x in 5..15 {
+            for y in 5..15 {
+                level.cells[x][y] = Cell::floor();
+            }
+        }
+        // Add a wall
+        level.cells[10][10].typ = CellType::VWall;
+
+        // Check line of sight
+        assert!(level.has_line_of_sight(8, 10, 9, 10)); // Before wall
+        assert!(level.has_line_of_sight(8, 10, 10, 10)); // Can see the wall itself
+        assert!(!level.has_line_of_sight(8, 10, 11, 10)); // Blocked by wall
+    }
+
+    #[test]
+    fn test_set_explored() {
+        let mut level = Level::new(DLevel::default());
+        assert!(!level.is_explored(10, 10));
+
+        level.set_explored(10, 10);
+        assert!(level.is_explored(10, 10));
     }
 }

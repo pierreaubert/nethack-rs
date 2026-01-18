@@ -117,6 +117,7 @@ unsafe extern "C" {
     pub fn nh_ffi_get_energy() -> c_int;
     pub fn nh_ffi_get_max_energy() -> c_int;
     pub fn nh_ffi_get_position(x: *mut c_int, y: *mut c_int);
+    pub fn nh_ffi_set_state(x: c_int, y: c_int, hp: c_int, max_hp: c_int, level: c_int, ac: c_int);
     pub fn nh_ffi_get_armor_class() -> c_int;
     pub fn nh_ffi_get_gold() -> c_int;
     pub fn nh_ffi_get_experience_level() -> c_int;
@@ -246,6 +247,11 @@ impl CGameEngine {
         let mut y: c_int = 0;
         unsafe { nh_ffi_get_position(&mut x, &mut y) };
         (x as i32, y as i32)
+    }
+
+    /// Set exact game state (synchronization)
+    pub fn set_state(&self, x: i32, y: i32, hp: i32, max_hp: i32, level: i32, ac: i32) {
+        unsafe { nh_ffi_set_state(x as c_int, y as c_int, hp as c_int, max_hp as c_int, level as c_int, ac as c_int) };
     }
 
     /// Get armor class

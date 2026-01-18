@@ -5,6 +5,7 @@
 
 #ifdef REAL_NETHACK
 #include "hack.h"
+#include "dlb.h"
 
 /* Missing symbols from unixmain.c that we need to provide since we skip it */
 short ospeed = 0;
@@ -41,6 +42,10 @@ typedef long xlong;
 struct obj;
 struct monst;
 struct permonst;
+
+#ifdef REAL_NETHACK
+/* extern void initoptions(int, char **); */
+#endif
 
 #ifndef REAL_NETHACK
 /* Game state */
@@ -132,7 +137,41 @@ static int g_weight_bonus = 0;
 /* Initialize the game with character creation */
 int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
 #ifdef REAL_NETHACK
-    /* Minimal initialization of real NetHack globals for testing */
+    /* Initialize NetHack globals */
+    /* Based on allmain.c initialization sequence */
+    
+    /* We need to set some basic flags before initialization */
+    flags.autodig = FALSE;
+    flags.beginner = FALSE;
+    flags.confirm = TRUE;
+    flags.debug = FALSE;
+    flags.explore = FALSE;
+    flags.female = (gender > 0);
+    flags.legacy = TRUE;
+    flags.lit_corridor = FALSE;
+    flags.null = FALSE;
+    flags.pickup = TRUE;
+    flags.pushweapon = FALSE;
+    flags.rest_on_space = FALSE;
+    flags.safe_dog = TRUE;
+    flags.silent = FALSE;
+    flags.sortpack = TRUE;
+    flags.verbose = TRUE;
+    
+    /* char *argv[] = {"nethack", NULL}; */
+    initoptions();
+
+    /* Initialize window system (headless) */
+    choose_windows("tty");
+
+    /* Initialize subsystems - using conditional compilation for compatibility */
+#ifdef DLB
+    dlb_init();
+#endif
+    init_objects();
+    init_dungeons();
+    
+    /* Setup player */
     u.uhp = u.uhpmax = 10;
     u.uen = u.uenmax = 10;
     u.ux = 40;
@@ -142,12 +181,21 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
     u.umoney0 = 0;
     u.uz.dlevel = 1;
     moves = 0;
-    flags.female = (gender > 0);
     u.ualign.type = alignment;
 
     /* These are normally set by u_init() */
     urole.name.m = role ? strdup(role) : strdup("Tourist");
     urace.noun = race ? strdup(race) : strdup("Human");
+
+    /* Initialize map */
+    mklev();
+    
+    /* Ensure player is placed on the map */
+    /* mklev might have placed us somewhere else, but for now we trust it or override it */
+    if (u.ux == 0 || u.uy == 0) {
+        u.ux = 40;
+        u.uy = 10;
+    }
 
     return 0;
 #else
@@ -196,6 +244,7 @@ void nh_ffi_free(void) {
 int nh_ffi_reset(unsigned long seed) {
 #ifdef REAL_NETHACK
     (void)seed;
+    /* For reset, we should ideally re-init everything, but for now simple re-init suffices */
     return nh_ffi_init("Tourist", "Human", 0, 0);
 #else
     (void)seed;
@@ -226,6 +275,26 @@ void nh_ffi_test_setup_status(int hp, int max_hp, int level, int ac) {
     u.ulevel = level;
     u.uac = ac;
 #else
+    g_hp = hp;
+    g_max_hp = max_hp;
+    g_level = level;
+    g_ac = ac;
+    g_initialized = TRUE;
+#endif
+}
+
+/* Set exact game state (synchronization) */
+void nh_ffi_set_state(int x, int y, int hp, int max_hp, int level, int ac) {
+#ifdef REAL_NETHACK
+    u.ux = x;
+    u.uy = y;
+    u.uhp = hp;
+    u.uhpmax = max_hp;
+    u.ulevel = level;
+    u.uac = ac;
+#else
+    g_x = x;
+    g_y = y;
     g_hp = hp;
     g_max_hp = max_hp;
     g_level = level;
@@ -427,16 +496,14 @@ int nh_ffi_get_alignment(void) {
  * ============================================================================ */
 
 /* Set message */
-static void nh_ffi_set_message(const char* msg) {
 #ifndef REAL_NETHACK
+static void nh_ffi_set_message(const char* msg) {
     if (msg) {
         strncpy(g_last_message, msg, sizeof(g_last_message) - 1);
         g_last_message[sizeof(g_last_message) - 1] = '\0';
     }
-#else
-    (void)msg;
-#endif
 }
+#endif
 
 /* Execute a game command */
 int nh_ffi_exec_cmd(char cmd) {

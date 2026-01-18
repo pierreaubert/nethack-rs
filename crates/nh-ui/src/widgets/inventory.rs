@@ -4,6 +4,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 
 use nh_core::object::{Object, ObjectClass};
+use nh_data::objects::OBJECTS;
 
 /// Inventory display widget
 pub struct InventoryWidget<'a> {
@@ -31,35 +32,153 @@ impl<'a> InventoryWidget<'a> {
         self
     }
 
-    /// Format an object for display
+    /// Get the base name for an object from its type definition
+    fn get_object_name(obj: &Object) -> &'static str {
+        let idx = obj.object_type as usize;
+        if idx < OBJECTS.len() {
+            let def = &OBJECTS[idx];
+            // If object is identified or has no description, use the real name
+            // Otherwise use the unidentified description
+            if obj.known || obj.desc_known || def.description.is_empty() {
+                def.name
+            } else {
+                def.description
+            }
+        } else {
+            "strange object"
+        }
+    }
+
+    /// Format an object for display (like NetHack's doname)
     fn format_item(obj: &Object) -> String {
-        let quantity = if obj.quantity > 1 {
-            format!("{} ", obj.quantity)
+        let mut parts: Vec<String> = Vec::new();
+
+        // Quantity prefix (for stackable items)
+        let quantity_str = if obj.quantity > 1 {
+            format!("{}", obj.quantity)
+        } else if obj.class == ObjectClass::Coin {
+            format!("{}", obj.quantity)
         } else {
             String::new()
         };
 
-        let buc = if obj.buc_known {
+        // BUC status (only if known)
+        let buc_str = if obj.buc_known {
             match obj.buc {
-                nh_core::object::BucStatus::Blessed => "blessed ",
-                nh_core::object::BucStatus::Cursed => "cursed ",
-                nh_core::object::BucStatus::Uncursed => "",
+                nh_core::object::BucStatus::Blessed => "blessed",
+                nh_core::object::BucStatus::Cursed => "cursed",
+                nh_core::object::BucStatus::Uncursed => {
+                    // Only show "uncursed" for items where it matters
+                    if matches!(obj.class, ObjectClass::Weapon | ObjectClass::Armor | 
+                               ObjectClass::Ring | ObjectClass::Amulet | ObjectClass::Wand |
+                               ObjectClass::Tool | ObjectClass::Potion | ObjectClass::Scroll) {
+                        "uncursed"
+                    } else {
+                        ""
+                    }
+                }
             }
         } else {
             ""
         };
 
-        let enchant = if obj.known && obj.enchantment != 0 {
-            format!("{:+} ", obj.enchantment)
+        // Enchantment (only if known and non-zero, or for weapons/armor)
+        let enchant_str = if obj.known {
+            match obj.class {
+                ObjectClass::Weapon | ObjectClass::Armor => {
+                    format!("{:+}", obj.enchantment)
+                }
+                ObjectClass::Ring | ObjectClass::Wand => {
+                    if obj.enchantment != 0 {
+                        format!("{:+}", obj.enchantment)
+                    } else {
+                        String::new()
+                    }
+                }
+                _ => String::new(),
+            }
         } else {
             String::new()
         };
 
-        let name = obj.name.as_deref().unwrap_or("item");
+        // Erosion status
+        let erosion_str = if obj.erosion1 > 0 || obj.erosion2 > 0 {
+            let e1 = match obj.erosion1 {
+                1 => "rusty ",
+                2 => "very rusty ",
+                3 => "thoroughly rusty ",
+                _ => "",
+            };
+            let e2 = match obj.erosion2 {
+                1 => "corroded ",
+                2 => "very corroded ",
+                3 => "thoroughly corroded ",
+                _ => "",
+            };
+            format!("{}{}", e1, e2)
+        } else {
+            String::new()
+        };
+
+        // Greased
+        let greased_str = if obj.greased { "greased " } else { "" };
+
+        // Erosion-proof (if known)
+        let proof_str = if obj.rust_known && obj.erosion_proof {
+            match obj.class {
+                ObjectClass::Weapon => "rustproof ",
+                ObjectClass::Armor => "rustproof ",
+                _ => "fireproof ",
+            }
+        } else {
+            ""
+        };
+
+        // The actual object name
+        let base_name = if let Some(ref custom_name) = obj.name {
+            custom_name.as_str()
+        } else {
+            Self::get_object_name(obj)
+        };
+
+        // Build the display string
+        if !quantity_str.is_empty() {
+            parts.push(quantity_str);
+        }
+        if !buc_str.is_empty() {
+            parts.push(buc_str.to_string());
+        }
+        if !enchant_str.is_empty() {
+            parts.push(enchant_str);
+        }
+        parts.push(format!("{}{}{}{}", greased_str, proof_str, erosion_str, base_name));
+
+        // Add worn/wielded status
+        let worn_str = if obj.worn_mask != 0 {
+            if obj.class == ObjectClass::Weapon {
+                " (weapon in hand)"
+            } else if obj.class == ObjectClass::Armor {
+                " (being worn)"
+            } else {
+                " (in use)"
+            }
+        } else {
+            ""
+        };
+
+        // Charges for wands (if known)
+        let charges_str = if obj.known && obj.class == ObjectClass::Wand {
+            format!(" ({}:{})", obj.recharged, obj.enchantment)
+        } else {
+            String::new()
+        };
 
         format!(
-            "{} - {}{}{}{}",
-            obj.inv_letter, quantity, buc, enchant, name
+            "{} - {}{}{}",
+            obj.inv_letter,
+            parts.join(" "),
+            charges_str,
+            worn_str
         )
     }
 

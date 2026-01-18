@@ -2,6 +2,53 @@
 
 use crate::action::ActionResult;
 use crate::gameloop::GameState;
+use crate::object::{Object, ObjectClass};
+
+/// Weight messages for lifting heavy objects
+const MODERATE_LOAD_MSG: &str = "You have a little trouble lifting";
+const NEAR_LOAD_MSG: &str = "You have much trouble lifting";
+const OVERLOAD_MSG: &str = "You have extreme difficulty lifting";
+
+/// Calculate gold weight (50 gold pieces = 1 unit)
+pub const fn gold_weight(amount: i32) -> u32 {
+    ((amount + 50) / 100) as u32
+}
+
+/// Check if an object can be picked up
+pub fn can_pickup(obj: &Object, _state: &GameState) -> bool {
+    // TODO: Check for cursed items stuck to floor
+    // TODO: Check for cockatrice corpses without gloves
+    // TODO: Check for loadstones
+    match obj.class {
+        ObjectClass::Ball | ObjectClass::Chain => false, // Punishment items
+        _ => true,
+    }
+}
+
+/// Check if picking up would exceed carrying capacity
+pub fn would_overload(obj: &Object, state: &GameState, capacity: u32) -> bool {
+    let current_weight: u32 = state.inventory.iter().map(|o| o.weight).sum();
+    let obj_weight = obj.weight;
+
+    current_weight + obj_weight > capacity
+}
+
+/// Get the load message based on weight ratio
+pub fn load_message(current: u32, capacity: u32) -> Option<&'static str> {
+    if capacity == 0 {
+        return Some(OVERLOAD_MSG);
+    }
+    let ratio = (current * 100) / capacity;
+    if ratio >= 100 {
+        Some(OVERLOAD_MSG)
+    } else if ratio >= 80 {
+        Some(NEAR_LOAD_MSG)
+    } else if ratio >= 60 {
+        Some(MODERATE_LOAD_MSG)
+    } else {
+        None
+    }
+}
 
 /// Pick up items at current location
 pub fn do_pickup(state: &mut GameState) -> ActionResult {

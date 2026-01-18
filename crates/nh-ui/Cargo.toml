@@ -8,6 +8,7 @@ description = "Terminal UI layer using ratatui for NetHack clone"
 
 [dependencies]
 nh-core.workspace = true
+nh-data.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
 strum.workspace = true

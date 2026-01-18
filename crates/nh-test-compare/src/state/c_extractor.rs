@@ -17,6 +17,11 @@ impl<'a> CGameWrapper<'a> {
         Self { engine }
     }
 
+    /// Set C engine state from Rust state
+    pub fn set_state(&mut self, x: i32, y: i32, hp: i32, max_hp: i32, experience_level: i32, armor_class: i32) {
+        self.engine.set_state(x, y, hp, max_hp, experience_level, armor_class);
+    }
+
     /// Extract unified state from C implementation
     pub fn extract_state(&self) -> UnifiedGameState {
         // Parse JSON state from C engine

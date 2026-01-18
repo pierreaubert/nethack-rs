@@ -64,6 +64,7 @@ unsafe extern "C" {
     pub fn nh_ffi_calc_base_damage(weapon_id: c_int, small_monster: c_int) -> c_int;
     pub fn nh_ffi_get_ac() -> c_int;
     pub fn nh_ffi_test_setup_status(hp: c_int, max_hp: c_int, level: c_int, ac: c_int);
+    pub fn nh_ffi_set_state(x: c_int, y: c_int, hp: c_int, max_hp: c_int, level: c_int, ac: c_int);
     pub fn nh_ffi_wear_item(item_id: c_int) -> c_int;
     pub fn nh_ffi_add_item_to_inv(item_id: c_int, weight: c_int) -> c_int;
     pub fn nh_ffi_get_weight() -> c_int;
@@ -370,6 +371,11 @@ impl FfiGameEngine {
     /// Setup specific status for testing (test-only FFI)
     pub fn test_setup_status(&self, hp: i32, max_hp: i32, level: i32, ac: i32) {
         unsafe { nh_ffi_test_setup_status(hp as c_int, max_hp as c_int, level as c_int, ac as c_int) };
+    }
+
+    /// Set exact game state (synchronization)
+    pub fn set_state(&self, x: i32, y: i32, hp: i32, max_hp: i32, level: i32, ac: i32) {
+        unsafe { nh_ffi_set_state(x as c_int, y as c_int, hp as c_int, max_hp as c_int, level as c_int, ac as c_int) };
     }
 
     /// Wear an item (stub)

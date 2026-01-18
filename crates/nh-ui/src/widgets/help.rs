@@ -31,7 +31,7 @@ impl HelpWidget {
     }
 
     pub const fn page_count() -> usize {
-        3
+        4
     }
 
     fn movement_help() -> &'static str {
@@ -111,11 +111,53 @@ Extended commands (#):
   #turn    - Turn undead"#
     }
 
+    fn symbols_help() -> &'static str {
+        r#"Map Symbols
+────────────
+Dungeon Features:
+  .  Floor / ground
+  #  Corridor
+  -  Horizontal wall
+  |  Vertical wall
+  +  Closed door
+  '  Open door
+  <  Stairs up
+  >  Stairs down
+  ^  Trap
+  _  Altar
+  {  Fountain
+  }  Water / pool
+  \  Throne
+
+Objects:
+  )  Weapon
+  [  Armor
+  =  Ring
+  "  Amulet
+  (  Tool
+  %  Food
+  !  Potion
+  ?  Scroll
+  +  Spellbook
+  /  Wand
+  $  Gold
+  *  Gem / stone
+  `  Boulder / statue
+
+Creatures:
+  @  You (the player)
+  a-z A-Z  Monsters
+  :  Lizard-like
+  ;  Sea creature
+  &  Demon"#
+    }
+
     fn get_page_content(&self) -> (&'static str, &'static str) {
         match self.page {
-            0 => ("Movement (1/3)", Self::movement_help()),
-            1 => ("Actions (2/3)", Self::action_help()),
-            2 => ("Information (3/3)", Self::info_help()),
+            0 => ("Movement (1/4)", Self::movement_help()),
+            1 => ("Actions (2/4)", Self::action_help()),
+            2 => ("Information (3/4)", Self::info_help()),
+            3 => ("Map Symbols (4/4)", Self::symbols_help()),
             _ => ("Help", ""),
         }
     }
@@ -367,6 +409,9 @@ mod tests {
 
         help.next_page();
         assert_eq!(help.page, 2);
+
+        help.next_page();
+        assert_eq!(help.page, 3);
 
         help.next_page();
         assert_eq!(help.page, 0);

@@ -63,7 +63,10 @@ fn main() {
             for (turn, diff) in result.critical_differences {
                 println!("  Turn {}: {} - {}", turn, diff.field, diff.description);
             }
-            // Optional: dump state to file?
+            if failures >= 10 {
+                println!("\nFailure limit reached.");
+                break;
+            }
         }
         
         // Stop after some time for CI/demo purposes (e.g., 60 seconds or 100 sessions)

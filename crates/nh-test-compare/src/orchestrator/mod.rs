@@ -61,6 +61,16 @@ impl DualGameOrchestrator {
             let (rust_reward, rust_message) = rust_wrapper.step(&action);
             let rust_messages = rust_wrapper.last_messages();
             
+            // Synchronize C state with Rust state
+            c_wrapper.set_state(
+                rust_state.position.0,
+                rust_state.position.1,
+                rust_state.hp,
+                rust_state.max_hp,
+                rust_state.experience_level,
+                rust_state.armor_class
+            );
+
             // Execute on C
             let (c_reward, c_message) = c_wrapper.step(&action);
             let c_messages = c_wrapper.last_messages();
