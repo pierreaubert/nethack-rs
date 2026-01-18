@@ -1,13 +1,14 @@
 //! Special game systems
 //!
-//! Shopkeepers, priests, vault guards, quests, etc.
+//! Shopkeepers, priests, vault guards, quests, mail, etc.
 
-pub mod shk;  // Shopkeepers
-
-// TODO: Implement these modules
-// mod priest;  // Priests/temples
-// mod vault;   // Vault guards
-// mod quest;   // Quest system
+pub mod dog;     // Pet handling
+pub mod mail;    // Mail daemon delivery system
+pub mod priest;  // Priests and temples
+pub mod quest;   // Quest system
+pub mod shk;     // Shopkeepers
+pub mod sounds;  // Monster sounds and speech
+pub mod vault;   // Vault guards
 
 /// Room types for special rooms
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -310,17 +310,14 @@ impl GameLoop {
             Command::PutOn(letter) => crate::action::wear::do_puton(&mut self.state, letter),
             Command::Remove(letter) => crate::action::wear::do_remove(&mut self.state, letter),
             Command::Quaff(letter) => {
-                 self.state.message(format!("Quaff {} not implemented.", letter));
-                 ActionResult::NoTime
-            },
+                crate::action::quaff::do_quaff(&mut self.state, letter)
+            }
             Command::Read(letter) => {
-                 self.state.message(format!("Read {} not implemented.", letter));
-                 ActionResult::NoTime
-            },
+                crate::action::read::do_read(&mut self.state, letter)
+            }
             Command::Zap(letter, dir) => {
-                 self.state.message(format!("Zap {} in {:?} not implemented.", letter, dir));
-                 ActionResult::NoTime
-            },
+                crate::action::zap::do_zap(&mut self.state, letter, Some(dir))
+            }
             Command::Throw(letter, dir) => {
                 crate::action::throw::do_throw(&mut self.state, letter, dir)
             },
@@ -456,6 +453,29 @@ impl GameLoop {
     fn do_move(&mut self, dir: crate::action::Direction) -> ActionResult {
         let (dx, dy) = dir.delta();
         let state = &mut self.state;
+
+        // Check if player is grabbed - must escape first
+        if let Some(grabber_id) = state.player.grabbed_by {
+            // Check if grabber still exists and is adjacent
+            let grabber_exists = state.current_level.monster(grabber_id).map(|m| {
+                let dist = (m.x - state.player.pos.x).abs().max((m.y - state.player.pos.y).abs());
+                dist <= 1
+            }).unwrap_or(false);
+
+            if !grabber_exists {
+                // Grabber is gone or not adjacent, release
+                state.player.grabbed_by = None;
+                state.message("You are released!");
+            } else {
+                // Try to escape
+                if crate::combat::try_escape_grab(&mut state.player, &mut state.rng) {
+                    state.message("You pull free!");
+                } else {
+                    state.message("You are held and cannot move!");
+                    return ActionResult::Success; // Time passes but no movement
+                }
+            }
+        }
 
         let new_x = state.player.pos.x + dx;
         let new_y = state.player.pos.y + dy;
@@ -677,27 +697,25 @@ impl GameLoop {
                     }
                     crate::monster::AiAction::AttackedPlayer => {
                         any_moved = true;
-                        // Execute monster attack on player
+                        // Execute full monster attack sequence using mattacku
                         if let Some(monster) = state.current_level.monster(id) {
-                            // Use first active attack
-                            if let Some(attack) = monster.attacks.iter().find(|a| a.is_active()) {
-                                let monster_name = monster.name.clone();
-                                let result = crate::combat::monster_attack_player(
-                                    monster,
-                                    &mut state.player,
-                                    attack,
-                                    &mut state.rng,
-                                );
+                            let monster_clone = monster.clone();
+                            let result = crate::combat::mattacku(
+                                &monster_clone,
+                                &mut state.player,
+                                &mut state.inventory,
+                                &mut state.current_level,
+                                &mut state.rng,
+                            );
 
-                                if result.hit {
-                                    state.message(format!("The {} hits you for {} damage!", monster_name, result.damage));
+                            // Display all messages from the attack
+                            for msg in result.messages {
+                                state.message(msg);
+                            }
 
-                                    if result.defender_died {
-                                        state.message("You die...");
-                                    }
-                                } else {
-                                    state.message("The monster misses you!");
-                                }
+                            // Handle monster death (e.g., from explosion)
+                            if result.monster_died {
+                                state.current_level.remove_monster(id);
                             }
                         }
                     }
@@ -758,6 +776,22 @@ impl GameLoop {
         let triggered_events = state.timeouts.tick(current_turn);
         for event in triggered_events {
             Self::process_timed_event(state, event);
+        }
+
+        // Process grab damage if player is held
+        if let Some(grabber_id) = state.player.grabbed_by {
+            if let Some(grabber) = state.current_level.monster(grabber_id) {
+                let grabber_clone = grabber.clone();
+                let damage = crate::combat::apply_grab_damage(
+                    &mut state.player,
+                    &grabber_clone,
+                    &mut state.rng,
+                );
+                state.message(format!("The {} crushes you for {} damage!", grabber_clone.name, damage));
+            } else {
+                // Grabber no longer exists
+                state.player.grabbed_by = None;
+            }
         }
 
         // Process player status timeouts
@@ -1038,5 +1072,75 @@ mod tests {
 
         // AC should now be 6
         assert_eq!(state.player.armor_class, 6);
+    }
+
+    #[test]
+    fn test_grabbed_player_cannot_move() {
+        use crate::monster::{Monster, MonsterId};
+
+        let mut state = test_state();
+        
+        // Create a monster that grabs the player
+        let grabber_id = MonsterId(1);
+        let mut grabber = Monster::new(grabber_id, 5, 5, 5);
+        grabber.name = "python".to_string();
+        state.current_level.monsters.push(grabber);
+        
+        // Set player as grabbed and position adjacent to grabber
+        state.player.grabbed_by = Some(grabber_id);
+        state.player.pos.x = 6;
+        state.player.pos.y = 5;
+        
+        // Player should be grabbed
+        assert!(state.player.grabbed_by.is_some());
+    }
+
+    #[test]
+    fn test_grab_released_when_grabber_gone() {
+        use crate::monster::MonsterId;
+
+        let mut state = test_state();
+        
+        // Set player as grabbed by a non-existent monster
+        let fake_grabber_id = MonsterId(999);
+        state.player.grabbed_by = Some(fake_grabber_id);
+        state.player.pos.x = 6;
+        state.player.pos.y = 5;
+        
+        // Create game loop and try to move
+        let mut game_loop = GameLoop::new(state);
+        let _result = game_loop.tick(Command::Move(crate::action::Direction::East));
+        
+        // Player should be released since grabber doesn't exist
+        assert!(game_loop.state().player.grabbed_by.is_none());
+    }
+
+    #[test]
+    fn test_grab_damage_applied_each_turn() {
+        use crate::monster::{Monster, MonsterId, MonsterState};
+
+        let mut state = test_state();
+        state.player.hp = 100;
+        state.player.pos.x = 6;
+        state.player.pos.y = 5;
+        
+        // Create a grabbing monster
+        let grabber_id = MonsterId(1);
+        let mut grabber = Monster::new(grabber_id, 10, 5, 5); // Level 10 for more damage
+        grabber.name = "python".to_string();
+        grabber.state = MonsterState::active();
+        state.current_level.monsters.push(grabber);
+        
+        // Set player as grabbed
+        state.player.grabbed_by = Some(grabber_id);
+        
+        let initial_hp = state.player.hp;
+        
+        // Create game loop and process a new turn
+        let mut game_loop = GameLoop::new(state);
+        game_loop.new_turn();
+        
+        // Player should have taken grab damage
+        assert!(game_loop.state().player.hp < initial_hp, "Player should take grab damage");
     }
 }

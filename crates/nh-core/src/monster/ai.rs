@@ -257,6 +257,104 @@ fn random_direction(rng: &mut GameRng) -> (i8, i8) {
     DIRECTIONS[idx]
 }
 
+/// Fleeing AI - move away from player
+fn flee_from_player(
+    monster_id: MonsterId,
+    level: &mut Level,
+    player: &You,
+    rng: &mut GameRng,
+) -> AiAction {
+    let monster = level.monster(monster_id).unwrap();
+    let mx = monster.x;
+    let my = monster.y;
+    let px = player.pos.x;
+    let py = player.pos.y;
+
+    // Calculate direction away from player
+    let dx = (mx - px).signum();
+    let dy = (my - py).signum();
+
+    // If already far enough, stop fleeing
+    let dist_sq = monster.distance_sq(px, py);
+    if dist_sq > 100 {
+        // More than 10 squares away
+        return wander_randomly(monster_id, level, rng);
+    }
+
+    let new_x = mx + dx;
+    let new_y = my + dy;
+
+    if level.is_valid_pos(new_x, new_y)
+        && level.is_walkable(new_x, new_y)
+        && level.monster_at(new_x, new_y).is_none()
+    {
+        level.move_monster(monster_id, new_x, new_y);
+        AiAction::Moved(new_x, new_y)
+    } else {
+        // Try alternative escape routes
+        try_alternative_move(monster_id, level, dx, dy, rng)
+    }
+}
+
+/// Check if monster should flee based on HP and state
+pub fn should_flee(monster: &super::Monster) -> bool {
+    // Already fleeing
+    if monster.state.fleeing || monster.flee_timeout > 0 {
+        return true;
+    }
+    
+    // Low HP - flee if below 25%
+    if monster.hp > 0 && monster.hp_max > 0 {
+        let hp_percent = (monster.hp * 100) / monster.hp_max;
+        if hp_percent < 25 {
+            return true;
+        }
+    }
+    
+    false
+}
+
+/// Process fleeing monster AI
+pub fn process_fleeing_ai(
+    monster_id: MonsterId,
+    level: &mut Level,
+    player: &You,
+    rng: &mut GameRng,
+) -> AiAction {
+    // Decrement flee timeout
+    if let Some(monster) = level.monster_mut(monster_id) {
+        if monster.flee_timeout > 0 {
+            monster.flee_timeout -= 1;
+            if monster.flee_timeout == 0 {
+                monster.state.fleeing = false;
+            }
+        }
+    }
+    
+    flee_from_player(monster_id, level, player, rng)
+}
+
+/// Enhanced monster AI that includes fleeing behavior
+pub fn process_monster_ai_full(
+    monster_id: MonsterId,
+    level: &mut Level,
+    player: &You,
+    rng: &mut GameRng,
+) -> AiAction {
+    let monster = match level.monster(monster_id) {
+        Some(m) => m,
+        None => return AiAction::None,
+    };
+
+    // Check if monster should flee
+    if should_flee(monster) {
+        return process_fleeing_ai(monster_id, level, player, rng);
+    }
+
+    // Otherwise use normal AI
+    process_monster_ai(monster_id, level, player, rng)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

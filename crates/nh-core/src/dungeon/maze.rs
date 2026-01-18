@@ -14,12 +14,43 @@ use super::DLevel;
 pub const COLNO: usize = 80;
 pub const ROWNO: usize = 21;
 
-/// Maze wall types
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MazeWall {
-    Horizontal,
-    Vertical,
-    Corner,
+/// Determine wall type based on adjacent open spaces
+/// Uses the same logic as C's spine_array in mkmaze.c
+///
+/// The spine_array maps neighbor configurations to wall types:
+/// - Neighbors encoded as 4-bit value: NSEW (North, South, East, West)
+/// - Returns appropriate wall/corner type for proper maze rendering
+fn wall_type_from_neighbors(north: bool, south: bool, east: bool, west: bool) -> CellType {
+    // Encode neighbors as 4-bit value: NSEW
+    let index = (north as usize) << 3 
+              | (south as usize) << 2 
+              | (east as usize) << 1 
+              | (west as usize);
+    
+    // spine_array from mkmaze.c:
+    // { VWALL, HWALL, HWALL, HWALL,
+    //   VWALL, TRCORNER, TLCORNER, TDWALL,
+    //   VWALL, BRCORNER, BLCORNER, TUWALL,
+    //   VWALL, TLWALL, TRWALL, CROSSWALL }
+    match index {
+        0b0000 => CellType::VWall,      // No neighbors - default vertical
+        0b0001 => CellType::HWall,      // West only
+        0b0010 => CellType::HWall,      // East only
+        0b0011 => CellType::HWall,      // East and West
+        0b0100 => CellType::VWall,      // South only
+        0b0101 => CellType::TRCorner,   // South and West
+        0b0110 => CellType::TLCorner,   // South and East
+        0b0111 => CellType::TDWall,     // South, East, West (T down)
+        0b1000 => CellType::VWall,      // North only
+        0b1001 => CellType::BRCorner,   // North and West
+        0b1010 => CellType::BLCorner,   // North and East
+        0b1011 => CellType::TUWall,     // North, East, West (T up)
+        0b1100 => CellType::VWall,      // North and South
+        0b1101 => CellType::TLWall,     // North, South, West (T left)
+        0b1110 => CellType::TRWall,     // North, South, East (T right)
+        0b1111 => CellType::CrossWall,  // All four neighbors
+        _ => CellType::Stone,
+    }
 }
 
 /// Generate a maze level
@@ -51,6 +82,9 @@ pub fn generate_maze(level: &mut Level, rng: &mut GameRng) {
         }
     }
 
+    // Fix up wall types based on neighbors (like C's wallification)
+    fix_maze_walls(level);
+
     // Place stairs
     place_maze_stairs(level, rng);
 
@@ -59,6 +93,41 @@ pub fn generate_maze(level: &mut Level, rng: &mut GameRng) {
 
     // Place some gold
     place_maze_gold(level, depth, rng);
+}
+
+/// Fix wall types based on adjacent passages
+/// Converts Stone walls to proper HWALL/VWALL/corner types
+fn fix_maze_walls(level: &mut Level) {
+    // Collect wall positions and their proper types
+    let mut wall_updates: Vec<(usize, usize, CellType)> = Vec::new();
+    
+    for x in 1..COLNO - 1 {
+        for y in 1..ROWNO - 1 {
+            if level.cells[x][y].typ == CellType::Stone {
+                // Check if this wall is adjacent to any passage
+                let north = is_passage(&level.cells[x][y.saturating_sub(1)].typ);
+                let south = is_passage(&level.cells[x][y + 1].typ);
+                let east = is_passage(&level.cells[x + 1][y].typ);
+                let west = is_passage(&level.cells[x.saturating_sub(1)][y].typ);
+                
+                // Only convert to wall type if adjacent to at least one passage
+                if north || south || east || west {
+                    let wall_type = wall_type_from_neighbors(north, south, east, west);
+                    wall_updates.push((x, y, wall_type));
+                }
+            }
+        }
+    }
+    
+    // Apply updates
+    for (x, y, wall_type) in wall_updates {
+        level.cells[x][y].typ = wall_type;
+    }
+}
+
+/// Check if a cell type is a passage (corridor or room)
+fn is_passage(typ: &CellType) -> bool {
+    matches!(typ, CellType::Corridor | CellType::Room | CellType::Door)
 }
 
 /// Carve maze passages using recursive backtracking

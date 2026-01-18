@@ -5,6 +5,9 @@
 mod context;
 mod flags;
 mod timeout;
+pub mod options;
+pub mod save;
+pub mod topten;
 
 pub use context::Context;
 pub use flags::Flags;

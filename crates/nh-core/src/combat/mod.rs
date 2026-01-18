@@ -10,7 +10,11 @@ mod uhitm;
 
 pub use attack_type::AttackType;
 pub use damage_type::DamageType;
-pub use mhitu::monster_attack_player;
+pub use mhitu::{
+    mattacku, monster_attack_player, MonsterAttackResult,
+    hit_message, miss_message, wild_miss_message, damage_effect_message, resistance_message,
+    try_escape_grab, apply_grab_damage,
+};
 pub use uhitm::player_attack_monster;
 
 use crate::NATTK;

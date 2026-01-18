@@ -1,11 +1,385 @@
 //! Monster attacks player combat (mhitu.c)
 //!
 //! Handles all combat initiated by monsters against the player.
+//!
+//! Main entry point is `mattacku()` which orchestrates all monster attacks.
 
-use super::{Attack, CombatEffect, CombatResult, DamageType};
-use crate::monster::Monster;
+use super::{Attack, AttackType, CombatEffect, CombatResult, DamageType};
+use crate::dungeon::Level;
+use crate::monster::{Monster, MonsterId};
+use crate::object::Object;
 use crate::player::You;
 use crate::rng::GameRng;
+
+/// Result of a full monster attack sequence
+#[derive(Debug, Clone)]
+pub struct MonsterAttackResult {
+    /// Whether any attack connected
+    pub any_hit: bool,
+    /// Whether the player died
+    pub player_died: bool,
+    /// Whether the monster died (e.g., from passive damage)
+    pub monster_died: bool,
+    /// Total damage dealt
+    pub total_damage: i32,
+    /// Messages generated during the attack
+    pub messages: Vec<String>,
+    /// Special effects triggered
+    pub effects: Vec<CombatEffect>,
+}
+
+impl Default for MonsterAttackResult {
+    fn default() -> Self {
+        Self {
+            any_hit: false,
+            player_died: false,
+            monster_died: false,
+            total_damage: 0,
+            messages: Vec::new(),
+            effects: Vec::new(),
+        }
+    }
+}
+
+// ============================================================================
+// Message Functions (hitmsg, missmu, wildmiss, mswings)
+// ============================================================================
+
+/// Generate hit message based on attack type (hitmsg in C)
+pub fn hit_message(attacker_name: &str, attack_type: AttackType) -> String {
+    match attack_type {
+        AttackType::Bite => format!("The {} bites!", attacker_name),
+        AttackType::Kick => format!("The {} kicks!", attacker_name),
+        AttackType::Sting => format!("The {} stings!", attacker_name),
+        AttackType::Butt => format!("The {} butts!", attacker_name),
+        AttackType::Touch => format!("The {} touches you!", attacker_name),
+        AttackType::Tentacle => format!("The {}'s tentacles suck you!", attacker_name),
+        AttackType::Claw => format!("The {} claws!", attacker_name),
+        AttackType::Hug => format!("The {} squeezes you!", attacker_name),
+        AttackType::Engulf => format!("The {} engulfs you!", attacker_name),
+        AttackType::Breath => format!("The {} breathes on you!", attacker_name),
+        AttackType::Spit => format!("The {} spits at you!", attacker_name),
+        AttackType::Gaze => format!("The {} gazes at you!", attacker_name),
+        AttackType::Explode | AttackType::ExplodeOnDeath => {
+            format!("The {} explodes!", attacker_name)
+        }
+        AttackType::Weapon => format!("The {} hits!", attacker_name),
+        AttackType::Magic => format!("The {} casts a spell!", attacker_name),
+        _ => format!("The {} hits!", attacker_name),
+    }
+}
+
+/// Generate miss message (missmu in C)
+pub fn miss_message(attacker_name: &str, near_miss: bool) -> String {
+    if near_miss {
+        format!("The {} just misses!", attacker_name)
+    } else {
+        format!("The {} misses.", attacker_name)
+    }
+}
+
+/// Generate wild miss message for displaced/invisible player (wildmiss in C)
+pub fn wild_miss_message(attacker_name: &str, player_displaced: bool, player_invisible: bool) -> String {
+    if player_displaced {
+        if player_invisible {
+            format!("The {} strikes at your invisible displaced image and misses!", attacker_name)
+        } else {
+            format!("The {} strikes at your displaced image and misses!", attacker_name)
+        }
+    } else if player_invisible {
+        format!("The {} swings wildly and misses!", attacker_name)
+    } else {
+        format!("The {} attacks a spot beside you.", attacker_name)
+    }
+}
+
+/// Generate weapon swing message (mswings in C)
+pub fn weapon_swing_message(attacker_name: &str, weapon_name: &str, is_thrust: bool) -> String {
+    if is_thrust {
+        format!("The {} thrusts its {}.", attacker_name, weapon_name)
+    } else {
+        format!("The {} swings its {}.", attacker_name, weapon_name)
+    }
+}
+
+/// Generate damage type specific message
+pub fn damage_effect_message(attacker_name: &str, damage_type: DamageType) -> Option<String> {
+    match damage_type {
+        DamageType::Fire => Some("You're covered in flames!".to_string()),
+        DamageType::Cold => Some("You're covered in frost!".to_string()),
+        DamageType::Electric => Some("You get zapped!".to_string()),
+        DamageType::Acid => Some("You're covered in acid! It burns!".to_string()),
+        DamageType::Sleep => Some(format!("The {} puts you to sleep!", attacker_name)),
+        DamageType::Paralyze => Some("You are frozen!".to_string()),
+        DamageType::DrainLife => Some("You feel your life force draining away...".to_string()),
+        DamageType::Stone => Some("You are turning to stone!".to_string()),
+        DamageType::Disintegrate => Some("You are disintegrating!".to_string()),
+        DamageType::Confuse => Some("You feel confused.".to_string()),
+        DamageType::Stun => Some("You stagger...".to_string()),
+        DamageType::Blind => Some("You can't see!".to_string()),
+        DamageType::DrainStrength => Some("You feel weaker!".to_string()),
+        DamageType::DrainDexterity => Some("You feel clumsy!".to_string()),
+        DamageType::DrainConstitution => Some("You feel fragile!".to_string()),
+        DamageType::Disease => Some("You feel very sick.".to_string()),
+        DamageType::StealGold => Some("Your purse feels lighter.".to_string()),
+        DamageType::StealItem => Some("Something was stolen from you!".to_string()),
+        DamageType::Teleport => Some("Your position suddenly seems uncertain!".to_string()),
+        DamageType::Digest => Some("You are swallowed!".to_string()),
+        DamageType::Wrap | DamageType::Stick => Some("You are being held!".to_string()),
+        _ => None,
+    }
+}
+
+/// Generate resistance message
+pub fn resistance_message(damage_type: DamageType) -> Option<String> {
+    match damage_type {
+        DamageType::Fire => Some("The fire doesn't feel hot!".to_string()),
+        DamageType::Cold => Some("The frost doesn't seem cold!".to_string()),
+        DamageType::Electric => Some("The zap doesn't shock you!".to_string()),
+        DamageType::Acid => Some("The acid doesn't burn much.".to_string()),
+        DamageType::Sleep => Some("You yawn.".to_string()),
+        DamageType::Paralyze => Some("You momentarily stiffen.".to_string()),
+        DamageType::DrainLife => Some("You feel a strange tingle.".to_string()),
+        DamageType::Stone => Some("You feel sluggish for a moment.".to_string()),
+        DamageType::Disintegrate => Some("You feel a mild tingle.".to_string()),
+        _ => None,
+    }
+}
+
+// ============================================================================
+// Main Entry Point: mattacku()
+// ============================================================================
+
+/// Main monster attack function - processes all attacks from a monster (mattacku in C)
+///
+/// This is the main entry point for monster-vs-player combat.
+/// It iterates through all of the monster's attacks and processes each one.
+pub fn mattacku(
+    attacker: &Monster,
+    player: &mut You,
+    inventory: &mut Vec<Object>,
+    level: &mut Level,
+    rng: &mut GameRng,
+) -> MonsterAttackResult {
+    let mut result = MonsterAttackResult::default();
+    let attacker_name = attacker.name.clone();
+
+    // Check if monster can attack
+    if !can_monster_attack(attacker, player) {
+        return result;
+    }
+
+    // Check distance - most attacks require adjacency
+    let distance = ((attacker.x - player.pos.x).abs().max((attacker.y - player.pos.y).abs())) as i32;
+
+    // Process each attack in the monster's attack set
+    for attack in &attacker.attacks {
+        if !attack.is_active() {
+            continue;
+        }
+
+        // Check if attack can reach
+        if attack.attack_type.requires_adjacency() && distance > 1 {
+            continue;
+        }
+
+        // Skip passive attacks (they trigger when monster is attacked)
+        if attack.attack_type.is_passive() {
+            continue;
+        }
+
+        // Process the attack based on type
+        let attack_result = process_single_attack(
+            attacker,
+            player,
+            inventory,
+            level,
+            attack,
+            rng,
+        );
+
+        // Accumulate results
+        if attack_result.hit {
+            result.any_hit = true;
+            result.total_damage += attack_result.damage;
+
+            // Add weapon swing message for weapon attacks (before hit message)
+            if attack.attack_type == AttackType::Weapon {
+                // Check if monster has a wielded weapon
+                if let Some(weapon_idx) = attacker.wielded {
+                    if let Some(weapon) = attacker.inventory.get(weapon_idx) {
+                        let weapon_name_str = weapon.name.as_deref().unwrap_or("weapon");
+                        let is_thrust = weapon_name_str.contains("spear") 
+                            || weapon_name_str.contains("lance") 
+                            || weapon_name_str.contains("trident");
+                        let display = weapon.display_name();
+                        result.messages.push(weapon_swing_message(&attacker_name, &display, is_thrust));
+                    }
+                }
+            }
+
+            // Add hit message
+            result.messages.push(hit_message(&attacker_name, attack.attack_type));
+
+            // Add damage-specific message
+            if let Some(msg) = damage_effect_message(&attacker_name, attack.damage_type) {
+                result.messages.push(msg);
+            }
+
+            // Track special effects
+            if let Some(effect) = attack_result.special_effect {
+                result.effects.push(effect);
+            }
+        } else {
+            // Miss message
+            let near_miss = rng.one_in(2);
+            result.messages.push(miss_message(&attacker_name, near_miss));
+        }
+
+        // Check for player death
+        if attack_result.defender_died {
+            result.player_died = true;
+            result.messages.push("You die...".to_string());
+            break;
+        }
+
+        // Check for attacker death (passive damage)
+        if attack_result.attacker_died {
+            result.monster_died = true;
+            break;
+        }
+    }
+
+    result
+}
+
+/// Check if a monster can attack the player
+fn can_monster_attack(attacker: &Monster, player: &You) -> bool {
+    // Can't attack if peaceful or tame
+    if attacker.state.peaceful || attacker.state.tame {
+        return false;
+    }
+
+    // Can't attack if sleeping or paralyzed
+    if attacker.state.sleeping || attacker.state.paralyzed {
+        return false;
+    }
+
+    // Can't attack if fleeing
+    if attacker.state.fleeing {
+        return false;
+    }
+
+    // Can't attack if cancelled (for some attack types)
+    // This is checked per-attack in the C code
+
+    // Player can't be attacked if buried (unless attacker can dig)
+    if player.buried {
+        return false;
+    }
+
+    true
+}
+
+/// Process a single attack from a monster
+fn process_single_attack(
+    attacker: &Monster,
+    player: &mut You,
+    inventory: &mut Vec<Object>,
+    level: &mut Level,
+    attack: &Attack,
+    rng: &mut GameRng,
+) -> CombatResult {
+    match attack.attack_type {
+        AttackType::Engulf => process_engulf_attack(attacker, player, attack, rng),
+        AttackType::Explode => process_explode_attack(attacker, player, attack, rng),
+        AttackType::Gaze => process_gaze_attack(attacker, player, attack, rng),
+        AttackType::Breath | AttackType::Spit => {
+            process_ranged_attack(attacker, player, attack, rng)
+        }
+        _ => {
+            // Standard melee attack - use the full version for special effects
+            let (result, _msg) = monster_attack_player_full(
+                attacker, player, inventory, level, attack, rng,
+            );
+            result
+        }
+    }
+}
+
+/// Process engulf attack (gulpmu in C)
+fn process_engulf_attack(
+    attacker: &Monster,
+    player: &mut You,
+    attack: &Attack,
+    rng: &mut GameRng,
+) -> CombatResult {
+    // Engulfing attack - swallow the player
+    let mut result = monster_attack_player(attacker, player, attack, rng);
+
+    if result.hit {
+        player.swallowed = true;
+        result.special_effect = Some(CombatEffect::Engulfed);
+    }
+
+    result
+}
+
+/// Process explosion attack (explmu in C)
+fn process_explode_attack(
+    attacker: &Monster,
+    player: &mut You,
+    attack: &Attack,
+    rng: &mut GameRng,
+) -> CombatResult {
+    // Explosion always hits if in range, and kills the attacker
+    let mut result = monster_attack_player(attacker, player, attack, rng);
+    result.hit = true; // Explosions always hit
+    result.attacker_died = true; // Attacker dies from explosion
+    result
+}
+
+/// Process gaze attack (gazemu in C)
+fn process_gaze_attack(
+    attacker: &Monster,
+    player: &mut You,
+    attack: &Attack,
+    rng: &mut GameRng,
+) -> CombatResult {
+    use crate::player::Property;
+
+    // Gaze attacks can be blocked by blindness or reflection
+    if player.is_blind() {
+        return CombatResult::MISS; // Can't see the gaze
+    }
+
+    // Reflection blocks some gaze attacks
+    if player.properties.has(Property::Reflection) {
+        // Reflected back at monster - could damage them
+        // For now, just miss
+        return CombatResult::MISS;
+    }
+
+    monster_attack_player(attacker, player, attack, rng)
+}
+
+/// Process ranged attack (breath/spit)
+fn process_ranged_attack(
+    attacker: &Monster,
+    player: &mut You,
+    attack: &Attack,
+    rng: &mut GameRng,
+) -> CombatResult {
+    // Ranged attacks have a chance to miss based on distance
+    let distance = ((attacker.x - player.pos.x).abs().max((attacker.y - player.pos.y).abs())) as u32;
+
+    // Miss chance increases with distance
+    if distance > 1 && rng.one_in(distance) {
+        return CombatResult::MISS;
+    }
+
+    monster_attack_player(attacker, player, attack, rng)
+}
 
 /// Calculate monster's to-hit bonus
 ///
@@ -383,14 +757,12 @@ fn apply_damage_effect(
         }
 
         DamageType::StealItem => {
-            // TODO: Actually steal item from inventory
-            // This requires inventory access which we don't have here
+            // Stealing is handled by steal_from_player() which needs inventory access
             Some(CombatEffect::ItemStolen)
         }
 
         DamageType::Teleport => {
-            // TODO: Actually teleport player
-            // This requires level access which we don't have here
+            // Teleport is handled by teleport_player_attack() which needs level access
             Some(CombatEffect::Teleported)
         }
 
@@ -400,13 +772,182 @@ fn apply_damage_effect(
         }
 
         DamageType::Wrap | DamageType::Stick => {
-            // TODO: Set grabbed_by to attacker's MonsterId
-            // This requires attacker info which we don't have here
+            // Grab is handled by grab_player() which needs attacker info
             Some(CombatEffect::Grabbed)
         }
 
         _ => None,
     }
+}
+
+/// Monster steals an item from player's inventory (from steal.c)
+/// Returns the stolen item if successful, None otherwise
+pub fn steal_from_player(
+    attacker: &Monster,
+    inventory: &mut Vec<Object>,
+    rng: &mut GameRng,
+) -> Option<Object> {
+    if inventory.is_empty() {
+        return None;
+    }
+
+    // Nymphs prefer rings and amulets, monkeys take anything
+    let is_nymph = attacker.name.contains("nymph");
+    
+    // Weight items - worn/wielded items are harder to steal (weight 5 vs 1)
+    let mut total_weight = 0;
+    for obj in inventory.iter() {
+        let weight = if obj.worn_mask != 0 { 5 } else { 1 };
+        // Nymphs prefer jewelry
+        if is_nymph && (obj.class == crate::object::ObjectClass::Ring 
+                     || obj.class == crate::object::ObjectClass::Amulet) {
+            total_weight += weight * 3; // Triple weight for preferred items
+        } else {
+            total_weight += weight;
+        }
+    }
+
+    if total_weight == 0 {
+        return None;
+    }
+
+    // Pick a random item based on weights
+    let mut pick = rng.rn2(total_weight as u32) as i32;
+    let mut steal_idx = None;
+    
+    for (idx, obj) in inventory.iter().enumerate() {
+        let weight = if obj.worn_mask != 0 { 5 } else { 1 };
+        let adjusted_weight = if is_nymph && (obj.class == crate::object::ObjectClass::Ring 
+                                           || obj.class == crate::object::ObjectClass::Amulet) {
+            weight * 3
+        } else {
+            weight
+        };
+        
+        pick -= adjusted_weight;
+        if pick < 0 {
+            steal_idx = Some(idx);
+            break;
+        }
+    }
+
+    // Remove and return the stolen item
+    steal_idx.map(|idx| inventory.remove(idx))
+}
+
+/// Monster teleports the player randomly (from mhitu.c)
+/// Returns the new position if teleported, None if teleport failed
+pub fn teleport_player_attack(
+    player: &mut You,
+    level: &Level,
+    rng: &mut GameRng,
+) -> Option<(i8, i8)> {
+    use crate::player::Property;
+    
+    // Teleport control lets player resist
+    if player.properties.has(Property::TeleportControl) && rng.one_in(3) {
+        return None; // Resisted
+    }
+
+    // Find a random valid position
+    for _ in 0..100 {
+        let x = rng.rn2(crate::COLNO as u32) as i8;
+        let y = rng.rn2(crate::ROWNO as u32) as i8;
+
+        if level.is_walkable(x, y) && level.monster_at(x, y).is_none() {
+            player.prev_pos = player.pos;
+            player.pos.x = x;
+            player.pos.y = y;
+            return Some((x, y));
+        }
+    }
+
+    None // Failed to find valid position
+}
+
+/// Monster grabs the player (wrap/stick attacks from mhitu.c)
+/// Sets the grabbed_by field on the player
+pub fn grab_player(player: &mut You, attacker_id: MonsterId) {
+    player.grabbed_by = Some(attacker_id);
+}
+
+/// Check if player can escape from grab
+/// Returns true if player escaped
+pub fn try_escape_grab(player: &mut You, rng: &mut GameRng) -> bool {
+    use crate::player::Attribute;
+    
+    if player.grabbed_by.is_none() {
+        return true; // Not grabbed
+    }
+
+    // Escape chance based on strength and dexterity
+    let str_val = player.attr_current.get(Attribute::Strength) as i32;
+    let dex_val = player.attr_current.get(Attribute::Dexterity) as i32;
+    
+    // Base 10% + 2% per point of STR+DEX above 20
+    let escape_chance = 10 + ((str_val + dex_val - 20) * 2).max(0);
+    
+    if rng.percent(escape_chance as u32) {
+        player.grabbed_by = None;
+        true
+    } else {
+        false
+    }
+}
+
+/// Apply grab damage each turn while grabbed
+pub fn apply_grab_damage(
+    player: &mut You,
+    grabber: &Monster,
+    rng: &mut GameRng,
+) -> i32 {
+    // Crushing damage based on monster level
+    let damage = rng.dice(1, grabber.level as u32 / 2 + 1) as i32;
+    player.hp -= damage;
+    damage
+}
+
+/// Full monster attack with context for special attacks
+/// This version has access to inventory and level for stealing/teleport
+pub fn monster_attack_player_full(
+    attacker: &Monster,
+    player: &mut You,
+    inventory: &mut Vec<Object>,
+    level: &mut Level,
+    attack: &Attack,
+    rng: &mut GameRng,
+) -> (CombatResult, Option<String>) {
+    // First do the basic attack
+    let result = monster_attack_player(attacker, player, attack, rng);
+    
+    if !result.hit {
+        return (result, None);
+    }
+
+    // Handle special effects that need context
+    let message = match attack.damage_type {
+        DamageType::StealItem => {
+            if let Some(stolen) = steal_from_player(attacker, inventory, rng) {
+                Some(format!("The {} stole your {}!", attacker.name, stolen.display_name()))
+            } else {
+                Some(format!("The {} couldn't find anything to steal.", attacker.name))
+            }
+        }
+        DamageType::Teleport => {
+            if let Some((x, y)) = teleport_player_attack(player, level, rng) {
+                Some(format!("You are teleported to ({}, {})!", x, y))
+            } else {
+                Some("You resist the teleportation.".to_string())
+            }
+        }
+        DamageType::Wrap | DamageType::Stick => {
+            grab_player(player, attacker.id);
+            Some(format!("The {} grabs you!", attacker.name))
+        }
+        _ => None,
+    };
+
+    (result, message)
 }
 
 #[cfg(test)]
@@ -840,5 +1381,215 @@ mod tests {
         assert!(result.hit, "Should still hit");
         assert_eq!(result.damage, 0, "Fire damage should be reduced to 0");
         assert_eq!(player.hp, 100, "HP should not change with fire resistance");
+    }
+
+    // ========================================================================
+    // Tests for message functions
+    // ========================================================================
+
+    #[test]
+    fn test_hit_message() {
+        assert_eq!(hit_message("goblin", AttackType::Bite), "The goblin bites!");
+        assert_eq!(hit_message("troll", AttackType::Claw), "The troll claws!");
+        assert_eq!(hit_message("dragon", AttackType::Breath), "The dragon breathes on you!");
+        assert_eq!(hit_message("soldier", AttackType::Weapon), "The soldier hits!");
+    }
+
+    #[test]
+    fn test_miss_message() {
+        assert_eq!(miss_message("goblin", false), "The goblin misses.");
+        assert_eq!(miss_message("goblin", true), "The goblin just misses!");
+    }
+
+    #[test]
+    fn test_wild_miss_message() {
+        // Displaced player
+        assert!(wild_miss_message("goblin", true, false).contains("displaced image"));
+        // Invisible displaced player
+        assert!(wild_miss_message("goblin", true, true).contains("invisible"));
+        // Just invisible
+        assert!(wild_miss_message("goblin", false, true).contains("wildly"));
+    }
+
+    #[test]
+    fn test_damage_effect_message() {
+        assert!(damage_effect_message("dragon", DamageType::Fire).is_some());
+        assert!(damage_effect_message("vampire", DamageType::DrainLife).is_some());
+        assert!(damage_effect_message("goblin", DamageType::Physical).is_none());
+    }
+
+    #[test]
+    fn test_resistance_message() {
+        assert!(resistance_message(DamageType::Fire).is_some());
+        assert!(resistance_message(DamageType::Cold).is_some());
+        assert!(resistance_message(DamageType::Physical).is_none());
+    }
+
+    // ========================================================================
+    // Tests for mattacku and related functions
+    // ========================================================================
+
+    #[test]
+    fn test_can_monster_attack_peaceful() {
+        let mut monster = test_monster(5);
+        monster.state.peaceful = true;
+        let player = test_player();
+
+        assert!(!can_monster_attack(&monster, &player));
+    }
+
+    #[test]
+    fn test_can_monster_attack_sleeping() {
+        let mut monster = test_monster(5);
+        monster.state.sleeping = true;
+        let player = test_player();
+
+        assert!(!can_monster_attack(&monster, &player));
+    }
+
+    #[test]
+    fn test_can_monster_attack_hostile() {
+        let mut monster = test_monster(5);
+        monster.state = crate::monster::MonsterState::active();
+        let player = test_player();
+
+        assert!(can_monster_attack(&monster, &player));
+    }
+
+    #[test]
+    fn test_mattacku_peaceful_monster() {
+        let mut monster = test_monster(5);
+        monster.state.peaceful = true;
+        monster.attacks[0] = Attack::new(AttackType::Claw, DamageType::Physical, 1, 6);
+
+        let mut player = test_player();
+        player.hp = 100;
+        player.pos.x = 6;
+        player.pos.y = 5;
+
+        let mut inventory = Vec::new();
+        let mut level = Level::default();
+        let mut rng = GameRng::new(42);
+
+        let result = mattacku(&monster, &mut player, &mut inventory, &mut level, &mut rng);
+
+        assert!(!result.any_hit, "Peaceful monster should not attack");
+        assert!(result.messages.is_empty());
+    }
+
+    #[test]
+    fn test_mattacku_hostile_monster() {
+        let mut monster = test_monster(10);
+        monster.state = crate::monster::MonsterState::active();
+        monster.x = 5;
+        monster.y = 5;
+        monster.attacks[0] = Attack::new(AttackType::Claw, DamageType::Physical, 1, 6);
+
+        let mut player = test_player();
+        player.hp = 100;
+        player.armor_class = 10; // Easy to hit
+        player.pos.x = 6;
+        player.pos.y = 5;
+
+        let mut inventory = Vec::new();
+        let mut level = Level::default();
+        let mut rng = GameRng::new(42);
+
+        let result = mattacku(&monster, &mut player, &mut inventory, &mut level, &mut rng);
+
+        // With level 10 monster vs AC 10, should hit
+        assert!(result.any_hit || !result.messages.is_empty(), "Should have attempted attack");
+    }
+
+    #[test]
+    fn test_mattacku_multiple_attacks() {
+        let mut monster = test_monster(10);
+        monster.state = crate::monster::MonsterState::active();
+        monster.x = 5;
+        monster.y = 5;
+        // Give monster two attacks
+        monster.attacks[0] = Attack::new(AttackType::Claw, DamageType::Physical, 1, 4);
+        monster.attacks[1] = Attack::new(AttackType::Bite, DamageType::Physical, 1, 6);
+
+        let mut player = test_player();
+        player.hp = 100;
+        player.armor_class = 10;
+        player.pos.x = 6;
+        player.pos.y = 5;
+
+        let mut inventory = Vec::new();
+        let mut level = Level::default();
+        let mut rng = GameRng::new(42);
+
+        let result = mattacku(&monster, &mut player, &mut inventory, &mut level, &mut rng);
+
+        // Should have messages for both attacks (hit or miss)
+        assert!(result.messages.len() >= 2, "Should process multiple attacks");
+    }
+
+    #[test]
+    fn test_mattacku_out_of_range() {
+        let mut monster = test_monster(10);
+        monster.state = crate::monster::MonsterState::active();
+        monster.x = 5;
+        monster.y = 5;
+        monster.attacks[0] = Attack::new(AttackType::Claw, DamageType::Physical, 1, 6);
+
+        let mut player = test_player();
+        player.hp = 100;
+        player.pos.x = 20; // Far away
+        player.pos.y = 20;
+
+        let mut inventory = Vec::new();
+        let mut level = Level::default();
+        let mut rng = GameRng::new(42);
+
+        let result = mattacku(&monster, &mut player, &mut inventory, &mut level, &mut rng);
+
+        // Melee attack should not reach
+        assert!(!result.any_hit, "Melee attack should not reach distant player");
+        assert!(result.messages.is_empty(), "No messages for out-of-range attack");
+    }
+
+    #[test]
+    fn test_weapon_swing_message() {
+        // Test thrust weapons
+        assert!(weapon_swing_message("orc", "spear", true).contains("thrusts"));
+        assert!(weapon_swing_message("orc", "long sword", false).contains("swings"));
+    }
+
+    #[test]
+    fn test_mattacku_weapon_attack_with_weapon() {
+        use crate::object::{Object, ObjectClass, ObjectId};
+
+        let mut monster = test_monster(10);
+        monster.state = crate::monster::MonsterState::active();
+        monster.x = 5;
+        monster.y = 5;
+        monster.attacks[0] = Attack::new(AttackType::Weapon, DamageType::Physical, 1, 8);
+
+        // Give monster a weapon
+        let mut sword = Object::new(ObjectId(1), 0, ObjectClass::Weapon);
+        sword.name = Some("long sword".to_string());
+        monster.inventory.push(sword);
+        monster.wielded = Some(0);
+
+        let mut player = test_player();
+        player.hp = 100;
+        player.armor_class = 10;
+        player.pos.x = 6;
+        player.pos.y = 5;
+
+        let mut inventory = Vec::new();
+        let mut level = Level::default();
+        let mut rng = GameRng::new(42);
+
+        let result = mattacku(&monster, &mut player, &mut inventory, &mut level, &mut rng);
+
+        // Should have weapon swing message if hit
+        if result.any_hit {
+            let has_swing_msg = result.messages.iter().any(|m| m.contains("swings"));
+            assert!(has_swing_msg, "Should have weapon swing message for weapon attack");
+        }
     }
 }

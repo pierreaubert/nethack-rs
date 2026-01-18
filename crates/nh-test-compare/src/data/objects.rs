@@ -2,8 +2,10 @@
 //!
 //! Parses object definitions from C source and compares with Rust.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use nh_core::object::ObjectClass;
 
 /// Parsed object data from C source
 #[derive(Debug, Clone)]
@@ -251,4 +253,305 @@ mod tests {
             mismatched.len()
         );
     }
+
+    #[test]
+    fn test_all_object_classes() {
+        use nh_data::objects::OBJECTS;
+
+        let c_names: HashMap<ObjectClass, Vec<String>> = extract_object_names_by_class();
+        let rust_names: Vec<String> = OBJECTS
+            .iter()
+            .filter(|o| !o.name.is_empty() && o.name != "strange object")
+            .map(|o| o.name.to_string())
+            .collect();
+
+        println!("\n=== Object Class Summary ===");
+        for (class, c_objs) in &c_names {
+            let count = c_objs.len();
+            let matched = c_objs.iter().filter(|c_name| {
+                let c_name_str = c_name.as_str();
+                rust_names.iter().any(|r_name| {
+                    r_name == *c_name || r_name.ends_with(c_name_str)
+                })
+            }).count();
+
+            let coverage = if count > 0 { matched * 100 / count } else { 0 };
+            println!("{:15} C={:3}, Matched={:3} ({:2}%)", format!("{}", class), count, matched, coverage);
+        }
+    }
+
+    #[test]
+    fn test_potions_one_by_one() {
+        use nh_data::objects::OBJECTS;
+
+        let c_potions: Vec<String> = extract_object_names_by_class()
+            .get(&ObjectClass::Potion)
+            .cloned()
+            .unwrap_or_default();
+
+        let rust_potions: Vec<&str> = OBJECTS
+            .iter()
+            .filter(|o| matches!(o.class, ObjectClass::Potion))
+            .map(|o| o.name)
+            .collect();
+
+        println!("\n=== Testing Potions One-by-One ===");
+        println!("C potions: {}", c_potions.len());
+        println!("Rust potions: {}", rust_potions.len());
+
+        let mut matched = 0;
+        let mut missing = Vec::new();
+
+        for c_name in &c_potions {
+            let full_name = format!("potion of {}", c_name);
+            let found = rust_potions.iter().any(|r_name| {
+                *r_name == full_name || *r_name == c_name.as_str()
+            });
+
+            if found {
+                matched += 1;
+                println!("  [OK] {}", c_name);
+            } else {
+                missing.push(c_name.clone());
+                println!("  [MISSING] {}", c_name);
+            }
+        }
+
+        println!("\nMatched: {}/{}", matched, c_potions.len());
+        if !missing.is_empty() {
+            println!("Missing in Rust ({}):", missing.len());
+            for name in missing.iter().take(10) {
+                println!("  - {}", name);
+            }
+        }
+    }
+
+    #[test]
+    fn test_scrolls_one_by_one() {
+        use nh_data::objects::OBJECTS;
+
+        let c_scrolls: Vec<String> = extract_object_names_by_class()
+            .get(&ObjectClass::Scroll)
+            .cloned()
+            .unwrap_or_default();
+
+        let rust_scrolls: Vec<&str> = OBJECTS
+            .iter()
+            .filter(|o| matches!(o.class, ObjectClass::Scroll))
+            .map(|o| o.name)
+            .collect();
+
+        println!("\n=== Testing Scrolls One-by-One ===");
+        println!("C scrolls: {}", c_scrolls.len());
+        println!("Rust scrolls: {}", rust_scrolls.len());
+
+        let mut matched = 0;
+        let mut missing = Vec::new();
+
+        for c_name in &c_scrolls {
+            let full_name = format!("scroll of {}", c_name);
+            let found = rust_scrolls.iter().any(|r_name| {
+                *r_name == full_name || *r_name == c_name.as_str()
+            });
+
+            if found {
+                matched += 1;
+                println!("  [OK] {}", c_name);
+            } else {
+                missing.push(c_name.clone());
+                println!("  [MISSING] {}", c_name);
+            }
+        }
+
+        println!("\nMatched: {}/{}", matched, c_scrolls.len());
+        if !missing.is_empty() {
+            println!("Missing in Rust ({}):", missing.len());
+            for name in missing.iter().take(10) {
+                println!("  - {}", name);
+            }
+        }
+    }
+
+    #[test]
+    fn test_wands_one_by_one() {
+        use nh_data::objects::OBJECTS;
+
+        let c_wands: Vec<String> = extract_object_names_by_class()
+            .get(&ObjectClass::Wand)
+            .cloned()
+            .unwrap_or_default();
+
+        let rust_wands: Vec<&str> = OBJECTS
+            .iter()
+            .filter(|o| matches!(o.class, ObjectClass::Wand))
+            .map(|o| o.name)
+            .collect();
+
+        println!("\n=== Testing Wands One-by-One ===");
+        println!("C wands: {}", c_wands.len());
+        println!("Rust wands: {}", rust_wands.len());
+
+        let mut matched = 0;
+        let mut missing = Vec::new();
+
+        for c_name in &c_wands {
+            let full_name = format!("wand of {}", c_name);
+            let found = rust_wands.iter().any(|r_name| {
+                *r_name == full_name || *r_name == c_name.as_str()
+            });
+
+            if found {
+                matched += 1;
+                println!("  [OK] {}", c_name);
+            } else {
+                missing.push(c_name.clone());
+                println!("  [MISSING] {}", c_name);
+            }
+        }
+
+        println!("\nMatched: {}/{}", matched, c_wands.len());
+        if !missing.is_empty() {
+            println!("Missing in Rust ({}):", missing.len());
+            for name in missing.iter().take(10) {
+                println!("  - {}", name);
+            }
+        }
+    }
+
+    #[test]
+    fn test_weapons_one_by_one() {
+        use nh_data::objects::OBJECTS;
+
+        let c_weapons: Vec<String> = extract_object_names_by_class()
+            .get(&ObjectClass::Weapon)
+            .cloned()
+            .unwrap_or_default();
+
+        let rust_weapons: Vec<&str> = OBJECTS
+            .iter()
+            .filter(|o| matches!(o.class, ObjectClass::Weapon))
+            .map(|o| o.name)
+            .collect();
+
+        println!("\n=== Testing Weapons One-by-One ===");
+        println!("C weapons: {}", c_weapons.len());
+        println!("Rust weapons: {}", rust_weapons.len());
+
+        let mut matched = 0;
+        let mut missing = Vec::new();
+
+        for c_name in &c_weapons {
+            let found = rust_weapons.iter().any(|r_name| *r_name == c_name.as_str());
+
+            if found {
+                matched += 1;
+                println!("  [OK] {}", c_name);
+            } else {
+                missing.push(c_name.clone());
+                println!("  [MISSING] {}", c_name);
+            }
+        }
+
+        println!("\nMatched: {}/{}", matched, c_weapons.len());
+        if !missing.is_empty() {
+            println!("Missing in Rust ({}):", missing.len());
+            for name in missing.iter().take(20) {
+                println!("  - {}", name);
+            }
+        }
+    }
+
+    #[test]
+    fn test_armor_one_by_one() {
+        use nh_data::objects::OBJECTS;
+
+        let c_armor: Vec<String> = extract_object_names_by_class()
+            .get(&ObjectClass::Armor)
+            .cloned()
+            .unwrap_or_default();
+
+        let rust_armor: Vec<&str> = OBJECTS
+            .iter()
+            .filter(|o| matches!(o.class, ObjectClass::Armor))
+            .map(|o| o.name)
+            .collect();
+
+        println!("\n=== Testing Armor One-by-One ===");
+        println!("C armor: {}", c_armor.len());
+        println!("Rust armor: {}", rust_armor.len());
+
+        let mut matched = 0;
+        let mut missing = Vec::new();
+
+        for c_name in &c_armor {
+            let found = rust_armor.iter().any(|r_name| *r_name == c_name.as_str());
+
+            if found {
+                matched += 1;
+                println!("  [OK] {}", c_name);
+            } else {
+                missing.push(c_name.clone());
+                println!("  [MISSING] {}", c_name);
+            }
+        }
+
+        println!("\nMatched: {}/{}", matched, c_armor.len());
+        if !missing.is_empty() {
+            println!("Missing in Rust ({}):", missing.len());
+            for name in missing.iter().take(20) {
+                println!("  - {}", name);
+            }
+        }
+    }
+}
+
+/// Extract object names organized by class
+pub fn extract_object_names_by_class() -> HashMap<ObjectClass, Vec<String>> {
+    let objects_c = Path::new(super::NETHACK_SRC).join("src/objects.c");
+
+    if !objects_c.exists() {
+        return HashMap::new();
+    }
+
+    let content = fs::read_to_string(&objects_c).unwrap_or_default();
+    let mut results: HashMap<ObjectClass, Vec<String>> = HashMap::new();
+
+    // Object macro to class mapping
+    let macro_to_class: Vec<(&str, ObjectClass)> = vec![
+        ("WEAPON(", ObjectClass::Weapon),
+        ("ARMOR(", ObjectClass::Armor),
+        ("HELM(", ObjectClass::Armor),
+        ("CLOAK(", ObjectClass::Armor),
+        ("SHIELD(", ObjectClass::Armor),
+        ("GLOVES(", ObjectClass::Armor),
+        ("BOOTS(", ObjectClass::Armor),
+        ("RING(", ObjectClass::Ring),
+        ("AMULET(", ObjectClass::Amulet),
+        ("TOOL(", ObjectClass::Tool),
+        ("FOOD(", ObjectClass::Food),
+        ("POTION(", ObjectClass::Potion),
+        ("SCROLL(", ObjectClass::Scroll),
+        ("SPBOOK(", ObjectClass::Spellbook),
+        ("WAND(", ObjectClass::Wand),
+    ];
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        for (macro_name, class) in &macro_to_class {
+            if trimmed.starts_with(macro_name) {
+                if let Some(start) = trimmed.find('"') {
+                    let rest = &trimmed[start + 1..];
+                    if let Some(end) = rest.find('"') {
+                        let name = rest[..end].to_string();
+                        if !name.is_empty() {
+                            results.entry(*class).or_insert_with(Vec::new).push(name);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    results
 }

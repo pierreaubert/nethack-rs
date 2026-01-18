@@ -975,6 +975,348 @@ fn cast_jumping(
     }
 }
 
+// ============================================================================
+// Monster Spellcasting (mcastu.c)
+// ============================================================================
+
+use crate::monster::Monster;
+
+/// Monster spell types (from mcastu.c)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MonsterSpell {
+    // Attack spells
+    MagicMissile,
+    Fireball,
+    ConeOfCold,
+    Lightning,
+    Sleep,
+    FingerOfDeath,
+    Blind,
+    Paralyze,
+    Confuse,
+    Slow,
+    DrainLife,
+    // Healing spells
+    Healing,
+    CureBlindness,
+    // Utility spells
+    Haste,
+    Invisibility,
+    Summon,
+    Teleport,
+    TeleportAway,
+}
+
+impl MonsterSpell {
+    /// Get the spell name for messages
+    pub fn name(&self) -> &'static str {
+        match self {
+            MonsterSpell::MagicMissile => "magic missile",
+            MonsterSpell::Fireball => "fireball",
+            MonsterSpell::ConeOfCold => "cone of cold",
+            MonsterSpell::Lightning => "lightning bolt",
+            MonsterSpell::Sleep => "sleep",
+            MonsterSpell::FingerOfDeath => "finger of death",
+            MonsterSpell::Blind => "blindness",
+            MonsterSpell::Paralyze => "paralysis",
+            MonsterSpell::Confuse => "confusion",
+            MonsterSpell::Slow => "slow",
+            MonsterSpell::DrainLife => "drain life",
+            MonsterSpell::Healing => "healing",
+            MonsterSpell::CureBlindness => "cure blindness",
+            MonsterSpell::Haste => "haste",
+            MonsterSpell::Invisibility => "invisibility",
+            MonsterSpell::Summon => "summon",
+            MonsterSpell::Teleport => "teleport",
+            MonsterSpell::TeleportAway => "teleport away",
+        }
+    }
+
+    /// Check if this is an attack spell
+    pub fn is_attack(&self) -> bool {
+        matches!(
+            self,
+            MonsterSpell::MagicMissile
+                | MonsterSpell::Fireball
+                | MonsterSpell::ConeOfCold
+                | MonsterSpell::Lightning
+                | MonsterSpell::Sleep
+                | MonsterSpell::FingerOfDeath
+                | MonsterSpell::Blind
+                | MonsterSpell::Paralyze
+                | MonsterSpell::Confuse
+                | MonsterSpell::Slow
+                | MonsterSpell::DrainLife
+        )
+    }
+}
+
+/// Result of monster casting a spell
+#[derive(Debug, Clone)]
+pub struct MonsterSpellResult {
+    pub messages: Vec<String>,
+    pub player_damage: i32,
+    pub player_died: bool,
+}
+
+impl MonsterSpellResult {
+    pub fn new() -> Self {
+        Self {
+            messages: Vec::new(),
+            player_damage: 0,
+            player_died: false,
+        }
+    }
+
+    pub fn with_message(mut self, msg: impl Into<String>) -> Self {
+        self.messages.push(msg.into());
+        self
+    }
+}
+
+impl Default for MonsterSpellResult {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Check if monster can cast spells
+pub fn monster_can_cast(monster: &Monster) -> bool {
+    // Monster must be able to move and not be silenced
+    monster.can_act() && !monster.state.cancelled
+}
+
+/// Monster casts a spell at the player
+pub fn monster_cast_spell(
+    caster: &Monster,
+    spell: MonsterSpell,
+    player: &mut You,
+    level: &mut Level,
+    rng: &mut GameRng,
+) -> MonsterSpellResult {
+    let mut result = MonsterSpellResult::new();
+
+    if !monster_can_cast(caster) {
+        return result;
+    }
+
+    result.messages.push(format!(
+        "The {} casts {}!",
+        caster.name,
+        spell.name()
+    ));
+
+    match spell {
+        MonsterSpell::MagicMissile => {
+            if player.properties.has(Property::MagicResistance) {
+                result.messages.push("The missiles bounce off!".to_string());
+            } else {
+                let damage = rng.dice(2, 6) as i32 + (caster.level / 2) as i32;
+                player.hp -= damage;
+                result.player_damage = damage;
+                result.messages.push(format!("You are hit by magic missiles! ({} damage)", damage));
+            }
+        }
+        MonsterSpell::Fireball => {
+            if player.properties.has(Property::FireResistance) {
+                result.messages.push("You are unaffected by the fire.".to_string());
+            } else {
+                let damage = rng.dice(6, 6) as i32;
+                player.hp -= damage;
+                result.player_damage = damage;
+                result.messages.push(format!("You are engulfed in flames! ({} damage)", damage));
+            }
+        }
+        MonsterSpell::ConeOfCold => {
+            if player.properties.has(Property::ColdResistance) {
+                result.messages.push("You are unaffected by the cold.".to_string());
+            } else {
+                let damage = rng.dice(6, 6) as i32;
+                player.hp -= damage;
+                result.player_damage = damage;
+                result.messages.push(format!("You are frozen! ({} damage)", damage));
+            }
+        }
+        MonsterSpell::Lightning => {
+            if player.properties.has(Property::ShockResistance) {
+                result.messages.push("You are unaffected by the lightning.".to_string());
+            } else {
+                let damage = rng.dice(6, 6) as i32;
+                player.hp -= damage;
+                result.player_damage = damage;
+                result.messages.push(format!("You are struck by lightning! ({} damage)", damage));
+            }
+        }
+        MonsterSpell::Sleep => {
+            if player.properties.has(Property::SleepResistance) {
+                result.messages.push("You resist the sleep spell.".to_string());
+            } else {
+                let duration = rng.dice(2, 6) as u16;
+                player.sleeping_timeout = player.sleeping_timeout.saturating_add(duration);
+                result.messages.push("You feel very drowsy...".to_string());
+            }
+        }
+        MonsterSpell::FingerOfDeath => {
+            if player.properties.has(Property::MagicResistance) {
+                result.messages.push("You resist the death magic!".to_string());
+            } else if rng.percent(50) {
+                // 50% chance to resist even without MR
+                result.messages.push("You feel drained but survive.".to_string());
+                let damage = rng.dice(4, 6) as i32;
+                player.hp -= damage;
+                result.player_damage = damage;
+            } else {
+                result.messages.push("You die...".to_string());
+                player.hp = 0;
+                result.player_died = true;
+            }
+        }
+        MonsterSpell::Blind => {
+            let duration = rng.dice(4, 6) as u16 + 20;
+            player.blinded_timeout = player.blinded_timeout.saturating_add(duration);
+            result.messages.push("You are blinded!".to_string());
+        }
+        MonsterSpell::Paralyze => {
+            if player.properties.has(Property::FreeAction) {
+                result.messages.push("You resist the paralysis.".to_string());
+            } else {
+                let duration = rng.dice(2, 4) as u16;
+                player.paralyzed_timeout = player.paralyzed_timeout.saturating_add(duration);
+                result.messages.push("You are paralyzed!".to_string());
+            }
+        }
+        MonsterSpell::Confuse => {
+            let duration = rng.dice(3, 6) as u16;
+            player.confused_timeout = player.confused_timeout.saturating_add(duration);
+            result.messages.push("You feel confused!".to_string());
+        }
+        MonsterSpell::Slow => {
+            if player.properties.has(Property::Speed) {
+                player.properties.remove_intrinsic(Property::Speed);
+                result.messages.push("You slow down.".to_string());
+            } else {
+                result.messages.push("You feel sluggish.".to_string());
+            }
+        }
+        MonsterSpell::DrainLife => {
+            if player.properties.has(Property::DrainResistance) {
+                result.messages.push("You resist the drain.".to_string());
+            } else if player.exp_level > 1 {
+                player.exp_level -= 1;
+                player.hp_max = (player.hp_max - rng.rnd(5) as i32).max(1);
+                player.hp = player.hp.min(player.hp_max);
+                result.messages.push("You feel your life force draining away!".to_string());
+            }
+        }
+        MonsterSpell::Healing | MonsterSpell::CureBlindness => {
+            // These are self-healing spells for the monster
+            result.messages.push(format!("The {} looks healthier.", caster.name));
+        }
+        MonsterSpell::Haste | MonsterSpell::Invisibility => {
+            // Self-buff spells
+            result.messages.push(format!("The {} seems faster.", caster.name));
+        }
+        MonsterSpell::Summon => {
+            // Summon allies - would need to create new monsters
+            result.messages.push("Monsters appear around you!".to_string());
+        }
+        MonsterSpell::Teleport => {
+            // Teleport self away
+            result.messages.push(format!("The {} vanishes!", caster.name));
+        }
+        MonsterSpell::TeleportAway => {
+            // Teleport player away
+            if player.properties.has(Property::TeleportControl) && rng.one_in(3) {
+                result.messages.push("You resist the teleportation.".to_string());
+            } else {
+                // Find random position
+                for _ in 0..100 {
+                    let x = rng.rn2(crate::COLNO as u32) as i8;
+                    let y = rng.rn2(crate::ROWNO as u32) as i8;
+                    if level.is_walkable(x, y) && level.monster_at(x, y).is_none() {
+                        player.prev_pos = player.pos;
+                        player.pos.x = x;
+                        player.pos.y = y;
+                        result.messages.push("You are teleported away!".to_string());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if player.hp <= 0 {
+        result.player_died = true;
+    }
+
+    result
+}
+
+/// Choose a spell for a monster to cast based on situation
+pub fn choose_monster_spell(
+    caster: &Monster,
+    player: &You,
+    rng: &mut GameRng,
+) -> Option<MonsterSpell> {
+    if !monster_can_cast(caster) {
+        return None;
+    }
+
+    // Distance to player
+    let dx = (player.pos.x - caster.x).abs();
+    let dy = (player.pos.y - caster.y).abs();
+    let distance = dx.max(dy);
+
+    // Build list of available spells based on monster level
+    let mut spells = Vec::new();
+
+    // Basic attack spells
+    if caster.level >= 3 {
+        spells.push(MonsterSpell::MagicMissile);
+    }
+    if caster.level >= 5 {
+        spells.push(MonsterSpell::Confuse);
+        spells.push(MonsterSpell::Slow);
+    }
+    if caster.level >= 7 {
+        spells.push(MonsterSpell::Blind);
+        spells.push(MonsterSpell::Sleep);
+    }
+    if caster.level >= 10 {
+        spells.push(MonsterSpell::Fireball);
+        spells.push(MonsterSpell::ConeOfCold);
+        spells.push(MonsterSpell::Lightning);
+    }
+    if caster.level >= 12 {
+        spells.push(MonsterSpell::Paralyze);
+        spells.push(MonsterSpell::DrainLife);
+    }
+    if caster.level >= 15 {
+        spells.push(MonsterSpell::TeleportAway);
+    }
+    if caster.level >= 20 {
+        spells.push(MonsterSpell::FingerOfDeath);
+    }
+
+    // If hurt, consider healing
+    if caster.hp < caster.hp_max / 2 && caster.level >= 5 {
+        spells.push(MonsterSpell::Healing);
+    }
+
+    // If far from player, consider teleport
+    if distance > 5 && caster.level >= 10 {
+        spells.push(MonsterSpell::Teleport);
+    }
+
+    if spells.is_empty() {
+        return None;
+    }
+
+    // Pick a random spell
+    let idx = rng.rn2(spells.len() as u32) as usize;
+    Some(spells[idx])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

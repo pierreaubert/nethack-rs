@@ -834,6 +834,75 @@ fn teleport_monster(
     }
 }
 
+/// Monster uses breath weapon against player (from mcastu.c buzzmu)
+/// This is the main entry point for dragon breath, etc.
+pub fn monster_breath_weapon(
+    attacker_x: i8,
+    attacker_y: i8,
+    attacker_name: &str,
+    attacker_level: u8,
+    zap_type: ZapType,
+    player: &mut crate::player::You,
+    level: &mut Level,
+    rng: &mut GameRng,
+) -> ZapResult {
+    let mut result = ZapResult::new();
+    
+    // Calculate direction toward player
+    let dx = (player.pos.x - attacker_x).signum();
+    let dy = (player.pos.y - attacker_y).signum();
+    
+    if dx == 0 && dy == 0 {
+        // Monster is on top of player - shouldn't happen
+        return result;
+    }
+    
+    result.messages.push(format!(
+        "The {} breathes {}!",
+        attacker_name,
+        zap_type.name(ZapVariant::Breath)
+    ));
+    
+    // Breath damage is based on monster level
+    let damage_dice = (attacker_level / 2).max(1) as u32;
+    
+    // Trace the breath ray
+    zap_direction(
+        zap_type,
+        ZapVariant::Breath,
+        dx,
+        dy,
+        player,
+        level,
+        rng,
+        &mut result,
+    );
+    
+    // Apply extra damage based on monster level if player was hit
+    if result.player_damage > 0 {
+        let extra_damage = rng.dice(damage_dice, 6) as i32;
+        result.player_damage += extra_damage;
+        player.hp -= extra_damage;
+    }
+    
+    result
+}
+
+/// Map monster attack damage type to zap type for breath weapons
+pub fn damage_type_to_zap_type(damage_type: crate::combat::DamageType) -> Option<ZapType> {
+    match damage_type {
+        crate::combat::DamageType::Fire => Some(ZapType::Fire),
+        crate::combat::DamageType::Cold => Some(ZapType::Cold),
+        crate::combat::DamageType::Electric => Some(ZapType::Lightning),
+        crate::combat::DamageType::MagicMissile => Some(ZapType::MagicMissile),
+        crate::combat::DamageType::Sleep => Some(ZapType::Sleep),
+        crate::combat::DamageType::Death => Some(ZapType::Death),
+        crate::combat::DamageType::Acid => Some(ZapType::Acid),
+        crate::combat::DamageType::DrainStrength => Some(ZapType::PoisonGas),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

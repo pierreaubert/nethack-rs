@@ -362,11 +362,6 @@ macro_rules! attacks {
     };
 }
 
-/// Helper for M1 flags
-const fn m1(flags: u64) -> MonsterFlags {
-    MonsterFlags::from_bits_truncate(flags)
-}
-
 /// Helper for combining M1 and M2 flags
 const fn m12(m1: u64, m2: u64) -> MonsterFlags {
     MonsterFlags::from_bits_truncate(m1 | (m2 << 32))
