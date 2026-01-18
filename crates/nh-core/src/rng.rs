@@ -105,6 +105,41 @@ impl GameRng {
         self.rn2(100) < percent
     }
 
+    /// Equivalent to NetHack's rnz(i) - returns 1..i biased toward lower values
+    ///
+    /// This produces an exponentially distributed random number.
+    /// Lower values are much more common than higher values.
+    pub fn rnz(&mut self, i: u32) -> u32 {
+        if i == 0 {
+            return 0;
+        }
+
+        let mut x = i;
+        let mut tmp = 1000u32;
+
+        tmp += self.rn2(1000);
+        tmp *= self.rne(4);
+
+        if self.rn2(2) == 0 {
+            x /= tmp;
+        } else {
+            x = (x.saturating_mul(tmp)) / 1000;
+        }
+
+        x.clamp(1, i)
+    }
+
+    /// Equivalent to NetHack's rne(x) - exponential distribution 1..x
+    ///
+    /// Returns 1 most often, higher values exponentially less likely.
+    pub fn rne(&mut self, x: u32) -> u32 {
+        let mut n = 1;
+        while n < x && self.rn2(4) == 0 {
+            n += 1;
+        }
+        n
+    }
+
     /// Choose a random element from a slice
     pub fn choose<'a, T>(&mut self, items: &'a [T]) -> Option<&'a T> {
         if items.is_empty() {

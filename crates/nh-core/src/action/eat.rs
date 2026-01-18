@@ -3,64 +3,322 @@
 use crate::action::ActionResult;
 use crate::gameloop::GameState;
 use crate::object::{BucStatus, Object, ObjectClass};
+use crate::player::{Attribute, HungerState, Property};
+use crate::rng::GameRng;
 
-/// Hunger state thresholds (from NetHack)
-pub const SATIATED: i32 = 2000;
-pub const NOT_HUNGRY: i32 = 900;
-pub const HUNGRY: i32 = 150;
-pub const WEAK: i32 = 50;
-pub const FAINTING: i32 = 0;
+// ============================================================================
+// Intrinsic gain messages
+// ============================================================================
 
-/// Hunger state names for display
-pub const HUNGER_STATES: &[&str] = &[
-    "Satiated", "", "Hungry", "Weak", "Fainting", "Fainted", "Starved",
-];
-
-/// Hunger state enum
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HungerState {
-    Satiated,
-    NotHungry,
-    Hungry,
-    Weak,
-    Fainting,
-    Fainted,
-    Starved,
+/// Get the message when gaining an intrinsic property from food
+pub fn intrinsic_gain_message(prop: Property) -> &'static str {
+    match prop {
+        Property::FireResistance => "You feel a momentary chill.",
+        Property::ColdResistance => "You feel full of hot air.",
+        Property::SleepResistance => "You feel wide awake.",
+        Property::DisintResistance => "You feel very firm.",
+        Property::ShockResistance => "Your health currently feels amplified!",
+        Property::PoisonResistance => "You feel healthy.",
+        Property::Telepathy => "You feel a strange mental acuity.",
+        Property::Teleportation => "You feel very jumpy.",
+        Property::TeleportControl => "You feel in control of yourself.",
+        Property::Invisibility => "You feel hidden!",
+        Property::SeeInvisible => "You see an image of someone stalking you.",
+        Property::Speed => "You feel yourself speed up.",
+        Property::VeryFast => "You feel yourself speed up a lot!",
+        _ => "You feel different.",
+    }
 }
 
-impl HungerState {
-    /// Get hunger state from nutrition value
-    pub fn from_nutrition(nutrition: i32) -> Self {
-        if nutrition > SATIATED {
-            HungerState::Satiated
-        } else if nutrition > NOT_HUNGRY {
-            HungerState::NotHungry
-        } else if nutrition > HUNGRY {
-            HungerState::Hungry
-        } else if nutrition > WEAK {
-            HungerState::Weak
-        } else if nutrition > FAINTING {
-            HungerState::Fainting
-        } else if nutrition > -10 {
-            HungerState::Fainted
-        } else {
-            HungerState::Starved
+/// Special effect from eating a specific corpse type
+#[derive(Debug, Clone)]
+pub enum CorpseEffect {
+    /// Gain an intrinsic property (with probability 0-100)
+    GainIntrinsic { property: Property, chance: u8 },
+    /// Gain energy/mana
+    GainEnergy { amount: i32 },
+    /// Gain a level
+    GainLevel,
+    /// Heal to full HP
+    FullHeal,
+    /// Cause confusion
+    Confusion { duration: i32 },
+    /// Cause hallucination
+    Hallucination { duration: i32 },
+    /// Cause stunning
+    Stun { duration: i32 },
+    /// Cause blindness
+    Blindness { duration: i32 },
+    /// Cure stoning
+    CureStoning,
+    /// Cure confusion
+    CureConfusion,
+    /// Cure stunning
+    CureStunning,
+    /// Polymorphs the eater
+    Polymorph,
+    /// Strength increase
+    StrengthBoost,
+    /// Intelligence increase
+    IntelligenceBoost,
+    /// Instant death (petrification, etc.)
+    InstantDeath { cause: &'static str },
+    /// Become sick
+    Sickness { duration: i32 },
+    /// Lycanthropy infection
+    Lycanthropy { monster_type: i16 },
+    /// Toggle speed (quantum mechanic)
+    ToggleSpeed,
+}
+
+/// Get corpse effects for a monster type.
+/// Returns a list of effects that may occur when eating this corpse.
+///
+/// # Arguments
+/// * `monster_type` - The corpse's corpse_type field (monster index)
+pub fn corpse_effects(monster_type: i16) -> Vec<CorpseEffect> {
+    // These monster indices should match nh-data monster definitions
+    // For now, use approximate values based on common monster names
+    match monster_type {
+        // Newt - minor energy boost
+        0 => vec![CorpseEffect::GainEnergy { amount: 3 }],
+
+        // Floating eye - telepathy
+        38 => vec![CorpseEffect::GainIntrinsic {
+            property: Property::Telepathy,
+            chance: 100, // Guaranteed from floating eye
+        }],
+
+        // Cockatrice - instant death by petrification
+        69 => vec![CorpseEffect::InstantDeath {
+            cause: "swallowing a cockatrice whole",
+        }],
+
+        // Lizard - cure stoning and reduce confusion/stunning
+        81 => vec![
+            CorpseEffect::CureStoning,
+            CorpseEffect::CureConfusion,
+            CorpseEffect::CureStunning,
+        ],
+
+        // Wraith - gain a level
+        86 => vec![CorpseEffect::GainLevel],
+
+        // Nurse - full heal
+        110 => vec![
+            CorpseEffect::FullHeal,
+            CorpseEffect::GainIntrinsic {
+                property: Property::PoisonResistance,
+                chance: 15,
+            },
+        ],
+
+        // Mind flayer - intelligence or telepathy
+        120 => vec![
+            CorpseEffect::IntelligenceBoost,
+            CorpseEffect::GainIntrinsic {
+                property: Property::Telepathy,
+                chance: 50,
+            },
+        ],
+
+        // Fire elemental / red dragon - fire resistance
+        150..=155 => vec![CorpseEffect::GainIntrinsic {
+            property: Property::FireResistance,
+            chance: 15,
+        }],
+
+        // Ice elemental / white dragon - cold resistance
+        160..=165 => vec![CorpseEffect::GainIntrinsic {
+            property: Property::ColdResistance,
+            chance: 15,
+        }],
+
+        // Stalker - invisibility
+        186 => vec![
+            CorpseEffect::GainIntrinsic {
+                property: Property::Invisibility,
+                chance: 100,
+            },
+            CorpseEffect::GainIntrinsic {
+                property: Property::SeeInvisible,
+                chance: 100,
+            },
+            CorpseEffect::Stun { duration: 30 },
+        ],
+
+        // Giant bat / bat - stunning
+        200..=201 => vec![CorpseEffect::Stun { duration: 30 }],
+
+        // Violet fungus - hallucination
+        220 => vec![CorpseEffect::Hallucination { duration: 200 }],
+
+        // Quantum mechanic - toggle speed
+        230 => vec![CorpseEffect::ToggleSpeed],
+
+        // Chameleon / doppelganger - polymorph
+        240..=241 => vec![CorpseEffect::Polymorph],
+
+        // Giants - strength
+        250..=260 => vec![CorpseEffect::StrengthBoost],
+
+        // Werewolf (human form)
+        280 => vec![CorpseEffect::Lycanthropy { monster_type: 281 }],
+
+        // Green slime - turns you into slime (fatal)
+        300 => vec![CorpseEffect::InstantDeath {
+            cause: "turning into green slime",
+        }],
+
+        // Disenchanter - lose a random intrinsic
+        310 => vec![], // Special handling needed
+
+        // Default - check for standard resistances based on monster flags
+        _ => vec![],
+    }
+}
+
+/// Apply corpse effects to the player.
+///
+/// # Arguments
+/// * `state` - The game state
+/// * `rng` - Random number generator
+/// * `effects` - List of effects to potentially apply
+///
+/// # Returns
+/// Messages describing what happened
+pub fn apply_corpse_effects(
+    state: &mut GameState,
+    rng: &mut GameRng,
+    effects: &[CorpseEffect],
+) -> Vec<String> {
+    let mut messages = Vec::new();
+
+    for effect in effects {
+        match effect {
+            CorpseEffect::GainIntrinsic { property, chance } => {
+                if rng.rn2(100) < *chance as u32 {
+                    if !state.player.properties.has_intrinsic(*property) {
+                        state.player.properties.grant_intrinsic(*property);
+                        messages.push(intrinsic_gain_message(*property).to_string());
+                    }
+                }
+            }
+
+            CorpseEffect::GainEnergy { amount } => {
+                state.player.energy = (state.player.energy + amount).min(state.player.energy_max);
+                if *amount > 0 {
+                    messages.push("You feel a mild buzz.".to_string());
+                }
+            }
+
+            CorpseEffect::GainLevel => {
+                state.player.exp_level += 1;
+                let hp_gain = rng.rn2(10) as i32 + 1;
+                state.player.hp_max += hp_gain;
+                state.player.hp = state.player.hp_max;
+                messages.push("You feel more experienced!".to_string());
+            }
+
+            CorpseEffect::FullHeal => {
+                state.player.hp = state.player.hp_max;
+                messages.push("You feel much better!".to_string());
+            }
+
+            CorpseEffect::Confusion { duration } => {
+                state.player.confused_timeout = state.player.confused_timeout.saturating_add(*duration as u16);
+                messages.push("Yuk--Loss of strength saps the mind.".to_string());
+            }
+
+            CorpseEffect::Hallucination { duration } => {
+                state.player.hallucinating_timeout = state.player.hallucinating_timeout.saturating_add(*duration as u16);
+                messages.push("Oh wow! Great stuff!".to_string());
+            }
+
+            CorpseEffect::Stun { duration } => {
+                state.player.stunned_timeout = state.player.stunned_timeout.saturating_add(*duration as u16);
+                messages.push("You feel dizzy.".to_string());
+            }
+
+            CorpseEffect::Blindness { duration } => {
+                state.player.blinded_timeout = state.player.blinded_timeout.saturating_add(*duration as u16);
+                messages.push("A cloud of darkness falls upon you.".to_string());
+            }
+
+            CorpseEffect::CureStoning => {
+                // Stoning would need to be added to player - using StoneResistance as proxy
+                if state.player.properties.has(Property::StoneResistance) {
+                    // Already resistant, no effect
+                } else {
+                    // Would cure stoning in progress
+                    messages.push("You feel limber!".to_string());
+                }
+            }
+
+            CorpseEffect::CureConfusion => {
+                if state.player.confused_timeout > 2 {
+                    state.player.confused_timeout = 2;
+                }
+            }
+
+            CorpseEffect::CureStunning => {
+                if state.player.stunned_timeout > 2 {
+                    state.player.stunned_timeout = 2;
+                }
+            }
+
+            CorpseEffect::Polymorph => {
+                // Would need polymorph implementation
+                messages.push("You feel a change coming over you.".to_string());
+            }
+
+            CorpseEffect::StrengthBoost => {
+                if state.player.attr_current.get(Attribute::Strength) < 18 {
+                    state.player.attr_current.modify(Attribute::Strength, 1);
+                    messages.push("You feel stronger!".to_string());
+                }
+            }
+
+            CorpseEffect::IntelligenceBoost => {
+                if state.player.attr_current.get(Attribute::Intelligence) < 18 {
+                    state.player.attr_current.modify(Attribute::Intelligence, 1);
+                    messages.push("Yum! That was real brain food!".to_string());
+                }
+            }
+
+            CorpseEffect::InstantDeath { cause } => {
+                messages.push(format!("You die from {}.", cause));
+                state.player.hp = 0;
+                // Would trigger death handling
+            }
+
+            CorpseEffect::Sickness { duration: _ } => {
+                // Would need sickness tracking
+                messages.push("You feel deathly sick.".to_string());
+            }
+
+            CorpseEffect::Lycanthropy { monster_type: _ } => {
+                // Would need lycanthropy implementation
+                messages.push("You feel feverish.".to_string());
+            }
+
+            CorpseEffect::ToggleSpeed => {
+                if state.player.properties.has_intrinsic(Property::Speed) {
+                    state.player.properties.remove_intrinsic(Property::Speed);
+                    messages.push("You seem slower.".to_string());
+                } else {
+                    state.player.properties.grant_intrinsic(Property::Speed);
+                    messages.push("You seem faster.".to_string());
+                }
+            }
         }
     }
 
-    /// Get display string for hunger state
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            HungerState::Satiated => "Satiated",
-            HungerState::NotHungry => "",
-            HungerState::Hungry => "Hungry",
-            HungerState::Weak => "Weak",
-            HungerState::Fainting => "Fainting",
-            HungerState::Fainted => "Fainted",
-            HungerState::Starved => "Starved",
-        }
-    }
+    messages
 }
+
+// HungerState is imported from crate::player::HungerState
+// Threshold constants are available via HungerState::threshold()
 
 /// Tin preparation types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -250,6 +508,242 @@ pub fn choke(state: &mut GameState, food_name: &str) {
     // In full implementation, this could be fatal
     // For now, just cause vomiting
     vomit(state);
+}
+
+// ============================================================================
+// Hunger state management (newuhs, gethungry, lesshungry from NetHack)
+// ============================================================================
+
+/// Update hunger status with messages when state changes.
+/// This is the Rust equivalent of NetHack's newuhs() function.
+///
+/// Called after nutrition changes to determine if the hunger state
+/// has changed and produce appropriate messages/effects.
+///
+/// # Arguments
+/// * `state` - The game state
+/// * `incr` - Whether nutrition increased (true) or decreased (false)
+///
+/// # Returns
+/// Messages about hunger state changes
+pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
+    let mut messages = Vec::new();
+    let old_state = state.player.hunger_state;
+    let new_state = HungerState::from_nutrition(state.player.nutrition);
+
+    // Only update if state actually changed
+    if old_state == new_state {
+        return messages;
+    }
+
+    state.player.hunger_state = new_state;
+
+    // Generate messages for state transitions
+    if incr {
+        // Getting less hungry (eating)
+        match (old_state, new_state) {
+            (HungerState::Fainted | HungerState::Fainting, HungerState::Weak | HungerState::Hungry | HungerState::NotHungry | HungerState::Satiated) => {
+                messages.push("You regain consciousness.".to_string());
+            }
+            (HungerState::Weak, HungerState::Hungry | HungerState::NotHungry | HungerState::Satiated) => {
+                messages.push("You feel less weak.".to_string());
+            }
+            (HungerState::Hungry, HungerState::NotHungry | HungerState::Satiated) => {
+                messages.push("You are not hungry anymore.".to_string());
+            }
+            (_, HungerState::Satiated) => {
+                messages.push("You are completely full.".to_string());
+            }
+            _ => {}
+        }
+    } else {
+        // Getting more hungry
+        match new_state {
+            HungerState::Hungry => {
+                if !matches!(old_state, HungerState::Weak | HungerState::Fainting | HungerState::Fainted) {
+                    messages.push("You are beginning to feel hungry.".to_string());
+                }
+            }
+            HungerState::Weak => {
+                if old_state == HungerState::Hungry {
+                    messages.push("You are beginning to feel weak.".to_string());
+                } else if !matches!(old_state, HungerState::Fainting | HungerState::Fainted) {
+                    messages.push("You feel weak now.".to_string());
+                }
+            }
+            HungerState::Fainting => {
+                if !matches!(old_state, HungerState::Fainted | HungerState::Starved) {
+                    messages.push("You feel faint.".to_string());
+                    // In NetHack, this can cause the player to faint
+                }
+            }
+            HungerState::Fainted => {
+                messages.push("You faint from lack of food.".to_string());
+                // Paralyzed for a duration based on level
+                state.player.paralyzed_timeout = (5 + state.player.exp_level) as u16;
+            }
+            HungerState::Starved => {
+                messages.push("You die from starvation.".to_string());
+                state.player.hp = 0; // Fatal
+            }
+            _ => {}
+        }
+    }
+
+    messages
+}
+
+/// Process hunger each turn (called during game tick).
+/// This is the Rust equivalent of NetHack's gethungry() function.
+///
+/// Decrements nutrition based on:
+/// - Base metabolism (1 point per move)
+/// - Encumbrance (more if heavily burdened)
+/// - Ring of Hunger (doubles hunger rate)
+/// - Slow Digestion property (reduces hunger rate)
+/// - Regeneration property (increases hunger rate)
+///
+/// # Arguments
+/// * `state` - The game state
+/// * `rng` - Random number generator
+///
+/// # Returns
+/// Messages about hunger state changes
+pub fn gethungry(state: &mut GameState, rng: &mut GameRng) -> Vec<String> {
+    // Don't get hungry if already dead
+    if state.player.hp <= 0 {
+        return Vec::new();
+    }
+
+    // Calculate base hunger rate
+    let mut hunger_rate: i32 = 1;
+
+    // Ring of Hunger doubles hunger rate
+    // Check for Hunger property (which includes ring of hunger)
+    if state.player.properties.has(Property::Hunger) {
+        hunger_rate += 1;
+    }
+
+    // Regeneration increases hunger
+    if state.player.properties.has(Property::Regeneration) {
+        hunger_rate += 1;
+    }
+
+    // Encumbrance affects hunger
+    let encumbrance = state.player.encumbrance();
+    match encumbrance {
+        crate::player::Encumbrance::Unencumbered => {}
+        crate::player::Encumbrance::Burdened => {
+            // Burdened: 50% chance of extra hunger
+            if rng.rn2(2) == 0 {
+                hunger_rate += 1;
+            }
+        }
+        crate::player::Encumbrance::Stressed => {
+            // Stressed: always extra hunger
+            hunger_rate += 1;
+        }
+        crate::player::Encumbrance::Strained => {
+            // Strained: double extra hunger
+            hunger_rate += 2;
+        }
+        crate::player::Encumbrance::Overtaxed => {
+            // Overtaxed: triple extra hunger
+            hunger_rate += 3;
+        }
+        crate::player::Encumbrance::Overloaded => {
+            // Overloaded: massive hunger
+            hunger_rate += 4;
+        }
+    }
+
+    // Slow Digestion negates all hunger
+    if state.player.properties.has(Property::SlowDigestion) {
+        hunger_rate = 0;
+    }
+
+    // Apply hunger
+    if hunger_rate > 0 {
+        state.player.nutrition = state.player.nutrition.saturating_sub(hunger_rate);
+    }
+
+    // Update hunger state and get messages
+    newuhs(state, false)
+}
+
+/// Add nutrition from eating food.
+/// This is the Rust equivalent of NetHack's lesshungry() function.
+///
+/// # Arguments
+/// * `state` - The game state
+/// * `nutrition` - Amount of nutrition to add
+///
+/// # Returns
+/// Messages about hunger state changes
+pub fn lesshungry(state: &mut GameState, nutrition: i32) -> Vec<String> {
+    // Add nutrition
+    state.player.nutrition = state.player.nutrition.saturating_add(nutrition);
+
+    // Cap nutrition at a reasonable maximum (prevents overflow issues)
+    const MAX_NUTRITION: i32 = 5000;
+    if state.player.nutrition > MAX_NUTRITION {
+        state.player.nutrition = MAX_NUTRITION;
+    }
+
+    // Update hunger state and get messages
+    newuhs(state, true)
+}
+
+/// Calculate hunger timeout for weak/fainting states.
+/// Used for determining when the player might faint from hunger.
+///
+/// # Arguments
+/// * `state` - The game state
+/// * `rng` - Random number generator
+///
+/// # Returns
+/// Number of turns before potential fainting (0 means no fainting risk)
+pub fn hunger_timeout(state: &GameState, rng: &mut GameRng) -> i32 {
+    match state.player.hunger_state {
+        HungerState::Weak => {
+            // Random chance to faint when weak
+            if rng.rn2(20) < 3 {
+                rng.rnd(10) as i32
+            } else {
+                0
+            }
+        }
+        HungerState::Fainting => {
+            // High chance to faint when fainting
+            if rng.rn2(10) < 4 {
+                rng.rnd(5) as i32
+            } else {
+                0
+            }
+        }
+        _ => 0,
+    }
+}
+
+/// Check if the player should faint from hunger this turn.
+/// Called during game tick to potentially cause fainting.
+///
+/// # Arguments
+/// * `state` - The game state
+/// * `rng` - Random number generator
+///
+/// # Returns
+/// True if the player faints, false otherwise
+pub fn check_faint_from_hunger(state: &mut GameState, rng: &mut GameRng) -> bool {
+    let timeout = hunger_timeout(state, rng);
+    if timeout > 0 && state.player.paralyzed_timeout == 0 {
+        state.message("You faint from lack of food.");
+        state.player.paralyzed_timeout = timeout as u16;
+        state.player.hunger_state = HungerState::Fainted;
+        true
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]

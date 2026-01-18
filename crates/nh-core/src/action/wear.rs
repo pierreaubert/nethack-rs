@@ -18,7 +18,8 @@
 
 use crate::action::ActionResult;
 use crate::gameloop::GameState;
-use crate::object::ObjectClass;
+use crate::object::{Object, ObjectClass};
+use crate::player::{Property, PropertyFlags};
 
 /// Worn mask constants matching NetHack
 pub mod worn_mask {
@@ -257,7 +258,7 @@ pub fn do_remove(state: &mut GameState, obj_letter: char) -> ActionResult {
 /// Unwield current weapon (empty hands)
 pub fn do_unwield(state: &mut GameState) -> ActionResult {
     let mut had_weapon = false;
-    
+
     for item in &mut state.inventory {
         if item.worn_mask & W_WEP != 0 {
             item.worn_mask &= !W_WEP;
@@ -271,4 +272,352 @@ pub fn do_unwield(state: &mut GameState) -> ActionResult {
         state.message("You are already empty handed.");
     }
     ActionResult::Success
+}
+
+// ============================================================================
+// Ring and Amulet effect hooks (Ring_on/Ring_off, Amulet_on/Amulet_off)
+// ============================================================================
+
+// Ring object types (approximate - should match nh-data/objects.rs)
+mod ring_types {
+    pub const RIN_ADORNMENT: i16 = 494;
+    pub const RIN_GAIN_STRENGTH: i16 = 495;
+    pub const RIN_GAIN_CONSTITUTION: i16 = 496;
+    pub const RIN_INCREASE_ACCURACY: i16 = 497;
+    pub const RIN_INCREASE_DAMAGE: i16 = 498;
+    pub const RIN_PROTECTION: i16 = 499;
+    pub const RIN_REGENERATION: i16 = 500;
+    pub const RIN_SEARCHING: i16 = 501;
+    pub const RIN_STEALTH: i16 = 502;
+    pub const RIN_SUSTAIN_ABILITY: i16 = 503;
+    pub const RIN_LEVITATION: i16 = 504;
+    pub const RIN_HUNGER: i16 = 505;
+    pub const RIN_AGGRAVATE_MONSTER: i16 = 506;
+    pub const RIN_CONFLICT: i16 = 507;
+    pub const RIN_WARNING: i16 = 508;
+    pub const RIN_POISON_RESISTANCE: i16 = 509;
+    pub const RIN_FIRE_RESISTANCE: i16 = 510;
+    pub const RIN_COLD_RESISTANCE: i16 = 511;
+    pub const RIN_SHOCK_RESISTANCE: i16 = 512;
+    pub const RIN_FREE_ACTION: i16 = 513;
+    pub const RIN_SLOW_DIGESTION: i16 = 514;
+    pub const RIN_TELEPORTATION: i16 = 515;
+    pub const RIN_TELEPORT_CONTROL: i16 = 516;
+    pub const RIN_POLYMORPH: i16 = 517;
+    pub const RIN_POLYMORPH_CONTROL: i16 = 518;
+    pub const RIN_INVISIBILITY: i16 = 519;
+    pub const RIN_SEE_INVISIBLE: i16 = 520;
+    pub const RIN_PROTECTION_FROM_SHAPE_CHANGERS: i16 = 521;
+}
+
+// Amulet object types (approximate - should match nh-data/objects.rs)
+mod amulet_types {
+    pub const AMULET_OF_ESP: i16 = 475;
+    pub const AMULET_OF_LIFE_SAVING: i16 = 476;
+    pub const AMULET_OF_STRANGULATION: i16 = 477;
+    pub const AMULET_OF_RESTFUL_SLEEP: i16 = 478;
+    pub const AMULET_VERSUS_POISON: i16 = 479;
+    pub const AMULET_OF_CHANGE: i16 = 480;
+    pub const AMULET_OF_UNCHANGING: i16 = 481;
+    pub const AMULET_OF_REFLECTION: i16 = 482;
+    pub const AMULET_OF_MAGICAL_BREATHING: i16 = 483;
+    pub const AMULET_OF_YENDOR: i16 = 484;
+    pub const FAKE_AMULET_OF_YENDOR: i16 = 485;
+}
+
+/// Result of an equipment effect application
+#[derive(Debug, Clone, Default)]
+pub struct EquipmentEffect {
+    /// Messages to display to the player
+    pub messages: Vec<String>,
+    /// Whether to identify the item
+    pub identify: bool,
+    /// Whether to destroy the item
+    pub destroy: bool,
+}
+
+/// Get the property granted by a ring type.
+fn ring_property(object_type: i16) -> Option<Property> {
+    use ring_types::*;
+    match object_type {
+        RIN_REGENERATION => Some(Property::Regeneration),
+        RIN_SEARCHING => Some(Property::Searching),
+        RIN_STEALTH => Some(Property::Stealth),
+        RIN_LEVITATION => Some(Property::Levitation),
+        RIN_WARNING => Some(Property::Warning),
+        RIN_POISON_RESISTANCE => Some(Property::PoisonResistance),
+        RIN_FIRE_RESISTANCE => Some(Property::FireResistance),
+        RIN_COLD_RESISTANCE => Some(Property::ColdResistance),
+        RIN_SHOCK_RESISTANCE => Some(Property::ShockResistance),
+        RIN_FREE_ACTION => Some(Property::FreeAction),
+        RIN_SLOW_DIGESTION => Some(Property::SlowDigestion),
+        RIN_TELEPORTATION => Some(Property::Teleportation),
+        RIN_TELEPORT_CONTROL => Some(Property::TeleportControl),
+        RIN_POLYMORPH => Some(Property::Polymorph),
+        RIN_POLYMORPH_CONTROL => Some(Property::PolyControl),
+        RIN_INVISIBILITY => Some(Property::Invisibility),
+        RIN_SEE_INVISIBLE => Some(Property::SeeInvisible),
+        RIN_CONFLICT => Some(Property::Conflict),
+        RIN_AGGRAVATE_MONSTER => Some(Property::Aggravate),
+        RIN_HUNGER => Some(Property::Hunger),
+        RIN_SUSTAIN_ABILITY => Some(Property::SustainAbility),
+        RIN_PROTECTION_FROM_SHAPE_CHANGERS => Some(Property::ProtFromShapechangers),
+        _ => None,
+    }
+}
+
+/// Get the property granted by an amulet type.
+fn amulet_property(object_type: i16) -> Option<Property> {
+    use amulet_types::*;
+    match object_type {
+        AMULET_OF_ESP => Some(Property::Telepathy),
+        AMULET_OF_LIFE_SAVING => Some(Property::LifeSaving),
+        AMULET_VERSUS_POISON => Some(Property::PoisonResistance),
+        AMULET_OF_REFLECTION => Some(Property::Reflection),
+        AMULET_OF_MAGICAL_BREATHING => Some(Property::MagicBreathing),
+        AMULET_OF_UNCHANGING => Some(Property::Unchanging),
+        _ => None,
+    }
+}
+
+/// Apply effects when putting on a ring.
+///
+/// This grants extrinsic properties and applies stat bonuses based on ring type.
+pub fn ring_on(state: &mut GameState, ring: &Object) -> EquipmentEffect {
+    use ring_types::*;
+    let mut effect = EquipmentEffect::default();
+    let object_type = ring.object_type;
+
+    // Determine which ring slot for property source
+    let source = if ring.worn_mask & W_RINGL != 0 {
+        PropertyFlags::FROM_RING_L
+    } else {
+        PropertyFlags::FROM_RING_R
+    };
+
+    // Grant extrinsic property if applicable
+    if let Some(prop) = ring_property(object_type) {
+        state.player.properties.grant_extrinsic(prop, source);
+
+        // Special messages for certain properties
+        match prop {
+            Property::Invisibility => {
+                if !state.player.properties.has_intrinsic(Property::SeeInvisible) {
+                    effect.messages.push("Suddenly you cannot see yourself.".to_string());
+                    effect.identify = true;
+                }
+            }
+            Property::SeeInvisible => {
+                effect.messages.push("Your vision seems to sharpen.".to_string());
+            }
+            Property::Levitation => {
+                effect.messages.push("You start to float in the air!".to_string());
+                effect.identify = true;
+            }
+            Property::Conflict => {
+                effect.messages.push("You feel like a rabble-rouser.".to_string());
+            }
+            _ => {}
+        }
+    }
+
+    // Handle stat-modifying rings
+    match object_type {
+        RIN_GAIN_STRENGTH => {
+            let bonus = ring.enchantment;
+            if bonus != 0 {
+                state.player.attr_current.modify(crate::player::Attribute::Strength, bonus);
+                let msg = if bonus > 0 {
+                    "You feel stronger!"
+                } else {
+                    "You feel weaker!"
+                };
+                effect.messages.push(msg.to_string());
+                effect.identify = true;
+            }
+        }
+        RIN_GAIN_CONSTITUTION => {
+            let bonus = ring.enchantment;
+            if bonus != 0 {
+                state.player.attr_current.modify(crate::player::Attribute::Constitution, bonus);
+                let msg = if bonus > 0 {
+                    "You feel tougher!"
+                } else {
+                    "You feel fragile!"
+                };
+                effect.messages.push(msg.to_string());
+                effect.identify = true;
+            }
+        }
+        RIN_ADORNMENT => {
+            let bonus = ring.enchantment;
+            if bonus != 0 {
+                state.player.attr_current.modify(crate::player::Attribute::Charisma, bonus);
+                let msg = if bonus > 0 {
+                    "You feel more attractive!"
+                } else {
+                    "You feel ugly!"
+                };
+                effect.messages.push(msg.to_string());
+                effect.identify = true;
+            }
+        }
+        RIN_INCREASE_ACCURACY => {
+            state.player.hit_bonus = state.player.hit_bonus.saturating_add(ring.enchantment);
+        }
+        RIN_INCREASE_DAMAGE => {
+            state.player.damage_bonus = state.player.damage_bonus.saturating_add(ring.enchantment);
+        }
+        RIN_PROTECTION => {
+            // Protection ring affects AC
+            if ring.enchantment != 0 {
+                effect.identify = true;
+            }
+        }
+        _ => {}
+    }
+
+    effect
+}
+
+/// Remove effects when taking off a ring.
+pub fn ring_off(state: &mut GameState, ring: &Object) -> EquipmentEffect {
+    use ring_types::*;
+    let mut effect = EquipmentEffect::default();
+    let object_type = ring.object_type;
+
+    // Determine which ring slot for property source
+    let source = if ring.worn_mask & W_RINGL != 0 {
+        PropertyFlags::FROM_RING_L
+    } else {
+        PropertyFlags::FROM_RING_R
+    };
+
+    // Remove extrinsic property if applicable
+    if let Some(prop) = ring_property(object_type) {
+        state.player.properties.remove_extrinsic(prop, source);
+
+        // Special messages for certain properties
+        match prop {
+            Property::Invisibility => {
+                if !state.player.properties.has(Property::Invisibility) {
+                    effect.messages.push("Suddenly you can see yourself again.".to_string());
+                }
+            }
+            Property::Levitation => {
+                if !state.player.properties.has(Property::Levitation) {
+                    effect.messages.push("You float gently to the ground.".to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Remove stat bonuses
+    match object_type {
+        RIN_GAIN_STRENGTH => {
+            state.player.attr_current.modify(crate::player::Attribute::Strength, -ring.enchantment);
+        }
+        RIN_GAIN_CONSTITUTION => {
+            state.player.attr_current.modify(crate::player::Attribute::Constitution, -ring.enchantment);
+        }
+        RIN_ADORNMENT => {
+            state.player.attr_current.modify(crate::player::Attribute::Charisma, -ring.enchantment);
+        }
+        RIN_INCREASE_ACCURACY => {
+            state.player.hit_bonus = state.player.hit_bonus.saturating_sub(ring.enchantment);
+        }
+        RIN_INCREASE_DAMAGE => {
+            state.player.damage_bonus = state.player.damage_bonus.saturating_sub(ring.enchantment);
+        }
+        _ => {}
+    }
+
+    effect
+}
+
+/// Apply effects when putting on an amulet.
+pub fn amulet_on(state: &mut GameState, amulet: &Object) -> EquipmentEffect {
+    use amulet_types::*;
+    let mut effect = EquipmentEffect::default();
+    let object_type = amulet.object_type;
+
+    // Grant extrinsic property if applicable
+    if let Some(prop) = amulet_property(object_type) {
+        state.player.properties.grant_extrinsic(prop, PropertyFlags::FROM_AMULET);
+    }
+
+    // Special amulet effects
+    match object_type {
+        AMULET_OF_ESP => {
+            effect.messages.push("You feel a strange mental acuity.".to_string());
+        }
+        AMULET_OF_LIFE_SAVING => {
+            // No message on equip, effect triggers on death
+        }
+        AMULET_OF_STRANGULATION => {
+            // Start strangling countdown
+            effect.messages.push("It constricts your throat!".to_string());
+            effect.identify = true;
+            // Would set Strangled timeout here
+        }
+        AMULET_OF_RESTFUL_SLEEP => {
+            // Causes drowsiness
+            effect.messages.push("You feel drowsy.".to_string());
+        }
+        AMULET_OF_CHANGE => {
+            // Changes sex - one-time effect, destroys amulet
+            effect.messages.push("You are suddenly very different!".to_string());
+            effect.messages.push("The amulet disintegrates!".to_string());
+            effect.identify = true;
+            effect.destroy = true;
+        }
+        AMULET_OF_UNCHANGING => {
+            // Prevents polymorph
+        }
+        AMULET_OF_REFLECTION => {
+            effect.messages.push("You feel a strange sense of security.".to_string());
+        }
+        AMULET_OF_MAGICAL_BREATHING => {
+            // Allows underwater breathing
+        }
+        AMULET_OF_YENDOR | FAKE_AMULET_OF_YENDOR => {
+            // The real one vs fake - identified differently
+        }
+        _ => {}
+    }
+
+    effect
+}
+
+/// Remove effects when taking off an amulet.
+pub fn amulet_off(state: &mut GameState, amulet: &Object) -> EquipmentEffect {
+    use amulet_types::*;
+    let mut effect = EquipmentEffect::default();
+    let object_type = amulet.object_type;
+
+    // Remove extrinsic property if applicable
+    if let Some(prop) = amulet_property(object_type) {
+        state.player.properties.remove_extrinsic(prop, PropertyFlags::FROM_AMULET);
+    }
+
+    // Special removal effects
+    match object_type {
+        AMULET_OF_ESP => {
+            if !state.player.properties.has(Property::Telepathy) {
+                effect.messages.push("Your mental acuity fades.".to_string());
+            }
+        }
+        AMULET_OF_STRANGULATION => {
+            // Stop strangling
+            effect.messages.push("You can breathe more easily now.".to_string());
+        }
+        AMULET_OF_MAGICAL_BREATHING => {
+            // If underwater without other breathing, bad things happen
+            // Would need to check player.underwater here
+        }
+        _ => {}
+    }
+
+    effect
 }

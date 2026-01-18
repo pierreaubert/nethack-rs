@@ -73,10 +73,13 @@ pub enum Property {
     WoundedLegs = 56,
     Sleepy = 57,
     Hunger = 58,
+    SlowDigestion = 59,
+    SustainAbility = 60,
+    LifeSaving = 61,
 }
 
 impl Property {
-    pub const LAST: Property = Property::Hunger;
+    pub const LAST: Property = Property::LifeSaving;
 
     /// Check if this is a resistance property
     pub const fn is_resistance(&self) -> bool {

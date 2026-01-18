@@ -3,6 +3,7 @@
 //! Functions for trap creation, triggering, and effects.
 
 use crate::dungeon::level::{Trap, TrapType};
+use crate::player::Property;
 use crate::rng::GameRng;
 
 /// Trap effect result
@@ -385,6 +386,446 @@ pub fn try_disarm(rng: &mut GameRng, trap: &Trap, dex: i32, skill: i32) -> bool 
     let roll = rng.rn2(100) as i32;
 
     roll < chance.max(5).min(95)
+}
+
+// ============================================================================
+// Full trap triggering effects (dotrap)
+// ============================================================================
+
+/// Player properties that affect trap interaction
+pub struct TrapResistances {
+    /// Player is flying (avoids ground traps)
+    pub flying: bool,
+    /// Player is levitating (avoids ground traps)
+    pub levitating: bool,
+    /// Player has fire resistance
+    pub fire_resistant: bool,
+    /// Player has poison resistance
+    pub poison_resistant: bool,
+    /// Player has sleep resistance
+    pub sleep_resistant: bool,
+    /// Player has teleport control
+    pub teleport_control: bool,
+    /// Player has magic resistance
+    pub magic_resistant: bool,
+    /// Player is phasing through walls
+    pub phasing: bool,
+    /// Player's dexterity (affects dodging)
+    pub dexterity: i8,
+}
+
+impl Default for TrapResistances {
+    fn default() -> Self {
+        Self {
+            flying: false,
+            levitating: false,
+            fire_resistant: false,
+            poison_resistant: false,
+            sleep_resistant: false,
+            teleport_control: false,
+            magic_resistant: false,
+            phasing: false,
+            dexterity: 10,
+        }
+    }
+}
+
+/// Result of stepping into a trap
+#[derive(Debug, Clone)]
+pub struct DotrapResult {
+    /// Messages to display
+    pub messages: Vec<String>,
+    /// Damage dealt (if any)
+    pub damage: i32,
+    /// Status effect to apply (if any)
+    pub status: Option<StatusEffect>,
+    /// Turns player is held in trap (0 = not held)
+    pub held_turns: i32,
+    /// Teleport destination (if teleported)
+    pub teleport: Option<(i8, i8)>,
+    /// Whether player fell to a lower level
+    pub fell_through: bool,
+    /// Whether trap was identified
+    pub identified: bool,
+    /// Whether trap should be removed after triggering
+    pub trap_destroyed: bool,
+}
+
+impl Default for DotrapResult {
+    fn default() -> Self {
+        Self {
+            messages: Vec::new(),
+            damage: 0,
+            status: None,
+            held_turns: 0,
+            teleport: None,
+            fell_through: false,
+            identified: true, // Most traps are identified when triggered
+            trap_destroyed: false,
+        }
+    }
+}
+
+/// Process a trap being triggered by the player.
+///
+/// This is the main function for handling trap effects, equivalent to
+/// NetHack's dotrap() function. It checks resistances, calculates damage,
+/// applies effects, and generates appropriate messages.
+///
+/// # Arguments
+/// * `rng` - Random number generator
+/// * `trap` - The trap being triggered
+/// * `resistances` - Player's resistances and properties
+/// * `already_trapped` - Whether player is already in a trap (e.g., pit)
+///
+/// # Returns
+/// A DotrapResult describing what happened
+pub fn dotrap(
+    rng: &mut GameRng,
+    trap: &mut Trap,
+    resistances: &TrapResistances,
+    already_trapped: bool,
+) -> DotrapResult {
+    let mut result = DotrapResult::default();
+    let trap_name = trap_name(trap.trap_type);
+
+    // Mark trap as seen and activated
+    trap.seen = true;
+    trap.activated = true;
+
+    // Check for flying/levitation avoiding ground traps
+    if (resistances.flying || resistances.levitating)
+        && is_ground_trap(trap.trap_type)
+        && !already_trapped
+    {
+        result.messages.push(format!(
+            "You {} over {}.",
+            if resistances.flying { "fly" } else { "float" },
+            trap_name
+        ));
+        return result;
+    }
+
+    // Process trap by type
+    match trap.trap_type {
+        TrapType::Arrow => {
+            result.messages.push("An arrow shoots out at you!".to_string());
+            let damage = roll_trap_damage(rng, trap.trap_type);
+
+            // Dexterity check to dodge
+            if rng.rn2(20) < resistances.dexterity as u32 / 3 {
+                result.messages.push("You dodge the arrow.".to_string());
+            } else {
+                result.messages.push("It hits you!".to_string());
+                result.damage = damage;
+            }
+        }
+
+        TrapType::Dart => {
+            result.messages.push("A little dart shoots out at you!".to_string());
+            let damage = roll_trap_damage(rng, trap.trap_type);
+
+            if rng.rn2(20) < resistances.dexterity as u32 / 3 {
+                result.messages.push("You dodge the dart.".to_string());
+            } else {
+                result.messages.push("It hits you!".to_string());
+                result.damage = damage;
+
+                // Poison check
+                if rng.one_in(3) {
+                    if resistances.poison_resistant {
+                        result.messages.push("The dart was poisoned, but you resist!".to_string());
+                    } else {
+                        result.messages.push("The dart was poisoned!".to_string());
+                        result.status = Some(StatusEffect::Poisoned);
+                    }
+                }
+            }
+        }
+
+        TrapType::RockFall => {
+            result.messages.push("A rock falls on your head!".to_string());
+            let damage = roll_trap_damage(rng, trap.trap_type);
+            result.damage = damage;
+            result.messages.push(format!("WHANG! You suffer {} damage.", damage));
+        }
+
+        TrapType::Squeaky => {
+            result.messages.push("A board beneath you squeaks loudly.".to_string());
+            // Wake up nearby monsters (handled by caller)
+            result.identified = true;
+        }
+
+        TrapType::BearTrap => {
+            if resistances.levitating {
+                result.messages.push("You float over a bear trap.".to_string());
+            } else {
+                result.messages.push("SNAP! A bear trap closes on your foot!".to_string());
+                let damage = roll_trap_damage(rng, trap.trap_type);
+                result.damage = damage;
+                result.held_turns = (rng.rnd(5) + 3) as i32;
+                result.messages.push(format!("You are caught! (for {} turns)", result.held_turns));
+            }
+        }
+
+        TrapType::LandMine => {
+            result.messages.push("KAABLAMM!!! You step on a land mine!".to_string());
+            let damage = roll_trap_damage(rng, trap.trap_type);
+            result.damage = damage;
+            result.trap_destroyed = true;
+            result.messages.push(format!("The explosion deals {} damage!", damage));
+            // Could also scatter inventory, stun, etc.
+        }
+
+        TrapType::RollingBoulder => {
+            result.messages.push("Click! You trigger a rolling boulder trap!".to_string());
+            if rng.one_in(4) {
+                result.messages.push("Fortunately, the boulder misses you.".to_string());
+            } else {
+                let damage = roll_trap_damage(rng, trap.trap_type);
+                result.damage = damage;
+                result.messages.push(format!("You are hit by a boulder for {} damage!", damage));
+            }
+        }
+
+        TrapType::SleepingGas => {
+            result.messages.push("A cloud of gas billows up around you!".to_string());
+            if resistances.sleep_resistant {
+                result.messages.push("You don't feel sleepy.".to_string());
+            } else {
+                result.messages.push("You fall asleep!".to_string());
+                result.status = Some(StatusEffect::Asleep);
+                result.held_turns = (rng.rnd(25) + 10) as i32;
+            }
+        }
+
+        TrapType::RustTrap => {
+            result.messages.push("A gush of water hits you!".to_string());
+            // Would rust iron armor, handled by caller
+            result.messages.push("Your equipment may be affected!".to_string());
+            result.status = Some(StatusEffect::Stunned); // Proxy for item damage
+        }
+
+        TrapType::FireTrap => {
+            result.messages.push("A tower of flame erupts around you!".to_string());
+            let damage = roll_trap_damage(rng, trap.trap_type);
+
+            if resistances.fire_resistant {
+                result.messages.push("But you resist the fire!".to_string());
+                result.damage = damage / 2;
+            } else {
+                result.damage = damage;
+                result.messages.push(format!("You are scorched for {} damage!", damage));
+            }
+        }
+
+        TrapType::Pit => {
+            if already_trapped {
+                result.messages.push("You are still in the pit.".to_string());
+            } else {
+                result.messages.push("You fall into a pit!".to_string());
+                let damage = roll_trap_damage(rng, trap.trap_type);
+                result.damage = damage;
+                result.held_turns = (rng.rnd(6) + 2) as i32;
+            }
+        }
+
+        TrapType::SpikedPit => {
+            if already_trapped {
+                result.messages.push("You are still in the spiked pit.".to_string());
+            } else {
+                result.messages.push("You fall into a pit of spikes!".to_string());
+                let damage = roll_trap_damage(rng, trap.trap_type);
+                result.damage = damage;
+                result.held_turns = (rng.rnd(8) + 3) as i32;
+
+                if !resistances.poison_resistant && rng.one_in(6) {
+                    result.messages.push("Some of the spikes were poisoned!".to_string());
+                    result.status = Some(StatusEffect::Poisoned);
+                }
+            }
+        }
+
+        TrapType::Hole | TrapType::TrapDoor => {
+            let name = if trap.trap_type == TrapType::Hole {
+                "hole"
+            } else {
+                "trap door"
+            };
+
+            if resistances.flying || resistances.levitating {
+                result.messages.push(format!("You {} over a {}.",
+                    if resistances.flying { "fly" } else { "float" },
+                    name
+                ));
+            } else {
+                result.messages.push(format!("You fall through a {}!", name));
+                result.fell_through = true;
+                result.damage = (rng.rnd(6) + 1) as i32;
+            }
+        }
+
+        TrapType::Teleport => {
+            result.messages.push("You are suddenly teleported!".to_string());
+
+            if resistances.teleport_control {
+                result.messages.push("You have control over where you land.".to_string());
+                // Caller handles destination selection
+            }
+
+            // Generate random destination
+            let x = (rng.rn2(77) + 1) as i8;
+            let y = (rng.rn2(19) + 1) as i8;
+            result.teleport = Some((x, y));
+        }
+
+        TrapType::LevelTeleport => {
+            if resistances.magic_resistant {
+                result.messages.push("You shudder for a moment, but resist the magic.".to_string());
+            } else {
+                result.messages.push("You are teleported to another level!".to_string());
+                result.fell_through = true; // Use this to indicate level change
+
+                if resistances.teleport_control {
+                    result.messages.push("You have some control over where you land.".to_string());
+                }
+            }
+        }
+
+        TrapType::MagicPortal => {
+            result.messages.push("You feel a strange sensation...".to_string());
+            result.fell_through = true;
+            // Portal destination is fixed, handled by caller
+        }
+
+        TrapType::Web => {
+            if resistances.phasing {
+                result.messages.push("You pass right through the web.".to_string());
+            } else {
+                result.messages.push("You stumble into a spider web!".to_string());
+                result.held_turns = (rng.rnd(10) + 5) as i32;
+                result.messages.push(format!("You are stuck! (for {} turns)", result.held_turns));
+            }
+        }
+
+        TrapType::Statue => {
+            result.messages.push("The statue comes to life!".to_string());
+            // Monster creation handled by caller
+        }
+
+        TrapType::MagicTrap => {
+            result.messages.push("You are enveloped in a magical light!".to_string());
+
+            // Random magic effect
+            let effect = rng.rn2(10);
+            match effect {
+                0..=2 => {
+                    result.messages.push("You feel disoriented.".to_string());
+                    result.status = Some(StatusEffect::Confused);
+                }
+                3..=4 => {
+                    result.messages.push("A tower of flame erupts!".to_string());
+                    if !resistances.fire_resistant {
+                        result.damage = rng.dice(4, 4) as i32;
+                    }
+                }
+                5..=6 => {
+                    result.messages.push("You feel drained.".to_string());
+                    // Energy drain handled by caller
+                }
+                7 => {
+                    result.messages.push("You feel lucky!".to_string());
+                    // Luck increase handled by caller
+                }
+                8 => {
+                    result.messages.push("You feel unlucky.".to_string());
+                    // Luck decrease handled by caller
+                }
+                _ => {
+                    result.messages.push("Nothing happens.".to_string());
+                }
+            }
+        }
+
+        TrapType::AntiMagic => {
+            result.messages.push("You feel your magical energy draining away!".to_string());
+            // Energy drain handled by caller
+            result.identified = true;
+        }
+
+        TrapType::Polymorph => {
+            if resistances.magic_resistant {
+                result.messages.push("You feel momentarily different, but resist.".to_string());
+            } else {
+                result.messages.push("You feel a change coming over you...".to_string());
+                // Polymorph handled by caller
+            }
+        }
+    }
+
+    result
+}
+
+/// Check if a trap type is a ground trap (affected by flying/levitation)
+pub fn is_ground_trap(trap_type: TrapType) -> bool {
+    matches!(
+        trap_type,
+        TrapType::BearTrap
+            | TrapType::Pit
+            | TrapType::SpikedPit
+            | TrapType::Hole
+            | TrapType::TrapDoor
+            | TrapType::Web
+            | TrapType::Squeaky
+    )
+}
+
+/// Build TrapResistances from player properties.
+///
+/// Helper function to create resistance info from the player's property set.
+pub fn resistances_from_properties<F>(
+    has_property: F,
+    dexterity: i8,
+) -> TrapResistances
+where
+    F: Fn(Property) -> bool,
+{
+    TrapResistances {
+        flying: has_property(Property::Flying),
+        levitating: has_property(Property::Levitation),
+        fire_resistant: has_property(Property::FireResistance),
+        poison_resistant: has_property(Property::PoisonResistance),
+        sleep_resistant: has_property(Property::SleepResistance),
+        teleport_control: has_property(Property::TeleportControl),
+        magic_resistant: has_property(Property::MagicResistance),
+        phasing: false, // Phasing (passes through walls) not yet implemented
+        dexterity,
+    }
+}
+
+/// Get escape message when player gets out of a holding trap
+pub fn escape_trap_message(trap_type: TrapType) -> &'static str {
+    match trap_type {
+        TrapType::BearTrap => "You pull free of the bear trap.",
+        TrapType::Pit => "You climb out of the pit.",
+        TrapType::SpikedPit => "You climb out of the spiked pit.",
+        TrapType::Web => "You tear through the web.",
+        _ => "You escape from the trap.",
+    }
+}
+
+/// Check if player can escape from a holding trap this turn
+pub fn try_escape_trap(rng: &mut GameRng, trap_type: TrapType, strength: i8) -> bool {
+    let base_chance = match trap_type {
+        TrapType::BearTrap => 25,
+        TrapType::Pit | TrapType::SpikedPit => 40,
+        TrapType::Web => 35,
+        _ => 50,
+    };
+
+    // Strength bonus
+    let chance = base_chance + (strength as i32 - 10) * 3;
+    (rng.rn2(100) as i32) < chance.clamp(5, 95)
 }
 
 #[cfg(test)]

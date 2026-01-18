@@ -2,8 +2,147 @@
 //!
 //! Functions for creating and initializing objects.
 
-use crate::object::{BucStatus, Object, ObjectClass, ObjectId, ObjectLocation};
+use crate::object::{BucStatus, Object, ObjectClass, ObjectId, ObjectLocation, ObjClassDef};
 use crate::rng::GameRng;
+use crate::world::{TimedEvent, TimedEventType, TimeoutManager};
+
+// ============================================================================
+// Object type constants (indices into OBJECTS array)
+// These must match the nh_data::objects::ObjectType enum values
+// ============================================================================
+
+/// Corpse object type index
+pub const CORPSE: i16 = 297; // Corpse in Food section
+/// Statue object type index
+pub const STATUE: i16 = 466; // Statue in Rocks section
+/// Figurine object type index
+pub const FIGURINE: i16 = 262; // Figurine in Tools section
+/// Egg object type index
+pub const EGG: i16 = 298; // Egg in Food section
+
+// ============================================================================
+// Corpse timing constants
+// ============================================================================
+
+/// Age when corpses become tainted/dangerous
+const TAINT_AGE: i64 = 50;
+/// Default age when corpses rot away completely
+const ROT_AGE: i64 = 250;
+/// Chance for troll to revive (1 in N per turn)
+const TROLL_REVIVE_CHANCE: u32 = 37;
+
+// ============================================================================
+// Monster type constants for special corpses
+// ============================================================================
+
+/// Monster index for lizard (corpse doesn't rot)
+pub const PM_LIZARD: i16 = 224;
+/// Monster index for lichen (corpse doesn't rot)
+pub const PM_LICHEN: i16 = 94;
+/// Monster type letter for trolls (can revive)
+pub const S_TROLL: char = 'T';
+
+/// Corpse creation flags
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CorpstatFlags {
+    /// Initialize the object normally
+    pub init: bool,
+    /// Don't start corpse timer
+    pub no_timeout: bool,
+}
+
+impl CorpstatFlags {
+    pub const INIT: Self = Self { init: true, no_timeout: false };
+    pub const NONE: Self = Self { init: false, no_timeout: false };
+}
+
+// ============================================================================
+// Class base indices - computed from OBJECTS array
+// ============================================================================
+
+/// Computed base indices for each object class in the OBJECTS array.
+/// bases[class] = first index of that class in OBJECTS.
+#[derive(Debug, Clone)]
+pub struct ClassBases {
+    bases: [usize; 18], // One for each ObjectClass variant
+}
+
+impl ClassBases {
+    /// Compute class bases from the OBJECTS array.
+    /// Returns bases where bases[class as usize] is the first index of that class.
+    pub fn compute(objects: &[ObjClassDef]) -> Self {
+        let mut bases = [0usize; 18];
+        let mut current_class = ObjectClass::Random;
+
+        for (i, obj) in objects.iter().enumerate() {
+            if obj.class != current_class {
+                bases[obj.class as usize] = i;
+                current_class = obj.class;
+            }
+        }
+
+        Self { bases }
+    }
+
+    /// Get the base index for a class
+    pub fn get(&self, class: ObjectClass) -> usize {
+        self.bases[class as usize]
+    }
+}
+
+/// Select a random object type index from OBJECTS for the given class.
+/// Uses the probability field in ObjClassDef for weighted selection.
+///
+/// This mirrors NetHack's mkobj() selection:
+/// ```c
+/// i = bases[(int) oclass];
+/// while ((prob -= objects[i].oc_prob) > 0)
+///     i++;
+/// ```
+pub fn select_object_type(
+    objects: &[ObjClassDef],
+    bases: &ClassBases,
+    rng: &mut GameRng,
+    class: ObjectClass,
+) -> Option<usize> {
+    let base = bases.get(class);
+
+    // Sum probabilities for this class
+    let mut total_prob: i32 = 0;
+    let mut count = 0;
+    for obj in objects.iter().skip(base) {
+        if obj.class != class {
+            break;
+        }
+        if obj.probability > 0 {
+            total_prob += obj.probability as i32;
+            count += 1;
+        }
+    }
+
+    if total_prob == 0 || count == 0 {
+        return None;
+    }
+
+    // Roll random number from 1 to total_prob (NetHack uses rnd, not rn2)
+    let mut prob = (rng.rn2(total_prob as u32) + 1) as i32;
+
+    // Find the object
+    for (i, obj) in objects.iter().enumerate().skip(base) {
+        if obj.class != class {
+            break;
+        }
+        if obj.probability > 0 {
+            prob -= obj.probability as i32;
+            if prob <= 0 {
+                return Some(i);
+            }
+        }
+    }
+
+    // Fallback to first object of class
+    Some(base)
+}
 
 /// Probability entry for random object class selection
 struct ClassProb {
@@ -159,6 +298,43 @@ pub fn mkobj(
     obj
 }
 
+/// Create a random object of a specific class using the OBJECTS data.
+/// This is the proper implementation that uses probability-based selection.
+///
+/// # Arguments
+/// * `objects` - The OBJECTS array (from nh_data::objects::OBJECTS)
+/// * `bases` - Pre-computed class base indices
+/// * `ctx` - Object creation context
+/// * `rng` - Random number generator
+/// * `class` - The object class to create
+/// * `init` - Whether to initialize the object with random properties
+pub fn mkobj_with_data(
+    objects: &[ObjClassDef],
+    bases: &ClassBases,
+    ctx: &mut MkObjContext,
+    rng: &mut GameRng,
+    class: ObjectClass,
+    init: bool,
+) -> Object {
+    // Select object type by probability
+    let object_type = select_object_type(objects, bases, rng, class).unwrap_or(0);
+
+    mksobj_with_data(objects, ctx, rng, object_type as i16, init)
+}
+
+/// Create a random object, selecting class based on location, using OBJECTS data.
+pub fn mkobj_random_with_data(
+    objects: &[ObjClassDef],
+    bases: &ClassBases,
+    ctx: &mut MkObjContext,
+    rng: &mut GameRng,
+    location: LocationType,
+    init: bool,
+) -> Object {
+    let class = random_class(rng, location);
+    mkobj_with_data(objects, bases, ctx, rng, class, init)
+}
+
 /// Create a random object, selecting class based on location
 pub fn mkobj_random(
     ctx: &mut MkObjContext,
@@ -188,6 +364,157 @@ pub fn mksobj(
     }
 
     obj
+}
+
+/// Create a specific object by type index using the OBJECTS data.
+/// This populates the object with data from ObjClassDef (weight, name, damage, etc.)
+///
+/// # Arguments
+/// * `objects` - The OBJECTS array (from nh_data::objects::OBJECTS)
+/// * `ctx` - Object creation context
+/// * `rng` - Random number generator
+/// * `object_type` - Index into OBJECTS array
+/// * `init` - Whether to initialize with random properties (enchantment, BUC, etc.)
+pub fn mksobj_with_data(
+    objects: &[ObjClassDef],
+    ctx: &mut MkObjContext,
+    rng: &mut GameRng,
+    object_type: i16,
+    init: bool,
+) -> Object {
+    let idx = object_type as usize;
+    let def = objects.get(idx).expect("Invalid object type index");
+
+    let id = ctx.next_id();
+    let mut obj = Object::new(id, object_type, def.class);
+    obj.age = ctx.current_turn;
+    obj.location = ObjectLocation::Free;
+
+    // Copy static data from ObjClassDef
+    obj.weight = def.weight as u32;
+    obj.name = Some(def.name.to_string());
+
+    // Weapon damage/bonus
+    if def.class == ObjectClass::Weapon {
+        obj.damage_dice = 1; // dice count is usually 1
+        obj.damage_sides = def.w_small_damage;
+        obj.weapon_tohit = def.bonus;
+    }
+
+    // Armor AC
+    if def.class == ObjectClass::Armor {
+        obj.base_ac = def.bonus; // bonus field is AC for armor
+    }
+
+    // Multi-generation items (arrows, rocks, etc.) get quantity
+    if def.merge && matches!(def.class, ObjectClass::Weapon | ObjectClass::Gem | ObjectClass::Rock) {
+        // Projectiles and rocks get 6-11
+        if def.skill < 0 || def.class == ObjectClass::Rock {
+            obj.quantity = (rng.rn2(6) + 6) as i32;
+        }
+    }
+
+    if init {
+        init_object_with_data(&mut obj, def, rng);
+    }
+
+    obj
+}
+
+/// Initialize an object with random properties using ObjClassDef data.
+/// This is more accurate than init_object() as it uses the actual object definition.
+pub fn init_object_with_data(obj: &mut Object, def: &ObjClassDef, rng: &mut GameRng) {
+    match def.class {
+        ObjectClass::Weapon => init_weapon_with_data(obj, def, rng),
+        ObjectClass::Armor => init_armor_with_data(obj, def, rng),
+        ObjectClass::Food => init_food(obj, rng),
+        ObjectClass::Tool => init_tool_with_data(obj, def, rng),
+        ObjectClass::Gem => init_gem(obj, rng),
+        ObjectClass::Potion => init_potion(obj, rng),
+        ObjectClass::Scroll => init_scroll(obj, rng),
+        ObjectClass::Spellbook => init_spellbook(obj, rng),
+        ObjectClass::Wand => init_wand_with_data(obj, def, rng),
+        ObjectClass::Ring => init_ring(obj, rng),
+        ObjectClass::Amulet => init_amulet(obj, rng),
+        ObjectClass::Coin => init_coin(obj, rng),
+        ObjectClass::Rock => init_rock(obj, rng),
+        _ => {}
+    }
+}
+
+fn init_weapon_with_data(obj: &mut Object, def: &ObjClassDef, rng: &mut GameRng) {
+    // Multi-gen weapons already have quantity set in mksobj_with_data
+    if obj.quantity == 0 {
+        obj.quantity = 1;
+    }
+
+    // 1/11 chance of being enchanted and blessed
+    if rng.rn2(11) == 0 {
+        obj.enchantment = rne(rng, 3) as i8;
+        obj.buc = if rng.rn2(2) == 0 {
+            BucStatus::Blessed
+        } else {
+            BucStatus::Uncursed
+        };
+    // 1/10 chance of being cursed with negative enchantment
+    } else if rng.rn2(10) == 0 {
+        curse(obj);
+        obj.enchantment = -(rne(rng, 3) as i8);
+    } else {
+        bless_or_curse(obj, rng, 10);
+    }
+
+    // 1/100 chance of being poisoned (if skill is dart, spear, or dagger-like)
+    // Negative skill means ammo/projectile
+    let skill = def.skill.abs();
+    if (1..=2).contains(&skill) || skill == 18 || skill == 24 || skill == 25 {
+        // Dagger, knife, spear, dart, shuriken
+        if rng.rn2(100) == 0 {
+            obj.poisoned = true;
+        }
+    }
+}
+
+fn init_armor_with_data(obj: &mut Object, _def: &ObjClassDef, rng: &mut GameRng) {
+    // Some armor types are usually cursed (elven mithril-coat, etc.)
+    // For simplicity, use general logic for now
+    if rng.rn2(10) == 0 && rng.rn2(11) == 0 {
+        curse(obj);
+        obj.enchantment = -(rne(rng, 3) as i8);
+    } else if rng.rn2(10) == 0 {
+        obj.buc = if rng.rn2(2) == 0 {
+            BucStatus::Blessed
+        } else {
+            BucStatus::Uncursed
+        };
+        obj.enchantment = rne(rng, 3) as i8;
+    } else {
+        bless_or_curse(obj, rng, 10);
+    }
+}
+
+fn init_tool_with_data(obj: &mut Object, def: &ObjClassDef, rng: &mut GameRng) {
+    bless_or_curse(obj, rng, 5);
+
+    // Charged tools (lamps, horns, etc.) get charges
+    // This is indicated by the 'magical' field for most tools
+    if def.magical {
+        // Horn of plenty, magic lamp, etc.
+        obj.enchantment = (rng.rn2(5) + 4) as i8;
+    }
+}
+
+fn init_wand_with_data(obj: &mut Object, def: &ObjClassDef, rng: &mut GameRng) {
+    // Wands get charges based on direction type
+    // Ray wands: 6-10, beam wands: 4-8, non-directional: higher
+    let base_charges = match def.direction {
+        crate::object::DirectionType::Ray => 6,
+        crate::object::DirectionType::Immediate => 4,
+        _ => 4,
+    };
+    obj.enchantment = (rng.rn2(5) + base_charges) as i8;
+    obj.recharged = 0;
+    bless_or_curse(obj, rng, 17);
 }
 
 /// Initialize an object with random properties based on its class
@@ -477,6 +804,257 @@ pub fn merge_obj(obj1: &mut Object, obj2: &Object) -> bool {
     true
 }
 
+// ============================================================================
+// Corpse/Statue creation (mkcorpstat from mkobj.c)
+// ============================================================================
+
+/// Create a corpse or statue.
+///
+/// This function creates either a corpse or statue object for a monster.
+/// The corpse_type field is set to the monster index, and appropriate
+/// timers are started for corpse rot or revival.
+///
+/// # Arguments
+/// * `ctx` - Object creation context
+/// * `rng` - Random number generator
+/// * `objtype` - Either CORPSE or STATUE constant
+/// * `monster_type` - Monster index for the corpse/statue
+/// * `flags` - Creation flags
+///
+/// # Returns
+/// The created corpse or statue object
+pub fn mkcorpstat(
+    ctx: &mut MkObjContext,
+    _rng: &mut GameRng,
+    objtype: i16,
+    monster_type: i16,
+    flags: CorpstatFlags,
+) -> Object {
+    assert!(objtype == CORPSE || objtype == STATUE, "mkcorpstat: invalid objtype {}", objtype);
+
+    let id = ctx.next_id();
+    let class = if objtype == CORPSE {
+        ObjectClass::Food
+    } else {
+        ObjectClass::Rock // Statues are in Rock/Gem class
+    };
+
+    let mut obj = Object::new(id, objtype, class);
+    obj.age = ctx.current_turn;
+    obj.location = ObjectLocation::Free;
+
+    // Set the monster type
+    obj.corpse_type = monster_type;
+
+    // Set weight based on monster (simplified - would need monster data)
+    // Default corpse weight; in full implementation this uses monster weight
+    obj.weight = if objtype == CORPSE { 50 } else { 2500 };
+
+    if flags.init {
+        // Corpses and statues don't have enchantment
+        obj.buc = BucStatus::Uncursed;
+    }
+
+    // Name based on type
+    obj.name = if objtype == CORPSE {
+        Some("corpse".to_string())
+    } else {
+        Some("statue".to_string())
+    };
+
+    obj
+}
+
+/// Set the monster type for a corpse/statue/egg/figurine and start appropriate timers.
+///
+/// This function updates the corpse_type field and starts any necessary
+/// decay or revival timers.
+///
+/// # Arguments
+/// * `obj` - The corpse/statue/egg/figurine object
+/// * `monster_type` - The monster index to set
+/// * `timeout_manager` - Timer manager for scheduling decay/revival
+/// * `rng` - Random number generator
+pub fn set_corpsenm(
+    obj: &mut Object,
+    monster_type: i16,
+    timeout_manager: &mut TimeoutManager,
+    rng: &mut GameRng,
+) {
+    // Cancel any existing timers for this object
+    timeout_manager.cancel_object_events(obj.id);
+
+    obj.corpse_type = monster_type;
+
+    match obj.object_type {
+        t if t == CORPSE => {
+            start_corpse_timeout(obj, timeout_manager, rng, false);
+            // Update weight based on monster (simplified)
+            obj.weight = 50; // Would use monster weight in full implementation
+        }
+        t if t == FIGURINE => {
+            // Figurines may animate later
+            if monster_type >= 0 {
+                // Schedule figurine animation (random delay)
+                let delay = (rng.rn2(100) + 50) as u64;
+                let event = TimedEvent::new(
+                    obj.age as u64 + delay,
+                    TimedEventType::FigurineAnimate(obj.id),
+                );
+                timeout_manager.schedule(event);
+            }
+            obj.weight = 50;
+        }
+        t if t == EGG => {
+            // Eggs may hatch
+            if monster_type >= 0 {
+                let delay = (rng.rn2(200) + 150) as u64;
+                let event = TimedEvent::new(
+                    obj.age as u64 + delay,
+                    TimedEventType::EggHatch(obj.id),
+                );
+                timeout_manager.schedule(event);
+            }
+        }
+        _ => {
+            // Tin or other object
+            obj.weight = 10;
+        }
+    }
+}
+
+/// Start a corpse decay or revive timer.
+///
+/// This function schedules when a corpse will rot away or potentially revive
+/// (for trolls, riders, etc.). Takes the corpse age into account.
+///
+/// # Arguments
+/// * `corpse` - The corpse object
+/// * `timeout_manager` - Timer manager for scheduling
+/// * `rng` - Random number generator
+/// * `in_mklev` - True if being created during level generation (gives more variation)
+pub fn start_corpse_timeout(
+    corpse: &mut Object,
+    timeout_manager: &mut TimeoutManager,
+    rng: &mut GameRng,
+    in_mklev: bool,
+) {
+    // Lizards and lichens don't rot
+    if corpse.corpse_type == PM_LIZARD || corpse.corpse_type == PM_LICHEN {
+        return;
+    }
+
+    let rot_adjust: i64 = if in_mklev { 25 } else { 10 };
+    let corpse_age = corpse.age.max(0);
+
+    // Calculate when corpse will rot
+    let base_when = if corpse_age > ROT_AGE {
+        rot_adjust
+    } else {
+        ROT_AGE - corpse_age
+    };
+
+    // Add some random variation
+    let variation = rng.rnz(rot_adjust as u32) as i64 - rot_adjust;
+    let when = (base_when + variation).max(1) as u64;
+
+    // Check for special monsters that revive
+    let will_revive = is_reviver(corpse.corpse_type, rng);
+
+    let event_type = if will_revive {
+        // This corpse will revive instead of rot
+        // For trolls, check each turn from age 2 to TAINT_AGE for revival
+        // For simplicity, we schedule the revival time directly
+        TimedEventType::CorpseRot(corpse.id) // Will be handled as revival in event processing
+    } else {
+        TimedEventType::CorpseRot(corpse.id)
+    };
+
+    // Mark if this corpse can revive
+    corpse.norevive = !will_revive;
+
+    let event = TimedEvent::new(when, event_type);
+    timeout_manager.schedule(event);
+}
+
+/// Check if a monster type's corpse can revive.
+///
+/// Returns true for trolls (chance-based) and riders (always revive).
+fn is_reviver(monster_type: i16, rng: &mut GameRng) -> bool {
+    // Check if this is a troll (simplified - would check monster letter in full impl)
+    // Trolls have a chance to revive
+    let is_troll = (200..=210).contains(&monster_type); // Approximate troll range
+
+    // Riders always revive (Death, Pestilence, Famine)
+    let is_rider = (350..=353).contains(&monster_type); // Approximate rider range
+
+    if is_rider {
+        true
+    } else if is_troll {
+        // Check if troll revives (1/37 chance per turn from age 2 to 50)
+        for _ in 2..=TAINT_AGE {
+            if rng.rn2(TROLL_REVIVE_CHANCE) == 0 {
+                return true;
+            }
+        }
+        false
+    } else {
+        false
+    }
+}
+
+/// Create a corpse for a specific monster.
+///
+/// Convenience function that creates a corpse and sets up timers.
+///
+/// # Arguments
+/// * `ctx` - Object creation context
+/// * `rng` - Random number generator
+/// * `monster_type` - Monster index
+/// * `timeout_manager` - Timer manager
+pub fn mkcorpse(
+    ctx: &mut MkObjContext,
+    rng: &mut GameRng,
+    monster_type: i16,
+    timeout_manager: &mut TimeoutManager,
+) -> Object {
+    let mut corpse = mkcorpstat(ctx, rng, CORPSE, monster_type, CorpstatFlags::INIT);
+    start_corpse_timeout(&mut corpse, timeout_manager, rng, false);
+    corpse
+}
+
+/// Check if a corpse is old enough to be dangerous (tainted).
+///
+/// Corpses become tainted after TAINT_AGE turns (50 turns).
+pub fn corpse_is_tainted(corpse: &Object, current_turn: i64) -> bool {
+    if corpse.object_type != CORPSE {
+        return false;
+    }
+
+    // Lizard and lichen corpses never taint
+    if corpse.corpse_type == PM_LIZARD || corpse.corpse_type == PM_LICHEN {
+        return false;
+    }
+
+    let age = current_turn - corpse.age;
+    age > TAINT_AGE
+}
+
+/// Check if a corpse has completely rotted away.
+pub fn corpse_is_rotten(corpse: &Object, current_turn: i64) -> bool {
+    if corpse.object_type != CORPSE {
+        return false;
+    }
+
+    // Lizard and lichen corpses never rot
+    if corpse.corpse_type == PM_LIZARD || corpse.corpse_type == PM_LICHEN {
+        return false;
+    }
+
+    let age = current_turn - corpse.age;
+    age > ROT_AGE
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -626,5 +1204,225 @@ mod tests {
         // rne should return 1 most often
         assert!(counts[1] > counts[2]);
         assert!(counts[2] > counts[3]);
+    }
+
+    #[test]
+    fn test_class_bases() {
+        use crate::object::{DirectionType, Material};
+
+        // Create mock OBJECTS array with a few classes
+        let mock_objects = vec![
+            // Index 0: dummy
+            ObjClassDef {
+                name: "strange object",
+                description: "",
+                class: ObjectClass::IllObj,
+                material: Material::default(),
+                weight: 0,
+                cost: 0,
+                probability: 0,
+                nutrition: 0,
+                w_small_damage: 0,
+                w_large_damage: 0,
+                bonus: 0,
+                skill: 0,
+                delay: 0,
+                color: 0,
+                magical: false,
+                merge: false,
+                unique: false,
+                no_wish: false,
+                big: false,
+                direction: DirectionType::None,
+                armor_category: None,
+                property: 0,
+            },
+            // Index 1: First weapon
+            ObjClassDef {
+                name: "dagger",
+                description: "",
+                class: ObjectClass::Weapon,
+                material: Material::Iron,
+                weight: 10,
+                cost: 4,
+                probability: 30,
+                nutrition: 0,
+                w_small_damage: 4,
+                w_large_damage: 3,
+                bonus: 2,
+                skill: 1,
+                delay: 0,
+                color: 0,
+                magical: false,
+                merge: true,
+                unique: false,
+                no_wish: false,
+                big: false,
+                direction: DirectionType::None,
+                armor_category: None,
+                property: 0,
+            },
+            // Index 2: Second weapon
+            ObjClassDef {
+                name: "sword",
+                description: "",
+                class: ObjectClass::Weapon,
+                material: Material::Iron,
+                weight: 40,
+                cost: 10,
+                probability: 50,
+                nutrition: 0,
+                w_small_damage: 8,
+                w_large_damage: 12,
+                bonus: 0,
+                skill: 7,
+                delay: 0,
+                color: 0,
+                magical: false,
+                merge: false,
+                unique: false,
+                no_wish: false,
+                big: false,
+                direction: DirectionType::None,
+                armor_category: None,
+                property: 0,
+            },
+            // Index 3: First armor
+            ObjClassDef {
+                name: "leather armor",
+                description: "",
+                class: ObjectClass::Armor,
+                material: Material::Leather,
+                weight: 150,
+                cost: 5,
+                probability: 82,
+                nutrition: 0,
+                w_small_damage: 0,
+                w_large_damage: 0,
+                bonus: 2,
+                skill: 0,
+                delay: 0,
+                color: 0,
+                magical: false,
+                merge: false,
+                unique: false,
+                no_wish: false,
+                big: false,
+                direction: DirectionType::None,
+                armor_category: None,
+                property: 0,
+            },
+        ];
+
+        let bases = ClassBases::compute(&mock_objects);
+
+        // IllObj starts at 0
+        assert_eq!(bases.get(ObjectClass::IllObj), 0);
+        // Weapon starts at 1
+        assert_eq!(bases.get(ObjectClass::Weapon), 1);
+        // Armor starts at 3
+        assert_eq!(bases.get(ObjectClass::Armor), 3);
+    }
+
+    #[test]
+    fn test_select_object_type() {
+        use crate::object::{DirectionType, Material};
+
+        // Create mock weapons with different probabilities
+        let mock_objects = vec![
+            ObjClassDef {
+                name: "strange object",
+                description: "",
+                class: ObjectClass::IllObj,
+                material: Material::default(),
+                weight: 0,
+                cost: 0,
+                probability: 0,
+                nutrition: 0,
+                w_small_damage: 0,
+                w_large_damage: 0,
+                bonus: 0,
+                skill: 0,
+                delay: 0,
+                color: 0,
+                magical: false,
+                merge: false,
+                unique: false,
+                no_wish: false,
+                big: false,
+                direction: DirectionType::None,
+                armor_category: None,
+                property: 0,
+            },
+            ObjClassDef {
+                name: "dagger",
+                description: "",
+                class: ObjectClass::Weapon,
+                material: Material::Iron,
+                weight: 10,
+                cost: 4,
+                probability: 30,
+                nutrition: 0,
+                w_small_damage: 4,
+                w_large_damage: 3,
+                bonus: 2,
+                skill: 1,
+                delay: 0,
+                color: 0,
+                magical: false,
+                merge: true,
+                unique: false,
+                no_wish: false,
+                big: false,
+                direction: DirectionType::None,
+                armor_category: None,
+                property: 0,
+            },
+            ObjClassDef {
+                name: "sword",
+                description: "",
+                class: ObjectClass::Weapon,
+                material: Material::Iron,
+                weight: 40,
+                cost: 10,
+                probability: 70,
+                nutrition: 0,
+                w_small_damage: 8,
+                w_large_damage: 12,
+                bonus: 0,
+                skill: 7,
+                delay: 0,
+                color: 0,
+                magical: false,
+                merge: false,
+                unique: false,
+                no_wish: false,
+                big: false,
+                direction: DirectionType::None,
+                armor_category: None,
+                property: 0,
+            },
+        ];
+
+        let bases = ClassBases::compute(&mock_objects);
+        let mut rng = GameRng::new(42);
+
+        // Count selections over many iterations
+        let mut dagger_count = 0;
+        let mut sword_count = 0;
+
+        for _ in 0..1000 {
+            let idx = select_object_type(&mock_objects, &bases, &mut rng, ObjectClass::Weapon);
+            match idx {
+                Some(1) => dagger_count += 1,
+                Some(2) => sword_count += 1,
+                _ => panic!("unexpected selection"),
+            }
+        }
+
+        // Sword should be selected more often (70% vs 30%)
+        assert!(sword_count > dagger_count, "sword={} dagger={}", sword_count, dagger_count);
+        // Rough check: sword should be about 2.3x more common
+        assert!(sword_count > dagger_count * 2, "sword should be much more common");
     }
 }

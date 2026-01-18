@@ -3,6 +3,7 @@
 use crate::action::ActionResult;
 use crate::gameloop::GameState;
 use crate::object::{Object, ObjectClass};
+use crate::player::Encumbrance;
 
 /// Weight messages for lifting heavy objects
 const MODERATE_LOAD_MSG: &str = "You have a little trouble lifting";
@@ -116,6 +117,270 @@ pub fn do_drop(state: &mut GameState, obj_letter: char) -> ActionResult {
         ActionResult::Failed("Failed to drop item.".to_string())
     }
 }
+
+// ============================================================================
+// Autopickup system
+// ============================================================================
+
+/// Pickup burden threshold (how much load to allow before stopping autopickup)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PickupBurden {
+    /// Only autopickup if staying unencumbered
+    #[default]
+    Unencumbered,
+    /// Autopickup up to burdened
+    Burdened,
+    /// Autopickup up to stressed
+    Stressed,
+    /// Autopickup up to strained
+    Strained,
+    /// Autopickup up to overtaxed (almost everything)
+    Overtaxed,
+    /// Always autopickup regardless of weight
+    Overloaded,
+}
+
+impl PickupBurden {
+    /// Check if the given encumbrance level is acceptable for autopickup
+    pub fn allows_encumbrance(&self, enc: Encumbrance) -> bool {
+        match self {
+            PickupBurden::Unencumbered => enc == Encumbrance::Unencumbered,
+            PickupBurden::Burdened => matches!(enc, Encumbrance::Unencumbered | Encumbrance::Burdened),
+            PickupBurden::Stressed => matches!(enc, Encumbrance::Unencumbered | Encumbrance::Burdened | Encumbrance::Stressed),
+            PickupBurden::Strained => matches!(enc, Encumbrance::Unencumbered | Encumbrance::Burdened | Encumbrance::Stressed | Encumbrance::Strained),
+            PickupBurden::Overtaxed => enc != Encumbrance::Overloaded,
+            PickupBurden::Overloaded => true,
+        }
+    }
+}
+
+/// Check if an object's class matches the autopickup types string.
+///
+/// The autopickup_types string contains class symbols like "$?!/\"=".
+///
+/// # Arguments
+/// * `obj` - The object to check
+/// * `autopickup_types` - String of class symbols to autopickup
+///
+/// # Returns
+/// True if the object's class is in the autopickup_types
+pub fn matches_autopickup_type(obj: &Object, autopickup_types: &str) -> bool {
+    let symbol = obj.class.symbol();
+    autopickup_types.contains(symbol)
+}
+
+/// Check if an object should be autopicked up based on game settings.
+///
+/// # Arguments
+/// * `obj` - The object to consider
+/// * `autopickup_enabled` - Whether autopickup is enabled at all
+/// * `autopickup_types` - String of class symbols to autopickup
+/// * `nopick` - Temporary flag to suppress autopickup (e.g., while running)
+///
+/// # Returns
+/// True if the object should be autopicked up
+pub fn should_autopickup(
+    obj: &Object,
+    autopickup_enabled: bool,
+    autopickup_types: &str,
+    nopick: bool,
+) -> bool {
+    // Autopickup must be enabled
+    if !autopickup_enabled {
+        return false;
+    }
+
+    // Temporary suppress flag (e.g., while running/travelling)
+    if nopick {
+        return false;
+    }
+
+    // Object must be pickable
+    if !matches!(obj.class, ObjectClass::Ball | ObjectClass::Chain) {
+        // Check if class matches the autopickup types
+        matches_autopickup_type(obj, autopickup_types)
+    } else {
+        false
+    }
+}
+
+/// Check if picking up an object would exceed the pickup burden threshold.
+///
+/// # Arguments
+/// * `obj` - The object to potentially pick up
+/// * `state` - Current game state
+/// * `pickup_burden` - Maximum allowed encumbrance for autopickup
+///
+/// # Returns
+/// True if picking up would NOT exceed the burden threshold (safe to pick up)
+pub fn within_pickup_burden(
+    obj: &Object,
+    state: &GameState,
+    pickup_burden: PickupBurden,
+) -> bool {
+    // Calculate what encumbrance would be after picking up
+    let current_weight: u32 = state.inventory.iter().map(|o| o.weight).sum();
+    let new_weight = current_weight + obj.weight;
+
+    // Get the capacity and calculate new encumbrance
+    let capacity = state.player.carrying_capacity as u32;
+    let new_encumbrance = calculate_encumbrance(new_weight, capacity);
+
+    pickup_burden.allows_encumbrance(new_encumbrance)
+}
+
+/// Calculate encumbrance level from weight and capacity.
+fn calculate_encumbrance(weight: u32, capacity: u32) -> Encumbrance {
+    if capacity == 0 {
+        return Encumbrance::Overloaded;
+    }
+
+    if weight <= capacity / 4 {
+        Encumbrance::Unencumbered
+    } else if weight <= capacity / 2 {
+        Encumbrance::Burdened
+    } else if weight <= (capacity * 3) / 4 {
+        Encumbrance::Stressed
+    } else if weight <= (capacity * 9) / 10 {
+        Encumbrance::Strained
+    } else if weight <= capacity {
+        Encumbrance::Overtaxed
+    } else {
+        Encumbrance::Overloaded
+    }
+}
+
+/// Perform autopickup at the player's current position.
+///
+/// This picks up items that match the autopickup settings, respecting
+/// the burden threshold and temporary nopick flag.
+///
+/// # Arguments
+/// * `state` - Game state
+/// * `autopickup_types` - String of class symbols to autopickup (e.g., "$?!/\"=")
+/// * `pickup_burden` - Maximum encumbrance level for autopickup
+///
+/// # Returns
+/// List of messages describing what was picked up
+pub fn do_autopickup(
+    state: &mut GameState,
+    autopickup_types: &str,
+    pickup_burden: PickupBurden,
+) -> Vec<String> {
+    let mut messages = Vec::new();
+
+    // Check if autopickup is enabled
+    if !state.flags.autopickup {
+        return messages;
+    }
+
+    // Check if temporarily suppressed
+    if state.context.nopick {
+        return messages;
+    }
+
+    let x = state.player.pos.x;
+    let y = state.player.pos.y;
+
+    // Get IDs of objects to potentially pick up
+    let object_ids: Vec<_> = state.current_level.objects_at(x, y)
+        .iter()
+        .filter(|obj| {
+            should_autopickup(obj, true, autopickup_types, false)
+                && within_pickup_burden(obj, state, pickup_burden)
+        })
+        .map(|o| o.id)
+        .collect();
+
+    if object_ids.is_empty() {
+        return messages;
+    }
+
+    let mut picked_up = Vec::new();
+
+    // Pick up each qualifying object
+    for id in object_ids {
+        if let Some(obj) = state.current_level.remove_object(id) {
+            // Re-check burden after each pickup (weight may have changed)
+            if !within_pickup_burden(&obj, state, pickup_burden) {
+                // Put it back - would exceed burden
+                state.current_level.add_object(obj, x, y);
+                if picked_up.is_empty() {
+                    messages.push("You cannot carry any more.".to_string());
+                }
+                break;
+            }
+
+            let name = obj.display_name();
+            state.add_to_inventory(obj);
+            picked_up.push(name);
+        }
+    }
+
+    // Generate pickup messages
+    if !picked_up.is_empty() {
+        if picked_up.len() == 1 {
+            messages.push(format!("{} - {}.", state.inventory.last().map(|o| o.inv_letter).unwrap_or('?'), picked_up[0]));
+        } else {
+            messages.push(format!("You pick up {} items.", picked_up.len()));
+        }
+    }
+
+    messages
+}
+
+/// Check if there are items to autopickup at the current position.
+///
+/// This is useful for checking before movement to know if autopickup
+/// should trigger after the move.
+///
+/// # Arguments
+/// * `state` - Game state
+/// * `autopickup_types` - String of class symbols to autopickup
+///
+/// # Returns
+/// True if there are items that would be autopicked up
+pub fn has_autopickup_items(
+    state: &GameState,
+    autopickup_types: &str,
+) -> bool {
+    if !state.flags.autopickup || state.context.nopick {
+        return false;
+    }
+
+    let x = state.player.pos.x;
+    let y = state.player.pos.y;
+
+    state.current_level.objects_at(x, y)
+        .iter()
+        .any(|obj| matches_autopickup_type(obj, autopickup_types))
+}
+
+/// Configure autopickup types from a string like "$?!/\"=".
+///
+/// # Common symbols:
+/// * `$` - Gold (coins)
+/// * `?` - Scrolls
+/// * `!` - Potions
+/// * `/` - Wands
+/// * `"` - Amulets
+/// * `=` - Rings
+/// * `%` - Food
+/// * `(` - Tools
+/// * `)` - Weapons
+/// * `[` - Armor
+/// * `+` - Spellbooks
+/// * `*` - Gems/rocks
+///
+/// # Returns
+/// A validated string with only valid class symbols
+pub fn parse_autopickup_types(types: &str) -> String {
+    let valid_symbols: &str = "$?!/\"=%()+[*";
+    types.chars().filter(|c| valid_symbols.contains(*c)).collect()
+}
+
+/// Default autopickup types (gold, scrolls, potions, wands, amulets, rings)
+pub const DEFAULT_AUTOPICKUP_TYPES: &str = "$?!/\"=";
 
 #[cfg(test)]
 mod tests {

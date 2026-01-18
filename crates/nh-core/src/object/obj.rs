@@ -153,6 +153,9 @@ pub struct Object {
     /// Corpse monster type (for corpses)
     pub corpse_type: i16,
 
+    /// Corpse won't revive (trolls, riders)
+    pub norevive: bool,
+
     /// Age (creation time)
     pub age: i64,
 
@@ -215,6 +218,7 @@ impl Default for Object {
             in_use: false,
             worn_mask: 0,
             corpse_type: -1,
+            norevive: false,
             age: 0,
             contents: Vec::new(),
             name: None,
