@@ -936,7 +936,9 @@ fn cast_turn_undead(player: &You, level: &mut Level, rng: &mut GameRng, result: 
     let py = player.pos.y;
 
     for monster in &mut level.monsters {
-        // TODO: Check if undead
+        if !monster.is_undead() && !monster.is_demon() {
+            continue;
+        }
         let dx = (monster.x - px).abs();
         let dy = (monster.y - py).abs();
         if dx <= 6 && dy <= 6 && rng.percent(70) {

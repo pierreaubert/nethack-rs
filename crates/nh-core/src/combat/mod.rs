@@ -2,6 +2,7 @@
 //!
 //! Implements player-vs-monster, monster-vs-player, and monster-vs-monster combat.
 
+pub mod artifact;
 mod attack_type;
 mod damage_type;
 mod mhitm;
@@ -15,7 +16,14 @@ pub use mhitu::{
     hit_message, miss_message, wild_miss_message, damage_effect_message, resistance_message,
     try_escape_grab, apply_grab_damage,
 };
-pub use uhitm::player_attack_monster;
+pub use uhitm::{
+    player_attack_monster, hmon, dmgval, bare_hand_damage,
+    mon_hates_silver, silver_damage, buc_damage_bonus,
+    greatest_erosion, maybe_erode_weapon,
+    creature_vulnerability, special_weapon_effects,
+    artifact_to_hit_bonus, two_weapon_hit, cleave_targets,
+    AttackSource, HitResult, CleaveTarget,
+};
 
 use crate::NATTK;
 use serde::{Deserialize, Serialize};

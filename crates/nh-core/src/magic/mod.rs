@@ -2,6 +2,7 @@
 //!
 //! Implements wands, spells, potions, scrolls, and other magical effects.
 
+pub mod detect;
 pub mod potion;
 pub mod scroll;
 pub mod spell;

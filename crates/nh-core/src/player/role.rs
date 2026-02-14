@@ -76,6 +76,17 @@ impl Race {
         }
     }
 
+    /// Get the PM_* race ID used in artifact/quest data
+    pub const fn race_id(&self) -> i16 {
+        match self {
+            Race::Human => 100,
+            Race::Elf => 101,
+            Race::Dwarf => 102,
+            Race::Gnome => 103,
+            Race::Orc => 104,
+        }
+    }
+
     /// Check if this race is inherently infravision-capable
     pub const fn has_infravision(&self) -> bool {
         matches!(
@@ -224,6 +235,25 @@ impl Role {
                 ["Evoker", "Conjurer", "Thaumaturge", "Magician", "Enchanter",
                  "Sorcerer", "Necromancer", "Wizard", "Mage", "Mage"][idx]
             }
+        }
+    }
+
+    /// Get the PM_* role ID used in artifact/quest data
+    pub const fn role_id(&self) -> i16 {
+        match self {
+            Role::Archeologist => 0,
+            Role::Barbarian => 1,
+            Role::Caveman => 2,
+            Role::Healer => 3,
+            Role::Knight => 4,
+            Role::Monk => 5,
+            Role::Priest => 6,
+            Role::Ranger => 7,
+            Role::Rogue => 8,
+            Role::Samurai => 9,
+            Role::Tourist => 10,
+            Role::Valkyrie => 11,
+            Role::Wizard => 12,
         }
     }
 

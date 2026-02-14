@@ -186,8 +186,10 @@ fn extract_ffi_monsters(engine: &FfiGameEngine) -> Vec<UnifiedMonster> {
 mod tests {
     use super::*;
     use crate::c_interface_ffi::FfiGameEngine;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_extract_ffi_state() {
         let mut engine = FfiGameEngine::new();
         engine.init("Tourist", "Human", 0, 0).unwrap();
@@ -199,6 +201,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_ffi_state_step() {
         let mut engine = FfiGameEngine::new();
         engine.init("Wizard", "Elf", 1, 1).unwrap();
@@ -217,6 +220,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_ffi_inventory_extraction() {
         let mut engine = FfiGameEngine::new();
         engine.init("Rogue", "Gnome", 0, 0).unwrap();

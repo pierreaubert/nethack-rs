@@ -3,8 +3,11 @@
 //! Verifies regeneration logic matches C implementation.
 
 use crate::c_interface_ffi::FfiGameEngine;
+#[cfg(test)]
+use serial_test::serial;
 
 #[test]
+#[serial]
 fn test_regeneration_rate() {
     let mut engine = FfiGameEngine::new();
     engine.init("Barbarian", "Human", 0, 0).unwrap();

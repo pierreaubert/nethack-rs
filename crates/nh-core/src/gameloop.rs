@@ -1,11 +1,13 @@
 //! Main game loop (allmain.c)
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
 use crate::action::{ActionResult, Command};
+use crate::combat::artifact::ArtifactTracker;
 use crate::dungeon::{DLevel, Level};
+use crate::monster::makemon::MonsterVitals;
 use crate::object::Object;
 use crate::player::You;
 use crate::rng::GameRng;
@@ -71,6 +73,15 @@ pub struct GameState {
     /// Permanent message history
     #[serde(skip)]
     pub message_history: Vec<String>,
+
+    /// Discovered (identified) object types by type index
+    pub discoveries: HashSet<i16>,
+
+    /// Artifact tracker (which artifacts exist in game)
+    pub artifact_tracker: ArtifactTracker,
+
+    /// Monster birth/death/genocide tracking (indexed by monster type)
+    pub monster_vitals: Vec<MonsterVitals>,
 }
 
 impl Default for GameState {
@@ -112,6 +123,9 @@ impl GameState {
             monster_turns: 0,
             messages: Vec::new(),
             message_history: Vec::new(),
+            discoveries: HashSet::new(),
+            artifact_tracker: ArtifactTracker::new(),
+            monster_vitals: Vec::new(),
         }
     }
 
@@ -390,9 +404,8 @@ impl GameLoop {
             
             // Special actions
             Command::Pray => crate::action::pray::do_pray(&mut self.state),
-            Command::Engrave => {
-                // TODO: Get text from UI
-                crate::action::engrave::do_engrave(&mut self.state, "Elbereth")
+            Command::Engrave(ref text) => {
+                crate::action::engrave::do_engrave(&mut self.state, text)
             }
 
             // Information commands (no time cost)
@@ -432,9 +445,14 @@ impl GameLoop {
                 ActionResult::NoTime
             }
             Command::Discoveries => {
-                // Show discovered object types
-                // For now, just show a placeholder - full implementation needs object identification tracking
-                self.state.message("You have made no discoveries yet.");
+                if self.state.discoveries.is_empty() {
+                    self.state.message("You have not made any discoveries yet.");
+                } else {
+                    self.state.message(format!(
+                        "You have discovered {} object type(s).",
+                        self.state.discoveries.len()
+                    ));
+                }
                 ActionResult::NoTime
             }
             Command::Help => {
@@ -449,8 +467,52 @@ impl GameLoop {
                 ActionResult::NoTime
             }
 
-            _ => {
-                self.state.message("That command is not yet implemented.");
+            Command::Pay => {
+                if let Some(shop_idx) = self.state.player.in_shop {
+                    crate::special::shk::pay_bill_at(&mut self.state, shop_idx)
+                } else {
+                    self.state.message("There is nobody here to pay.");
+                    ActionResult::NoTime
+                }
+            }
+            Command::Sit => {
+                self.state.message("You sit down.");
+                // Check for traps at current position
+                let x = self.state.player.pos.x;
+                let y = self.state.player.pos.y;
+                if self.state.current_level.trap_at(x, y).is_some() {
+                    crate::action::trap::check_trap(&mut self.state, x, y)
+                } else {
+                    ActionResult::Success
+                }
+            }
+            Command::Dip => {
+                self.state.message("You don't have anything to dip into.");
+                ActionResult::NoTime
+            }
+            Command::Offer => {
+                // Need to be on an altar
+                self.state.message("There is no altar here.");
+                ActionResult::NoTime
+            }
+            Command::Chat => {
+                self.state.message("There is nobody to chat with.");
+                ActionResult::NoTime
+            }
+            Command::Travel => {
+                self.state.message("Where do you want to travel to?");
+                ActionResult::NoTime
+            }
+            Command::Options => {
+                self.state.message("Options menu not available in this interface.");
+                ActionResult::NoTime
+            }
+            Command::ExtendedCommand(ref cmd) => {
+                self.state.message(format!("Unknown extended command: #{}.", cmd));
+                ActionResult::NoTime
+            }
+            Command::Redraw => {
+                // Redraw is handled by the UI layer
                 ActionResult::NoTime
             }
         }
@@ -460,6 +522,21 @@ impl GameLoop {
     fn do_move(&mut self, dir: crate::action::Direction) -> ActionResult {
         let (dx, dy) = dir.delta();
         let state = &mut self.state;
+
+        // Check if player is trapped (bear trap, pit, web, etc.)
+        if let Some(trap_type) = state.player.utraptype.filter(|_| state.player.utrap > 0) {
+            let strength = state.player.attr_current.get(crate::player::Attribute::Strength);
+            if crate::dungeon::trap::try_escape_trap(&mut state.rng, trap_type, strength) {
+                let msg = crate::dungeon::trap::escape_trap_message(trap_type);
+                state.message(msg);
+                state.player.utrap = 0;
+                state.player.utraptype = None;
+            } else {
+                state.message("You are still trapped!");
+                state.player.utrap -= 1;
+                return ActionResult::Success; // Time passes but no movement
+            }
+        }
 
         // Check if player is grabbed - must escape first
         if let Some(grabber_id) = state.player.grabbed_by {
@@ -539,6 +616,80 @@ impl GameLoop {
 
         // Update visibility from new position
         state.current_level.update_visibility(new_x, new_y, SIGHT_RANGE);
+
+        // Check for traps at new position
+        if let Some(trap_type) = state.current_level.trap_at(new_x, new_y).map(|t| t.trap_type) {
+            let dex = state.player.attr_current.get(crate::player::Attribute::Dexterity);
+            let resistances = crate::dungeon::trap::resistances_from_properties(
+                |prop| state.player.properties.has(prop),
+                dex,
+            );
+            if let Some(trap) = state.current_level.trap_at_mut(new_x, new_y) {
+                let result = crate::dungeon::trap::dotrap(
+                    &mut state.rng,
+                    trap,
+                    &resistances,
+                    false,
+                );
+
+                for msg in &result.messages {
+                    state.message(msg.clone());
+                }
+
+                if result.damage > 0 {
+                    state.player.take_damage(result.damage);
+                }
+
+                if result.held_turns > 0 {
+                    state.player.utrap = result.held_turns;
+                    state.player.utraptype = Some(trap_type);
+                }
+
+                if result.trap_destroyed {
+                    state.current_level.remove_trap(new_x, new_y);
+                }
+
+                if state.player.is_dead() {
+                    return ActionResult::Died("killed by a trap".to_string());
+                }
+            }
+        }
+
+        // Check for shop entry/exit
+        let prev_shop = state.player.in_shop;
+        let new_shop = state.current_level.shops().iter().position(|s| s.contains(new_x, new_y));
+        if new_shop != prev_shop {
+            if let Some(_shop_idx) = prev_shop {
+                // Left a shop
+                let debt = state.current_level.shops().get(_shop_idx)
+                    .map(|s| s.debt).unwrap_or(0);
+                if debt > 0 {
+                    state.message(format!("\"Hey! You owe me {} zorkmids!\"", debt));
+                }
+            }
+            if let Some(shop_idx) = new_shop {
+                // Entered a shop
+                let greeting = {
+                    let shop = &state.current_level.shops()[shop_idx];
+                    match shop.shop_type {
+                        crate::special::ShopType::General => "Welcome to my general store!",
+                        crate::special::ShopType::Armor => "Welcome! Looking for some protection?",
+                        crate::special::ShopType::Weapon => "Welcome! Need something sharp?",
+                        crate::special::ShopType::Food => "Welcome! Hungry?",
+                        crate::special::ShopType::Scroll => "Welcome to my scroll emporium!",
+                        crate::special::ShopType::Potion => "Welcome! Need a potion?",
+                        crate::special::ShopType::Wand => "Welcome! Looking for magical implements?",
+                        crate::special::ShopType::Tool => "Welcome! Need some tools?",
+                        crate::special::ShopType::Book => "Welcome to my bookstore!",
+                        crate::special::ShopType::Ring => "Welcome! Looking for jewelry?",
+                        crate::special::ShopType::Candle => "Welcome! Need some light?",
+                        crate::special::ShopType::Tin => "Welcome to my tin shop!",
+                    }
+                };
+                state.message(format!("\"{}\"", greeting));
+            }
+            state.player.in_shop = new_shop;
+        }
 
         ActionResult::Success
     }
@@ -894,8 +1045,51 @@ impl GameLoop {
                 state.message(format!("You die from {}.", cause));
                 state.player.hp = 0;
             }
-            _ => {
-                // Other event types handled elsewhere or not yet implemented
+            TimedEventType::ObjectTimeout(_object_id) => {
+                // TODO: lamp fuel depletion, candle burnout, etc.
+            }
+            TimedEventType::FigurineAnimate(_object_id) => {
+                // TODO: figurine spontaneously animates into monster
+            }
+            TimedEventType::Regeneration => {
+                // Handled by process_regeneration()
+            }
+            TimedEventType::EnergyRegeneration => {
+                // Handled by process_regeneration()
+            }
+            TimedEventType::Hunger => {
+                // Handled by process_hunger() in eat.rs
+            }
+            TimedEventType::BlindFromCreamPie => {
+                // TODO: add Blind property and clear it here
+                state.message("You can see again.");
+            }
+            TimedEventType::TempSeeInvisible => {
+                state.player.properties.set_timeout(crate::player::Property::SeeInvisible, 0);
+                state.message("You thought you saw something disappear.");
+            }
+            TimedEventType::TempTelepathy => {
+                state.player.properties.set_timeout(crate::player::Property::Telepathy, 0);
+                state.message("Your mental acuity diminishes.");
+            }
+            TimedEventType::TempWarning => {
+                state.player.properties.set_timeout(crate::player::Property::Warning, 0);
+                state.message("You feel less sensitive.");
+            }
+            TimedEventType::TempStealth => {
+                state.player.properties.set_timeout(crate::player::Property::Stealth, 0);
+                state.message("You feel clumsy.");
+            }
+            TimedEventType::TempLevitation => {
+                state.player.properties.set_timeout(crate::player::Property::Levitation, 0);
+                state.message("You float gently to the ground.");
+            }
+            TimedEventType::TempFlying => {
+                state.player.properties.set_timeout(crate::player::Property::Flying, 0);
+                state.message("You lose the ability to fly.");
+            }
+            TimedEventType::Custom(_name) => {
+                // Custom events are processed by external handlers
             }
         }
     }

@@ -137,41 +137,11 @@ static int g_weight_bonus = 0;
 /* Initialize the game with character creation */
 int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
 #ifdef REAL_NETHACK
-    /* Initialize NetHack globals */
-    /* Based on allmain.c initialization sequence */
-    
-    /* We need to set some basic flags before initialization */
-    flags.autodig = FALSE;
-    flags.beginner = FALSE;
-    flags.confirm = TRUE;
-    flags.debug = FALSE;
-    flags.explore = FALSE;
-    flags.female = (gender > 0);
-    flags.legacy = TRUE;
-    flags.lit_corridor = FALSE;
-    flags.null = FALSE;
-    flags.pickup = TRUE;
-    flags.pushweapon = FALSE;
-    flags.rest_on_space = FALSE;
-    flags.safe_dog = TRUE;
-    flags.silent = FALSE;
-    flags.sortpack = TRUE;
-    flags.verbose = TRUE;
-    
-    /* char *argv[] = {"nethack", NULL}; */
-    initoptions();
-
-    /* Initialize window system (headless) */
-    choose_windows("tty");
-
-    /* Initialize subsystems - using conditional compilation for compatibility */
-#ifdef DLB
-    dlb_init();
-#endif
-    init_objects();
-    init_dungeons();
-    
-    /* Setup player */
+    /* Minimal initialization of real NetHack globals for testing.
+     * We do NOT boot the full game engine (no initoptions, no choose_windows,
+     * no dlb_init, no mklev) because that requires a terminal and full data
+     * files.  Instead we set struct fields directly and use the linked .o
+     * files for individual function comparisons (AC, damage, RNG, etc.). */
     u.uhp = u.uhpmax = 10;
     u.uen = u.uenmax = 10;
     u.ux = 40;
@@ -181,21 +151,12 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
     u.umoney0 = 0;
     u.uz.dlevel = 1;
     moves = 0;
+    flags.female = (gender > 0);
     u.ualign.type = alignment;
 
-    /* These are normally set by u_init() */
+    /* These are normally set by u_init() / role_init() */
     urole.name.m = role ? strdup(role) : strdup("Tourist");
     urace.noun = race ? strdup(race) : strdup("Human");
-
-    /* Initialize map */
-    mklev();
-    
-    /* Ensure player is placed on the map */
-    /* mklev might have placed us somewhere else, but for now we trust it or override it */
-    if (u.ux == 0 || u.uy == 0) {
-        u.ux = 40;
-        u.uy = 10;
-    }
 
     return 0;
 #else

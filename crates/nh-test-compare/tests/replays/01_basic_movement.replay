@@ -1,0 +1,7 @@
+# Basic movement in all 8 directions + waiting
+name: basic_movement
+seed: 42
+role: Tourist
+race: Human
+tags: movement
+commands: kjhlkjhl.yubnybun....

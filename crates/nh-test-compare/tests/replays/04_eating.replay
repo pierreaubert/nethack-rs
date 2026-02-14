@@ -1,0 +1,7 @@
+# Try eating — Tourist starts with food
+name: eating
+seed: 789
+role: Tourist
+race: Human
+tags: eating,food
+commands: kjhl....e.e.e.kjhl

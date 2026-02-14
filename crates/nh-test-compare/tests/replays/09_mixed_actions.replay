@@ -1,0 +1,7 @@
+# Mix of actions: move, wait, pickup, eat, inventory check
+name: mixed_actions
+seed: 5000
+role: Tourist
+race: Human
+tags: movement,eating,pickup,inventory
+commands: lll,jjj.e.i.hhh,kkk.e.i

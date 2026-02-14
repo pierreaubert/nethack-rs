@@ -71,41 +71,75 @@ pub enum CorpseEffect {
     ToggleSpeed,
 }
 
+// Monster indices from nh-data/src/monsters.rs MONSTERS array.
+// These must match the actual array positions for C parity.
+mod pm {
+    pub const COCKATRICE: i16 = 10;
+    pub const WEREWOLF: i16 = 21;
+    pub const FLOATING_EYE: i16 = 29;
+    pub const NEWT: i16 = 45;
+    pub const LIZARD: i16 = 49;
+    pub const CHAMELEON: i16 = 50;
+    pub const MIND_FLAYER: i16 = 58;
+    pub const MASTER_MIND_FLAYER: i16 = 59;
+    pub const BAT: i16 = 136;
+    pub const GIANT_BAT: i16 = 137;
+    pub const RED_DRAGON: i16 = 156;
+    pub const WHITE_DRAGON: i16 = 157;
+    pub const STALKER: i16 = 163;
+    pub const FIRE_ELEMENTAL: i16 = 165;
+    pub const VIOLET_FUNGUS: i16 = 174;
+    pub const STONE_GIANT: i16 = 180;
+    pub const HILL_GIANT: i16 = 181;
+    pub const FIRE_GIANT: i16 = 182;
+    pub const FROST_GIANT: i16 = 183;
+    pub const GREEN_SLIME: i16 = 219;
+    pub const QUANTUM_MECHANIC: i16 = 221;
+    pub const WRAITH: i16 = 241;
+    pub const DOPPELGANGER: i16 = 281;
+    pub const NURSE: i16 = 290;
+    // Second copies in the array (same monsters at different indices)
+    pub const NEWT_ALT: i16 = 338;
+    pub const LIZARD_ALT: i16 = 342;
+    pub const CHAMELEON_ALT: i16 = 343;
+}
+
 /// Get corpse effects for a monster type.
 /// Returns a list of effects that may occur when eating this corpse.
 ///
+/// Based on cpostfx() in NetHack 3.6.7 eat.c lines 945-1156.
+/// Monster indices match nh-data/src/monsters.rs MONSTERS array positions.
+///
 /// # Arguments
-/// * `monster_type` - The corpse's corpse_type field (monster index)
+/// * `monster_type` - The corpse's corpse_type field (monster index in MONSTERS)
 pub fn corpse_effects(monster_type: i16) -> Vec<CorpseEffect> {
-    // These monster indices should match nh-data monster definitions
-    // For now, use approximate values based on common monster names
     match monster_type {
-        // Newt - minor energy boost
-        0 => vec![CorpseEffect::GainEnergy { amount: 3 }],
+        // Newt: 2/3 chance to gain 1-3 magic energy (C: eat.c line 958-974)
+        pm::NEWT | pm::NEWT_ALT => vec![CorpseEffect::GainEnergy { amount: 3 }],
 
-        // Floating eye - telepathy
-        38 => vec![CorpseEffect::GainIntrinsic {
+        // Floating eye: telepathy (C: rn2(1) = guaranteed, eat.c intrinsic system)
+        pm::FLOATING_EYE => vec![CorpseEffect::GainIntrinsic {
             property: Property::Telepathy,
-            chance: 100, // Guaranteed from floating eye
+            chance: 100,
         }],
 
-        // Cockatrice - instant death by petrification
-        69 => vec![CorpseEffect::InstantDeath {
+        // Cockatrice: instant death by petrification (C: eat.c touch_petrifies)
+        pm::COCKATRICE => vec![CorpseEffect::InstantDeath {
             cause: "swallowing a cockatrice whole",
         }],
 
-        // Lizard - cure stoning and reduce confusion/stunning
-        81 => vec![
+        // Lizard: cure stoning, reduce confusion/stunning (C: eat.c line 1062-1067)
+        pm::LIZARD | pm::LIZARD_ALT => vec![
             CorpseEffect::CureStoning,
             CorpseEffect::CureConfusion,
             CorpseEffect::CureStunning,
         ],
 
-        // Wraith - gain a level
-        86 => vec![CorpseEffect::GainLevel],
+        // Wraith: gain a level (C: pluslvl(FALSE), eat.c line 975-977)
+        pm::WRAITH => vec![CorpseEffect::GainLevel],
 
-        // Nurse - full heal
-        110 => vec![
+        // Nurse: full heal + poison resistance via mconveys (C: eat.c line 987-995)
+        pm::NURSE => vec![
             CorpseEffect::FullHeal,
             CorpseEffect::GainIntrinsic {
                 property: Property::PoisonResistance,
@@ -113,29 +147,32 @@ pub fn corpse_effects(monster_type: i16) -> Vec<CorpseEffect> {
             },
         ],
 
-        // Mind flayer - intelligence or telepathy
-        120 => vec![
+        // Mind flayer / Master mind flayer: 50% int boost + intrinsic check
+        // (C: eat.c line 1084-1095, mconveys=0 so no standard intrinsics)
+        pm::MIND_FLAYER | pm::MASTER_MIND_FLAYER => vec![
             CorpseEffect::IntelligenceBoost,
-            CorpseEffect::GainIntrinsic {
-                property: Property::Telepathy,
-                chance: 50,
-            },
         ],
 
-        // Fire elemental / red dragon - fire resistance
-        150..=155 => vec![CorpseEffect::GainIntrinsic {
+        // Red dragon: fire resistance via mconveys MR_FIRE
+        pm::RED_DRAGON => vec![CorpseEffect::GainIntrinsic {
             property: Property::FireResistance,
             chance: 15,
         }],
 
-        // Ice elemental / white dragon - cold resistance
-        160..=165 => vec![CorpseEffect::GainIntrinsic {
+        // White dragon: cold resistance via mconveys MR_COLD
+        pm::WHITE_DRAGON => vec![CorpseEffect::GainIntrinsic {
             property: Property::ColdResistance,
             chance: 15,
         }],
 
-        // Stalker - invisibility
-        186 => vec![
+        // Fire elemental: fire resistance via mconveys MR_FIRE
+        pm::FIRE_ELEMENTAL => vec![CorpseEffect::GainIntrinsic {
+            property: Property::FireResistance,
+            chance: 15,
+        }],
+
+        // Stalker: invisibility + stunning (C: eat.c line 996-1008, falls through to bat)
+        pm::STALKER => vec![
             CorpseEffect::GainIntrinsic {
                 property: Property::Invisibility,
                 chance: 100,
@@ -147,33 +184,47 @@ pub fn corpse_effects(monster_type: i16) -> Vec<CorpseEffect> {
             CorpseEffect::Stun { duration: 30 },
         ],
 
-        // Giant bat / bat - stunning
-        200..=201 => vec![CorpseEffect::Stun { duration: 30 }],
+        // Bat / Giant bat: stunning (C: eat.c line 1009-1015)
+        pm::BAT | pm::GIANT_BAT => vec![CorpseEffect::Stun { duration: 30 }],
 
-        // Violet fungus - hallucination
-        220 => vec![CorpseEffect::Hallucination { duration: 200 }],
+        // Violet fungus: hallucination (C: eat.c line 1107-1111, dmgtype AD_HALU)
+        pm::VIOLET_FUNGUS => vec![CorpseEffect::Hallucination { duration: 200 }],
 
-        // Quantum mechanic - toggle speed
-        230 => vec![CorpseEffect::ToggleSpeed],
+        // Quantum mechanic: toggle speed (C: eat.c line 1052-1061)
+        pm::QUANTUM_MECHANIC => vec![CorpseEffect::ToggleSpeed],
 
-        // Chameleon / doppelganger - polymorph
-        240..=241 => vec![CorpseEffect::Polymorph],
+        // Chameleon / Doppelganger: polymorph (C: eat.c line 1068-1077)
+        pm::CHAMELEON | pm::CHAMELEON_ALT | pm::DOPPELGANGER => vec![CorpseEffect::Polymorph],
 
-        // Giants - strength
-        250..=260 => vec![CorpseEffect::StrengthBoost],
+        // Giants: strength boost (C: is_giant macro checks M2_GIANT flag)
+        // Fire giant also conveys MR_FIRE, frost giant MR_COLD
+        pm::STONE_GIANT | pm::HILL_GIANT => vec![CorpseEffect::StrengthBoost],
+        pm::FIRE_GIANT => vec![
+            CorpseEffect::StrengthBoost,
+            CorpseEffect::GainIntrinsic {
+                property: Property::FireResistance,
+                chance: 15,
+            },
+        ],
+        pm::FROST_GIANT => vec![
+            CorpseEffect::StrengthBoost,
+            CorpseEffect::GainIntrinsic {
+                property: Property::ColdResistance,
+                chance: 15,
+            },
+        ],
 
-        // Werewolf (human form)
-        280 => vec![CorpseEffect::Lycanthropy { monster_type: 281 }],
+        // Werewolf (human form): lycanthropy (C: eat.c line 978-986)
+        pm::WEREWOLF => vec![CorpseEffect::Lycanthropy { monster_type: pm::WEREWOLF }],
 
-        // Green slime - turns you into slime (fatal)
-        300 => vec![CorpseEffect::InstantDeath {
+        // Green slime: turns you into slime (C: eat.c touch_petrifies / slimeproof)
+        pm::GREEN_SLIME => vec![CorpseEffect::InstantDeath {
             cause: "turning into green slime",
         }],
 
-        // Disenchanter - lose a random intrinsic
-        310 => vec![], // Special handling needed
-
-        // Default - check for standard resistances based on monster flags
+        // Default: no hardcoded effects.
+        // In C, the intrinsic system checks mconveys flags for standard resistances.
+        // TODO: Implement mconveys-based intrinsic grants from monster data.
         _ => vec![],
     }
 }
@@ -197,11 +248,11 @@ pub fn apply_corpse_effects(
     for effect in effects {
         match effect {
             CorpseEffect::GainIntrinsic { property, chance } => {
-                if rng.rn2(100) < *chance as u32 {
-                    if !state.player.properties.has_intrinsic(*property) {
-                        state.player.properties.grant_intrinsic(*property);
-                        messages.push(intrinsic_gain_message(*property).to_string());
-                    }
+                if rng.rn2(100) < *chance as u32
+                    && !state.player.properties.has_intrinsic(*property)
+                {
+                    state.player.properties.grant_intrinsic(*property);
+                    messages.push(intrinsic_gain_message(*property).to_string());
                 }
             }
 
@@ -246,11 +297,8 @@ pub fn apply_corpse_effects(
             }
 
             CorpseEffect::CureStoning => {
-                // Stoning would need to be added to player - using StoneResistance as proxy
-                if state.player.properties.has(Property::StoneResistance) {
-                    // Already resistant, no effect
-                } else {
-                    // Would cure stoning in progress
+                if state.player.stoning > 0 {
+                    state.player.stoning = 0;
                     messages.push("You feel limber!".to_string());
                 }
             }
@@ -268,8 +316,13 @@ pub fn apply_corpse_effects(
             }
 
             CorpseEffect::Polymorph => {
-                // Would need polymorph implementation
-                messages.push("You feel a change coming over you.".to_string());
+                if state.player.properties.has(Property::Unchanging) {
+                    messages.push("You feel momentarily different.".to_string());
+                } else {
+                    // Trigger polymorph: set a short timeout for the gameloop to handle
+                    state.player.polymorph_timeout = 1;
+                    messages.push("You feel a change coming over you.".to_string());
+                }
             }
 
             CorpseEffect::StrengthBoost => {
@@ -287,19 +340,32 @@ pub fn apply_corpse_effects(
             }
 
             CorpseEffect::InstantDeath { cause } => {
-                messages.push(format!("You die from {}.", cause));
-                state.player.hp = 0;
-                // Would trigger death handling
+                if state.player.properties.has(Property::LifeSaving) {
+                    state.player.properties.remove_intrinsic(Property::LifeSaving);
+                    messages.push("But wait...".to_string());
+                    messages.push("Your medallion of life saving crumbles to dust!".to_string());
+                    state.player.hp = state.player.hp_max / 2;
+                } else {
+                    messages.push(format!("You die from {}.", cause));
+                    state.player.hp = 0;
+                }
             }
 
-            CorpseEffect::Sickness { duration: _ } => {
-                // Would need sickness tracking
-                messages.push("You feel deathly sick.".to_string());
+            CorpseEffect::Sickness { duration } => {
+                if state.player.properties.has(Property::SickResistance) {
+                    messages.push("You feel mildly ill.".to_string());
+                } else {
+                    state.player.sick = *duration;
+                    state.player.sick_reason = Some("a bad corpse".to_string());
+                    messages.push("You feel deathly sick.".to_string());
+                }
             }
 
-            CorpseEffect::Lycanthropy { monster_type: _ } => {
-                // Would need lycanthropy implementation
-                messages.push("You feel feverish.".to_string());
+            CorpseEffect::Lycanthropy { monster_type } => {
+                if state.player.lycanthropy.is_none() {
+                    state.player.lycanthropy = Some(*monster_type);
+                    messages.push("You feel feverish.".to_string());
+                }
             }
 
             CorpseEffect::ToggleSpeed => {
@@ -387,15 +453,52 @@ impl TinType {
     }
 }
 
-/// Base nutrition values for common foods
-pub fn base_nutrition(object_type: i16) -> i32 {
-    // These should match nh-data object definitions
-    // For now, provide reasonable defaults
-    match object_type {
-        // Corpses vary by monster
-        _ if object_type < 100 => 100, // Generic food
-        _ => 50,
-    }
+// ============================================================================
+// Food object type constants (indices into OBJECTS array)
+// Must match nh-data/src/objects.rs ObjectType enum values
+// ============================================================================
+
+/// Food object type constants matching the OBJECTS array
+#[allow(dead_code)]
+mod otyp {
+    pub const TRIPE_RATION: i16 = 240;
+    pub const CORPSE: i16 = 241;
+    pub const EGG: i16 = 242;
+    pub const MEATBALL: i16 = 243;
+    pub const MEAT_STICK: i16 = 244;
+    pub const HUGE_CHUNK_OF_MEAT: i16 = 245;
+    pub const MEAT_RING: i16 = 246;
+    pub const GLOB_OF_GRAY_OOZE: i16 = 247;
+    pub const GLOB_OF_BROWN_PUDDING: i16 = 248;
+    pub const GLOB_OF_GREEN_SLIME: i16 = 249;
+    pub const GLOB_OF_BLACK_PUDDING: i16 = 250;
+    pub const KELP_FROND: i16 = 251;
+    pub const EUCALYPTUS_LEAF: i16 = 252;
+    pub const APPLE: i16 = 253;
+    pub const ORANGE: i16 = 254;
+    pub const PEAR: i16 = 255;
+    pub const MELON: i16 = 256;
+    pub const BANANA: i16 = 257;
+    pub const CARROT: i16 = 258;
+    pub const SPRIG: i16 = 259;
+    pub const CLOVE: i16 = 260;
+    pub const SLIME_MOLD: i16 = 261;
+    pub const LUMP_OF_ROYAL_JELLY: i16 = 262;
+    pub const CREAM_PIE: i16 = 263;
+    pub const CANDY_BAR: i16 = 264;
+    pub const FORTUNE_COOKIE: i16 = 265;
+    pub const PANCAKE: i16 = 266;
+    pub const LEMBAS_WAFER: i16 = 267;
+    pub const CRAM: i16 = 268;
+    pub const FOOD_RATION: i16 = 269;
+    pub const K_RATION: i16 = 270;
+    pub const C_RATION: i16 = 271;
+    pub const TIN: i16 = 272;
+}
+
+/// Check if an object type is a glob
+fn is_glob(object_type: i16) -> bool {
+    (otyp::GLOB_OF_GRAY_OOZE..=otyp::GLOB_OF_BLACK_PUDDING).contains(&object_type)
 }
 
 /// Check if food is edible
@@ -403,93 +506,188 @@ pub fn is_edible(obj: &Object) -> bool {
     obj.class == ObjectClass::Food
 }
 
-/// Check if food is rotten (based on age and type)
-pub fn is_rotten(obj: &Object, current_turn: i64) -> bool {
-    // Corpses rot after ~250 turns
-    // Blessed food lasts longer, cursed food rots faster
-    let age = current_turn - obj.age;
-    let rot_time = match obj.buc {
-        BucStatus::Blessed => 350,
-        BucStatus::Uncursed => 250,
-        BucStatus::Cursed => 150,
-    };
-    age > rot_time
-}
-
-/// Calculate nutrition from eating an object
+/// Calculate nutrition from eating an object.
+///
+/// For corpses: uses corpse_type to look up monster nutrition.
+/// For tins: base 0, nutrition determined by contents.
+/// For globs: weight-based nutrition.
+/// For everything else: uses obj.nutrition (populated from OBJECTS data).
+///
+/// In C, BUC does NOT multiply nutrition — blessed just prevents rot.
 pub fn calculate_nutrition(obj: &Object) -> i32 {
-    let base = base_nutrition(obj.object_type);
-
-    // Blessed food gives more nutrition
-    let buc_modifier = match obj.buc {
-        BucStatus::Blessed => 1.5,
-        BucStatus::Uncursed => 1.0,
-        BucStatus::Cursed => 0.75,
-    };
-
-    (base as f32 * buc_modifier) as i32
-}
-
-/// Eat food from inventory
-pub fn do_eat(state: &mut GameState, obj_letter: char) -> ActionResult {
-    // First pass: validation
-    let (obj_name, is_cursed, nutrition) = {
-        let obj = match state.get_inventory_item(obj_letter) {
-            Some(o) => o,
-            None => return ActionResult::Failed("You don't have that item.".to_string()),
-        };
-
-        if obj.class != ObjectClass::Food {
-            return ActionResult::Failed("That's not something you can eat.".to_string());
+    let base = match obj.object_type {
+        otyp::CORPSE => {
+            // Corpse nutrition comes from the monster type, not the object def.
+            if obj.nutrition > 0 {
+                obj.nutrition as i32
+            } else {
+                // Default corpse nutrition when monster data unavailable
+                100
+            }
         }
-
-        let name = obj.name.clone().unwrap_or_else(|| "food".to_string());
-        let nutrition = calculate_nutrition(obj);
-
-        (name, obj.is_cursed(), nutrition)
-    };
-
-    // Check for choking (eating while satiated)
-    let hunger_state = HungerState::from_nutrition(state.player.nutrition);
-    if hunger_state == HungerState::Satiated {
-        state.message("You're having a hard time getting all of it down.");
-        // Could potentially choke - for now just warn
-    }
-
-    // Eating message
-    state.message(format!("You eat the {}.", obj_name));
-
-    // Apply nutrition
-    state.player.nutrition += nutrition;
-
-    // Cursed food might cause problems
-    if is_cursed {
-        state.message("Ulch - that food was tainted!");
-        // Could cause sickness, vomiting, etc.
-        state.player.nutrition -= nutrition / 2; // Lose some nutrition
-    }
-
-    // Update hunger state
-    state.player.update_hunger();
-
-    // Check new hunger state and give feedback
-    let new_state = HungerState::from_nutrition(state.player.nutrition);
-    match new_state {
-        HungerState::Satiated => {
-            state.message("You're having a hard time getting all of it down.");
+        otyp::TIN => {
+            // Tins have variable nutrition based on contents;
+            // base nutrition is 0, caller should add tin type modifier
+            0
         }
-        HungerState::NotHungry => {
-            // No message needed
+        t if is_glob(t) => {
+            // Globs: nutrition based on weight
+            obj.weight as i32
         }
         _ => {
-            // Still hungry
+            // Standard food: nutrition from OBJECTS data (stored on obj).
+            // Fallback to weight * 5 if nutrition wasn't set.
+            if obj.nutrition > 0 {
+                obj.nutrition as i32
+            } else {
+                (obj.weight as i32 * 5).max(10)
+            }
         }
+    };
+
+    // BUC modifier: blessed +50%, cursed -50%
+    match obj.buc {
+        crate::object::BucStatus::Blessed => base * 3 / 2,
+        crate::object::BucStatus::Cursed => base / 2,
+        _ => base,
+    }
+}
+
+/// Check if a corpse is rotten based on age (rottenfood from eat.c).
+///
+/// Returns true if the corpse has gone bad. Blessed corpses last longer.
+/// Lizard and lichen corpses never rot.
+pub fn is_rotten(obj: &Object, current_turn: i64) -> bool {
+    if obj.class != crate::object::ObjectClass::Food {
+        return false;
     }
 
-    // Remove the food item
-    state.remove_from_inventory(obj_letter);
+    // Lizard and lichen corpses never rot
+    if obj.object_type == otyp::CORPSE
+        && (obj.corpse_type == pm::LIZARD || obj.corpse_type == pm::LIZARD_ALT)
+    {
+        return false;
+    }
 
-    ActionResult::Success
+    let age = current_turn - obj.age;
+    let rot_threshold: i64 = match obj.buc {
+        crate::object::BucStatus::Blessed => 300,
+        crate::object::BucStatus::Cursed => 50,
+        _ => 150,
+    };
+    age > rot_threshold
+}
+
+/// Handle rotten food effects (rottenfood from eat.c).
+///
+/// When eating a rotten corpse, there's a chance of food poisoning.
+/// Returns messages about what happened.
+pub fn rottenfood(state: &mut GameState) -> Vec<String> {
+    let mut messages = Vec::new();
+
+    // 1 in 7 chance to get food poisoning from rotten food
+    if state.rng.one_in(7) {
+        messages.push("You feel deathly sick.".to_string());
+        // Food poisoning: lose nutrition and potentially lethal
+        state.player.nutrition -= 40;
+        if state.player.nutrition < 0 {
+            state.player.nutrition = 0;
+        }
+    } else {
+        messages.push("Ulch - that food was tainted!".to_string());
+        // Mild sickness: just lose some nutrition
+        state.player.nutrition = (state.player.nutrition - 20).max(0);
+    }
+
+    messages
+}
+
+/// Food pre-effects (fprefx from eat.c).
+///
+/// Effects that happen BEFORE the food is consumed. Returns messages.
+fn fprefx(state: &mut GameState, object_type: i16, corpse_type: i16) -> Vec<String> {
+    let mut messages = Vec::new();
+
+    match object_type {
+        otyp::TRIPE_RATION => {
+            // Tripe is disgusting to non-carnivores
+            // In C, checks if polymorphed into carnivore
+            messages.push("Yak - Loss of strenth saps the mind.".to_string());
+            state.player.confused_timeout = state.player.confused_timeout.saturating_add(2);
+        }
+        otyp::EGG => {
+            // Check for cockatrice egg — causes petrification
+            if corpse_type == pm::COCKATRICE {
+                if !state.player.properties.has(Property::StoneResistance) {
+                    messages.push("Tstrstrstrch!".to_string());
+                    // Begin petrification countdown (5 turns)
+                    state.player.stoning = 5;
+                } else {
+                    messages.push("This egg doesn't taste like a chicken egg.".to_string());
+                }
+            }
+        }
+        _ => {}
+    }
+
+    messages
+}
+
+/// Food post-effects (fpostfx from eat.c).
+///
+/// Effects that happen AFTER the food is consumed. Returns messages.
+fn fpostfx(state: &mut GameState, object_type: i16) -> Vec<String> {
+    let mut messages = Vec::new();
+
+    match object_type {
+        otyp::CARROT => {
+            // Cure blindness
+            if state.player.blinded_timeout > 0 {
+                state.player.blinded_timeout = 0;
+                messages.push("Your vision improves.".to_string());
+            }
+        }
+        otyp::FORTUNE_COOKIE => {
+            messages.push("This cookie has a scrap of paper inside.".to_string());
+            messages.push("It reads: \"You will have a strking strke of luck.\"".to_string());
+        }
+        otyp::LEMBAS_WAFER => {
+            // Elves get double nutrition, orcs get half
+            match state.player.race {
+                crate::player::Race::Elf => {
+                    // Extra nutrition for elves (already got base, add more)
+                    state.player.nutrition += 400; // roughly doubles the 800 base
+                    messages.push("A taste of the Blessed Realm fills you.".to_string());
+                }
+                crate::player::Race::Orc => {
+                    // Orcs find it distasteful — lose half the nutrition
+                    state.player.nutrition -= 400;
+                    messages.push("Yuck! Elvish food!".to_string());
+                }
+                _ => {}
+            }
+        }
+        otyp::EUCALYPTUS_LEAF => {
+            // Cures sickness
+            messages.push("You feel better.".to_string());
+        }
+        otyp::APPLE => {
+            // Cursed apple: sleep check (like Snow White)
+            // Handled in do_eat via BUC check
+        }
+        otyp::LUMP_OF_ROYAL_JELLY => {
+            // Restore strength
+            let cur = state.player.attr_current.get(Attribute::Strength);
+            let max = state.player.attr_max.get(Attribute::Strength);
+            if cur < max {
+                state.player.attr_current.modify(Attribute::Strength, 1);
+                messages.push("You feel a little stronger.".to_string());
+            }
+        }
+        _ => {}
+    }
+
+    messages
 }
 
 /// Vomit (lose nutrition, possibly drop items)
@@ -502,12 +700,139 @@ pub fn vomit(state: &mut GameState) {
     state.player.update_hunger();
 }
 
-/// Choke on food (potentially fatal)
-pub fn choke(state: &mut GameState, food_name: &str) {
-    state.message(format!("You choke on the {}!", food_name));
-    // In full implementation, this could be fatal
-    // For now, just cause vomiting
+/// Choke on food (potentially fatal).
+///
+/// If nutrition >= 2000 after eating, choking check applies.
+/// MagicBreathing grants immunity. 1-in-20 chance to die;
+/// otherwise vomit and survive.
+pub fn choke(state: &mut GameState, food_name: &str) -> bool {
+    // MagicBreathing protects from choking
+    if state.player.properties.has(Property::MagicBreathing) {
+        return false;
+    }
+
+    state.message(format!("You choke over your {}!", food_name));
+
+    // 1-in-20 chance of fatal choking
+    if state.rng.one_in(20) {
+        state.message("You choke to death!");
+        state.player.hp = 0;
+        return true;
+    }
+
+    // Survive by vomiting
     vomit(state);
+    false
+}
+
+/// Eat food from inventory (doeat from eat.c).
+///
+/// Dispatches to corpse eating, tin eating, or regular food eating.
+/// Handles choking, rotten food, food pre/post effects, and nutrition.
+pub fn do_eat(state: &mut GameState, obj_letter: char) -> ActionResult {
+    // Extract data we need from the object (borrow-safe)
+    let (obj_name, object_type, corpse_type, buc, nutrition, _age, is_food) = {
+        let obj = match state.get_inventory_item(obj_letter) {
+            Some(o) => o,
+            None => return ActionResult::Failed("You don't have that item.".to_string()),
+        };
+
+        if obj.class != ObjectClass::Food {
+            return ActionResult::Failed("That's not something you can eat.".to_string());
+        }
+
+        let name = obj.name.clone().unwrap_or_else(|| "food".to_string());
+        let nutrition = calculate_nutrition(obj);
+
+        (
+            name,
+            obj.object_type,
+            obj.corpse_type,
+            obj.buc,
+            nutrition,
+            obj.age,
+            true,
+        )
+    };
+
+    if !is_food {
+        return ActionResult::Failed("That's not something you can eat.".to_string());
+    }
+
+    // Check for choking risk (eating while satiated)
+    let hunger_state = HungerState::from_nutrition(state.player.nutrition);
+    if hunger_state == HungerState::Satiated {
+        state.message("You're having a hard time getting all of it down.");
+    }
+
+    // Food pre-effects
+    let pre_msgs = fprefx(state, object_type, corpse_type);
+    for msg in &pre_msgs {
+        state.message(msg.clone());
+    }
+
+    // Eating message
+    state.message(format!("You eat the {}.", obj_name));
+
+    // Corpse-specific handling
+    if object_type == otyp::CORPSE {
+        // Check for rotten corpse
+        let current_turn = state.turns as i64;
+        let is_rotten_food = {
+            let obj = state.get_inventory_item(obj_letter).unwrap();
+            is_rotten(obj, current_turn)
+        };
+
+        if is_rotten_food && buc != BucStatus::Blessed {
+            let rot_msgs = rottenfood(state);
+            for msg in &rot_msgs {
+                state.message(msg.clone());
+            }
+        }
+
+        // Apply corpse effects (cprefx/cpostfx)
+        let effects = corpse_effects(corpse_type);
+        let rng = &mut state.rng.clone();
+        let effect_msgs = apply_corpse_effects(state, rng, &effects);
+        for msg in &effect_msgs {
+            state.message(msg.clone());
+        }
+
+        // Check if player died from corpse effects
+        if state.player.is_dead() {
+            state.remove_from_inventory(obj_letter);
+            return ActionResult::Died("killed by eating something".to_string());
+        }
+    }
+
+    // Apply nutrition
+    state.player.nutrition += nutrition;
+
+    // Food post-effects
+    let post_msgs = fpostfx(state, object_type);
+    for msg in &post_msgs {
+        state.message(msg.clone());
+    }
+
+    // Choking check: if nutrition is now >= 2000
+    if state.player.nutrition >= 2000 {
+        let died = choke(state, &obj_name);
+        if died {
+            state.remove_from_inventory(obj_letter);
+            return ActionResult::Died("choked on food".to_string());
+        }
+    }
+
+    // Update hunger state
+    let hunger_msgs = newuhs(state, true);
+    for msg in &hunger_msgs {
+        state.message(msg.clone());
+    }
+
+    // Remove the food item
+    state.remove_from_inventory(obj_letter);
+
+    ActionResult::Success
 }
 
 // ============================================================================
@@ -752,6 +1077,17 @@ mod tests {
     use crate::object::{Object, ObjectClass, ObjectId};
     use crate::rng::GameRng;
 
+    fn make_food(letter: char, object_type: i16, nutrition: u16) -> Object {
+        let mut obj = Object::default();
+        obj.id = ObjectId(1);
+        obj.class = ObjectClass::Food;
+        obj.object_type = object_type;
+        obj.nutrition = nutrition;
+        obj.inv_letter = letter;
+        obj.name = Some("food".to_string());
+        obj
+    }
+
     #[test]
     fn test_eat_non_food_fails() {
         let mut state = GameState::new(GameRng::from_entropy());
@@ -775,15 +1111,76 @@ mod tests {
     fn test_eat_food_increases_nutrition() {
         let mut state = GameState::new(GameRng::from_entropy());
         let initial_nutrition = state.player.nutrition;
-        
-        let mut obj = Object::default();
-        obj.id = ObjectId(1);
-        obj.class = ObjectClass::Food;
-        obj.inv_letter = 'a';
+
+        let obj = make_food('a', otyp::FOOD_RATION, 800);
         state.inventory.push(obj);
 
         let result = do_eat(&mut state, 'a');
         assert!(matches!(result, ActionResult::Success));
         assert!(state.player.nutrition > initial_nutrition);
+    }
+
+    #[test]
+    fn test_calculate_nutrition_food_ration() {
+        let obj = make_food('a', otyp::FOOD_RATION, 800);
+        assert_eq!(calculate_nutrition(&obj), 800);
+    }
+
+    #[test]
+    fn test_calculate_nutrition_corpse_default() {
+        let mut obj = make_food('a', otyp::CORPSE, 0);
+        obj.corpse_type = 1; // arbitrary monster with no set nutrition
+        // Corpse with 0 nutrition should fall back to default 100
+        assert_eq!(calculate_nutrition(&obj), 100);
+    }
+
+    #[test]
+    fn test_calculate_nutrition_corpse_with_value() {
+        let mut obj = make_food('a', otyp::CORPSE, 150);
+        obj.corpse_type = pm::LIZARD;
+        assert_eq!(calculate_nutrition(&obj), 150);
+    }
+
+    #[test]
+    fn test_is_rotten_fresh_corpse() {
+        let mut obj = make_food('a', otyp::CORPSE, 0);
+        obj.corpse_type = 1;
+        obj.age = 100;
+        assert!(!is_rotten(&obj, 150)); // 50 turns old, not rotten
+    }
+
+    #[test]
+    fn test_is_rotten_old_corpse() {
+        let mut obj = make_food('a', otyp::CORPSE, 0);
+        obj.corpse_type = 1;
+        obj.age = 0;
+        assert!(is_rotten(&obj, 200)); // 200 turns old, rotten
+    }
+
+    #[test]
+    fn test_is_rotten_lizard_never_rots() {
+        let mut obj = make_food('a', otyp::CORPSE, 0);
+        obj.corpse_type = pm::LIZARD;
+        obj.age = 0;
+        assert!(!is_rotten(&obj, 10000)); // Lizards never rot
+    }
+
+    #[test]
+    fn test_carrot_cures_blindness() {
+        let mut state = GameState::new(GameRng::from_entropy());
+        state.player.blinded_timeout = 50;
+
+        let obj = make_food('a', otyp::CARROT, 50);
+        state.inventory.push(obj);
+
+        let _ = do_eat(&mut state, 'a');
+        assert_eq!(state.player.blinded_timeout, 0);
+    }
+
+    #[test]
+    fn test_non_food_not_rotten() {
+        let mut obj = Object::default();
+        obj.object_type = 0; // Not a corpse
+        assert!(!is_rotten(&obj, 10000));
     }
 }

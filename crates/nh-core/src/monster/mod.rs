@@ -3,6 +3,7 @@
 //! Contains monster templates (permonst) and instances (monst).
 
 pub mod ai;
+pub mod makemon;
 mod monst;
 mod permonst;
 pub mod tactics;

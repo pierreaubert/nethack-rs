@@ -214,8 +214,10 @@ fn calculate_c_reward(engine: &CGameEngine) -> f64 {
 mod tests {
     use super::*;
     use crate::c_interface::CGameEngine;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_extract_c_state() {
         let mut engine = CGameEngine::new();
         engine.init("Tourist", "Human", 0, 0).unwrap();
@@ -230,6 +232,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_c_state_step() {
         let mut engine = CGameEngine::new();
         engine.init("Wizard", "Elf", 1, 1).unwrap();
@@ -253,6 +256,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_c_inventory_extraction() {
         let mut engine = CGameEngine::new();
         engine.init("Rogue", "Gnome", 0, 0).unwrap();

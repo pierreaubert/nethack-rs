@@ -23,6 +23,12 @@ fn main() {
         builder.define("DLB", None);
         builder.define("REAL_NETHACK", None);
         builder.define("__has_attribute(x)", Some("1"));
+
+        // HACKDIR must match the installed NetHack data directory
+        // (normally set by the NetHack Makefile via -DHACKDIR=...)
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/pierre".to_string());
+        let hackdir = format!("\"{}\"", std::path::PathBuf::from(&home).join("nethackdir").display());
+        builder.define("HACKDIR", Some(hackdir.as_str()));
         
         // C99 compatibility for bool type
         builder.define("__STDC_VERSION__", Some("199901L"));

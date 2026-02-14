@@ -1,0 +1,7 @@
+# Wizard exploring — may encounter spell-related scenarios
+name: wizard_explore
+seed: 6000
+role: Wizard
+race: Elf
+tags: movement,spellcasting,exploration
+commands: lllkkkhhhhjjjjlllkkk....hjkl....

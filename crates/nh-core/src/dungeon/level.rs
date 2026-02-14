@@ -104,6 +104,12 @@ pub struct Trap {
     pub trap_type: TrapType,
     pub activated: bool,
     pub seen: bool,
+    /// One-shot trap (destroyed after triggering, e.g. land mine)
+    pub once: bool,
+    /// Trap was set by the player
+    pub madeby_u: bool,
+    /// Object ID for traps that launch objects (rolling boulder)
+    pub launch_oid: Option<u32>,
 }
 
 /// Trap types
@@ -175,6 +181,9 @@ pub struct Level {
     /// Engravings
     pub engravings: Vec<Engraving>,
 
+    /// Shops on this level
+    pub shops: Vec<crate::special::shk::Shop>,
+
     /// Stairways
     pub stairs: Vec<Stairway>,
 
@@ -215,6 +224,7 @@ impl Level {
             monsters: Vec::new(),
             traps: Vec::new(),
             engravings: Vec::new(),
+            shops: Vec::new(),
             stairs: Vec::new(),
             flags: LevelFlags::default(),
             explored: default_explored(),
@@ -359,15 +369,26 @@ impl Level {
             .find(|t| t.x == x && t.y == y)
     }
 
+    /// Get shops on this level
+    pub fn shops(&self) -> &[crate::special::shk::Shop] {
+        &self.shops
+    }
+
     /// Add a trap
     pub fn add_trap(&mut self, x: i8, y: i8, trap_type: TrapType) {
-        self.traps.push(Trap {
-            x,
-            y,
-            trap_type,
-            activated: false,
-            seen: false,
-        });
+        self.traps.push(crate::dungeon::trap::create_trap(x, y, trap_type));
+    }
+
+    /// Get a mutable reference to a trap at position
+    pub fn trap_at_mut(&mut self, x: i8, y: i8) -> Option<&mut Trap> {
+        self.traps
+            .iter_mut()
+            .find(|t| t.x == x && t.y == y)
+    }
+
+    /// Remove a trap at the given position
+    pub fn remove_trap(&mut self, x: i8, y: i8) {
+        self.traps.retain(|t| t.x != x || t.y != y);
     }
 
     /// Find upstairs

@@ -1,0 +1,7 @@
+# Wait for many turns (tests turn counter, hunger, monster spawns)
+name: wait_long
+seed: 3000
+role: Monk
+race: Human
+tags: waiting,hunger,monsters
+commands: ..........................................................

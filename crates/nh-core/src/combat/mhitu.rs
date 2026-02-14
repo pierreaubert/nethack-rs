@@ -12,7 +12,7 @@ use crate::player::You;
 use crate::rng::GameRng;
 
 /// Result of a full monster attack sequence
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MonsterAttackResult {
     /// Whether any attack connected
     pub any_hit: bool,
@@ -28,18 +28,7 @@ pub struct MonsterAttackResult {
     pub effects: Vec<CombatEffect>,
 }
 
-impl Default for MonsterAttackResult {
-    fn default() -> Self {
-        Self {
-            any_hit: false,
-            player_died: false,
-            monster_died: false,
-            total_damage: 0,
-            messages: Vec::new(),
-            effects: Vec::new(),
-        }
-    }
-}
+
 
 // ============================================================================
 // Message Functions (hitmsg, missmu, wildmiss, mswings)
@@ -206,15 +195,14 @@ pub fn mattacku(
             // Add weapon swing message for weapon attacks (before hit message)
             if attack.attack_type == AttackType::Weapon {
                 // Check if monster has a wielded weapon
-                if let Some(weapon_idx) = attacker.wielded {
-                    if let Some(weapon) = attacker.inventory.get(weapon_idx) {
-                        let weapon_name_str = weapon.name.as_deref().unwrap_or("weapon");
-                        let is_thrust = weapon_name_str.contains("spear") 
-                            || weapon_name_str.contains("lance") 
-                            || weapon_name_str.contains("trident");
-                        let display = weapon.display_name();
-                        result.messages.push(weapon_swing_message(&attacker_name, &display, is_thrust));
-                    }
+                if let Some(weapon_idx) = attacker.wielded
+                    && let Some(weapon) = attacker.inventory.get(weapon_idx) {
+                    let weapon_name_str = weapon.name.as_deref().unwrap_or("weapon");
+                    let is_thrust = weapon_name_str.contains("spear")
+                        || weapon_name_str.contains("lance")
+                        || weapon_name_str.contains("trident");
+                    let display = weapon.display_name();
+                    result.messages.push(weapon_swing_message(&attacker_name, &display, is_thrust));
                 }
             }
 
@@ -487,7 +475,17 @@ pub fn monster_attack_player(
     attack: &Attack,
     rng: &mut GameRng,
 ) -> CombatResult {
-    // TODO: Check if monster can reach player (distance, engulfed, etc.)
+    // Check if monster can reach player (must be adjacent for melee)
+    let dx = (attacker.x - player.pos.x).abs();
+    let dy = (attacker.y - player.pos.y).abs();
+    if dx > 1 || dy > 1 {
+        return CombatResult::MISS;
+    }
+
+    // Paralyzed/frozen monsters can't attack
+    if attacker.frozen_timeout > 0 || attacker.state.paralyzed {
+        return CombatResult::MISS;
+    }
 
     // Calculate to-hit
     let to_hit = calculate_monster_to_hit(attacker, player);
@@ -963,7 +961,8 @@ mod tests {
     }
 
     fn test_monster(level: u8) -> Monster {
-        let mut monster = Monster::new(MonsterId(1), level as i16, 5, 5);
+        // Place adjacent to player (default pos 0,0) so melee reach check passes
+        let mut monster = Monster::new(MonsterId(1), level as i16, 1, 0);
         monster.level = level;
         monster
     }

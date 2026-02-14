@@ -420,8 +420,10 @@ impl Drop for FfiGameEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_ffi_game_engine_lifecycle() {
         let mut engine = FfiGameEngine::new();
         assert!(!engine.is_initialized());
@@ -443,6 +445,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_state_json() {
         let mut engine = FfiGameEngine::new();
         engine.init("Wizard", "Elf", 1, 1).unwrap();
@@ -455,6 +458,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_unknown_command() {
         let mut engine = FfiGameEngine::new();
         engine.init("Priest", "Dwarf", 0, 0).unwrap();

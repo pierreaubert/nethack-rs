@@ -131,6 +131,28 @@ pub struct You {
     pub underwater: bool,
     pub buried: bool,
 
+    // Delayed-onset status effects
+    /// Turns until petrification completes (0 = not stoning)
+    pub stoning: i32,
+    /// Turns of food-poisoning / illness remaining (0 = not sick)
+    pub sick: i32,
+    /// Source of sickness (for death message)
+    pub sick_reason: Option<String>,
+    /// Turns until strangulation kills (0 = not strangling)
+    pub strangled: i32,
+    /// Lycanthropy: monster type the player turns into (None = not lycanthropic)
+    pub lycanthropy: Option<i16>,
+
+    // Trap state
+    /// Turns remaining trapped (0 = not trapped)
+    pub utrap: i32,
+    /// Type of trap holding the player (valid when utrap > 0)
+    pub utraptype: Option<crate::dungeon::TrapType>,
+
+    // Shop state
+    /// Index of shop the player is currently in (None = not in a shop)
+    pub in_shop: Option<usize>,
+
     // Monster interactions
     pub grabbed_by: Option<MonsterId>,
     pub steed: Option<MonsterId>,
@@ -213,6 +235,17 @@ impl Default for You {
             underwater: false,
             buried: false,
 
+            stoning: 0,
+            sick: 0,
+            sick_reason: None,
+            strangled: 0,
+            lycanthropy: None,
+
+            utrap: 0,
+            utraptype: None,
+
+            in_shop: None,
+
             grabbed_by: None,
             steed: None,
 
@@ -280,24 +313,88 @@ impl You {
         self.role.rank_title(self.exp_level, self.gender)
     }
 
-    /// Calculate encumbrance level
-    pub fn encumbrance(&self) -> Encumbrance {
-        let capacity = self.carrying_capacity;
-        let weight = self.current_weight;
+    /// Calculate weight capacity (C: weight_cap).
+    ///
+    /// Base: `25 * (STR + CON) + 50`.
+    /// Levitation/flying/riding strong steed: MAX_CARR_CAP.
+    /// Wounded legs (not flying): -100.
+    pub fn weight_cap(&self) -> i32 {
+        use crate::player::Property;
+        use crate::MAX_CARR_CAP;
 
-        if weight <= capacity / 2 {
-            Encumbrance::Unencumbered
-        } else if weight <= (capacity * 3) / 4 {
-            Encumbrance::Burdened
-        } else if weight <= (capacity * 9) / 10 {
-            Encumbrance::Stressed
-        } else if weight <= capacity {
-            Encumbrance::Strained
-        } else if weight <= (capacity * 5) / 4 {
-            Encumbrance::Overtaxed
+        let mut cap = self.attr_current.base_carry_capacity();
+
+        if self.properties.has(Property::Levitation) {
+            cap = MAX_CARR_CAP;
         } else {
-            Encumbrance::Overloaded
+            if cap > MAX_CARR_CAP {
+                cap = MAX_CARR_CAP;
+            }
+            if !self.properties.has(Property::Flying)
+                && self.properties.has(Property::WoundedLegs)
+            {
+                cap -= 100;
+            }
+            if cap < 0 {
+                cap = 0;
+            }
         }
+
+        cap
+    }
+
+    /// Recalculate carrying_capacity from current attributes/properties
+    pub fn update_carrying_capacity(&mut self) {
+        self.carrying_capacity = self.weight_cap();
+    }
+
+    /// Calculate encumbrance level (C: calc_capacity/near_capacity).
+    ///
+    /// Uses C formula: `cap = (excess_weight * 2 / weight_cap) + 1` capped at 5.
+    pub fn encumbrance(&self) -> Encumbrance {
+        let wc = self.carrying_capacity;
+        let excess = self.current_weight - wc;
+
+        if excess <= 0 {
+            Encumbrance::Unencumbered
+        } else if wc <= 1 {
+            Encumbrance::Overloaded
+        } else {
+            let cap = (excess * 2 / wc) + 1;
+            match cap.min(5) {
+                1 => Encumbrance::Burdened,
+                2 => Encumbrance::Stressed,
+                3 => Encumbrance::Strained,
+                4 => Encumbrance::Overtaxed,
+                _ => Encumbrance::Overloaded,
+            }
+        }
+    }
+
+    /// Calculate encumbrance with extra weight added (C: calc_capacity(xtra_wt))
+    pub fn encumbrance_with_extra(&self, extra_weight: i32) -> Encumbrance {
+        let wc = self.carrying_capacity;
+        let excess = self.current_weight + extra_weight - wc;
+
+        if excess <= 0 {
+            Encumbrance::Unencumbered
+        } else if wc <= 1 {
+            Encumbrance::Overloaded
+        } else {
+            let cap = (excess * 2 / wc) + 1;
+            match cap.min(5) {
+                1 => Encumbrance::Burdened,
+                2 => Encumbrance::Stressed,
+                3 => Encumbrance::Strained,
+                4 => Encumbrance::Overtaxed,
+                _ => Encumbrance::Overloaded,
+            }
+        }
+    }
+
+    /// Excess weight over capacity (C: inv_weight). Negative = under capacity.
+    pub fn excess_weight(&self) -> i32 {
+        self.current_weight - self.carrying_capacity
     }
 
     /// Update hunger state based on nutrition
@@ -399,6 +496,110 @@ impl Encumbrance {
 mod tests {
     use super::*;
     use super::super::Attribute;
+
+    fn make_player(str_val: i8, con_val: i8) -> You {
+        let mut player = You::default();
+        player.attr_current.set(Attribute::Strength, str_val);
+        player.attr_current.set(Attribute::Constitution, con_val);
+        player.update_carrying_capacity();
+        player
+    }
+
+    #[test]
+    fn test_weight_cap_str_con_formula() {
+        // C formula: 25 * (STR + CON) + 50
+        let player = make_player(18, 14);
+        assert_eq!(player.carrying_capacity, 25 * (18 + 14) + 50); // 850
+    }
+
+    #[test]
+    fn test_weight_cap_capped_at_max() {
+        // MAX_CARR_CAP = 1000
+        let player = make_player(25, 25);
+        // 25*(25+25)+50 = 1300, but capped at 1000
+        assert_eq!(player.carrying_capacity, 1000);
+    }
+
+    #[test]
+    fn test_weight_cap_low_stats() {
+        let player = make_player(3, 3);
+        assert_eq!(player.carrying_capacity, 25 * (3 + 3) + 50); // 200
+    }
+
+    #[test]
+    fn test_encumbrance_unencumbered() {
+        let mut player = make_player(18, 14); // cap = 850
+        player.current_weight = 800; // under capacity
+        assert_eq!(player.encumbrance(), Encumbrance::Unencumbered);
+    }
+
+    #[test]
+    fn test_encumbrance_burdened() {
+        let mut player = make_player(18, 14); // cap = 850
+        // excess = 1, cap = (1*2/850)+1 = 1 → Burdened
+        player.current_weight = 851;
+        assert_eq!(player.encumbrance(), Encumbrance::Burdened);
+    }
+
+    #[test]
+    fn test_encumbrance_stressed() {
+        let mut player = make_player(18, 14); // cap = 850
+        // excess = 425, cap = (425*2/850)+1 = 2 → Stressed
+        player.current_weight = 1275;
+        assert_eq!(player.encumbrance(), Encumbrance::Stressed);
+    }
+
+    #[test]
+    fn test_encumbrance_strained() {
+        let mut player = make_player(18, 14); // cap = 850
+        // excess = 850, cap = (850*2/850)+1 = 3 → Strained
+        player.current_weight = 1700;
+        assert_eq!(player.encumbrance(), Encumbrance::Strained);
+    }
+
+    #[test]
+    fn test_encumbrance_overtaxed() {
+        let mut player = make_player(18, 14); // cap = 850
+        // excess = 1275, cap = (1275*2/850)+1 = 4 → Overtaxed
+        player.current_weight = 2125;
+        assert_eq!(player.encumbrance(), Encumbrance::Overtaxed);
+    }
+
+    #[test]
+    fn test_encumbrance_overloaded() {
+        let mut player = make_player(18, 14); // cap = 850
+        // excess = 1700, cap = (1700*2/850)+1 = 5 → Overloaded
+        player.current_weight = 2550;
+        assert_eq!(player.encumbrance(), Encumbrance::Overloaded);
+    }
+
+    #[test]
+    fn test_encumbrance_with_extra() {
+        let mut player = make_player(18, 14); // cap = 850
+        player.current_weight = 840; // under by 10
+        assert_eq!(player.encumbrance(), Encumbrance::Unencumbered);
+        // Adding 20 puts us 10 over → Burdened
+        assert_eq!(player.encumbrance_with_extra(20), Encumbrance::Burdened);
+    }
+
+    #[test]
+    fn test_excess_weight() {
+        let mut player = make_player(18, 14); // cap = 850
+        player.current_weight = 800;
+        assert_eq!(player.excess_weight(), -50);
+        player.current_weight = 900;
+        assert_eq!(player.excess_weight(), 50);
+    }
+
+    #[test]
+    fn test_movement_penalty_per_encumbrance() {
+        assert_eq!(Encumbrance::Unencumbered.movement_penalty(), 0);
+        assert_eq!(Encumbrance::Burdened.movement_penalty(), 1);
+        assert_eq!(Encumbrance::Stressed.movement_penalty(), 3);
+        assert_eq!(Encumbrance::Strained.movement_penalty(), 5);
+        assert_eq!(Encumbrance::Overtaxed.movement_penalty(), 7);
+        assert_eq!(Encumbrance::Overloaded.movement_penalty(), NORMAL_SPEED);
+    }
 
     #[test]
     fn test_gain_exp_no_level_up() {

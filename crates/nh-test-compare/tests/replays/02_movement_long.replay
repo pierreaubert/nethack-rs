@@ -1,0 +1,7 @@
+# Extended movement sequence
+name: movement_long
+seed: 123
+role: Wizard
+race: Elf
+tags: movement,exploration
+commands: llllljjjjjhhhhhkkkkklllll.....jjjjjhhhhh

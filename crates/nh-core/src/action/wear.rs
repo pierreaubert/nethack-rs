@@ -556,10 +556,10 @@ pub fn amulet_on(state: &mut GameState, amulet: &Object) -> EquipmentEffect {
             // No message on equip, effect triggers on death
         }
         AMULET_OF_STRANGULATION => {
-            // Start strangling countdown
+            // Start strangling countdown (6 turns to death)
             effect.messages.push("It constricts your throat!".to_string());
             effect.identify = true;
-            // Would set Strangled timeout here
+            state.player.strangled = 6;
         }
         AMULET_OF_RESTFUL_SLEEP => {
             // Causes drowsiness
@@ -609,12 +609,15 @@ pub fn amulet_off(state: &mut GameState, amulet: &Object) -> EquipmentEffect {
             }
         }
         AMULET_OF_STRANGULATION => {
-            // Stop strangling
+            state.player.strangled = 0;
             effect.messages.push("You can breathe more easily now.".to_string());
         }
         AMULET_OF_MAGICAL_BREATHING => {
-            // If underwater without other breathing, bad things happen
-            // Would need to check player.underwater here
+            if state.player.underwater && !state.player.properties.has(Property::MagicBreathing) {
+                effect.messages.push("You can't breathe!".to_string());
+                // Begin drowning: 1 turn of damage
+                state.player.take_damage(state.rng.rnd(8) as i32);
+            }
         }
         _ => {}
     }

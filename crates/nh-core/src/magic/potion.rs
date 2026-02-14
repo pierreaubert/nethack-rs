@@ -18,6 +18,8 @@ pub struct PotionResult {
     pub player_died: bool,
     /// Whether to identify the potion type
     pub identify: bool,
+    /// Level teleport direction: Some(true) = up, Some(false) = down
+    pub level_teleport: Option<bool>,
 }
 
 impl PotionResult {
@@ -27,6 +29,7 @@ impl PotionResult {
             consumed: true, // Most potions are consumed
             player_died: false,
             identify: true, // Most potions identify on use
+            level_teleport: None,
         }
     }
 
@@ -429,7 +432,7 @@ fn potion_gain_level(player: &mut You, cursed: bool) -> PotionResult {
 
     if cursed {
         result.messages.push("You rise up, through the ceiling!".to_string());
-        // TODO: Go up a dungeon level
+        result.level_teleport = Some(true); // Go up one dungeon level
     } else {
         player.exp_level += 1;
         let hp_gain = 5 + player.attr_current.get(Attribute::Constitution) as i32 / 3;

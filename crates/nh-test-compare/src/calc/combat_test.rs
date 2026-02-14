@@ -1,8 +1,11 @@
 //! Combat logic comparison tests
 
 use crate::c_interface_ffi::FfiGameEngine;
+#[cfg(test)]
+use serial_test::serial;
 
 #[test]
+#[serial]
 fn test_base_damage_calculation() {
     let mut engine = FfiGameEngine::new();
     engine.init("Tourist", "Human", 0, 0).unwrap();
@@ -18,6 +21,7 @@ fn test_base_damage_calculation() {
 }
 
 #[test]
+#[serial]
 fn test_ac_access() {
     let mut engine = FfiGameEngine::new();
     engine.init("Tourist", "Human", 0, 0).unwrap();
@@ -26,6 +30,7 @@ fn test_ac_access() {
 }
 
 #[test]
+#[serial]
 fn test_rng_access() {
     let mut engine = FfiGameEngine::new();
     engine.init("Tourist", "Human", 0, 0).unwrap();

@@ -6,6 +6,7 @@ mod alignment;
 mod attributes;
 mod conduct;
 mod hunger;
+pub mod polymorph;
 mod properties;
 mod role;
 mod skills;

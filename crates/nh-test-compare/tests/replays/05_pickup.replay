@@ -1,0 +1,7 @@
+# Movement then try picking up items
+name: pickup
+seed: 1000
+role: Archeologist
+race: Human
+tags: pickup,inventory
+commands: lll,jjj,hhh,kkk,i

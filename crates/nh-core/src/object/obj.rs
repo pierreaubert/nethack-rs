@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
+use super::objname::makeplural;
 use super::ObjectClass;
 
 /// Unique identifier for object instances
@@ -183,6 +184,9 @@ pub struct Object {
 
     /// Weapon to-hit bonus (from ObjClassDef.bonus for weapons)
     pub weapon_tohit: i8,
+
+    /// Nutrition value (from ObjClassDef.nutrition for food)
+    pub nutrition: u16,
 }
 
 impl Default for Object {
@@ -228,6 +232,7 @@ impl Default for Object {
             damage_dice: 0,
             damage_sides: 0,
             weapon_tohit: 0,
+            nutrition: 0,
         }
     }
 }
@@ -329,25 +334,181 @@ impl Object {
         self.base_ac + self.enchantment - self.erosion() as i8
     }
 
-    /// Check if can merge with another object
+    /// Check if can merge with another object (C: mergable)
+    ///
+    /// Two objects can merge only if they match on all visible and mechanical
+    /// properties. This follows C NetHack's 20+ condition merge check.
     pub fn can_merge(&self, other: &Object) -> bool {
-        if !self.class.stacks() {
+        // Must not be same object
+        if self.id == other.id {
             return false;
         }
 
-        self.object_type == other.object_type
-            && self.buc == other.buc
-            && self.enchantment == other.enchantment
-            && self.erosion1 == other.erosion1
-            && self.erosion2 == other.erosion2
-            && self.poisoned == other.poisoned
-            && self.name == other.name
+        // Must be same type and type must allow merging
+        if self.object_type != other.object_type || !self.class.stacks() {
+            return false;
+        }
+
+        // Coins always merge
+        if self.class == ObjectClass::Coin {
+            return true;
+        }
+
+        // BUC must match
+        if self.buc != other.buc {
+            return false;
+        }
+
+        // Enchantment/charges must match
+        if self.enchantment != other.enchantment {
+            return false;
+        }
+
+        // Unpaid/shop status must match
+        if self.unpaid != other.unpaid {
+            return false;
+        }
+
+        // Broken/trapped/lit/greased must match
+        if self.broken != other.broken
+            || self.trapped != other.trapped
+            || self.lit != other.lit
+            || self.greased != other.greased
+        {
+            return false;
+        }
+
+        // Erosion must match
+        if self.erosion1 != other.erosion1 || self.erosion2 != other.erosion2 {
+            return false;
+        }
+
+        // For weapons/armor: erosion-proof and rust_known must match
+        if matches!(self.class, ObjectClass::Weapon | ObjectClass::Armor)
+            && (self.erosion_proof != other.erosion_proof
+                || self.rust_known != other.rust_known)
+        {
+            return false;
+        }
+
+        // Poisoned must match
+        if self.poisoned != other.poisoned {
+            return false;
+        }
+
+        // Knowledge state must match
+        if self.desc_known != other.desc_known || self.buc_known != other.buc_known {
+            return false;
+        }
+
+        // Corpse/egg/tin: monster type must match
+        if self.corpse_type != other.corpse_type {
+            return false;
+        }
+
+        // Revivable corpses don't merge
+        if self.norevive || other.norevive {
+            return false;
+        }
+
+        // Lit items (oil lamps, candles) don't merge while burning
+        if self.lit {
+            return false;
+        }
+
+        // Artifact items never merge (artifacts are unique)
+        if self.artifact != other.artifact {
+            return false;
+        }
+
+        // Known status must match
+        if self.known != other.known {
+            return false;
+        }
+
+        // Names must match
+        if self.name != other.name {
+            return false;
+        }
+
+        // Unpaid items must have same price
+        if self.unpaid && self.shop_price != other.shop_price {
+            return false;
+        }
+
+        true
     }
 
-    /// Merge another object into this one
+    /// Merge another object into this one (C: merged)
+    ///
+    /// Adds the other object's quantity and weight.
+    /// For coins, weight is recalculated instead of added.
     pub fn merge(&mut self, other: Object) {
+        // Average age weighted by quantity
+        if !self.lit {
+            self.age = (self.age * self.quantity as i64 + other.age * other.quantity as i64)
+                / (self.quantity as i64 + other.quantity as i64);
+        }
+
         self.quantity += other.quantity;
-        self.weight += other.weight;
+
+        // Coins: recalculate weight (100 coins = 1 weight unit)
+        if self.class == ObjectClass::Coin {
+            self.weight = ((self.quantity as u32 + 50) / 100).max(1);
+        } else {
+            self.weight += other.weight;
+        }
+
+        // If we have no name but other does, take it
+        if self.name.is_none() && other.name.is_some() {
+            self.name = other.name;
+        }
+    }
+
+    /// Split a quantity from this stack, returning the new object (C: splitobj)
+    ///
+    /// The current object keeps `self.quantity - count`, the returned object
+    /// gets `count`. Panics if count <= 0, count >= self.quantity, or object
+    /// is a container.
+    pub fn split(&mut self, count: i32, new_id: ObjectId) -> Object {
+        assert!(count > 0, "split: count must be positive");
+        assert!(
+            count < self.quantity,
+            "split: count must be less than total quantity"
+        );
+        assert!(
+            self.contents.is_empty(),
+            "split: cannot split containers"
+        );
+
+        // Calculate per-unit weight before modifying quantities
+        let original_qty = self.quantity;
+        let per_unit = if self.class == ObjectClass::Coin {
+            0 // coins handled separately
+        } else if original_qty > 0 {
+            self.weight / original_qty as u32
+        } else {
+            1
+        };
+
+        let mut new_obj = self.clone();
+        new_obj.id = new_id;
+        new_obj.worn_mask = 0; // new stack is not worn
+
+        // Adjust quantities
+        self.quantity -= count;
+        new_obj.quantity = count;
+
+        // Recalculate weights
+        if self.class == ObjectClass::Coin {
+            self.weight = ((self.quantity as u32 + 50) / 100).max(1);
+            new_obj.weight = ((count as u32 + 50) / 100).max(1);
+        } else {
+            self.weight = per_unit * self.quantity as u32;
+            new_obj.weight = per_unit * count as u32;
+        }
+
+        new_obj
     }
 
     /// Get display name for the object (simple version, use xname/doname for full)
@@ -393,9 +554,17 @@ impl Object {
         }
     }
 
-    /// Get erosion description prefix
+    /// Get erosion description prefix (C: erode_obj display logic)
+    ///
+    /// Uses class-based heuristic for erosion words:
+    /// - Weapons/armor/ball/chain: "rusty"/"corroded", proof = "rustproof"/"corrodeproof"
+    /// - Other (scrolls, spellbooks, etc.): "burnt"/"rotted", proof = "fireproof"
     pub fn erosion_prefix(&self) -> String {
         let mut prefix = String::new();
+        let is_metallic = matches!(
+            self.class,
+            ObjectClass::Weapon | ObjectClass::Armor | ObjectClass::Ball | ObjectClass::Chain
+        );
 
         // First erosion type (rust/burn)
         if self.erosion1 > 0 {
@@ -404,8 +573,7 @@ impl Object {
                 3 => prefix.push_str("thoroughly "),
                 _ => {}
             }
-            // Assume metal = rusty, otherwise burnt
-            if matches!(self.class, ObjectClass::Weapon | ObjectClass::Armor) {
+            if is_metallic {
                 prefix.push_str("rusty ");
             } else {
                 prefix.push_str("burnt ");
@@ -419,7 +587,7 @@ impl Object {
                 3 => prefix.push_str("thoroughly "),
                 _ => {}
             }
-            if matches!(self.class, ObjectClass::Weapon | ObjectClass::Armor) {
+            if is_metallic {
                 prefix.push_str("corroded ");
             } else {
                 prefix.push_str("rotted ");
@@ -428,9 +596,15 @@ impl Object {
 
         // Erosion-proof status (if known)
         if self.rust_known && self.erosion_proof {
-            match self.class {
-                ObjectClass::Weapon | ObjectClass::Armor => prefix.push_str("rustproof "),
-                _ => prefix.push_str("fireproof "),
+            if is_metallic {
+                // C: rustproof for rust, corrodeproof for corrosion, fixed for both
+                if self.erosion1 == 0 && self.erosion2 == 0 {
+                    prefix.push_str("rustproof ");
+                } else {
+                    prefix.push_str("fixed ");
+                }
+            } else {
+                prefix.push_str("fireproof ");
             }
         }
 
@@ -467,6 +641,9 @@ impl Object {
     }
 
     /// Get enchantment string (e.g., "+2" or "-1")
+    ///
+    /// Wands do NOT show enchantment prefix — they use `charges_suffix()` instead.
+    /// Rings show enchantment only when non-zero.
     pub fn enchantment_str(&self) -> String {
         if !self.known {
             return String::new();
@@ -475,7 +652,7 @@ impl Object {
             ObjectClass::Weapon | ObjectClass::Armor => {
                 format!("{:+} ", self.enchantment)
             }
-            ObjectClass::Ring | ObjectClass::Wand => {
+            ObjectClass::Ring => {
                 if self.enchantment != 0 {
                     format!("{:+} ", self.enchantment)
                 } else {
@@ -524,21 +701,35 @@ impl Object {
             parts.push(format!("{}", self.quantity));
         }
 
+        // Empty container (C: cknown && !Has_contents)
+        if self.is_container() && self.known && self.contents.is_empty() {
+            parts.push("empty".to_string());
+        }
+
         // BUC status
         let buc = self.buc_prefix();
         if !buc.is_empty() {
             parts.push(buc.trim().to_string());
         }
 
-        // Enchantment
-        let ench = self.enchantment_str();
-        if !ench.is_empty() {
-            parts.push(ench.trim().to_string());
+        // Lock status for containers (C: lknown)
+        if self.is_container() && self.known {
+            if self.broken {
+                parts.push("broken".to_string());
+            } else if self.locked {
+                parts.push("locked".to_string());
+            }
         }
 
         // Greased
         if self.greased {
             parts.push("greased".to_string());
+        }
+
+        // Enchantment
+        let ench = self.enchantment_str();
+        if !ench.is_empty() {
+            parts.push(ench.trim().to_string());
         }
 
         // Erosion-proof and erosion
@@ -552,8 +743,12 @@ impl Object {
             parts.push("poisoned".to_string());
         }
 
-        // Base name
-        parts.push(base_name.to_string());
+        // Base name (pluralized if quantity > 1)
+        if self.quantity > 1 {
+            parts.push(makeplural(base_name));
+        } else {
+            parts.push(base_name.to_string());
+        }
 
         // Build the main string
         let mut result = parts.join(" ");
@@ -564,9 +759,11 @@ impl Object {
 
         // Container contents
         if self.is_container() && !self.contents.is_empty() {
-            result.push_str(&format!(" (containing {} item{})",
-                self.contents.len(),
-                if self.contents.len() == 1 { "" } else { "s" }
+            let n = self.contents.len();
+            result.push_str(&format!(
+                " (containing {} item{})",
+                n,
+                if n == 1 { "" } else { "s" }
             ));
         }
 
@@ -575,12 +772,35 @@ impl Object {
             result.push_str(" (lit)");
         }
 
+        // Named items (C: "named X" suffix, separate from class/type name)
+        if let Some(ref name) = self.name.as_ref().filter(|_| self.desc_known) {
+            result.push_str(&format!(" named {}", name));
+        }
+
+        // Unpaid items
+        if self.unpaid && self.shop_price > 0 {
+            result.push_str(&format!(
+                " (unpaid, {} zorkmid{})",
+                self.shop_price,
+                if self.shop_price == 1 { "" } else { "s" }
+            ));
+        }
+
         result
     }
 
-    /// Simple name without quantity or article (like NetHack's xname)
+    /// Simple name without BUC or enchantment (like NetHack's xname)
+    ///
+    /// Includes: quantity, pluralization, poisoned, greased, erosion, base name,
+    /// and "named X" suffix. Does NOT include BUC, enchantment, worn status, or
+    /// container/pricing info — those are added by `doname()`.
     pub fn xname(&self, base_name: &str) -> String {
         let mut parts = Vec::new();
+
+        // Quantity (C: xname adds quantity and pluralizes)
+        if self.quantity > 1 {
+            parts.push(format!("{}", self.quantity));
+        }
 
         // Poisoned (for weapons)
         if self.poisoned {
@@ -598,10 +818,21 @@ impl Object {
             parts.push(erosion.trim().to_string());
         }
 
-        // Base name
-        parts.push(base_name.to_string());
+        // Base name (pluralized if quantity > 1)
+        if self.quantity > 1 {
+            parts.push(makeplural(base_name));
+        } else {
+            parts.push(base_name.to_string());
+        }
 
-        parts.join(" ")
+        let mut result = parts.join(" ");
+
+        // Named items (C: "named X" suffix)
+        if let Some(ref name) = self.name.as_ref().filter(|_| self.desc_known) {
+            result.push_str(&format!(" named {}", name));
+        }
+
+        result
     }
 }
 
@@ -711,8 +942,213 @@ mod tests {
         obj.quantity = 5;
 
         let name = obj.doname("arrow");
-        assert!(name.starts_with("5 "));
-        assert!(name.contains("arrow"));
+        assert_eq!(name, "5 arrows"); // pluralized
+    }
+
+    #[test]
+    fn test_doname_snapshot_blessed_weapon() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 1;
+        obj.buc_known = true;
+        obj.buc = BucStatus::Blessed;
+        obj.known = true;
+        obj.enchantment = 3;
+        assert_eq!(obj.doname("long sword"), "blessed +3 long sword");
+    }
+
+    #[test]
+    fn test_doname_snapshot_cursed_rusty_weapon() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 1;
+        obj.buc_known = true;
+        obj.buc = BucStatus::Cursed;
+        obj.known = true;
+        obj.enchantment = -1;
+        obj.erosion1 = 2; // very rusty
+        assert_eq!(
+            obj.doname("long sword"),
+            "cursed -1 very rusty long sword"
+        );
+    }
+
+    #[test]
+    fn test_doname_snapshot_greased_armor() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Armor;
+        obj.quantity = 1;
+        obj.buc_known = true;
+        obj.buc = BucStatus::Uncursed;
+        obj.known = true;
+        obj.enchantment = 0;
+        obj.greased = true;
+        assert_eq!(
+            obj.doname("leather armor"),
+            "uncursed greased +0 leather armor"
+        );
+    }
+
+    #[test]
+    fn test_doname_snapshot_stack_poisoned() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 12;
+        obj.buc_known = true;
+        obj.buc = BucStatus::Uncursed;
+        obj.known = true;
+        obj.enchantment = 0;
+        obj.poisoned = true;
+        assert_eq!(
+            obj.doname("dart"),
+            "12 uncursed +0 poisoned darts"
+        );
+    }
+
+    #[test]
+    fn test_doname_snapshot_named_item() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 1;
+        obj.buc_known = true;
+        obj.buc = BucStatus::Uncursed;
+        obj.known = true;
+        obj.enchantment = 5;
+        obj.desc_known = true;
+        obj.name = Some("Sting".to_string());
+        assert_eq!(
+            obj.doname("elven short sword"),
+            "uncursed +5 elven short sword named Sting"
+        );
+    }
+
+    #[test]
+    fn test_doname_snapshot_wand_with_charges() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Wand;
+        obj.quantity = 1;
+        obj.buc_known = true;
+        obj.buc = BucStatus::Uncursed;
+        obj.known = true;
+        obj.enchantment = 4;
+        obj.recharged = 0;
+        assert_eq!(
+            obj.doname("wand of fire"),
+            "uncursed wand of fire (0:4)"
+        );
+    }
+
+    #[test]
+    fn test_doname_snapshot_empty_container() {
+        let mut obj = Object::default();
+        obj.object_type = 363; // sack
+        obj.class = ObjectClass::Tool;
+        obj.quantity = 1;
+        obj.known = true;
+        assert_eq!(obj.doname("sack"), "empty sack");
+    }
+
+    #[test]
+    fn test_doname_snapshot_locked_container() {
+        let mut obj = Object::default();
+        obj.object_type = 361; // chest
+        obj.class = ObjectClass::Tool;
+        obj.quantity = 1;
+        obj.known = true;
+        obj.locked = true;
+        assert_eq!(obj.doname("chest"), "empty locked chest");
+    }
+
+    #[test]
+    fn test_doname_snapshot_container_with_contents() {
+        let mut obj = Object::default();
+        obj.object_type = 363; // sack
+        obj.class = ObjectClass::Tool;
+        obj.quantity = 1;
+        obj.known = true;
+        obj.contents.push(Object::default());
+        obj.contents.push(Object::default());
+        assert_eq!(
+            obj.doname("sack"),
+            "sack (containing 2 items)"
+        );
+    }
+
+    #[test]
+    fn test_doname_snapshot_unpaid() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Potion;
+        obj.quantity = 1;
+        obj.unpaid = true;
+        obj.shop_price = 100;
+        assert_eq!(
+            obj.doname("potion of healing"),
+            "potion of healing (unpaid, 100 zorkmids)"
+        );
+    }
+
+    #[test]
+    fn test_doname_snapshot_lit_lamp() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Tool;
+        obj.quantity = 1;
+        obj.lit = true;
+        assert_eq!(obj.doname("oil lamp"), "oil lamp (lit)");
+    }
+
+    #[test]
+    fn test_doname_snapshot_erosion_proof_weapon() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 1;
+        obj.buc_known = true;
+        obj.buc = BucStatus::Uncursed;
+        obj.known = true;
+        obj.enchantment = 2;
+        obj.rust_known = true;
+        obj.erosion_proof = true;
+        assert_eq!(
+            obj.doname("long sword"),
+            "uncursed +2 rustproof long sword"
+        );
+    }
+
+    #[test]
+    fn test_xname_basic() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 1;
+        assert_eq!(obj.xname("long sword"), "long sword");
+    }
+
+    #[test]
+    fn test_xname_with_quantity() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 5;
+        assert_eq!(obj.xname("arrow"), "5 arrows");
+    }
+
+    #[test]
+    fn test_xname_with_erosion() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 1;
+        obj.erosion1 = 1;
+        assert_eq!(obj.xname("long sword"), "rusty long sword");
+    }
+
+    #[test]
+    fn test_xname_named() {
+        let mut obj = Object::default();
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = 1;
+        obj.desc_known = true;
+        obj.name = Some("Orcrist".to_string());
+        assert_eq!(
+            obj.xname("elven broadsword"),
+            "elven broadsword named Orcrist"
+        );
     }
 
     #[test]
@@ -746,5 +1182,113 @@ mod tests {
         // Known
         obj.known = true;
         assert_eq!(obj.charges_suffix(), " (1:5)");
+    }
+
+    fn make_arrow(id: u32, qty: i32, buc: BucStatus) -> Object {
+        let mut obj = Object::default();
+        obj.id = ObjectId(id);
+        obj.object_type = 10; // arrow type
+        obj.class = ObjectClass::Weapon;
+        obj.quantity = qty;
+        obj.weight = qty as u32; // 1 per unit
+        obj.buc = buc;
+        obj
+    }
+
+    #[test]
+    fn test_can_merge_same_type_same_buc() {
+        let a = make_arrow(1, 5, BucStatus::Uncursed);
+        let b = make_arrow(2, 3, BucStatus::Uncursed);
+        assert!(a.can_merge(&b));
+    }
+
+    #[test]
+    fn test_cannot_merge_different_buc() {
+        let a = make_arrow(1, 5, BucStatus::Uncursed);
+        let b = make_arrow(2, 3, BucStatus::Cursed);
+        assert!(!a.can_merge(&b));
+    }
+
+    #[test]
+    fn test_cannot_merge_same_id() {
+        let a = make_arrow(1, 5, BucStatus::Uncursed);
+        assert!(!a.can_merge(&a));
+    }
+
+    #[test]
+    fn test_cannot_merge_different_enchantment() {
+        let mut a = make_arrow(1, 5, BucStatus::Uncursed);
+        let mut b = make_arrow(2, 3, BucStatus::Uncursed);
+        a.enchantment = 1;
+        b.enchantment = 2;
+        assert!(!a.can_merge(&b));
+    }
+
+    #[test]
+    fn test_cannot_merge_different_erosion() {
+        let mut a = make_arrow(1, 5, BucStatus::Uncursed);
+        let b = make_arrow(2, 3, BucStatus::Uncursed);
+        a.erosion1 = 1;
+        assert!(!a.can_merge(&b));
+    }
+
+    #[test]
+    fn test_coins_always_merge() {
+        let mut a = Object::default();
+        a.id = ObjectId(1);
+        a.object_type = 100;
+        a.class = ObjectClass::Coin;
+        a.quantity = 50;
+
+        let mut b = a.clone();
+        b.id = ObjectId(2);
+        b.buc = BucStatus::Cursed; // coins ignore BUC for merge
+        assert!(a.can_merge(&b));
+    }
+
+    #[test]
+    fn test_cannot_merge_lit_items() {
+        let mut a = make_arrow(1, 5, BucStatus::Uncursed);
+        let mut b = make_arrow(2, 3, BucStatus::Uncursed);
+        a.lit = true;
+        b.lit = true;
+        assert!(!a.can_merge(&b));
+    }
+
+    #[test]
+    fn test_merge_adds_quantities() {
+        let mut a = make_arrow(1, 5, BucStatus::Uncursed);
+        let b = make_arrow(2, 3, BucStatus::Uncursed);
+        a.merge(b);
+        assert_eq!(a.quantity, 8);
+        assert_eq!(a.weight, 8);
+    }
+
+    #[test]
+    fn test_split_stack() {
+        let mut stack = make_arrow(1, 20, BucStatus::Uncursed);
+        stack.weight = 20; // 1 per arrow
+        let new_stack = stack.split(5, ObjectId(100));
+
+        assert_eq!(stack.quantity, 15);
+        assert_eq!(stack.weight, 15);
+        assert_eq!(new_stack.quantity, 5);
+        assert_eq!(new_stack.weight, 5);
+        assert_eq!(new_stack.id, ObjectId(100));
+        assert_eq!(new_stack.worn_mask, 0); // not worn
+    }
+
+    #[test]
+    #[should_panic(expected = "count must be less than")]
+    fn test_split_entire_stack_panics() {
+        let mut stack = make_arrow(1, 5, BucStatus::Uncursed);
+        stack.split(5, ObjectId(100));
+    }
+
+    #[test]
+    #[should_panic(expected = "count must be positive")]
+    fn test_split_zero_panics() {
+        let mut stack = make_arrow(1, 5, BucStatus::Uncursed);
+        stack.split(0, ObjectId(100));
     }
 }

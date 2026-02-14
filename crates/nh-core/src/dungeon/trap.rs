@@ -40,6 +40,7 @@ pub enum StatusEffect {
     Blind,
     Stunned,
     Paralyzed,
+    Rusted,
 }
 
 /// Trap creation context
@@ -108,12 +109,16 @@ pub fn random_trap_type(rng: &mut GameRng, ctx: &TrapContext) -> TrapType {
 
 /// Create a new trap at the given location
 pub fn create_trap(x: i8, y: i8, trap_type: TrapType) -> Trap {
+    let once = matches!(trap_type, TrapType::LandMine);
     Trap {
         x,
         y,
         trap_type,
         activated: false,
         seen: false,
+        once,
+        madeby_u: false,
+        launch_oid: None,
     }
 }
 
@@ -601,9 +606,8 @@ pub fn dotrap(
 
         TrapType::RustTrap => {
             result.messages.push("A gush of water hits you!".to_string());
-            // Would rust iron armor, handled by caller
-            result.messages.push("Your equipment may be affected!".to_string());
-            result.status = Some(StatusEffect::Stunned); // Proxy for item damage
+            // Rust effect: caller should erode iron equipment (erosion1 += 1)
+            result.status = Some(StatusEffect::Rusted);
         }
 
         TrapType::FireTrap => {

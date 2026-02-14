@@ -260,32 +260,98 @@ pub fn makeplural(word: &str) -> String {
     format!("{}s", word)
 }
 
-/// Choose "a" or "an" based on the following word.
+/// Choose "a" or "an" based on the following word (C: an/just_an)
+///
+/// Matches C NetHack's `just_an()` logic:
+/// - Words already starting with "the " pass through unchanged
+/// - Vowel-initial words get "an" (with exceptions for "uni", "use", "useful", "uranium")
+/// - "x" + non-vowel gets "an" (e.g., "xorn")
+/// - Single vowel letters get "an"
 pub fn an(word: &str) -> String {
     if word.is_empty() {
         return "a".to_string();
     }
 
+    // Already has "the " prefix → pass through
+    let word_lower = word.to_lowercase();
+    if word_lower.starts_with("the ") {
+        return word.to_string();
+    }
+
     let first_char = word.chars().next().unwrap().to_ascii_lowercase();
 
-    // Words starting with vowel sounds get "an"
-    if "aeiou".contains(first_char) {
-        // Exception: words starting with "u" that sound like "you"
-        if first_char == 'u' {
-            let word_lower = word.to_lowercase();
-            if word_lower.starts_with("uni") || word_lower.starts_with("use") {
-                return format!("a {}", word);
-            }
+    // Single-character words: vowels get "an"
+    if word.len() == 1 {
+        if "aefhilmnosx".contains(first_char) {
+            return format!("an {}", word);
         }
-        format!("an {}", word)
-    } else {
-        format!("a {}", word)
+        return format!("a {}", word);
     }
+
+    // Words starting with vowel sounds
+    if "aeiou".contains(first_char) {
+        // Exceptions: words where the vowel sounds like a consonant
+        if word_lower.starts_with("one-")
+            || word_lower.starts_with("eucalyptus")
+            || word_lower.starts_with("unicorn")
+            || word_lower.starts_with("uranium")
+            || word_lower.starts_with("useful")
+            || word_lower.starts_with("uni")
+            || word_lower.starts_with("use")
+        {
+            return format!("a {}", word);
+        }
+        return format!("an {}", word);
+    }
+
+    // "x" followed by non-vowel sounds like "z" → "an"
+    if first_char == 'x'
+        && word
+            .chars()
+            .nth(1)
+            .is_some_and(|c| !"aeiou".contains(c.to_ascii_lowercase()))
+    {
+        return format!("an {}", word);
+    }
+
+    format!("a {}", word)
 }
 
-/// Get "the" prefix for unique or specific items.
+/// Get "the" prefix for unique or specific items (C: the/The)
+///
+/// Matches C NetHack's logic:
+/// - Already starts with "the " → return as-is
+/// - Proper names (starts with capital, no " of ") → return as-is
+/// - Otherwise → prepend "the "
 pub fn the(word: &str) -> String {
+    if word.is_empty() {
+        return "the".to_string();
+    }
+
+    let lower = word.to_lowercase();
+    if lower.starts_with("the ") {
+        return word.to_string();
+    }
+
+    // Proper names: starts with uppercase, doesn't contain " of "
+    // (items like "Amulet of Yendor" still get "the")
+    let first = word.chars().next().unwrap();
+    if first.is_ascii_uppercase() && !word.contains(" of ") {
+        return word.to_string();
+    }
+
     format!("the {}", word)
+}
+
+/// Get "The" prefix (capitalized) for sentence-initial use
+#[allow(dead_code)]
+pub fn the_upper(word: &str) -> String {
+    let result = the(word);
+    if let Some(rest) = result.strip_prefix("the ") {
+        format!("The {}", rest)
+    } else {
+        result
+    }
 }
 
 /// Format quantity with pluralization.
@@ -516,6 +582,44 @@ mod tests {
         assert_eq!(an("unicorn horn"), "a unicorn horn");
         assert_eq!(an("orange"), "an orange");
         assert_eq!(an("emerald"), "an emerald");
+    }
+
+    #[test]
+    fn test_an_special_cases() {
+        // "the " prefix passes through
+        assert_eq!(an("the Amulet of Yendor"), "the Amulet of Yendor");
+        // "x" + vowel → normal "a" (xorn: x + o)
+        assert_eq!(an("xorn"), "a xorn");
+        // "x" + vowel → "a" (normal)
+        assert_eq!(an("xenon"), "a xenon");
+        // "one-" exception
+        assert_eq!(an("one-eyed"), "a one-eyed");
+        // "eucalyptus" exception
+        assert_eq!(an("eucalyptus leaf"), "a eucalyptus leaf");
+        // "useful" exception
+        assert_eq!(an("useful item"), "a useful item");
+        // Single letter
+        assert_eq!(an("a"), "an a");
+        assert_eq!(an("b"), "a b");
+        assert_eq!(an("x"), "an x");
+    }
+
+    #[test]
+    fn test_the() {
+        // Normal word
+        assert_eq!(the("sword"), "the sword");
+        // Already has "the "
+        assert_eq!(the("the Amulet of Yendor"), "the Amulet of Yendor");
+        // Proper name (capital, no " of ")
+        assert_eq!(the("Excalibur"), "Excalibur");
+        // Capital with " of " → still gets "the"
+        assert_eq!(the("Amulet of Yendor"), "the Amulet of Yendor");
+    }
+
+    #[test]
+    fn test_the_upper() {
+        assert_eq!(the_upper("sword"), "The sword");
+        assert_eq!(the_upper("Excalibur"), "Excalibur");
     }
 
     #[test]

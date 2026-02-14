@@ -1,0 +1,7 @@
+# Try to use stairs
+name: stairs
+seed: 2000
+role: Rogue
+race: Human
+tags: stairs,navigation
+commands: kjhlkjhl>kjhlkjhl<

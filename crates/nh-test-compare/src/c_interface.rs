@@ -395,8 +395,10 @@ impl Drop for CGameEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_c_game_engine_lifecycle() {
         let mut engine = CGameEngine::new();
         assert!(!engine.is_initialized());
@@ -426,6 +428,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_state_json() {
         let mut engine = CGameEngine::new();
         engine.init("Wizard", "Elf", 1, 1).unwrap();
@@ -437,6 +440,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_reset() {
         let mut engine = CGameEngine::new();
         engine.init("Rogue", "Gnome", 0, 0).unwrap();
@@ -454,6 +458,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_unknown_command() {
         let mut engine = CGameEngine::new();
         engine.init("Priest", "Dwarf", 0, 0).unwrap();

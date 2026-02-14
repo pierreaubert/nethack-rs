@@ -1,0 +1,7 @@
+# Diagonal movement exploring in a zigzag
+name: diagonal_explore
+seed: 4000
+role: Samurai
+race: Human
+tags: movement,diagonal
+commands: ynynynynbubububu.nbnbnbnbyuyuyuyu

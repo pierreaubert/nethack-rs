@@ -39,9 +39,6 @@ const TROLL_REVIVE_CHANCE: u32 = 37;
 pub const PM_LIZARD: i16 = 224;
 /// Monster index for lichen (corpse doesn't rot)
 pub const PM_LICHEN: i16 = 94;
-/// Monster type letter for trolls (can revive)
-pub const S_TROLL: char = 'T';
-
 /// Corpse creation flags
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CorpstatFlags {
@@ -393,6 +390,7 @@ pub fn mksobj_with_data(
     // Copy static data from ObjClassDef
     obj.weight = def.weight as u32;
     obj.name = Some(def.name.to_string());
+    obj.nutrition = def.nutrition;
 
     // Weapon damage/bonus
     if def.class == ObjectClass::Weapon {
@@ -664,12 +662,25 @@ fn init_rock(obj: &mut Object, rng: &mut GameRng) {
 
 /// Random number for enchantment (exponential distribution)
 /// Returns 1 most often, higher values less likely
+/// C-compatible rne(x): generates 1..utmp with 1/x probability per step.
+/// utmp = (player_level < 15) ? 5 : player_level/3
+/// During object creation, player_level is typically 1 so utmp = 5.
 fn rne(rng: &mut GameRng, x: u32) -> u32 {
-    let mut n = 1;
-    while n < x && rng.rn2(4) == 0 {
-        n += 1;
+    rne_at_level(rng, x, 1)
+}
+
+/// rne with explicit player level (for testing and contexts where level is known)
+fn rne_at_level(rng: &mut GameRng, x: u32, player_level: u32) -> u32 {
+    let utmp = if player_level < 15 {
+        5
+    } else {
+        player_level / 3
+    };
+    let mut tmp = 1;
+    while tmp < utmp && rng.rn2(x) == 0 {
+        tmp += 1;
     }
-    n
+    tmp
 }
 
 /// Randomly bless or curse an object

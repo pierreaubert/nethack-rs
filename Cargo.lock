@@ -3907,6 +3907,7 @@ name = "nh-core"
 version = "0.1.8"
 dependencies = [
  "bitflags 2.10.0",
+ "getrandom 0.2.17",
  "proptest",
  "rand 0.8.5",
  "rand_chacha 0.3.1",

@@ -311,6 +311,32 @@ pub fn identify_gem_value(obj: &Object, rng: &mut GameRng) -> Option<i32> {
     }
 }
 
+/// Calculate wand price based on remaining charges (from shk.c cost_per_charge).
+///
+/// Wands lose value as charges deplete. A fully charged wand is worth base price,
+/// while an empty wand is worth a fraction.
+pub fn cost_per_charge(base_price: i32, charges: i32, max_charges: i32) -> i32 {
+    if max_charges <= 0 {
+        return base_price;
+    }
+    let charge_fraction = if charges <= 0 {
+        // Empty wand: worth 1/3 of base
+        base_price / 3
+    } else {
+        // Scale linearly with remaining charges
+        base_price * charges / max_charges
+    };
+    charge_fraction.max(1)
+}
+
+/// Calculate total value of items inside a container.
+///
+/// Mirrors contained_cost() from shk.c: sums get_cost() for all items
+/// in the given list.
+pub fn contained_cost(items: &[Object], selling: bool) -> i32 {
+    items.iter().map(|obj| get_cost(obj, selling)).sum()
+}
+
 /// Calculate robbery penalty (Kops summoning threshold)
 pub fn robbery_penalty(stolen_value: i32) -> i32 {
     // Higher value = more Kops
@@ -446,5 +472,30 @@ mod tests {
         assert_eq!(robbery_penalty(200), 1);
         assert_eq!(robbery_penalty(800), 2);
         assert_eq!(robbery_penalty(10000), 4);
+    }
+
+    #[test]
+    fn test_cost_per_charge() {
+        // Full wand
+        assert_eq!(cost_per_charge(100, 10, 10), 100);
+        // Half charged
+        assert_eq!(cost_per_charge(100, 5, 10), 50);
+        // Empty wand
+        assert_eq!(cost_per_charge(100, 0, 10), 33); // 100/3
+        // No max charges
+        assert_eq!(cost_per_charge(100, 0, 0), 100);
+    }
+
+    #[test]
+    fn test_contained_cost() {
+        let items = vec![
+            make_test_object(ObjectClass::Potion, 50),
+            make_test_object(ObjectClass::Scroll, 60),
+        ];
+        let total = contained_cost(&items, false);
+        assert_eq!(total, 110);
+
+        let sell_total = contained_cost(&items, true);
+        assert_eq!(sell_total, 55); // 50% of buying
     }
 }

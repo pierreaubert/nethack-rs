@@ -10,6 +10,21 @@ const ISAAC64_SZ_LOG: usize = 8;
 const ISAAC64_SZ: usize = 1 << ISAAC64_SZ_LOG;
 const ISAAC64_MASK: u64 = u64::MAX;
 
+/// An RNG call trace entry for debugging divergences.
+#[derive(Debug, Clone)]
+pub struct RngTraceEntry {
+    /// Sequence number (0-indexed)
+    pub seq: u64,
+    /// Function name (e.g. "rn2", "rnd", "next_u64")
+    pub func: &'static str,
+    /// Argument (e.g. modulus for rn2)
+    pub arg: u64,
+    /// Result value
+    pub result: u64,
+    /// Raw u64 consumed from ISAAC64
+    pub raw: u64,
+}
+
 /// ISAAC64 random number generator context
 #[derive(Clone)]
 pub struct Isaac64 {
@@ -25,6 +40,12 @@ pub struct Isaac64 {
     c: u64,
     /// Number of results remaining (counts down from 256)
     n: usize,
+    /// Total number of u64 values consumed (for tracing)
+    call_count: u64,
+    /// If true, record all calls into trace log
+    tracing: bool,
+    /// Trace log (only populated when tracing is true)
+    trace: Vec<RngTraceEntry>,
 }
 
 impl Isaac64 {
@@ -46,6 +67,9 @@ impl Isaac64 {
             b: 0,
             c: 0,
             n: 0,
+            call_count: 0,
+            tracing: false,
+            trace: Vec::new(),
         };
 
         ctx.init(&seed_bytes);
@@ -226,6 +250,40 @@ impl Isaac64 {
         self.n = ISAAC64_SZ;
     }
 
+    // ================================================================
+    // Tracing control
+    // ================================================================
+
+    /// Enable RNG call tracing. All subsequent calls will be logged.
+    pub fn enable_tracing(&mut self) {
+        self.tracing = true;
+        self.trace.clear();
+    }
+
+    /// Disable RNG call tracing.
+    pub fn disable_tracing(&mut self) {
+        self.tracing = false;
+    }
+
+    /// Get the trace log.
+    pub fn trace(&self) -> &[RngTraceEntry] {
+        &self.trace
+    }
+
+    /// Clear the trace log.
+    pub fn clear_trace(&mut self) {
+        self.trace.clear();
+    }
+
+    /// Get total number of raw u64 values consumed.
+    pub fn call_count(&self) -> u64 {
+        self.call_count
+    }
+
+    // ================================================================
+    // Core random generation
+    // ================================================================
+
     /// Get the next random u64 (matches isaac64_next_uint64)
     #[inline]
     pub fn next_u64(&mut self) -> u64 {
@@ -233,7 +291,24 @@ impl Isaac64 {
             self.update();
         }
         self.n -= 1;
-        self.r[self.n]
+        let val = self.r[self.n];
+        self.call_count += 1;
+        val
+    }
+
+    /// Internal: get next u64 and record trace entry.
+    fn next_u64_traced(&mut self, func: &'static str, arg: u64) -> u64 {
+        let raw = self.next_u64();
+        if self.tracing {
+            self.trace.push(RngTraceEntry {
+                seq: self.call_count - 1,
+                func,
+                arg,
+                result: raw,
+                raw,
+            });
+        }
+        raw
     }
 
     /// Get a random value in range [0, n) with uniform distribution
@@ -250,27 +325,102 @@ impl Isaac64 {
         }
     }
 
+    // ================================================================
     // NetHack-compatible RNG functions
+    // ================================================================
 
     /// Returns a random value in [0, x) - matches rn2(x)
+    /// C: `int rn2(int x) { return RND(x); }`
+    /// where `RND(x) = isaac64_next_uint64(&rng) % x`
     #[inline]
     pub fn rn2(&mut self, x: u32) -> u32 {
-        (self.next_u64() % x as u64) as u32
+        let raw = self.next_u64();
+        let result = (raw % x as u64) as u32;
+        if self.tracing {
+            self.trace.push(RngTraceEntry {
+                seq: self.call_count - 1,
+                func: "rn2",
+                arg: x as u64,
+                result: result as u64,
+                raw,
+            });
+        }
+        result
     }
 
     /// Returns a random value in [1, x] - matches rnd(x)
+    /// C: `int rnd(int x) { return RND(x) + 1; }`
     #[inline]
     pub fn rnd(&mut self, x: u32) -> u32 {
-        (self.next_u64() % x as u64) as u32 + 1
+        let raw = self.next_u64();
+        let result = (raw % x as u64) as u32 + 1;
+        if self.tracing {
+            self.trace.push(RngTraceEntry {
+                seq: self.call_count - 1,
+                func: "rnd",
+                arg: x as u64,
+                result: result as u64,
+                raw,
+            });
+        }
+        result
     }
 
     /// Roll n dice of x sides - matches d(n, x)
+    /// C: `int d(int n, int x) { int tmp = n; while (n--) tmp += RND(x); return tmp; }`
     pub fn dice(&mut self, n: u32, x: u32) -> u32 {
         let mut result = n;
         for _ in 0..n {
             result += self.rn2(x);
         }
         result
+    }
+
+    /// Luck-adjusted random - matches rnl(x) from rnd.c
+    /// Note: This is a simplified version; full rnl requires game state (Luck).
+    pub fn rnl(&mut self, x: u32, luck: i32) -> u32 {
+        let mut i = self.rn2(x) as i32;
+        let adjustment = if x <= 15 {
+            (luck.abs() + 1) / 3 * luck.signum()
+        } else {
+            luck
+        };
+        if adjustment != 0 && self.rn2(37 + adjustment.unsigned_abs()) != 0 {
+            i -= adjustment;
+            if i < 0 {
+                i = 0;
+            } else if i >= x as i32 {
+                i = x as i32 - 1;
+            }
+        }
+        i as u32
+    }
+
+    /// Exponential distribution - matches rne(x) from rnd.c
+    /// C: `int rne(int x) { int utmp = (u.ulevel < 15) ? 5 : u.ulevel/3;
+    ///     int tmp = 1; while (tmp < utmp && !rn2(x)) tmp++; return tmp; }`
+    pub fn rne(&mut self, x: u32, player_level: u32) -> u32 {
+        let utmp = if player_level < 15 { 5 } else { player_level / 3 };
+        let mut tmp = 1u32;
+        while tmp < utmp && self.rn2(x) == 0 {
+            tmp += 1;
+        }
+        tmp
+    }
+
+    /// "Everyone's favorite" - matches rnz(i) from rnd.c
+    /// C implementation uses rn2(1000), rne(4), rn2(2) internally.
+    pub fn rnz(&mut self, i: i32, player_level: u32) -> i32 {
+        let mut x = i as i64;
+        let mut tmp = 1000i64;
+        tmp += self.rn2(1000) as i64;
+        tmp *= self.rne(4, player_level) as i64;
+        if self.rn2(2) != 0 {
+            x = x * tmp / 1000;
+        } else {
+            x = x * 1000 / tmp;
+        }
+        x as i32
     }
 }
 

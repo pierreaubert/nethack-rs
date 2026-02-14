@@ -1,0 +1,7 @@
+# Basic movement that may trigger combat encounters
+name: combat_basic
+seed: 456
+role: Valkyrie
+race: Human
+tags: combat,movement
+commands: lllllllllljjjjjjjjjjhhhhhhhhhh.kkkkkkkkkk

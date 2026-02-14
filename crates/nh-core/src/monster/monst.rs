@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
-use super::MonsterResistances;
+use super::{MonsterFlags, MonsterResistances};
 use crate::combat::AttackSet;
 use crate::object::Object;
 
@@ -75,6 +75,9 @@ pub struct MonsterState {
 
     /// Hasted
     pub hasted: bool,
+
+    /// Leashed to player
+    pub leashed: bool,
 }
 
 impl MonsterState {
@@ -196,6 +199,9 @@ pub struct Monster {
     /// Resistances (from PerMonst)
     pub resistances: MonsterResistances,
 
+    /// Monster flags (from PerMonst: UNDEAD, DEMON, FLY, etc.)
+    pub flags: MonsterFlags,
+
     /// Hit points
     pub hp: i32,
     pub hp_max: i32,
@@ -246,6 +252,9 @@ pub struct Monster {
     /// Traps seen (bitmask)
     pub traps_seen: u32,
 
+    /// Trapped turns remaining (0 = not trapped)
+    pub mtrapped: i32,
+
     /// Special flags
     pub is_shopkeeper: bool,
     pub is_priest: bool,
@@ -274,6 +283,7 @@ impl Monster {
             alignment: 0,
             ac: 10, // Default AC, set from PerMonst when spawning
             resistances: MonsterResistances::empty(), // Set from PerMonst when spawning
+            flags: MonsterFlags::empty(), // Set from PerMonst when spawning
             hp: 1,
             hp_max: 1,
             state: MonsterState::active(),
@@ -292,6 +302,7 @@ impl Monster {
             wielded: None,
             worn_mask: 0,
             traps_seen: 0,
+            mtrapped: 0,
             is_shopkeeper: false,
             is_priest: false,
             is_guard: false,
@@ -303,6 +314,21 @@ impl Monster {
     /// Check if monster is dead
     pub const fn is_dead(&self) -> bool {
         self.hp <= 0
+    }
+
+    /// Check if monster is undead
+    pub const fn is_undead(&self) -> bool {
+        self.flags.contains(MonsterFlags::UNDEAD)
+    }
+
+    /// Check if monster is a demon
+    pub const fn is_demon(&self) -> bool {
+        self.flags.contains(MonsterFlags::DEMON)
+    }
+
+    /// Check if monster can fly
+    pub const fn flies(&self) -> bool {
+        self.flags.contains(MonsterFlags::FLY)
     }
 
     /// Check if monster can move this turn

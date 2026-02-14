@@ -16,14 +16,27 @@ pub const fn gold_weight(amount: i32) -> u32 {
 }
 
 /// Check if an object can be picked up
-pub fn can_pickup(obj: &Object, _state: &GameState) -> bool {
-    // TODO: Check for cursed items stuck to floor
-    // TODO: Check for cockatrice corpses without gloves
-    // TODO: Check for loadstones
+pub fn can_pickup(obj: &Object, state: &GameState) -> bool {
     match obj.class {
-        ObjectClass::Ball | ObjectClass::Chain => false, // Punishment items
-        _ => true,
+        ObjectClass::Ball | ObjectClass::Chain => return false, // Punishment items
+        _ => {}
     }
+
+    // Cockatrice corpse without gloves -> petrification risk
+    if obj.class == ObjectClass::Food && obj.corpse_type == 10 /* PM_COCKATRICE */ {
+        let wearing_gloves = state.inventory.iter().any(|o| o.worn_mask & crate::action::wear::worn_mask::W_ARMG != 0);
+        if !wearing_gloves && !state.player.properties.has(crate::player::Property::StoneResistance) {
+            return false;
+        }
+    }
+
+    // Loadstones are cursed and cannot be dropped once picked up;
+    // warn the player by refusing pickup if the stone is known-cursed.
+    if obj.class == ObjectClass::Gem && obj.is_cursed() && obj.buc_known {
+        return false;
+    }
+
+    true
 }
 
 /// Check if picking up would exceed carrying capacity

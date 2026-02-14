@@ -3,8 +3,11 @@
 //! Verifies AC logic matches C implementation.
 
 use crate::c_interface_ffi::FfiGameEngine;
+#[cfg(test)]
+use serial_test::serial;
 
 #[test]
+#[serial]
 fn test_ac_update_on_wear() {
     let mut engine = FfiGameEngine::new();
     engine.init("Knight", "Human", 0, 0).unwrap();

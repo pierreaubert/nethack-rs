@@ -13,6 +13,9 @@ pub const MAXLEVEL: usize = 32;
 /// Maximum player level
 pub const MAXULEV: usize = 30;
 
+/// Maximum carrying capacity (from hack.h)
+pub const MAX_CARR_CAP: i32 = 1000;
+
 /// Movement speed constants (from permonst.h)
 pub const NORMAL_SPEED: i16 = 12;
 pub const FAST_SPEED: i16 = 18;

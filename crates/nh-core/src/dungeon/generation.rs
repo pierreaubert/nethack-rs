@@ -539,8 +539,6 @@ fn set_level_flags_for_room(flags: &mut LevelFlags, room_type: RoomType) {
 /// Place traps in the level
 /// Matches C's mktrap() logic from mklev.c
 fn place_traps(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
-    use super::Trap;
-
     if rooms.is_empty() {
         return;
     }
@@ -579,13 +577,7 @@ fn place_traps(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
         // Select trap type based on depth
         let trap_type = select_trap_type(depth, rng);
 
-        level.traps.push(Trap {
-            x: x as i8,
-            y: y as i8,
-            trap_type,
-            activated: false,
-            seen: false,
-        });
+        level.traps.push(crate::dungeon::trap::create_trap(x as i8, y as i8, trap_type));
     }
 }
 

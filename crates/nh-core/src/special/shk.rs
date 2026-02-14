@@ -2,13 +2,24 @@
 //!
 //! Handles shop mechanics, pricing, and shopkeeper interactions.
 
+use crate::action::ActionResult;
 use crate::gameloop::GameState;
 use crate::object::Object;
 
 use super::ShopType;
 
+/// Damage record for shop property damage
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ShopDamage {
+    /// Position where damage occurred
+    pub x: i8,
+    pub y: i8,
+    /// Cost of the damage
+    pub cost: i32,
+}
+
 /// Shop data for a level
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Shop {
     /// Shop type
     pub shop_type: ShopType,
@@ -18,10 +29,14 @@ pub struct Shop {
     pub bounds: (i8, i8, i8, i8),
     /// Whether the shop is open
     pub open: bool,
-    /// Total debt owed by player
+    /// Total debt owed by player (item purchases)
     pub debt: i32,
     /// Items the player has picked up but not paid for
     pub unpaid_items: Vec<crate::object::ObjectId>,
+    /// Damage the player has done to the shop (broken doors, walls, etc.)
+    pub damages: Vec<ShopDamage>,
+    /// Player credit with this shop
+    pub credit: i32,
 }
 
 impl Shop {
@@ -34,12 +49,39 @@ impl Shop {
             open: true,
             debt: 0,
             unpaid_items: Vec::new(),
+            damages: Vec::new(),
+            credit: 0,
         }
     }
 
     /// Check if a position is inside the shop
     pub fn contains(&self, x: i8, y: i8) -> bool {
         x >= self.bounds.0 && x <= self.bounds.2 && y >= self.bounds.1 && y <= self.bounds.3
+    }
+
+    /// Record damage to the shop at a position (broken door, wall, etc.)
+    pub fn add_damage(&mut self, x: i8, y: i8, cost: i32) {
+        // Merge with existing damage at same position
+        if let Some(d) = self.damages.iter_mut().find(|d| d.x == x && d.y == y) {
+            d.cost += cost;
+        } else {
+            self.damages.push(ShopDamage { x, y, cost });
+        }
+    }
+
+    /// Remove damage record at a position (when repaired or paid)
+    pub fn remove_damage(&mut self, x: i8, y: i8) {
+        self.damages.retain(|d| d.x != x || d.y != y);
+    }
+
+    /// Total damage cost
+    pub fn damage_cost(&self) -> i32 {
+        self.damages.iter().map(|d| d.cost).sum()
+    }
+
+    /// Total debt: unpaid items + property damage
+    pub fn total_debt(&self) -> i32 {
+        (self.debt + self.damage_cost() - self.credit).max(0)
     }
 
     /// Check if position is at the shop door
@@ -130,31 +172,44 @@ pub fn pickup_in_shop(state: &mut GameState, obj: &Object, shop: &mut Shop) {
     ));
 }
 
-/// Handle player paying for items
-pub fn pay_bill(state: &mut GameState, shop: &mut Shop) -> bool {
-    if shop.debt == 0 {
-        state.message("You don't owe anything.");
-        return true;
+/// Handle player paying for items by shop index
+pub fn pay_bill_at(state: &mut GameState, shop_idx: usize) -> ActionResult {
+    if shop_idx >= state.current_level.shops.len() {
+        state.message("There is nobody here to pay.");
+        return ActionResult::NoTime;
     }
 
-    if state.player.gold >= shop.debt {
-        state.player.gold -= shop.debt;
-        state.message(format!("You pay {} zorkmids.", shop.debt));
+    let total = state.current_level.shops[shop_idx].total_debt();
+    if total == 0 {
+        state.message("You don't owe anything.");
+        return ActionResult::NoTime;
+    }
+
+    if state.player.gold >= total {
+        state.player.gold -= total;
+        state.message(format!("You pay {} zorkmids.", total));
+        let shop = &mut state.current_level.shops[shop_idx];
         shop.debt = 0;
+        shop.credit = 0;
+        shop.damages.clear();
         shop.unpaid_items.clear();
-        
+
         // Mark items as paid
         for obj in &mut state.inventory {
             obj.unpaid = false;
         }
-        true
     } else {
+        // Partial payment: apply what we have
+        let paid = state.player.gold;
+        state.player.gold = 0;
+        state.current_level.shops[shop_idx].credit += paid;
+        let remaining = state.current_level.shops[shop_idx].total_debt();
         state.message(format!(
-            "You don't have enough gold. You owe {} zorkmids but only have {}.",
-            shop.debt, state.player.gold
+            "You pay {} zorkmids. You still owe {} zorkmids.",
+            paid, remaining
         ));
-        false
     }
+    ActionResult::Success
 }
 
 /// Handle player selling an item to shopkeeper
@@ -188,10 +243,11 @@ pub fn sell_item(state: &mut GameState, obj_letter: char) -> bool {
 
 /// Check if player is trying to leave shop with unpaid items
 pub fn check_leaving_shop(state: &mut GameState, shop: &Shop) -> bool {
-    if shop.debt > 0 {
+    let total = shop.total_debt();
+    if total > 0 {
         state.message(format!(
             "\"Hey! You owe me {} zorkmids!\"",
-            shop.debt
+            total
         ));
         return false;
     }
@@ -251,11 +307,46 @@ mod tests {
     #[test]
     fn test_shop_contains() {
         let shop = Shop::new(ShopType::General, (10, 10, 20, 15));
-        
+
         assert!(shop.contains(15, 12));
         assert!(shop.contains(10, 10));
         assert!(shop.contains(20, 15));
         assert!(!shop.contains(5, 5));
         assert!(!shop.contains(25, 12));
+    }
+
+    #[test]
+    fn test_shop_damage_tracking() {
+        let mut shop = Shop::new(ShopType::General, (10, 10, 20, 15));
+
+        shop.add_damage(12, 12, 50);
+        shop.add_damage(15, 12, 100);
+        assert_eq!(shop.damage_cost(), 150);
+
+        // Merge damage at same position
+        shop.add_damage(12, 12, 30);
+        assert_eq!(shop.damage_cost(), 180);
+        assert_eq!(shop.damages.len(), 2);
+
+        shop.remove_damage(12, 12);
+        assert_eq!(shop.damage_cost(), 100);
+        assert_eq!(shop.damages.len(), 1);
+    }
+
+    #[test]
+    fn test_shop_total_debt() {
+        let mut shop = Shop::new(ShopType::General, (10, 10, 20, 15));
+        shop.debt = 200;
+        shop.add_damage(12, 12, 50);
+
+        assert_eq!(shop.total_debt(), 250);
+
+        // Credit reduces total debt
+        shop.credit = 100;
+        assert_eq!(shop.total_debt(), 150);
+
+        // Credit can't make debt negative
+        shop.credit = 500;
+        assert_eq!(shop.total_debt(), 0);
     }
 }

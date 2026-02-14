@@ -29,7 +29,7 @@ pub enum RoomType {
 }
 
 /// Shop types
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ShopType {
     General,
     Armor,

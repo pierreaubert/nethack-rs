@@ -3,8 +3,11 @@
 //! Verifies inventory weight tracking matches C implementation.
 
 use crate::c_interface_ffi::FfiGameEngine;
+#[cfg(test)]
+use serial_test::serial;
 
 #[test]
+#[serial]
 fn test_inventory_weight_accumulation() {
     let mut engine = FfiGameEngine::new();
     engine.init("Tourist", "Human", 0, 0).unwrap();

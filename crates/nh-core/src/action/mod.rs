@@ -64,7 +64,7 @@ pub enum Command {
     Pray,
     Offer,
     Dip,
-    Engrave,
+    Engrave(String),
     Pay,
     Chat,
     Sit,

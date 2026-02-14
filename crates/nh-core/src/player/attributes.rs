@@ -102,30 +102,15 @@ impl Attributes {
         }
     }
 
-    /// Get carry capacity from strength
-    pub fn carry_capacity(&self) -> i32 {
-        let str = self.get(Attribute::Strength);
-        let base = match str {
-            ..=2 => 120,
-            3 => 250,
-            4 => 400,
-            5 => 450,
-            6 => 500,
-            7 => 550,
-            8 => 600,
-            9 => 650,
-            10 => 700,
-            11 => 750,
-            12 => 800,
-            13 => 850,
-            14 => 900,
-            15 => 950,
-            16 => 1000,
-            17 => 1050,
-            18 => 1100,
-            _ => 1100 + ((str - 18) as i32) * 25,
-        };
-        base.min(2500)
+    /// Base carry capacity from strength and constitution (C: weight_cap)
+    ///
+    /// Formula: `25 * (STR + CON) + 50`, matching C NetHack's weight_cap().
+    /// STR values above 18 use the 18/xx encoding (e.g., 19 = 18/01, 118 = 18/**).
+    pub fn base_carry_capacity(&self) -> i32 {
+        let str_val = self.get(Attribute::Strength) as i32;
+        let con_val = self.get(Attribute::Constitution) as i32;
+        let cap = 25 * (str_val + con_val) + 50;
+        cap.min(crate::MAX_CARR_CAP)
     }
 
     /// Get AC bonus from dexterity
