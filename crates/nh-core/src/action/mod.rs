@@ -3,19 +3,27 @@
 //! Implements player commands and actions.
 
 pub mod apply;
+pub mod commands;
 pub mod eat;
-pub mod pickup;
-pub mod wear;
-pub mod pray;
-pub mod open_close;
-pub mod kick;
 pub mod engrave;
-pub mod teleport;
-pub mod trap;
+pub mod extended;
+pub mod fountain;
+pub mod help;
+pub mod helpers;
+pub mod jump;
+pub mod keybindings;
+pub mod kick;
+pub mod open_close;
+pub mod pickup;
+pub mod pray;
 pub mod quaff;
 pub mod read;
-pub mod zap;
+pub mod search;
+pub mod teleport;
 pub mod throw;
+pub mod trap;
+pub mod wear;
+pub mod zap;
 
 /// Player command types
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,6 +75,7 @@ pub enum Command {
     Engrave(String),
     Pay,
     Chat,
+    Feed,
     Sit,
 
     // Meta
@@ -115,6 +124,88 @@ impl Direction {
     pub const fn is_vertical(&self) -> bool {
         matches!(self, Direction::Up | Direction::Down)
     }
+
+    /// Get direction from delta values (xytod equivalent)
+    ///
+    /// Returns the direction corresponding to the given dx, dy deltas,
+    /// or None if the deltas don't represent a valid direction.
+    pub const fn from_delta(dx: i8, dy: i8) -> Option<Self> {
+        match (dx, dy) {
+            (0, -1) => Some(Direction::North),
+            (0, 1) => Some(Direction::South),
+            (1, 0) => Some(Direction::East),
+            (-1, 0) => Some(Direction::West),
+            (1, -1) => Some(Direction::NorthEast),
+            (-1, -1) => Some(Direction::NorthWest),
+            (1, 1) => Some(Direction::SouthEast),
+            (-1, 1) => Some(Direction::SouthWest),
+            (0, 0) => Some(Direction::Self_),
+            _ => None,
+        }
+    }
+
+    /// Get the direction name as a string (directionname equivalent)
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Direction::North => "north",
+            Direction::South => "south",
+            Direction::East => "east",
+            Direction::West => "west",
+            Direction::NorthEast => "northeast",
+            Direction::NorthWest => "northwest",
+            Direction::SouthEast => "southeast",
+            Direction::SouthWest => "southwest",
+            Direction::Up => "up",
+            Direction::Down => "down",
+            Direction::Self_ => "self",
+        }
+    }
+
+    /// Check if this is a cardinal direction (N/S/E/W)
+    pub const fn is_cardinal(&self) -> bool {
+        matches!(
+            self,
+            Direction::North | Direction::South | Direction::East | Direction::West
+        )
+    }
+
+    /// Check if this is a diagonal direction
+    pub const fn is_diagonal(&self) -> bool {
+        matches!(
+            self,
+            Direction::NorthEast
+                | Direction::NorthWest
+                | Direction::SouthEast
+                | Direction::SouthWest
+        )
+    }
+
+    /// Get the opposite direction
+    pub const fn opposite(&self) -> Option<Self> {
+        match self {
+            Direction::North => Some(Direction::South),
+            Direction::South => Some(Direction::North),
+            Direction::East => Some(Direction::West),
+            Direction::West => Some(Direction::East),
+            Direction::NorthEast => Some(Direction::SouthWest),
+            Direction::NorthWest => Some(Direction::SouthEast),
+            Direction::SouthEast => Some(Direction::NorthWest),
+            Direction::SouthWest => Some(Direction::NorthEast),
+            Direction::Up => Some(Direction::Down),
+            Direction::Down => Some(Direction::Up),
+            Direction::Self_ => None,
+        }
+    }
+}
+
+/// Get direction from delta values (xytod equivalent)
+pub const fn xytod(dx: i8, dy: i8) -> Option<Direction> {
+    Direction::from_delta(dx, dy)
+}
+
+/// Get direction name as string (directionname equivalent)
+pub const fn directionname(dir: Direction) -> &'static str {
+    dir.name()
 }
 
 /// Result of executing a command

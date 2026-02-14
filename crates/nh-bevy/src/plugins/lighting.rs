@@ -101,8 +101,7 @@ fn update_player_light(
     // Update player light position
     if let Ok(player_transform) = player_query.get_single() {
         if let Ok(mut light_transform) = light_query.get_single_mut() {
-            light_transform.translation =
-                player_transform.translation + Vec3::Y * 1.5; // Light above player
+            light_transform.translation = player_transform.translation + Vec3::Y * 1.5; // Light above player
         }
     }
 

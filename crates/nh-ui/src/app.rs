@@ -1,11 +1,11 @@
 //! Application state and main UI controller
 
 use crossterm::event::{Event, KeyCode, KeyModifiers};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
-use ratatui::Frame;
 
 use nh_core::action::{Command, Direction as GameDirection};
 use nh_core::object::ObjectClass;
@@ -52,11 +52,26 @@ pub enum CharacterCreationState {
     /// Selecting role
     SelectRole { name: String, cursor: usize },
     /// Selecting race
-    SelectRace { name: String, role: Role, cursor: usize },
+    SelectRace {
+        name: String,
+        role: Role,
+        cursor: usize,
+    },
     /// Selecting gender
-    SelectGender { name: String, role: Role, race: Race, cursor: usize },
+    SelectGender {
+        name: String,
+        role: Role,
+        race: Race,
+        cursor: usize,
+    },
     /// Selecting alignment
-    SelectAlignment { name: String, role: Role, race: Race, gender: Gender, cursor: usize },
+    SelectAlignment {
+        name: String,
+        role: Role,
+        race: Race,
+        gender: Gender,
+        cursor: usize,
+    },
     /// Done - ready to start game
     Done {
         name: String,
@@ -196,7 +211,11 @@ impl App {
                 None
             }
             KeyCode::Char('a') => {
-                self.enter_item_select("Apply what?", PendingAction::Apply, Some(ObjectClass::Tool));
+                self.enter_item_select(
+                    "Apply what?",
+                    PendingAction::Apply,
+                    Some(ObjectClass::Tool),
+                );
                 None
             }
             KeyCode::Char('W') => {
@@ -204,11 +223,19 @@ impl App {
                 None
             }
             KeyCode::Char('T') => {
-                self.enter_item_select("Take off what?", PendingAction::TakeOff, Some(ObjectClass::Armor));
+                self.enter_item_select(
+                    "Take off what?",
+                    PendingAction::TakeOff,
+                    Some(ObjectClass::Armor),
+                );
                 None
             }
             KeyCode::Char('w') => {
-                self.enter_item_select("Wield what?", PendingAction::Wield, Some(ObjectClass::Weapon));
+                self.enter_item_select(
+                    "Wield what?",
+                    PendingAction::Wield,
+                    Some(ObjectClass::Weapon),
+                );
                 None
             }
             KeyCode::Char('P') => {
@@ -220,11 +247,19 @@ impl App {
                 None
             }
             KeyCode::Char('q') => {
-                self.enter_item_select("Quaff what?", PendingAction::Quaff, Some(ObjectClass::Potion));
+                self.enter_item_select(
+                    "Quaff what?",
+                    PendingAction::Quaff,
+                    Some(ObjectClass::Potion),
+                );
                 None
             }
             KeyCode::Char('r') => {
-                self.enter_item_select("Read what?", PendingAction::Read, Some(ObjectClass::Scroll));
+                self.enter_item_select(
+                    "Read what?",
+                    PendingAction::Read,
+                    Some(ObjectClass::Scroll),
+                );
                 None
             }
             KeyCode::Char('z') => {
@@ -296,7 +331,9 @@ impl App {
                     self.mode = UiMode::Normal;
                     Some(self.action_with_item(action, c))
                 } else {
-                    self.game_loop.state_mut().message("You don't have that item.");
+                    self.game_loop
+                        .state_mut()
+                        .message("You don't have that item.");
                     None
                 }
             }
@@ -352,7 +389,12 @@ impl App {
     }
 
     /// Enter item selection mode
-    fn enter_item_select(&mut self, prompt: &str, action: PendingAction, filter: Option<ObjectClass>) {
+    fn enter_item_select(
+        &mut self,
+        prompt: &str,
+        action: PendingAction,
+        filter: Option<ObjectClass>,
+    ) {
         self.mode = UiMode::ItemSelect {
             prompt: prompt.to_string(),
             action,
@@ -422,7 +464,9 @@ impl App {
 
         match &result {
             GameLoopResult::PlayerDied(cause) => {
-                self.mode = UiMode::DeathScreen { cause: cause.clone() };
+                self.mode = UiMode::DeathScreen {
+                    cause: cause.clone(),
+                };
             }
             GameLoopResult::PlayerQuit => {
                 self.should_quit = true;
@@ -626,7 +670,10 @@ impl App {
                 .map(|obj| {
                     let name = obj.name.as_deref().unwrap_or("item");
                     let text = format!("{} - {}", obj.inv_letter, name);
-                    ListItem::new(Line::from(Span::styled(text, Style::default().fg(Color::White))))
+                    ListItem::new(Line::from(Span::styled(
+                        text,
+                        Style::default().fg(Color::White),
+                    )))
                 })
                 .collect();
 
@@ -712,44 +759,49 @@ Press ESC or SPACE to close"#;
         };
 
         let new_state = match current_state {
-            CharacterCreationState::EnterName { mut name } => {
-                match key.code {
-                    KeyCode::Enter => {
-                        if name.is_empty() {
-                            name = "Player".to_string();
-                        }
-                        CharacterCreationState::AskRandom { name, cursor: 0 }
+            CharacterCreationState::EnterName { mut name } => match key.code {
+                KeyCode::Enter => {
+                    if name.is_empty() {
+                        name = "Player".to_string();
                     }
-                    KeyCode::Backspace => {
-                        name.pop();
-                        CharacterCreationState::EnterName { name }
-                    }
-                    KeyCode::Char(c) if name.len() < 32 => {
-                        name.push(c);
-                        CharacterCreationState::EnterName { name }
-                    }
-                    KeyCode::Esc => {
-                        self.should_quit = true;
-                        return;
-                    }
-                    _ => CharacterCreationState::EnterName { name }
+                    CharacterCreationState::AskRandom { name, cursor: 0 }
                 }
-            }
+                KeyCode::Backspace => {
+                    name.pop();
+                    CharacterCreationState::EnterName { name }
+                }
+                KeyCode::Char(c) if name.len() < 32 => {
+                    name.push(c);
+                    CharacterCreationState::EnterName { name }
+                }
+                KeyCode::Esc => {
+                    self.should_quit = true;
+                    return;
+                }
+                _ => CharacterCreationState::EnterName { name },
+            },
             CharacterCreationState::AskRandom { name, cursor } => {
                 match key.code {
                     KeyCode::Char('y') | KeyCode::Char('Y') => {
                         // Random selection
                         let roles: Vec<Role> = Role::iter().collect();
                         let races: Vec<Race> = Race::iter().collect();
-                        let genders: Vec<Gender> = Gender::iter().filter(|g| *g != Gender::Neuter).collect();
+                        let genders: Vec<Gender> =
+                            Gender::iter().filter(|g| *g != Gender::Neuter).collect();
                         let aligns: Vec<AlignmentType> = AlignmentType::iter().collect();
-                        
+
                         let role = roles[self.selection_cursor % roles.len()];
                         let race = races[(self.selection_cursor / 2) % races.len()];
                         let gender = genders[(self.selection_cursor / 3) % genders.len()];
                         let alignment = aligns[(self.selection_cursor / 5) % aligns.len()];
-                        
-                        CharacterCreationState::Done { name, role, race, gender, alignment }
+
+                        CharacterCreationState::Done {
+                            name,
+                            role,
+                            race,
+                            gender,
+                            alignment,
+                        }
                     }
                     KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Enter => {
                         CharacterCreationState::SelectRole { name, cursor: 0 }
@@ -758,141 +810,297 @@ Press ESC or SPACE to close"#;
                         self.should_quit = true;
                         return;
                     }
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        CharacterCreationState::AskRandom { name, cursor: if cursor == 0 { 1 } else { 0 } }
-                    }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        CharacterCreationState::AskRandom { name, cursor: if cursor == 0 { 1 } else { 0 } }
-                    }
-                    _ => CharacterCreationState::AskRandom { name, cursor }
+                    KeyCode::Up | KeyCode::Char('k') => CharacterCreationState::AskRandom {
+                        name,
+                        cursor: if cursor == 0 { 1 } else { 0 },
+                    },
+                    KeyCode::Down | KeyCode::Char('j') => CharacterCreationState::AskRandom {
+                        name,
+                        cursor: if cursor == 0 { 1 } else { 0 },
+                    },
+                    _ => CharacterCreationState::AskRandom { name, cursor },
                 }
             }
             CharacterCreationState::SelectRole { name, cursor } => {
                 let roles: Vec<Role> = Role::iter().collect();
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => {
-                        let new_cursor = if cursor == 0 { roles.len() - 1 } else { cursor - 1 };
-                        CharacterCreationState::SelectRole { name, cursor: new_cursor }
+                        let new_cursor = if cursor == 0 {
+                            roles.len() - 1
+                        } else {
+                            cursor - 1
+                        };
+                        CharacterCreationState::SelectRole {
+                            name,
+                            cursor: new_cursor,
+                        }
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
                         let new_cursor = (cursor + 1) % roles.len();
-                        CharacterCreationState::SelectRole { name, cursor: new_cursor }
+                        CharacterCreationState::SelectRole {
+                            name,
+                            cursor: new_cursor,
+                        }
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => {
                         let role = roles[cursor];
-                        CharacterCreationState::SelectRace { name, role, cursor: 0 }
+                        CharacterCreationState::SelectRace {
+                            name,
+                            role,
+                            cursor: 0,
+                        }
                     }
                     KeyCode::Char('*') => {
                         let role = roles[self.selection_cursor % roles.len()];
                         self.selection_cursor = self.selection_cursor.wrapping_add(7);
-                        CharacterCreationState::SelectRace { name, role, cursor: 0 }
+                        CharacterCreationState::SelectRace {
+                            name,
+                            role,
+                            cursor: 0,
+                        }
                     }
                     KeyCode::Char(c) if c.is_ascii_lowercase() => {
                         let idx = (c as u8 - b'a') as usize;
                         if idx < roles.len() {
                             let role = roles[idx];
-                            CharacterCreationState::SelectRace { name, role, cursor: 0 }
+                            CharacterCreationState::SelectRace {
+                                name,
+                                role,
+                                cursor: 0,
+                            }
                         } else {
                             CharacterCreationState::SelectRole { name, cursor }
                         }
                     }
                     KeyCode::Esc => CharacterCreationState::AskRandom { name, cursor: 0 },
-                    _ => CharacterCreationState::SelectRole { name, cursor }
+                    _ => CharacterCreationState::SelectRole { name, cursor },
                 }
             }
             CharacterCreationState::SelectRace { name, role, cursor } => {
                 let races: Vec<Race> = Race::iter().collect();
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => {
-                        let new_cursor = if cursor == 0 { races.len() - 1 } else { cursor - 1 };
-                        CharacterCreationState::SelectRace { name, role, cursor: new_cursor }
+                        let new_cursor = if cursor == 0 {
+                            races.len() - 1
+                        } else {
+                            cursor - 1
+                        };
+                        CharacterCreationState::SelectRace {
+                            name,
+                            role,
+                            cursor: new_cursor,
+                        }
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
                         let new_cursor = (cursor + 1) % races.len();
-                        CharacterCreationState::SelectRace { name, role, cursor: new_cursor }
+                        CharacterCreationState::SelectRace {
+                            name,
+                            role,
+                            cursor: new_cursor,
+                        }
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => {
                         let race = races[cursor];
-                        CharacterCreationState::SelectGender { name, role, race, cursor: 0 }
+                        CharacterCreationState::SelectGender {
+                            name,
+                            role,
+                            race,
+                            cursor: 0,
+                        }
                     }
                     KeyCode::Char('*') => {
                         let race = races[self.selection_cursor % races.len()];
                         self.selection_cursor = self.selection_cursor.wrapping_add(3);
-                        CharacterCreationState::SelectGender { name, role, race, cursor: 0 }
+                        CharacterCreationState::SelectGender {
+                            name,
+                            role,
+                            race,
+                            cursor: 0,
+                        }
                     }
                     KeyCode::Char(c) if c.is_ascii_lowercase() => {
                         let idx = (c as u8 - b'a') as usize;
                         if idx < races.len() {
                             let race = races[idx];
-                            CharacterCreationState::SelectGender { name, role, race, cursor: 0 }
+                            CharacterCreationState::SelectGender {
+                                name,
+                                role,
+                                race,
+                                cursor: 0,
+                            }
                         } else {
                             CharacterCreationState::SelectRace { name, role, cursor }
                         }
                     }
                     KeyCode::Esc => CharacterCreationState::SelectRole { name, cursor: 0 },
-                    _ => CharacterCreationState::SelectRace { name, role, cursor }
+                    _ => CharacterCreationState::SelectRace { name, role, cursor },
                 }
             }
-            CharacterCreationState::SelectGender { name, role, race, cursor } => {
+            CharacterCreationState::SelectGender {
+                name,
+                role,
+                race,
+                cursor,
+            } => {
                 let genders = [Gender::Male, Gender::Female];
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => {
                         let new_cursor = if cursor == 0 { 1 } else { 0 };
-                        CharacterCreationState::SelectGender { name, role, race, cursor: new_cursor }
+                        CharacterCreationState::SelectGender {
+                            name,
+                            role,
+                            race,
+                            cursor: new_cursor,
+                        }
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
                         let new_cursor = if cursor == 0 { 1 } else { 0 };
-                        CharacterCreationState::SelectGender { name, role, race, cursor: new_cursor }
+                        CharacterCreationState::SelectGender {
+                            name,
+                            role,
+                            race,
+                            cursor: new_cursor,
+                        }
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => {
                         let gender = genders[cursor];
-                        CharacterCreationState::SelectAlignment { name, role, race, gender, cursor: 0 }
+                        CharacterCreationState::SelectAlignment {
+                            name,
+                            role,
+                            race,
+                            gender,
+                            cursor: 0,
+                        }
                     }
                     KeyCode::Char('m') | KeyCode::Char('M') => {
-                        CharacterCreationState::SelectAlignment { name, role, race, gender: Gender::Male, cursor: 0 }
+                        CharacterCreationState::SelectAlignment {
+                            name,
+                            role,
+                            race,
+                            gender: Gender::Male,
+                            cursor: 0,
+                        }
                     }
                     KeyCode::Char('f') | KeyCode::Char('F') => {
-                        CharacterCreationState::SelectAlignment { name, role, race, gender: Gender::Female, cursor: 0 }
+                        CharacterCreationState::SelectAlignment {
+                            name,
+                            role,
+                            race,
+                            gender: Gender::Female,
+                            cursor: 0,
+                        }
                     }
                     KeyCode::Char('*') => {
                         let gender = genders[self.selection_cursor % 2];
                         self.selection_cursor = self.selection_cursor.wrapping_add(1);
-                        CharacterCreationState::SelectAlignment { name, role, race, gender, cursor: 0 }
+                        CharacterCreationState::SelectAlignment {
+                            name,
+                            role,
+                            race,
+                            gender,
+                            cursor: 0,
+                        }
                     }
-                    KeyCode::Esc => CharacterCreationState::SelectRace { name, role, cursor: 0 },
-                    _ => CharacterCreationState::SelectGender { name, role, race, cursor }
+                    KeyCode::Esc => CharacterCreationState::SelectRace {
+                        name,
+                        role,
+                        cursor: 0,
+                    },
+                    _ => CharacterCreationState::SelectGender {
+                        name,
+                        role,
+                        race,
+                        cursor,
+                    },
                 }
             }
-            CharacterCreationState::SelectAlignment { name, role, race, gender, cursor } => {
-                let aligns = [AlignmentType::Lawful, AlignmentType::Neutral, AlignmentType::Chaotic];
+            CharacterCreationState::SelectAlignment {
+                name,
+                role,
+                race,
+                gender,
+                cursor,
+            } => {
+                let aligns = [
+                    AlignmentType::Lawful,
+                    AlignmentType::Neutral,
+                    AlignmentType::Chaotic,
+                ];
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => {
                         let new_cursor = if cursor == 0 { 2 } else { cursor - 1 };
-                        CharacterCreationState::SelectAlignment { name, role, race, gender, cursor: new_cursor }
+                        CharacterCreationState::SelectAlignment {
+                            name,
+                            role,
+                            race,
+                            gender,
+                            cursor: new_cursor,
+                        }
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
                         let new_cursor = (cursor + 1) % 3;
-                        CharacterCreationState::SelectAlignment { name, role, race, gender, cursor: new_cursor }
+                        CharacterCreationState::SelectAlignment {
+                            name,
+                            role,
+                            race,
+                            gender,
+                            cursor: new_cursor,
+                        }
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => {
                         let alignment = aligns[cursor];
-                        CharacterCreationState::Done { name, role, race, gender, alignment }
+                        CharacterCreationState::Done {
+                            name,
+                            role,
+                            race,
+                            gender,
+                            alignment,
+                        }
                     }
-                    KeyCode::Char('l') | KeyCode::Char('L') => {
-                        CharacterCreationState::Done { name, role, race, gender, alignment: AlignmentType::Lawful }
-                    }
-                    KeyCode::Char('n') | KeyCode::Char('N') => {
-                        CharacterCreationState::Done { name, role, race, gender, alignment: AlignmentType::Neutral }
-                    }
-                    KeyCode::Char('c') | KeyCode::Char('C') => {
-                        CharacterCreationState::Done { name, role, race, gender, alignment: AlignmentType::Chaotic }
-                    }
+                    KeyCode::Char('l') | KeyCode::Char('L') => CharacterCreationState::Done {
+                        name,
+                        role,
+                        race,
+                        gender,
+                        alignment: AlignmentType::Lawful,
+                    },
+                    KeyCode::Char('n') | KeyCode::Char('N') => CharacterCreationState::Done {
+                        name,
+                        role,
+                        race,
+                        gender,
+                        alignment: AlignmentType::Neutral,
+                    },
+                    KeyCode::Char('c') | KeyCode::Char('C') => CharacterCreationState::Done {
+                        name,
+                        role,
+                        race,
+                        gender,
+                        alignment: AlignmentType::Chaotic,
+                    },
                     KeyCode::Char('*') => {
                         let alignment = aligns[self.selection_cursor % 3];
-                        CharacterCreationState::Done { name, role, race, gender, alignment }
+                        CharacterCreationState::Done {
+                            name,
+                            role,
+                            race,
+                            gender,
+                            alignment,
+                        }
                     }
-                    KeyCode::Esc => CharacterCreationState::SelectGender { name, role, race, cursor: 0 },
-                    _ => CharacterCreationState::SelectAlignment { name, role, race, gender, cursor }
+                    KeyCode::Esc => CharacterCreationState::SelectGender {
+                        name,
+                        role,
+                        race,
+                        cursor: 0,
+                    },
+                    _ => CharacterCreationState::SelectAlignment {
+                        name,
+                        role,
+                        race,
+                        gender,
+                        cursor,
+                    },
                 }
             }
             CharacterCreationState::Done { .. } => {
@@ -911,63 +1119,99 @@ Press ESC or SPACE to close"#;
         frame.render_widget(Clear, area);
 
         // Build items as owned Strings to avoid lifetime issues
-        let (title, items, cursor, footer): (&str, Vec<(String, String)>, usize, &str) = match &state {
-            CharacterCreationState::EnterName { name } => {
-                let display = if name.is_empty() {
-                    "_".to_string()
-                } else {
-                    format!("{}_", name)
-                };
-                let items = vec![("".to_string(), display)];
-                ("Who are you?", items, 0, "Type your name, Enter to confirm, Esc to quit")
-            }
-            CharacterCreationState::AskRandom { cursor, .. } => {
-                let items = vec![
-                    ("y".to_string(), "Yes, pick for me".to_string()),
-                    ("n".to_string(), "No, let me choose".to_string()),
-                ];
-                ("Shall I pick a character for you?", items, *cursor, "Press y/n or q to quit")
-            }
-            CharacterCreationState::SelectRole { cursor, .. } => {
-                let roles: Vec<Role> = Role::iter().collect();
-                let items: Vec<(String, String)> = roles.iter().enumerate()
-                    .map(|(i, r)| {
-                        let key = ((b'a' + i as u8) as char).to_string();
-                        (key, r.to_string())
-                    })
-                    .collect();
-                ("Pick a role:", items, *cursor, "jk/arrows to move, Enter to select, * random, Esc back")
-            }
-            CharacterCreationState::SelectRace { cursor, .. } => {
-                let races: Vec<Race> = Race::iter().collect();
-                let items: Vec<(String, String)> = races.iter().enumerate()
-                    .map(|(i, r)| {
-                        let key = ((b'a' + i as u8) as char).to_string();
-                        (key, r.to_string())
-                    })
-                    .collect();
-                ("Pick a race:", items, *cursor, "jk/arrows to move, Enter to select, * random, Esc back")
-            }
-            CharacterCreationState::SelectGender { cursor, .. } => {
-                let items = vec![
-                    ("m".to_string(), "Male".to_string()),
-                    ("f".to_string(), "Female".to_string()),
-                ];
-                ("Pick a gender:", items, *cursor, "jk/arrows to move, Enter to select, * random, Esc back")
-            }
-            CharacterCreationState::SelectAlignment { cursor, .. } => {
-                let items = vec![
-                    ("l".to_string(), "Lawful".to_string()),
-                    ("n".to_string(), "Neutral".to_string()),
-                    ("c".to_string(), "Chaotic".to_string()),
-                ];
-                ("Pick an alignment:", items, *cursor, "jk/arrows to move, Enter to select, * random, Esc back")
-            }
-            CharacterCreationState::Done { .. } => {
-                let items: Vec<(String, String)> = vec![("".to_string(), "Press any key to start".to_string())];
-                ("Character Created!", items, 0, "Your adventure begins!")
-            }
-        };
+        let (title, items, cursor, footer): (&str, Vec<(String, String)>, usize, &str) =
+            match &state {
+                CharacterCreationState::EnterName { name } => {
+                    let display = if name.is_empty() {
+                        "_".to_string()
+                    } else {
+                        format!("{}_", name)
+                    };
+                    let items = vec![("".to_string(), display)];
+                    (
+                        "Who are you?",
+                        items,
+                        0,
+                        "Type your name, Enter to confirm, Esc to quit",
+                    )
+                }
+                CharacterCreationState::AskRandom { cursor, .. } => {
+                    let items = vec![
+                        ("y".to_string(), "Yes, pick for me".to_string()),
+                        ("n".to_string(), "No, let me choose".to_string()),
+                    ];
+                    (
+                        "Shall I pick a character for you?",
+                        items,
+                        *cursor,
+                        "Press y/n or q to quit",
+                    )
+                }
+                CharacterCreationState::SelectRole { cursor, .. } => {
+                    let roles: Vec<Role> = Role::iter().collect();
+                    let items: Vec<(String, String)> = roles
+                        .iter()
+                        .enumerate()
+                        .map(|(i, r)| {
+                            let key = ((b'a' + i as u8) as char).to_string();
+                            (key, r.to_string())
+                        })
+                        .collect();
+                    (
+                        "Pick a role:",
+                        items,
+                        *cursor,
+                        "jk/arrows to move, Enter to select, * random, Esc back",
+                    )
+                }
+                CharacterCreationState::SelectRace { cursor, .. } => {
+                    let races: Vec<Race> = Race::iter().collect();
+                    let items: Vec<(String, String)> = races
+                        .iter()
+                        .enumerate()
+                        .map(|(i, r)| {
+                            let key = ((b'a' + i as u8) as char).to_string();
+                            (key, r.to_string())
+                        })
+                        .collect();
+                    (
+                        "Pick a race:",
+                        items,
+                        *cursor,
+                        "jk/arrows to move, Enter to select, * random, Esc back",
+                    )
+                }
+                CharacterCreationState::SelectGender { cursor, .. } => {
+                    let items = vec![
+                        ("m".to_string(), "Male".to_string()),
+                        ("f".to_string(), "Female".to_string()),
+                    ];
+                    (
+                        "Pick a gender:",
+                        items,
+                        *cursor,
+                        "jk/arrows to move, Enter to select, * random, Esc back",
+                    )
+                }
+                CharacterCreationState::SelectAlignment { cursor, .. } => {
+                    let items = vec![
+                        ("l".to_string(), "Lawful".to_string()),
+                        ("n".to_string(), "Neutral".to_string()),
+                        ("c".to_string(), "Chaotic".to_string()),
+                    ];
+                    (
+                        "Pick an alignment:",
+                        items,
+                        *cursor,
+                        "jk/arrows to move, Enter to select, * random, Esc back",
+                    )
+                }
+                CharacterCreationState::Done { .. } => {
+                    let items: Vec<(String, String)> =
+                        vec![("".to_string(), "Press any key to start".to_string())];
+                    ("Character Created!", items, 0, "Your adventure begins!")
+                }
+            };
 
         let block = Block::default()
             .title(title)
@@ -978,7 +1222,9 @@ Press ESC or SPACE to close"#;
         frame.render_widget(block, area);
 
         // Render items as a list with cursor highlight
-        let list_items: Vec<ListItem> = items.iter().enumerate()
+        let list_items: Vec<ListItem> = items
+            .iter()
+            .enumerate()
             .map(|(i, (key, label))| {
                 let style = if i == cursor {
                     Style::default().fg(Color::Yellow).bg(Color::DarkGray)
@@ -996,15 +1242,15 @@ Press ESC or SPACE to close"#;
             .collect();
 
         let list = List::new(list_items);
-        
+
         // Split inner area for list and footer
         let inner_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(1), Constraint::Length(1)])
             .split(inner);
-        
+
         frame.render_widget(list, inner_chunks[0]);
-        
+
         let footer_para = Paragraph::new(footer)
             .style(Style::default().fg(Color::DarkGray))
             .alignment(ratatui::layout::Alignment::Center);
@@ -1013,17 +1259,27 @@ Press ESC or SPACE to close"#;
 
     /// Start character creation mode
     pub fn start_character_creation(&mut self) {
-        self.mode = UiMode::CharacterCreation(CharacterCreationState::EnterName { name: String::new() });
+        self.mode = UiMode::CharacterCreation(CharacterCreationState::EnterName {
+            name: String::new(),
+        });
     }
 
     /// Start character creation with a pre-set name (from CLI)
     pub fn start_character_creation_with_name(&mut self, name: String) {
-        self.mode = UiMode::CharacterCreation(CharacterCreationState::AskRandom { name, cursor: 0 });
+        self.mode =
+            UiMode::CharacterCreation(CharacterCreationState::AskRandom { name, cursor: 0 });
     }
 
     /// Check if character creation is complete and get the choices
     pub fn get_character_choices(&self) -> Option<CharacterChoices> {
-        if let UiMode::CharacterCreation(CharacterCreationState::Done { name, role, race, gender, alignment }) = &self.mode {
+        if let UiMode::CharacterCreation(CharacterCreationState::Done {
+            name,
+            role,
+            race,
+            gender,
+            alignment,
+        }) = &self.mode
+        {
             Some(CharacterChoices {
                 name: name.clone(),
                 role: *role,
@@ -1070,16 +1326,20 @@ Press ESC or SPACE to close"#;
         let mut lines: Vec<Line> = Vec::new();
 
         // Title
-        lines.push(Line::from(vec![
-            Span::styled("  R.I.P.  ", Style::default().fg(Color::Red).bold()),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "  R.I.P.  ",
+            Style::default().fg(Color::Red).bold(),
+        )]));
         lines.push(Line::from(""));
 
         // Player identity
         lines.push(Line::from(vec![
             Span::styled(&player.name, Style::default().fg(Color::White).bold()),
             Span::raw(" the "),
-            Span::styled(format!("{:?}", player.role), Style::default().fg(Color::Yellow)),
+            Span::styled(
+                format!("{:?}", player.role),
+                Style::default().fg(Color::Yellow),
+            ),
         ]));
         lines.push(Line::from(""));
 
@@ -1091,7 +1351,10 @@ Press ESC or SPACE to close"#;
         lines.push(Line::from(""));
 
         // Basic stats
-        lines.push(Line::from(Span::styled("── Statistics ──", Style::default().fg(Color::Cyan))));
+        lines.push(Line::from(Span::styled(
+            "── Statistics ──",
+            Style::default().fg(Color::Cyan),
+        )));
         lines.push(Line::from(format!(
             "  Race: {:?}    Gender: {:?}    Alignment: {:?}",
             player.race, player.gender, player.alignment.typ
@@ -1102,7 +1365,10 @@ Press ESC or SPACE to close"#;
         )));
         lines.push(Line::from(format!(
             "  HP: {}/{}    Energy: {}/{}",
-            player.hp.max(0), player.hp_max, player.energy, player.energy_max
+            player.hp.max(0),
+            player.hp_max,
+            player.energy,
+            player.energy_max
         )));
         lines.push(Line::from(format!(
             "  Gold: {}    Turns: {}",
@@ -1115,7 +1381,10 @@ Press ESC or SPACE to close"#;
         lines.push(Line::from(""));
 
         // Attributes
-        lines.push(Line::from(Span::styled("── Attributes ──", Style::default().fg(Color::Cyan))));
+        lines.push(Line::from(Span::styled(
+            "── Attributes ──",
+            Style::default().fg(Color::Cyan),
+        )));
         lines.push(Line::from(format!(
             "  Str: {:2}  Dex: {:2}  Con: {:2}  Int: {:2}  Wis: {:2}  Cha: {:2}",
             player.attr_current.get(Attribute::Strength),
@@ -1128,7 +1397,10 @@ Press ESC or SPACE to close"#;
         lines.push(Line::from(""));
 
         // Conducts
-        lines.push(Line::from(Span::styled("── Conducts ──", Style::default().fg(Color::Cyan))));
+        lines.push(Line::from(Span::styled(
+            "── Conducts ──",
+            Style::default().fg(Color::Cyan),
+        )));
         let mut conducts_maintained: Vec<&str> = Vec::new();
         let mut conducts_broken: Vec<String> = Vec::new();
 
@@ -1185,7 +1457,10 @@ Press ESC or SPACE to close"#;
         if !conducts_maintained.is_empty() {
             lines.push(Line::from(vec![
                 Span::raw("  Maintained: "),
-                Span::styled(conducts_maintained.join(", "), Style::default().fg(Color::Green)),
+                Span::styled(
+                    conducts_maintained.join(", "),
+                    Style::default().fg(Color::Green),
+                ),
             ]));
         }
         if !conducts_broken.is_empty() {
@@ -1203,17 +1478,31 @@ Press ESC or SPACE to close"#;
         lines.push(Line::from(""));
 
         // Inventory summary
-        lines.push(Line::from(Span::styled("── Inventory ──", Style::default().fg(Color::Cyan))));
+        lines.push(Line::from(Span::styled(
+            "── Inventory ──",
+            Style::default().fg(Color::Cyan),
+        )));
         let inv_count = state.inventory.len();
         if inv_count == 0 {
             lines.push(Line::from("  No items"));
         } else {
-            lines.push(Line::from(format!("  {} item{}", inv_count, if inv_count == 1 { "" } else { "s" })));
+            lines.push(Line::from(format!(
+                "  {} item{}",
+                inv_count,
+                if inv_count == 1 { "" } else { "s" }
+            )));
             // Show first few items
             for (i, item) in state.inventory.iter().take(5).enumerate() {
-                let item_name = item.name.as_deref().map(|s| s.to_string())
+                let item_name = item
+                    .name
+                    .as_deref()
+                    .map(|s| s.to_string())
                     .unwrap_or_else(|| format!("{:?}", item.class));
-                lines.push(Line::from(format!("    {} - {}", (b'a' + i as u8) as char, item_name)));
+                lines.push(Line::from(format!(
+                    "    {} - {}",
+                    (b'a' + i as u8) as char,
+                    item_name
+                )));
             }
             if inv_count > 5 {
                 lines.push(Line::from(format!("    ... and {} more", inv_count - 5)));
@@ -1280,7 +1569,10 @@ mod tests {
         let mode = UiMode::DeathScreen {
             cause: cause.to_string(),
         };
-        if let UiMode::DeathScreen { cause: stored_cause } = mode {
+        if let UiMode::DeathScreen {
+            cause: stored_cause,
+        } = mode
+        {
             assert_eq!(stored_cause, cause);
         } else {
             panic!("Expected DeathScreen mode");

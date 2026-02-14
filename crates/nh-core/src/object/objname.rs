@@ -2,7 +2,7 @@
 //!
 //! Functions for generating object names from ObjClassDef data.
 
-use super::{Object, ObjectClass, ObjClassDef};
+use super::{ObjClassDef, Object, ObjectClass};
 
 /// Discovery state for a type of object
 #[derive(Debug, Clone, Copy, Default)]
@@ -78,7 +78,10 @@ pub fn base_object_name<'a>(def: &'a ObjClassDef, knowledge: &ObjectKnowledge) -
 
         ObjectClass::Potion => {
             if knowledge.name_known {
-                format!("potion of {}", def.name.strip_prefix("potion of ").unwrap_or(def.name))
+                format!(
+                    "potion of {}",
+                    def.name.strip_prefix("potion of ").unwrap_or(def.name)
+                )
             } else if let Some(user_name) = knowledge.user_name {
                 format!("potion called {}", user_name)
             } else if !def.description.is_empty() {
@@ -90,7 +93,10 @@ pub fn base_object_name<'a>(def: &'a ObjClassDef, knowledge: &ObjectKnowledge) -
 
         ObjectClass::Scroll => {
             if knowledge.name_known {
-                format!("scroll of {}", def.name.strip_prefix("scroll of ").unwrap_or(def.name))
+                format!(
+                    "scroll of {}",
+                    def.name.strip_prefix("scroll of ").unwrap_or(def.name)
+                )
             } else if let Some(user_name) = knowledge.user_name {
                 format!("scroll called {}", user_name)
             } else if !def.description.is_empty() {
@@ -105,7 +111,10 @@ pub fn base_object_name<'a>(def: &'a ObjClassDef, knowledge: &ObjectKnowledge) -
                 // Unique books like Book of the Dead
                 typename.to_string()
             } else if knowledge.name_known {
-                format!("spellbook of {}", def.name.strip_prefix("spellbook of ").unwrap_or(def.name))
+                format!(
+                    "spellbook of {}",
+                    def.name.strip_prefix("spellbook of ").unwrap_or(def.name)
+                )
             } else if let Some(user_name) = knowledge.user_name {
                 format!("spellbook called {}", user_name)
             } else if !def.description.is_empty() {
@@ -117,7 +126,10 @@ pub fn base_object_name<'a>(def: &'a ObjClassDef, knowledge: &ObjectKnowledge) -
 
         ObjectClass::Wand => {
             if knowledge.name_known {
-                format!("wand of {}", def.name.strip_prefix("wand of ").unwrap_or(def.name))
+                format!(
+                    "wand of {}",
+                    def.name.strip_prefix("wand of ").unwrap_or(def.name)
+                )
             } else if let Some(user_name) = knowledge.user_name {
                 format!("wand called {}", user_name)
             } else if !def.description.is_empty() {
@@ -354,6 +366,28 @@ pub fn the_upper(word: &str) -> String {
     }
 }
 
+/// Capitalized "a/an" prefix (An equivalent)
+pub fn an_capitalized(word: &str) -> String {
+    crate::upstart(&an(word))
+}
+
+/// Alias for an_capitalized (matches C NetHack naming)
+#[allow(non_snake_case)]
+pub fn An(word: &str) -> String {
+    an_capitalized(word)
+}
+
+/// Capitalized "the" prefix (The equivalent)
+pub fn the_capitalized(word: &str) -> String {
+    crate::upstart(&the(word))
+}
+
+/// Alias for the_capitalized (matches C NetHack naming)
+#[allow(non_snake_case)]
+pub fn The(word: &str) -> String {
+    the_capitalized(word)
+}
+
 /// Format quantity with pluralization.
 pub fn quantity_name(count: i32, singular: &str) -> String {
     if count == 1 {
@@ -535,8 +569,12 @@ pub fn makesingular(word: &str) -> String {
     // Words ending in "es" (after ch, sh, s, x, z)
     if word.ends_with("es") && word.len() > 2 {
         let base = &word[..word.len() - 2];
-        if base.ends_with("ch") || base.ends_with("sh") ||
-           base.ends_with('s') || base.ends_with('x') || base.ends_with('z') {
+        if base.ends_with("ch")
+            || base.ends_with("sh")
+            || base.ends_with('s')
+            || base.ends_with('x')
+            || base.ends_with('z')
+        {
             return base.to_string();
         }
     }
@@ -559,9 +597,549 @@ pub fn makesingular(word: &str) -> String {
     word.to_string()
 }
 
+// ============================================================================
+// Object name with verb (aobjnam, Doname from objnam.c)
+// ============================================================================
+
+/// Generate object name with verb action (aobjnam equivalent).
+///
+/// Creates names like "The +2 sword glows" or "Your armor rusts".
+///
+/// # Arguments
+/// * `obj` - The object
+/// * `base_name` - Base name of the object
+/// * `verb` - The verb to use (e.g., "glow", "rust")
+///
+/// # Returns
+/// A string like "The sword glows" or "Your swords glow"
+pub fn aobjnam(obj: &Object, base_name: &str, verb: &str) -> String {
+    let name = if obj.quantity > 1 {
+        format!("{} {}", obj.quantity, makeplural(base_name))
+    } else {
+        the(base_name)
+    };
+
+    // Conjugate verb for singular/plural
+    let conjugated_verb = if obj.quantity > 1 {
+        verb.to_string() // plural verbs don't add 's'
+    } else {
+        // Simple verb conjugation - add 's' for third person singular
+        if verb.ends_with('s')
+            || verb.ends_with('x')
+            || verb.ends_with("ch")
+            || verb.ends_with("sh")
+        {
+            format!("{}es", verb)
+        } else if verb.ends_with('y') {
+            let before_y = verb.chars().nth(verb.len() - 2).unwrap_or('a');
+            if !"aeiou".contains(before_y) {
+                format!("{}ies", &verb[..verb.len() - 1])
+            } else {
+                format!("{}s", verb)
+            }
+        } else {
+            format!("{}s", verb)
+        }
+    };
+
+    format!("{} {}", name, conjugated_verb)
+}
+
+/// Generate object name with verb action, capitalized (Aobjnam equivalent).
+#[allow(non_snake_case)]
+pub fn Aobjnam(obj: &Object, base_name: &str, verb: &str) -> String {
+    crate::upstart(&aobjnam(obj, base_name, verb))
+}
+
+/// Generate a simple object name without modifiers (ansimpleoname equivalent).
+///
+/// Returns just the base name with a/an prefix, without BUC, enchantment, etc.
+///
+/// # Arguments
+/// * `obj` - The object
+/// * `base_name` - Base name of the object
+///
+/// # Returns
+/// Simple name like "a sword" or "5 arrows"
+pub fn ansimpleoname(obj: &Object, base_name: &str) -> String {
+    if obj.quantity > 1 {
+        format!("{} {}", obj.quantity, makeplural(base_name))
+    } else {
+        an(base_name)
+    }
+}
+
+/// Generate a name without "a/an/the" prefix (simpleoname equivalent).
+pub fn simpleoname(obj: &Object, base_name: &str) -> String {
+    if obj.quantity > 1 {
+        format!("{} {}", obj.quantity, makeplural(base_name))
+    } else {
+        base_name.to_string()
+    }
+}
+
+/// Generate an object name for corpses with monster name (cxname equivalent).
+///
+/// For corpses/statues/figurines, this includes the monster's name.
+/// For other objects, behaves like xname.
+///
+/// # Arguments
+/// * `obj` - The object
+/// * `base_name` - Base name of the object
+/// * `monster_name` - Name of the corpse's monster type (if applicable)
+pub fn cxname(obj: &Object, base_name: &str, monster_name: Option<&str>) -> String {
+    if obj.corpse_type >= 0 {
+        if let Some(mon_name) = monster_name {
+            // It's a corpse/statue/figurine with monster type
+            return format!("{} {}", mon_name, base_name);
+        }
+    }
+    // Fall back to regular simple name
+    obj.xname(base_name)
+}
+
+/// Generate a singular object name for corpses (cxname_singular equivalent).
+///
+/// Like cxname but always treats quantity as 1 (for display in specific contexts).
+pub fn cxname_singular(obj: &Object, base_name: &str, monster_name: Option<&str>) -> String {
+    if obj.corpse_type >= 0 {
+        if let Some(mon_name) = monster_name {
+            return format!("{} {}", mon_name, base_name);
+        }
+    }
+    base_name.to_string()
+}
+
+// ============================================================================
+// Artifact naming (artiname from artifact.c)
+// ============================================================================
+
+/// Get the name of an artifact by ID.
+///
+/// # Arguments
+/// * `artifact_id` - The artifact ID (1-based)
+///
+/// # Returns
+/// The artifact name, or None if invalid ID
+pub fn artiname(artifact_id: u8) -> Option<&'static str> {
+    // Artifact names from NetHack 3.6
+    // These are indexed by artifact ID
+    match artifact_id {
+        1 => Some("Excalibur"),
+        2 => Some("Stormbringer"),
+        3 => Some("Mjollnir"),
+        4 => Some("Cleaver"),
+        5 => Some("Grimtooth"),
+        6 => Some("Orcrist"),
+        7 => Some("Sting"),
+        8 => Some("Magicbane"),
+        9 => Some("Frost Brand"),
+        10 => Some("Fire Brand"),
+        11 => Some("Dragonbane"),
+        12 => Some("Demonbane"),
+        13 => Some("Werebane"),
+        14 => Some("Grayswandir"),
+        15 => Some("Giantslayer"),
+        16 => Some("Ogresmasher"),
+        17 => Some("Trollsbane"),
+        18 => Some("Vorpal Blade"),
+        19 => Some("Snickersnee"),
+        20 => Some("Sunsword"),
+        21 => Some("Orb of Detection"),
+        22 => Some("Heart of Ahriman"),
+        23 => Some("Sceptre of Might"),
+        24 => Some("Staff of Aesculapius"),
+        25 => Some("Magic Mirror of Merlin"),
+        26 => Some("Eyes of the Overworld"),
+        27 => Some("Mitre of Holiness"),
+        28 => Some("Longbow of Diana"),
+        29 => Some("Master Key of Thievery"),
+        30 => Some("Tsurugi of Muramasa"),
+        31 => Some("Platinum Yendorian Express Card"),
+        32 => Some("Orb of Fate"),
+        33 => Some("Eye of the Aethiopica"),
+        34 => Some("Amulet of Yendor"),
+        _ => None,
+    }
+}
+
+/// Check if a string is an artifact name.
+pub fn is_artifact_name(name: &str) -> bool {
+    for id in 1..=34 {
+        if let Some(arti_name) = artiname(id) {
+            if arti_name.eq_ignore_ascii_case(name) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Get artifact ID from name.
+pub fn artifact_id_from_name(name: &str) -> Option<u8> {
+    for id in 1..=34 {
+        if let Some(arti_name) = artiname(id) {
+            if arti_name.eq_ignore_ascii_case(name) {
+                return Some(id);
+            }
+        }
+    }
+    None
+}
+
+// ============================================================================
+// Artifact utility functions (artifact.c)
+// ============================================================================
+
+/// Get the base cost of an artifact (arti_cost equivalent)
+///
+/// # Arguments
+/// * `artifact_id` - The artifact ID (1-based)
+///
+/// # Returns
+/// The artifact's base cost in gold, or 0 for invalid artifacts
+pub fn arti_cost(artifact_id: u8) -> u32 {
+    // Artifact costs from NetHack 3.6
+    match artifact_id {
+        1 => 4000,   // Excalibur
+        2 => 8000,   // Stormbringer
+        3 => 4000,   // Mjollnir
+        4 => 1500,   // Cleaver
+        5 => 300,    // Grimtooth
+        6 => 2000,   // Orcrist
+        7 => 800,    // Sting
+        8 => 3500,   // Magicbane
+        9 => 3000,   // Frost Brand
+        10 => 3000,  // Fire Brand
+        11 => 500,   // Dragonbane
+        12 => 2500,  // Demonbane
+        13 => 1500,  // Werebane
+        14 => 8000,  // Grayswandir
+        15 => 200,   // Giantslayer
+        16 => 200,   // Ogresmasher
+        17 => 200,   // Trollsbane
+        18 => 4000,  // Vorpal Blade
+        19 => 1200,  // Snickersnee
+        20 => 1500,  // Sunsword
+        21 => 2500,  // Orb of Detection
+        22 => 2500,  // Heart of Ahriman
+        23 => 2500,  // Sceptre of Might
+        24 => 5000,  // Staff of Aesculapius
+        25 => 1500,  // Magic Mirror of Merlin
+        26 => 2500,  // Eyes of the Overworld
+        27 => 2000,  // Mitre of Holiness
+        28 => 4000,  // Longbow of Diana
+        29 => 3500,  // Master Key of Thievery
+        30 => 4500,  // Tsurugi of Muramasa
+        31 => 7000,  // Platinum Yendorian Express Card
+        32 => 3500,  // Orb of Fate
+        33 => 4000,  // Eye of the Aethiopica
+        34 => 30000, // Amulet of Yendor (priceless really)
+        _ => 0,
+    }
+}
+
+/// Check if an artifact confers immunity to a damage type (arti_immune equivalent)
+///
+/// Some artifacts provide resistance or immunity to specific damage types
+/// when wielded or worn.
+///
+/// # Arguments
+/// * `artifact_id` - The artifact ID (1-based)
+/// * `damage_type` - The damage type to check immunity for
+///
+/// # Returns
+/// True if the artifact provides immunity to the damage type
+pub fn arti_immune(artifact_id: u8, damage_type: crate::combat::DamageType) -> bool {
+    use crate::combat::DamageType;
+
+    match artifact_id {
+        1 => {
+            // Excalibur - defends against level drain
+            matches!(damage_type, DamageType::DrainLife)
+        }
+        2 => {
+            // Stormbringer - defends against level drain
+            matches!(damage_type, DamageType::DrainLife)
+        }
+        9 => {
+            // Frost Brand - provides cold resistance when wielded
+            matches!(damage_type, DamageType::Cold)
+        }
+        10 => {
+            // Fire Brand - provides fire resistance when wielded
+            matches!(damage_type, DamageType::Fire)
+        }
+        14 => {
+            // Grayswandir - defends against curses/level drain
+            matches!(damage_type, DamageType::DrainLife | DamageType::Curse)
+        }
+        27 => {
+            // Mitre of Holiness - provides fire resistance
+            matches!(damage_type, DamageType::Fire)
+        }
+        _ => false,
+    }
+}
+
+/// Check if an artifact reflects (arti_reflects equivalent)
+///
+/// Some artifacts have the reflection property that reflects
+/// ray attacks and gaze attacks.
+///
+/// # Arguments
+/// * `artifact_id` - The artifact ID (1-based)
+///
+/// # Returns
+/// True if the artifact provides reflection
+pub fn arti_reflects(artifact_id: u8) -> bool {
+    match artifact_id {
+        25 => true, // Magic Mirror of Merlin
+        32 => true, // Orb of Fate
+        _ => false,
+    }
+}
+
+/// Check if an artifact speaks (arti_speak equivalent)
+///
+/// Some intelligent artifacts can speak to their wielder.
+///
+/// # Arguments
+/// * `artifact_id` - The artifact ID (1-based)
+///
+/// # Returns
+/// True if the artifact can speak
+pub fn arti_speak(artifact_id: u8) -> bool {
+    match artifact_id {
+        1 => true,  // Excalibur
+        2 => true,  // Stormbringer
+        8 => true,  // Magicbane
+        18 => true, // Vorpal Blade
+        _ => false,
+    }
+}
+
+/// Get artifact light radius (arti_light_radius equivalent)
+///
+/// Some artifacts emit light when wielded.
+///
+/// # Arguments
+/// * `artifact_id` - The artifact ID (1-based)
+///
+/// # Returns
+/// Light radius in squares, or 0 if artifact doesn't glow
+pub fn arti_light_radius(artifact_id: u8) -> u8 {
+    match artifact_id {
+        20 => 2, // Sunsword
+        _ => 0,
+    }
+}
+
+/// Get artifact light description (arti_light_description equivalent)
+///
+/// # Arguments
+/// * `artifact_id` - The artifact ID (1-based)
+///
+/// # Returns
+/// Description of the light, or None if artifact doesn't glow
+pub fn arti_light_description(artifact_id: u8) -> Option<&'static str> {
+    match artifact_id {
+        20 => Some("shining with a brilliant light"), // Sunsword
+        _ => None,
+    }
+}
+
+/// Generate possessive suffix (s_suffix equivalent).
+///
+/// Returns "'s" or "'" depending on whether the word ends in 's'.
+pub fn s_suffix(word: &str) -> String {
+    if word.ends_with('s') || word.ends_with('S') {
+        format!("{}'", word)
+    } else {
+        format!("{}'s", word)
+    }
+}
+
+/// Generate "Foo's" with proper capitalization.
+#[allow(non_snake_case)]
+pub fn S_suffix(word: &str) -> String {
+    crate::upstart(&s_suffix(word))
+}
+
+// ============================================================================
+// Advanced naming functions (Phase 4)
+// ============================================================================
+
+/// Full object name with all details (doname equivalent)
+///
+/// Returns complete name including quantity, BUC status, enchantment, erosion, wear status.
+/// Example: "blessed +2 plate mail (being worn)"
+pub fn doname(obj: &Object, base_name: &str) -> String {
+    let mut name = String::new();
+
+    // Add quantity if > 1
+    if obj.quantity > 1 {
+        name.push_str(&format!("{} ", obj.quantity));
+    }
+
+    // Add BUC prefix if known
+    if obj.buc_known {
+        name.push_str(obj.buc_prefix());
+    }
+
+    // Add erosion prefix
+    name.push_str(&obj.erosion_prefix());
+
+    // Add enchantment
+    name.push_str(&obj.enchantment_str());
+
+    // Add base name
+    name.push_str(base_name);
+
+    // Add wear/wield status
+    name.push_str(obj.worn_suffix());
+
+    // Add charges for wands
+    name.push_str(&obj.charges_suffix());
+
+    name
+}
+
+/// Simple object name without quantity (xname equivalent)
+///
+/// Returns name without quantity prefix, but includes other details.
+pub fn xname(obj: &Object, base_name: &str) -> String {
+    let mut name = String::new();
+
+    // Add BUC prefix if known
+    if obj.buc_known {
+        name.push_str(obj.buc_prefix());
+    }
+
+    // Add erosion prefix
+    name.push_str(&obj.erosion_prefix());
+
+    // Add enchantment
+    name.push_str(&obj.enchantment_str());
+
+    // Add base name
+    name.push_str(base_name);
+
+    // Add wear/wield status
+    name.push_str(obj.worn_suffix());
+
+    // Add charges for wands
+    name.push_str(&obj.charges_suffix());
+
+    name
+}
+
+/// "Distant" name for far away objects (distant_name equivalent)
+///
+/// Returns generic "something" name when object is too far to identify clearly.
+pub fn distant_name(obj: &Object) -> String {
+    match obj.class {
+        ObjectClass::Weapon => "something".to_string(),
+        ObjectClass::Armor => "something".to_string(),
+        ObjectClass::Food => "something edible".to_string(),
+        ObjectClass::Potion => "a bottle".to_string(),
+        ObjectClass::Scroll => "a scroll".to_string(),
+        ObjectClass::Wand => "a wand".to_string(),
+        ObjectClass::Ring => "a ring".to_string(),
+        ObjectClass::Amulet => "an amulet".to_string(),
+        ObjectClass::Gem => "a gem".to_string(),
+        ObjectClass::Coin => "some gold".to_string(),
+        _ => "something".to_string(),
+    }
+}
+
+/// Get object name without quantity (singular equivalent)
+///
+/// Removes quantity prefix from name.
+pub fn singular(obj: &Object, base_name: &str) -> String {
+    // Just use xname (which doesn't include quantity)
+    xname(obj, base_name)
+}
+
+/// Object name with "your/the" prefix (yname equivalent)
+///
+/// Adds appropriate article before name.
+pub fn yname(obj: &Object, base_name: &str) -> String {
+    let name = xname(obj, base_name);
+    if obj.is_worn() {
+        format!("your {}", name)
+    } else {
+        format!("the {}", name)
+    }
+}
+
+/// "Your" or "The" prefix with capitalization (Yname2 equivalent)
+#[allow(non_snake_case)]
+pub fn Yname2(obj: &Object, base_name: &str) -> String {
+    let name = yname(obj, base_name);
+    crate::upstart(&name)
+}
+
+/// Your simple name without articles (ysimple_name equivalent)
+///
+/// Returns "your <name>" for worn items, "<name>" otherwise.
+pub fn ysimple_name(obj: &Object, base_name: &str) -> String {
+    if obj.is_worn() {
+        format!("your {}", base_name)
+    } else {
+        base_name.to_string()
+    }
+}
+
+/// Your simple name capitalized (Ysimple_name2 equivalent)
+#[allow(non_snake_case)]
+pub fn Ysimple_name2(obj: &Object, base_name: &str) -> String {
+    let name = ysimple_name(obj, base_name);
+    crate::upstart(&name)
+}
+
+/// Parse object name from user input (readobjnam equivalent)
+///
+/// Attempts to parse a string into an object search query.
+/// Returns the parsed query or an error message.
+pub fn readobjnam(input: &str) -> Result<String, String> {
+    let trimmed = input.trim();
+
+    if trimmed.is_empty() {
+        return Err("Please specify an object.".to_string());
+    }
+
+    // Check for common patterns
+    if trimmed.starts_with("the ") {
+        return Ok(trimmed[4..].to_string());
+    }
+
+    if trimmed.starts_with("a ") {
+        return Ok(trimmed[2..].to_string());
+    }
+
+    if trimmed.starts_with("an ") {
+        return Ok(trimmed[3..].to_string());
+    }
+
+    Ok(trimmed.to_string())
+}
+
+/// Get type name from object type index (obj_typename wrapper)
+///
+/// Returns the type name based on object definition and knowledge.
+pub fn obj_typename_from_obj(
+    obj: &Object,
+    def: &ObjClassDef,
+    knowledge: &ObjectKnowledge,
+) -> String {
+    obj_typename(def, knowledge).to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::object::ObjectId;
 
     #[test]
     fn test_makeplural() {
@@ -760,5 +1338,117 @@ mod tests {
             user_name: None,
         };
         assert_eq!(base_object_name(&def, &known), "diamond stone");
+    }
+
+    // ========================================================================
+    // Phase 4 Tests: Advanced Naming Functions
+    // ========================================================================
+
+    #[test]
+    fn test_doname() {
+        let obj = Object::new(ObjectId(1), 1, ObjectClass::Coin);
+        let name = doname(&obj, "gold coin");
+
+        assert!(name.contains("gold coin"));
+        assert!(!name.contains("blessed")); // BUC not known
+    }
+
+    #[test]
+    fn test_doname_with_quantity() {
+        let mut obj = Object::new(ObjectId(1), 1, ObjectClass::Coin);
+        obj.quantity = 5;
+        let name = doname(&obj, "gold coin");
+
+        assert!(name.contains("5"));
+        assert!(name.contains("gold coin"));
+    }
+
+    #[test]
+    fn test_xname() {
+        let obj = Object::new(ObjectId(1), 1, ObjectClass::Weapon);
+        let name = xname(&obj, "long sword");
+
+        assert!(name.contains("long sword"));
+        assert!(!name.contains("1 ")); // No quantity
+    }
+
+    #[test]
+    fn test_distant_name() {
+        let weapon = Object::new(ObjectId(1), 1, ObjectClass::Weapon);
+        let potion = Object::new(ObjectId(2), 1, ObjectClass::Potion);
+
+        assert_eq!(distant_name(&weapon), "something");
+        assert_eq!(distant_name(&potion), "a bottle");
+    }
+
+    #[test]
+    fn test_singular() {
+        let obj = Object::new(ObjectId(1), 1, ObjectClass::Weapon);
+        let name = singular(&obj, "sword");
+
+        // Should not have quantity
+        assert!(!name.contains("1 "));
+    }
+
+    #[test]
+    fn test_yname() {
+        let obj = Object::new(ObjectId(1), 1, ObjectClass::Weapon);
+        let name = yname(&obj, "sword");
+
+        assert!(name.contains("the"));
+        assert!(name.contains("sword"));
+    }
+
+    #[test]
+    fn test_yname_worn() {
+        let mut obj = Object::new(ObjectId(1), 1, ObjectClass::Armor);
+        obj.worn_mask = 1; // Worn
+
+        let name = yname(&obj, "armor");
+
+        assert!(name.contains("your"));
+        assert!(name.contains("armor"));
+    }
+
+    #[test]
+    fn test_ysimple_name() {
+        let obj = Object::new(ObjectId(1), 1, ObjectClass::Weapon);
+        let name = ysimple_name(&obj, "sword");
+
+        assert_eq!(name, "sword");
+    }
+
+    #[test]
+    fn test_ysimple_name_worn() {
+        let mut obj = Object::new(ObjectId(1), 1, ObjectClass::Armor);
+        obj.worn_mask = 1;
+
+        let name = ysimple_name(&obj, "armor");
+
+        assert!(name.contains("your"));
+    }
+
+    #[test]
+    fn test_readobjnam_empty() {
+        let result = readobjnam("");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_readobjnam_with_article() {
+        let result = readobjnam("the sword");
+        assert_eq!(result, Ok("sword".to_string()));
+
+        let result = readobjnam("a potion");
+        assert_eq!(result, Ok("potion".to_string()));
+
+        let result = readobjnam("an amulet");
+        assert_eq!(result, Ok("amulet".to_string()));
+    }
+
+    #[test]
+    fn test_readobjnam_plain() {
+        let result = readobjnam("sword");
+        assert_eq!(result, Ok("sword".to_string()));
     }
 }

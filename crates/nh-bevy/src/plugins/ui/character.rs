@@ -7,7 +7,7 @@
 //! - Toggle with '@' key
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
 use nh_core::player::{AlignmentType, Attribute, Property};
 
 use crate::plugins::game::AppState;
@@ -89,9 +89,12 @@ fn render_character_sheet(
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(
-                        egui::RichText::new(format!("Level {} {:?}", player.exp_level, player.role))
-                            .size(16.0)
-                            .color(egui::Color32::LIGHT_GRAY),
+                        egui::RichText::new(format!(
+                            "Level {} {:?}",
+                            player.exp_level, player.role
+                        ))
+                        .size(16.0)
+                        .color(egui::Color32::LIGHT_GRAY),
                     );
                 });
             });
@@ -155,8 +158,14 @@ fn render_stats_tab(ui: &mut egui::Ui, player: &nh_core::player::You) {
                     let attrs = [
                         ("Strength", player.attr_current.get(Attribute::Strength)),
                         ("Dexterity", player.attr_current.get(Attribute::Dexterity)),
-                        ("Constitution", player.attr_current.get(Attribute::Constitution)),
-                        ("Intelligence", player.attr_current.get(Attribute::Intelligence)),
+                        (
+                            "Constitution",
+                            player.attr_current.get(Attribute::Constitution),
+                        ),
+                        (
+                            "Intelligence",
+                            player.attr_current.get(Attribute::Intelligence),
+                        ),
                         ("Wisdom", player.attr_current.get(Attribute::Wisdom)),
                         ("Charisma", player.attr_current.get(Attribute::Charisma)),
                     ];
@@ -251,7 +260,9 @@ fn render_stats_tab(ui: &mut egui::Ui, player: &nh_core::player::You) {
             nh_core::player::HungerState::Weak => ("Weak", egui::Color32::from_rgb(255, 165, 0)),
             nh_core::player::HungerState::Fainting => ("Fainting", egui::Color32::RED),
             nh_core::player::HungerState::Fainted => ("Fainted", egui::Color32::DARK_RED),
-            nh_core::player::HungerState::Starved => ("Starved", egui::Color32::from_rgb(128, 0, 0)),
+            nh_core::player::HungerState::Starved => {
+                ("Starved", egui::Color32::from_rgb(128, 0, 0))
+            }
         };
         ui.colored_label(hunger_color, hunger_text);
     });
@@ -269,7 +280,10 @@ fn render_resistances_tab(ui: &mut egui::Ui, player: &nh_core::player::You) {
                 ("Fire", player.properties.has(Property::FireResistance)),
                 ("Cold", player.properties.has(Property::ColdResistance)),
                 ("Sleep", player.properties.has(Property::SleepResistance)),
-                ("Disintegrate", player.properties.has(Property::DisintResistance)),
+                (
+                    "Disintegrate",
+                    player.properties.has(Property::DisintResistance),
+                ),
                 ("Shock", player.properties.has(Property::ShockResistance)),
                 ("Poison", player.properties.has(Property::PoisonResistance)),
                 ("Acid", player.properties.has(Property::AcidResistance)),
@@ -297,14 +311,20 @@ fn render_resistances_tab(ui: &mut egui::Ui, player: &nh_core::player::You) {
             ui.separator();
 
             let intrinsics = [
-                ("See Invisible", player.properties.has(Property::SeeInvisible)),
+                (
+                    "See Invisible",
+                    player.properties.has(Property::SeeInvisible),
+                ),
                 ("Telepathy", player.properties.has(Property::Telepathy)),
                 ("Warning", player.properties.has(Property::Warning)),
                 ("Searching", player.properties.has(Property::Searching)),
                 ("Infravision", player.properties.has(Property::Infravision)),
                 ("Stealth", player.properties.has(Property::Stealth)),
                 ("Speed", player.properties.has(Property::Speed)),
-                ("Regeneration", player.properties.has(Property::Regeneration)),
+                (
+                    "Regeneration",
+                    player.properties.has(Property::Regeneration),
+                ),
                 ("Reflection", player.properties.has(Property::Reflection)),
                 ("Free Action", player.properties.has(Property::FreeAction)),
             ];

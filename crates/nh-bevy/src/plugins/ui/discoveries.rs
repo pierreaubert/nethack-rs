@@ -1,7 +1,7 @@
 //! Discoveries UI panel - shows identified items
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
 use nh_core::object::ObjectClass;
 
 use crate::plugins::game::AppState;
@@ -11,8 +11,10 @@ pub struct DiscoveriesPlugin;
 
 impl Plugin for DiscoveriesPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DiscoveriesState>()
-            .add_systems(Update, render_discoveries.run_if(in_state(AppState::Playing)));
+        app.init_resource::<DiscoveriesState>().add_systems(
+            Update,
+            render_discoveries.run_if(in_state(AppState::Playing)),
+        );
     }
 }
 
@@ -77,12 +79,13 @@ fn render_category(ui: &mut egui::Ui, class: ObjectClass, _game_state: &nh_core:
     // In a real NetHack engine, we'd check game_state.identified_objects
     // For this prototype, we'll show all objects of this class from nh_data
     // but marked as "Known" or "Unknown" (appearance only).
-    
-    let objects = nh_data::objects::OBJECTS;
+
+    let objects = nh_core::data::objects::OBJECTS;
     let mut found = false;
 
     // Filter objects by class
-    let cat_objects: Vec<_> = objects.iter()
+    let cat_objects: Vec<_> = objects
+        .iter()
         .enumerate()
         .filter(|(_, obj)| obj.class == class && !obj.name.is_empty())
         .collect();
@@ -99,9 +102,11 @@ fn render_category(ui: &mut egui::Ui, class: ObjectClass, _game_state: &nh_core:
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(obj.name).color(egui::Color32::WHITE));
                     if !obj.description.is_empty() {
-                        ui.label(egui::RichText::new(format!("({})", obj.description))
-                            .color(egui::Color32::GRAY)
-                            .small());
+                        ui.label(
+                            egui::RichText::new(format!("({})", obj.description))
+                                .color(egui::Color32::GRAY)
+                                .small(),
+                        );
                     }
                 });
             }

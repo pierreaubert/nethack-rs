@@ -5,7 +5,19 @@ use strum::{Display, EnumIter};
 
 /// Hunger state levels
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize, Display, EnumIter,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    Serialize,
+    Deserialize,
+    Display,
+    EnumIter,
 )]
 #[repr(u8)]
 pub enum HungerState {
@@ -89,5 +101,120 @@ impl HungerState {
             HungerState::Fainted => Some("Fainted"),
             HungerState::Starved => Some("Starved"),
         }
+    }
+}
+
+/// Player hunger tracker
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct HungerTracker {
+    /// Current hunger points (higher = less hungry)
+    pub uhunger: i32,
+    /// Current hunger state
+    pub state: HungerState,
+}
+
+impl HungerTracker {
+    /// Initialize hunger (init_uhunger equivalent)
+    ///
+    /// Sets initial hunger state to not hungry with 900 nutrition points.
+    /// Called at the start of the game.
+    pub fn init() -> Self {
+        Self {
+            uhunger: 900,
+            state: HungerState::NotHungry,
+        }
+    }
+
+    /// Perform regular hunger check (gethungry equivalent)
+    ///
+    /// Called regularly to decrease hunger and update state.
+    /// Metabolism depends on form, equipment, and special effects.
+    /// Simplified version - real implementation would check:
+    /// - Current polymorphic form
+    /// - Equipment effects (slow digestion, conflict, regeneration)
+    /// - Whether sleeping/unconscious
+    pub fn gethungry(&mut self) {
+        // Basic hunger decrease per turn
+        self.uhunger = self.uhunger.saturating_sub(1);
+        self.update_state(true);
+    }
+
+    /// Increase hunger (morehungry equivalent)
+    ///
+    /// Decreases nutrition by the given amount, typically from
+    /// vomiting or casting spells.
+    pub fn morehungry(&mut self, num: i32) {
+        self.uhunger = self.uhunger.saturating_sub(num);
+        self.update_state(true);
+    }
+
+    /// Decrease hunger (lesshungry equivalent)
+    ///
+    /// Increases nutrition by the given amount, typically from eating.
+    /// Warns the player if getting close to satiation.
+    pub fn lesshungry(&mut self, num: i32) -> Option<String> {
+        self.uhunger = (self.uhunger + num).min(2000);
+
+        let mut warnings = Vec::new();
+
+        if self.uhunger >= 2000 {
+            warnings.push("You're too full to eat more!".to_string());
+        } else if self.uhunger >= 1500 {
+            warnings.push("You're having a hard time getting all of it down.".to_string());
+        }
+
+        self.update_state(false);
+
+        if warnings.is_empty() {
+            None
+        } else {
+            Some(warnings.join(" "))
+        }
+    }
+
+    /// Update hunger state based on current nutrition (newuhs equivalent)
+    ///
+    /// This is a simplified version. The full C version has complex logic for:
+    /// - Detecting state transitions during eating
+    /// - Fainting from hunger
+    /// - Starving to death
+    /// - Strength penalties
+    fn update_state(&mut self, incr: bool) {
+        let new_state = HungerState::from_nutrition(self.uhunger);
+
+        if new_state != self.state {
+            match new_state {
+                HungerState::Hungry => {
+                    // Stopped current occupation if hungry while doing something
+                }
+                HungerState::Weak => {
+                    // Apply temporary strength penalty
+                }
+                HungerState::Fainting => {
+                    // Trigger fainting sequence
+                }
+                _ => {}
+            }
+
+            self.state = new_state;
+        }
+    }
+
+    /// Get current hunger state index (stat_hunger_indx equivalent)
+    ///
+    /// Returns the numeric index of the current hunger state.
+    /// Used by status line display.
+    pub const fn stat_hunger_index(&self) -> u8 {
+        self.state as u8
+    }
+
+    /// Check if player is fainting
+    pub const fn is_fainting(&self) -> bool {
+        matches!(self.state, HungerState::Fainting | HungerState::Fainted)
+    }
+
+    /// Check if player has fainted
+    pub const fn is_fainted(&self) -> bool {
+        matches!(self.state, HungerState::Fainted)
     }
 }

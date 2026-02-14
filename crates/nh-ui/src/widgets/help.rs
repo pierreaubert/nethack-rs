@@ -324,8 +324,8 @@ impl Widget for &OptionsWidget<'_> {
         block.render(area, buf);
 
         if self.options.is_empty() {
-            let empty = Paragraph::new("No options available.")
-                .style(Style::default().fg(Color::Gray));
+            let empty =
+                Paragraph::new("No options available.").style(Style::default().fg(Color::Gray));
             empty.render(inner, buf);
             return;
         }
@@ -364,7 +364,9 @@ impl Widget for &OptionsWidget<'_> {
             if is_selected && !opt.description.is_empty() {
                 y += 1;
                 if y < inner.y + inner.height {
-                    let desc_style = Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC);
+                    let desc_style = Style::default()
+                        .fg(Color::Gray)
+                        .add_modifier(Modifier::ITALIC);
                     buf.set_string(inner.x + 2, y, opt.description, desc_style);
                 }
             }
@@ -377,12 +379,32 @@ impl Widget for &OptionsWidget<'_> {
 /// Create default game options
 pub fn default_options<'a>() -> OptionsWidget<'a> {
     OptionsWidget::new()
-        .add_option("autopickup", "Automatically pick up items", OptionValue::Bool(true))
-        .add_option("safe_pet", "Prevent attacking pets", OptionValue::Bool(true))
-        .add_option("safe_peaceful", "Confirm attacking peacefuls", OptionValue::Bool(true))
+        .add_option(
+            "autopickup",
+            "Automatically pick up items",
+            OptionValue::Bool(true),
+        )
+        .add_option(
+            "safe_pet",
+            "Prevent attacking pets",
+            OptionValue::Bool(true),
+        )
+        .add_option(
+            "safe_peaceful",
+            "Confirm attacking peacefuls",
+            OptionValue::Bool(true),
+        )
         .add_option("verbose", "Show detailed messages", OptionValue::Bool(true))
-        .add_option("confirm", "Confirm dangerous actions", OptionValue::Bool(true))
-        .add_option("number_pad", "Use number pad for movement", OptionValue::Bool(false))
+        .add_option(
+            "confirm",
+            "Confirm dangerous actions",
+            OptionValue::Bool(true),
+        )
+        .add_option(
+            "number_pad",
+            "Use number pad for movement",
+            OptionValue::Bool(false),
+        )
         .add_option(
             "graphics",
             "Display style",

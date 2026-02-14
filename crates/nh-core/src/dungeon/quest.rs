@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::player::Role;
 use crate::rng::GameRng;
 
+use super::DLevel;
 use super::cell::CellType;
 use super::level::{Level, Stairway, TrapType};
-use super::DLevel;
 
 /// Map dimensions
 const COLNO: usize = 80;
@@ -61,6 +61,8 @@ pub struct QuestInfo {
     pub home_name: &'static str,
     /// Intermediate level name
     pub locate_name: &'static str,
+    /// Intermediate quest target (what you're looking for)
+    pub intermed: &'static str,
 }
 
 impl QuestInfo {
@@ -75,6 +77,7 @@ impl QuestInfo {
                 goal_name: "the tomb of the Toltec kings",
                 home_name: "the College of Archeology",
                 locate_name: "the Tomb of the Toltec Kings",
+                intermed: "the Tomb of the Toltec Kings",
             },
             Role::Barbarian => Self {
                 role,
@@ -84,6 +87,7 @@ impl QuestInfo {
                 goal_name: "the Subterranean Temple",
                 home_name: "the Camp of the Duali Tribe",
                 locate_name: "the Subterranean Temple",
+                intermed: "the Subterranean Temple",
             },
             Role::Caveman => Self {
                 role,
@@ -93,6 +97,7 @@ impl QuestInfo {
                 goal_name: "the Dragon's Lair",
                 home_name: "the Caves of the Ancestors",
                 locate_name: "the Dragon's Lair",
+                intermed: "the Dragon's Lair",
             },
             Role::Healer => Self {
                 role,
@@ -102,6 +107,7 @@ impl QuestInfo {
                 goal_name: "the Temple of Epidaurus",
                 home_name: "the Temple of Coeus",
                 locate_name: "the Temple of Epidaurus",
+                intermed: "the Temple of Epidaurus",
             },
             Role::Knight => Self {
                 role,
@@ -111,6 +117,7 @@ impl QuestInfo {
                 goal_name: "the Isle of Glass",
                 home_name: "Camelot Castle",
                 locate_name: "the Isle of Glass",
+                intermed: "the Isle of Glass",
             },
             Role::Monk => Self {
                 role,
@@ -120,6 +127,7 @@ impl QuestInfo {
                 goal_name: "the Monastery of Chan-Sune",
                 home_name: "the Monastery of Chan-Sune",
                 locate_name: "the Monastery of Chan-Sune",
+                intermed: "the Monastery of Chan-Sune",
             },
             Role::Priest => Self {
                 role,
@@ -129,6 +137,7 @@ impl QuestInfo {
                 goal_name: "the Temple of Moloch",
                 home_name: "the Great Temple",
                 locate_name: "the Temple of Moloch",
+                intermed: "the Temple of Moloch",
             },
             Role::Ranger => Self {
                 role,
@@ -138,6 +147,7 @@ impl QuestInfo {
                 goal_name: "the Cave of Scorpius",
                 home_name: "Orion's camp",
                 locate_name: "the Cave of Scorpius",
+                intermed: "the Cave of Scorpius",
             },
             Role::Rogue => Self {
                 role,
@@ -147,6 +157,7 @@ impl QuestInfo {
                 goal_name: "the Assassin's Guild",
                 home_name: "the Thieves' Guild Hall",
                 locate_name: "the Assassin's Guild",
+                intermed: "the Assassin's Guild",
             },
             Role::Samurai => Self {
                 role,
@@ -156,6 +167,7 @@ impl QuestInfo {
                 goal_name: "the Shogun's Castle",
                 home_name: "the Castle of the Taro Clan",
                 locate_name: "the Shogun's Castle",
+                intermed: "the Shogun's Castle",
             },
             Role::Tourist => Self {
                 role,
@@ -165,6 +177,7 @@ impl QuestInfo {
                 goal_name: "Thieves' Guild Hall",
                 home_name: "Ankh-Morpork",
                 locate_name: "Thieves' Guild Hall",
+                intermed: "Thieves' Guild Hall",
             },
             Role::Valkyrie => Self {
                 role,
@@ -174,6 +187,7 @@ impl QuestInfo {
                 goal_name: "the Caves of Muspelheim",
                 home_name: "the Shrine of Destiny",
                 locate_name: "the Caves of Muspelheim",
+                intermed: "the Caves of Muspelheim",
             },
             Role::Wizard => Self {
                 role,
@@ -183,23 +197,32 @@ impl QuestInfo {
                 goal_name: "the Tower of Darkness",
                 home_name: "the Lonely Tower",
                 locate_name: "the Tower of Darkness",
+                intermed: "the Tower of Darkness",
             },
         }
     }
 }
 
+/// Get the intermediate quest target string (intermed equivalent)
+///
+/// Returns the name of the intermediate location in the quest,
+/// which is where the player needs to go before reaching the goal.
+pub fn intermed(role: Role) -> &'static str {
+    QuestInfo::for_role(role).intermed
+}
+
 /// Generate quest home level (level 1)
 pub fn generate_quest_home(level: &mut Level, role: Role, rng: &mut GameRng) {
     let quest_info = QuestInfo::for_role(role);
-    
+
     fill_level(level, CellType::Stone);
-    
+
     // Create home base - a large room with the quest leader
     let home_x = 20;
     let home_y = 5;
     let home_w = 40;
     let home_h = 11;
-    
+
     // Carve the home area
     for x in home_x..(home_x + home_w) {
         for y in home_y..(home_y + home_h) {
@@ -207,7 +230,7 @@ pub fn generate_quest_home(level: &mut Level, role: Role, rng: &mut GameRng) {
             level.cells[x][y].lit = true;
         }
     }
-    
+
     // Add some internal structure based on role
     match role {
         Role::Knight => {
@@ -232,7 +255,7 @@ pub fn generate_quest_home(level: &mut Level, role: Role, rng: &mut GameRng) {
             level.cells[home_x + home_w - 5][home_y + home_h / 2].typ = CellType::Fountain;
         }
     }
-    
+
     // Stairs down to quest levels
     level.cells[home_x + home_w - 3][home_y + home_h / 2].typ = CellType::Stairs;
     level.stairs.push(Stairway {
@@ -241,7 +264,7 @@ pub fn generate_quest_home(level: &mut Level, role: Role, rng: &mut GameRng) {
         destination: DLevel::new(4, 2), // Quest level 2
         up: false,
     });
-    
+
     // Stairs up back to main dungeon
     level.cells[home_x + 2][home_y + home_h / 2].typ = CellType::Stairs;
     level.stairs.push(Stairway {
@@ -250,10 +273,10 @@ pub fn generate_quest_home(level: &mut Level, role: Role, rng: &mut GameRng) {
         destination: DLevel::new(0, 14), // Back to main dungeon
         up: true,
     });
-    
+
     // Set level name
     level.flags.sokoban_rules = false; // Quest doesn't have sokoban rules
-    
+
     // Mark as quest level
     let _ = quest_info; // Use quest_info for future enhancements
 }
@@ -261,19 +284,19 @@ pub fn generate_quest_home(level: &mut Level, role: Role, rng: &mut GameRng) {
 /// Generate quest locate level (intermediate levels 2-4)
 pub fn generate_quest_locate(level: &mut Level, role: Role, level_num: i8, rng: &mut GameRng) {
     fill_level(level, CellType::Stone);
-    
+
     // Create a maze-like or cavern level
     let is_maze = matches!(role, Role::Wizard | Role::Monk | Role::Rogue);
-    
+
     if is_maze {
         generate_quest_maze(level, rng);
     } else {
         generate_quest_cavern(level, rng);
     }
-    
+
     // Add role-specific monsters and features
     add_quest_monsters(level, role, level_num, rng);
-    
+
     // Stairs
     place_quest_stairs(level, level_num, rng);
 }
@@ -281,15 +304,15 @@ pub fn generate_quest_locate(level: &mut Level, role: Role, level_num: i8, rng: 
 /// Generate quest goal level (level 5 - nemesis lair)
 pub fn generate_quest_goal(level: &mut Level, role: Role, rng: &mut GameRng) {
     let quest_info = QuestInfo::for_role(role);
-    
+
     fill_level(level, CellType::Stone);
-    
+
     // Create the nemesis lair
     let lair_x = 25;
     let lair_y = 5;
     let lair_w = 30;
     let lair_h = 11;
-    
+
     // Carve the lair
     for x in lair_x..(lair_x + lair_w) {
         for y in lair_y..(lair_y + lair_h) {
@@ -297,7 +320,7 @@ pub fn generate_quest_goal(level: &mut Level, role: Role, rng: &mut GameRng) {
             level.cells[x][y].lit = false; // Dark lair
         }
     }
-    
+
     // Add role-specific lair features
     match role {
         Role::Valkyrie => {
@@ -333,12 +356,12 @@ pub fn generate_quest_goal(level: &mut Level, role: Role, rng: &mut GameRng) {
             level.cells[lair_x + lair_w / 2][lair_y + lair_h / 2].typ = CellType::Altar;
         }
     }
-    
+
     // Corridor to entrance
     for x in 5..lair_x {
         level.cells[x][lair_y + lair_h / 2].typ = CellType::Corridor;
     }
-    
+
     // Stairs up only (no escape except back)
     level.cells[5][lair_y + lair_h / 2].typ = CellType::Stairs;
     level.stairs.push(Stairway {
@@ -347,7 +370,7 @@ pub fn generate_quest_goal(level: &mut Level, role: Role, rng: &mut GameRng) {
         destination: DLevel::new(4, 4),
         up: true,
     });
-    
+
     let _ = quest_info;
 }
 
@@ -362,29 +385,43 @@ fn fill_level(level: &mut Level, cell_type: CellType) {
     }
 }
 
-fn add_castle_features(level: &mut Level, x: usize, y: usize, w: usize, h: usize, _rng: &mut GameRng) {
+fn add_castle_features(
+    level: &mut Level,
+    x: usize,
+    y: usize,
+    w: usize,
+    h: usize,
+    _rng: &mut GameRng,
+) {
     // Add throne
     level.cells[x + w / 2][y + 2].typ = CellType::Throne;
-    
+
     // Add internal walls for rooms
     for ry in (y + 3)..(y + h - 3) {
         level.cells[x + w / 3][ry].typ = CellType::VWall;
         level.cells[x + 2 * w / 3][ry].typ = CellType::VWall;
     }
-    
+
     // Doors in internal walls
     level.cells[x + w / 3][y + h / 2].typ = CellType::Door;
     level.cells[x + 2 * w / 3][y + h / 2].typ = CellType::Door;
 }
 
-fn add_monastery_features(level: &mut Level, x: usize, y: usize, w: usize, h: usize, _rng: &mut GameRng) {
+fn add_monastery_features(
+    level: &mut Level,
+    x: usize,
+    y: usize,
+    w: usize,
+    h: usize,
+    _rng: &mut GameRng,
+) {
     // Central meditation area
     let cx = x + w / 2;
     let cy = y + h / 2;
-    
+
     // Fountain in center
     level.cells[cx][cy].typ = CellType::Fountain;
-    
+
     // Surrounding pillars
     for dx in [-2i32, 2] {
         for dy in [-2i32, 2] {
@@ -401,15 +438,15 @@ fn generate_quest_maze(level: &mut Level, rng: &mut GameRng) {
     let start_y = 3;
     let end_x = COLNO - 5;
     let end_y = ROWNO - 3;
-    
+
     // Carve corridors
     let mut x = start_x;
     let mut y = start_y;
-    
+
     while x < end_x || y < end_y {
         level.cells[x][y].typ = CellType::Corridor;
         level.cells[x][y].lit = true;
-        
+
         if rng.one_in(2) && x < end_x {
             x += 1;
         } else if y < end_y {
@@ -417,7 +454,7 @@ fn generate_quest_maze(level: &mut Level, rng: &mut GameRng) {
         } else if x < end_x {
             x += 1;
         }
-        
+
         // Add some branches
         if rng.one_in(5) {
             let branch_len = 3 + rng.rn2(5) as usize;
@@ -445,7 +482,7 @@ fn generate_quest_cavern(level: &mut Level, rng: &mut GameRng) {
         let ry = 3 + rng.rn2(12) as usize;
         let rw = 4 + rng.rn2(8) as usize;
         let rh = 3 + rng.rn2(5) as usize;
-        
+
         for x in rx..(rx + rw).min(COLNO - 2) {
             for y in ry..(ry + rh).min(ROWNO - 2) {
                 level.cells[x][y].typ = CellType::Room;
@@ -453,7 +490,7 @@ fn generate_quest_cavern(level: &mut Level, rng: &mut GameRng) {
             }
         }
     }
-    
+
     // Connect rooms with corridors
     connect_quest_rooms(level, rng);
 }
@@ -461,7 +498,7 @@ fn generate_quest_cavern(level: &mut Level, rng: &mut GameRng) {
 fn connect_quest_rooms(level: &mut Level, rng: &mut GameRng) {
     // Find room cells and connect them
     let mut room_cells: Vec<(usize, usize)> = Vec::new();
-    
+
     for x in 2..(COLNO - 2) {
         for y in 2..(ROWNO - 2) {
             if level.cells[x][y].typ == CellType::Room {
@@ -469,11 +506,11 @@ fn connect_quest_rooms(level: &mut Level, rng: &mut GameRng) {
             }
         }
     }
-    
+
     if room_cells.len() < 2 {
         return;
     }
-    
+
     // Connect random pairs
     for _ in 0..10 {
         let i1 = rng.rn2(room_cells.len() as u32) as usize;
@@ -489,25 +526,33 @@ fn connect_quest_rooms(level: &mut Level, rng: &mut GameRng) {
 fn connect_points(level: &mut Level, x1: usize, y1: usize, x2: usize, y2: usize) {
     let mut x = x1;
     let mut y = y1;
-    
+
     while x != x2 {
         if level.cells[x][y].typ == CellType::Stone {
             level.cells[x][y].typ = CellType::Corridor;
         }
-        if x < x2 { x += 1; } else { x -= 1; }
+        if x < x2 {
+            x += 1;
+        } else {
+            x -= 1;
+        }
     }
     while y != y2 {
         if level.cells[x][y].typ == CellType::Stone {
             level.cells[x][y].typ = CellType::Corridor;
         }
-        if y < y2 { y += 1; } else { y -= 1; }
+        if y < y2 {
+            y += 1;
+        } else {
+            y -= 1;
+        }
     }
 }
 
 fn add_quest_monsters(level: &mut Level, role: Role, level_num: i8, rng: &mut GameRng) {
     // Add traps based on role and level
     let num_traps = (level_num as usize) + rng.rn2(3) as usize;
-    
+
     let trap_types = match role {
         Role::Wizard => vec![TrapType::MagicTrap, TrapType::Teleport, TrapType::AntiMagic],
         Role::Rogue => vec![TrapType::Dart, TrapType::Arrow, TrapType::SleepingGas],
@@ -515,13 +560,15 @@ fn add_quest_monsters(level: &mut Level, role: Role, level_num: i8, rng: &mut Ga
         Role::Ranger => vec![TrapType::Arrow, TrapType::BearTrap, TrapType::Pit],
         _ => vec![TrapType::Pit, TrapType::Arrow, TrapType::Dart],
     };
-    
+
     for _ in 0..num_traps {
         for _ in 0..20 {
             let x = 5 + rng.rn2(70) as usize;
             let y = 2 + rng.rn2(17) as usize;
-            
-            if level.cells[x][y].typ == CellType::Room || level.cells[x][y].typ == CellType::Corridor {
+
+            if level.cells[x][y].typ == CellType::Room
+                || level.cells[x][y].typ == CellType::Corridor
+            {
                 let trap_idx = rng.rn2(trap_types.len() as u32) as usize;
                 level.add_trap(x as i8, y as i8, trap_types[trap_idx]);
                 break;
@@ -533,19 +580,21 @@ fn add_quest_monsters(level: &mut Level, role: Role, level_num: i8, rng: &mut Ga
 fn place_quest_stairs(level: &mut Level, level_num: i8, rng: &mut GameRng) {
     // Find valid positions
     let mut valid: Vec<(usize, usize)> = Vec::new();
-    
+
     for x in 5..(COLNO - 5) {
         for y in 3..(ROWNO - 3) {
-            if level.cells[x][y].typ == CellType::Room || level.cells[x][y].typ == CellType::Corridor {
+            if level.cells[x][y].typ == CellType::Room
+                || level.cells[x][y].typ == CellType::Corridor
+            {
                 valid.push((x, y));
             }
         }
     }
-    
+
     if valid.is_empty() {
         return;
     }
-    
+
     // Up stairs
     let up_idx = rng.rn2(valid.len() as u32) as usize;
     let (ux, uy) = valid[up_idx];
@@ -556,7 +605,7 @@ fn place_quest_stairs(level: &mut Level, level_num: i8, rng: &mut GameRng) {
         destination: DLevel::new(4, level_num - 1),
         up: true,
     });
-    
+
     // Down stairs (if not goal level)
     if level_num < 5 {
         let mut best_idx = 0;
@@ -568,7 +617,7 @@ fn place_quest_stairs(level: &mut Level, level_num: i8, rng: &mut GameRng) {
                 best_idx = i;
             }
         }
-        
+
         let (dx, dy) = valid[best_idx];
         level.cells[dx][dy].typ = CellType::Stairs;
         level.stairs.push(Stairway {
@@ -587,9 +636,19 @@ mod tests {
     #[test]
     fn test_quest_info_all_roles() {
         for role in [
-            Role::Archeologist, Role::Barbarian, Role::Caveman, Role::Healer,
-            Role::Knight, Role::Monk, Role::Priest, Role::Ranger,
-            Role::Rogue, Role::Samurai, Role::Tourist, Role::Valkyrie, Role::Wizard,
+            Role::Archeologist,
+            Role::Barbarian,
+            Role::Caveman,
+            Role::Healer,
+            Role::Knight,
+            Role::Monk,
+            Role::Priest,
+            Role::Ranger,
+            Role::Rogue,
+            Role::Samurai,
+            Role::Tourist,
+            Role::Valkyrie,
+            Role::Wizard,
         ] {
             let info = QuestInfo::for_role(role);
             assert!(!info.leader_name.is_empty());
@@ -602,31 +661,39 @@ mod tests {
     fn test_quest_home_generation() {
         let mut rng = GameRng::new(42);
         let mut level = Level::new(DLevel::new(4, 1));
-        
+
         generate_quest_home(&mut level, Role::Valkyrie, &mut rng);
-        
+
         // Should have room cells
-        let room_count = level.cells.iter()
+        let room_count = level
+            .cells
+            .iter()
             .flat_map(|col| col.iter())
             .filter(|c| c.typ == CellType::Room)
             .count();
-        
+
         assert!(room_count > 100, "Quest home should have rooms");
-        
+
         // Should have stairs
-        assert!(level.stairs.len() >= 2, "Quest home should have up and down stairs");
+        assert!(
+            level.stairs.len() >= 2,
+            "Quest home should have up and down stairs"
+        );
     }
 
     #[test]
     fn test_quest_goal_generation() {
         let mut rng = GameRng::new(42);
         let mut level = Level::new(DLevel::new(4, 5));
-        
+
         generate_quest_goal(&mut level, Role::Wizard, &mut rng);
-        
+
         // Should have magic traps
-        assert!(!level.traps.is_empty(), "Wizard quest goal should have traps");
-        
+        assert!(
+            !level.traps.is_empty(),
+            "Wizard quest goal should have traps"
+        );
+
         // Should have stairs
         assert!(!level.stairs.is_empty(), "Quest goal should have stairs");
     }
@@ -634,7 +701,7 @@ mod tests {
     #[test]
     fn test_quest_status() {
         let status = QuestStatus::new();
-        
+
         assert!(status.leader_alive);
         assert!(status.nemesis_alive);
         assert!(!status.got_quest);

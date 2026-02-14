@@ -1,7 +1,7 @@
 //! Main game plugin that orchestrates all sub-plugins
 
-use bevy::prelude::*;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::prelude::*;
 
 use crate::plugins::{
     animation::AnimationPlugin, audio::AudioPlugin, camera::CameraPlugin, effects::EffectsPlugin,

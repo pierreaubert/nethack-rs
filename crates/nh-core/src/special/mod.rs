@@ -2,13 +2,17 @@
 //!
 //! Shopkeepers, priests, vault guards, quests, mail, etc.
 
-pub mod dog;     // Pet handling
-pub mod mail;    // Mail daemon delivery system
-pub mod priest;  // Priests and temples
-pub mod quest;   // Quest system
-pub mod shk;     // Shopkeepers
-pub mod sounds;  // Monster sounds and speech
-pub mod vault;   // Vault guards
+pub mod dog; // Pet handling
+pub mod integration; // Integration guide for all systems
+pub mod mail; // Mail daemon delivery system
+pub mod priest; // Priests and temples
+pub mod quest; // Quest system
+pub mod shk; // Shopkeepers
+pub mod sounds; // Monster sounds and speech
+pub mod summon; // Summoning monsters
+pub mod vault; // Vault guards
+
+pub use summon::{SummonResult, dosummon, msummon, nasty};
 
 /// Room types for special rooms
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

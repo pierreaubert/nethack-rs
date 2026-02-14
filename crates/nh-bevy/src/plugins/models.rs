@@ -29,7 +29,12 @@ impl<'a> ModelBuilder<'a> {
     }
 
     /// Spawn a humanoid player model with head, torso, arms and legs
-    pub fn spawn_player(&mut self, commands: &mut Commands, player: &nh_core::player::You, transform: Transform) -> Entity {
+    pub fn spawn_player(
+        &mut self,
+        commands: &mut Commands,
+        player: &nh_core::player::You,
+        transform: Transform,
+    ) -> Entity {
         use nh_core::player::Race;
 
         // Get race-specific colors and scale
@@ -42,22 +47,22 @@ impl<'a> ModelBuilder<'a> {
             Race::Elf => (
                 Color::srgb(0.95, 0.87, 0.73), // Pale skin
                 Color::srgb(0.2, 0.6, 0.3),    // Green clothes
-                1.15, // Taller
+                1.15,                          // Taller
             ),
             Race::Dwarf => (
                 Color::srgb(0.82, 0.64, 0.48), // Tanned skin
                 Color::srgb(0.6, 0.3, 0.1),    // Brown clothes
-                0.75, // Shorter
+                0.75,                          // Shorter
             ),
             Race::Gnome => (
-                Color::srgb(0.9, 0.75, 0.6),   // Light skin
-                Color::srgb(0.7, 0.5, 0.1),    // Yellow-brown clothes
-                0.65, // Short
+                Color::srgb(0.9, 0.75, 0.6), // Light skin
+                Color::srgb(0.7, 0.5, 0.1),  // Yellow-brown clothes
+                0.65,                        // Short
             ),
             Race::Orc => (
-                Color::srgb(0.4, 0.5, 0.35),   // Greenish skin
-                Color::srgb(0.3, 0.25, 0.2),   // Dark clothes
-                1.05, // Slightly larger
+                Color::srgb(0.4, 0.5, 0.35), // Greenish skin
+                Color::srgb(0.3, 0.25, 0.2), // Dark clothes
+                1.05,                        // Slightly larger
             ),
         };
 
@@ -85,113 +90,133 @@ impl<'a> ModelBuilder<'a> {
         };
 
         // Spawn parent entity (invisible root at feet level)
-        let parent = commands.spawn((
-            PlayerMarker,
-            map_pos,
-            Transform::from_translation(transform.translation)
-                .with_scale(Vec3::splat(height_scale)),
-            Visibility::Inherited,
-        )).id();
+        let parent = commands
+            .spawn((
+                PlayerMarker,
+                map_pos,
+                Transform::from_translation(transform.translation)
+                    .with_scale(Vec3::splat(height_scale)),
+                Visibility::Inherited,
+            ))
+            .id();
 
         // Torso (center of the body)
-        let torso = commands.spawn((
-            Mesh3d(torso_mesh),
-            MeshMaterial3d(clothes_material.clone()),
-            Transform::from_xyz(0.0, 0.45, 0.0),
-        )).id();
+        let torso = commands
+            .spawn((
+                Mesh3d(torso_mesh),
+                MeshMaterial3d(clothes_material.clone()),
+                Transform::from_xyz(0.0, 0.45, 0.0),
+            ))
+            .id();
 
         // Head (on top of torso)
-        let head = commands.spawn((
-            Mesh3d(head_mesh),
-            MeshMaterial3d(skin_material.clone()),
-            Transform::from_xyz(0.0, 0.72, 0.0),
-        )).id();
+        let head = commands
+            .spawn((
+                Mesh3d(head_mesh),
+                MeshMaterial3d(skin_material.clone()),
+                Transform::from_xyz(0.0, 0.72, 0.0),
+            ))
+            .id();
 
         // Left arm
-        let left_arm = commands.spawn((
-            Mesh3d(arm_mesh.clone()),
-            MeshMaterial3d(skin_material.clone()),
-            Transform::from_xyz(-0.18, 0.45, 0.0)
-                .with_rotation(Quat::from_rotation_z(0.15)), // Slight angle outward
-        )).id();
+        let left_arm = commands
+            .spawn((
+                Mesh3d(arm_mesh.clone()),
+                MeshMaterial3d(skin_material.clone()),
+                Transform::from_xyz(-0.18, 0.45, 0.0).with_rotation(Quat::from_rotation_z(0.15)), // Slight angle outward
+            ))
+            .id();
 
         // Right arm
-        let right_arm = commands.spawn((
-            Mesh3d(arm_mesh),
-            MeshMaterial3d(skin_material.clone()),
-            Transform::from_xyz(0.18, 0.45, 0.0)
-                .with_rotation(Quat::from_rotation_z(-0.15)),
-        )).id();
+        let right_arm = commands
+            .spawn((
+                Mesh3d(arm_mesh),
+                MeshMaterial3d(skin_material.clone()),
+                Transform::from_xyz(0.18, 0.45, 0.0).with_rotation(Quat::from_rotation_z(-0.15)),
+            ))
+            .id();
 
         // Left leg
-        let left_leg = commands.spawn((
-            Mesh3d(leg_mesh.clone()),
-            MeshMaterial3d(clothes_material.clone()),
-            Transform::from_xyz(-0.07, 0.15, 0.0),
-        )).id();
+        let left_leg = commands
+            .spawn((
+                Mesh3d(leg_mesh.clone()),
+                MeshMaterial3d(clothes_material.clone()),
+                Transform::from_xyz(-0.07, 0.15, 0.0),
+            ))
+            .id();
 
         // Right leg
-        let right_leg = commands.spawn((
-            Mesh3d(leg_mesh),
-            MeshMaterial3d(clothes_material),
-            Transform::from_xyz(0.07, 0.15, 0.0),
-        )).id();
+        let right_leg = commands
+            .spawn((
+                Mesh3d(leg_mesh),
+                MeshMaterial3d(clothes_material),
+                Transform::from_xyz(0.07, 0.15, 0.0),
+            ))
+            .id();
 
         // Parent all body parts to the root
-        commands.entity(parent).add_children(&[torso, head, left_arm, right_arm, left_leg, right_leg]);
+        commands
+            .entity(parent)
+            .add_children(&[torso, head, left_arm, right_arm, left_leg, right_leg]);
 
         parent
     }
 
-    pub fn spawn_monster(&mut self, commands: &mut Commands, monster: &Monster, monster_def: &nh_core::monster::PerMonst, transform: Transform) -> Entity {
+    pub fn spawn_monster(
+        &mut self,
+        commands: &mut Commands,
+        monster: &Monster,
+        monster_def: &nh_core::monster::PerMonst,
+        transform: Transform,
+    ) -> Entity {
         let symbol = monster_def.symbol;
         let color = nethack_color_to_bevy(monster_def.color);
 
         let (mesh, offset) = match symbol {
             'd' | 'f' | 'q' => {
                 // Quadruped: Horizontal capsule or box
-                (
-                    self.meshes.add(Cuboid::new(0.6, 0.3, 0.3)),
-                    Vec3::Y * 0.15
-                )
-            },
+                (self.meshes.add(Cuboid::new(0.6, 0.3, 0.3)), Vec3::Y * 0.15)
+            }
             'a' | 'b' | 'e' | 's' | 'v' | 'w' | 'y' => {
                 // Small/Floating/Crawler: Sphere
                 (
                     self.meshes.add(Sphere::new(0.25).mesh().ico(3).unwrap()),
-                    Vec3::Y * 0.25
+                    Vec3::Y * 0.25,
                 )
-            },
+            }
             'D' => {
                 // Dragon: Large box/structure (placeholder)
-                (
-                    self.meshes.add(Cuboid::new(0.8, 0.6, 1.2)),
-                    Vec3::Y * 0.3
-                )
-            },
+                (self.meshes.add(Cuboid::new(0.8, 0.6, 1.2)), Vec3::Y * 0.3)
+            }
             _ => {
                 // Humanoid/Default: Vertical Capsule
-                (
-                    self.meshes.add(Capsule3d::new(0.2, 0.4)),
-                    Vec3::Y * 0.4
-                )
+                (self.meshes.add(Capsule3d::new(0.2, 0.4)), Vec3::Y * 0.4)
             }
         };
 
-        commands.spawn((
-            MonsterMarker { monster_id: monster.id },
-            Mesh3d(mesh),
-            MeshMaterial3d(self.materials.add(StandardMaterial {
-                base_color: color,
-                perceptual_roughness: 0.7,
-                ..default()
-            })),
-            transform.with_translation(transform.translation + offset),
-        )).id()
+        commands
+            .spawn((
+                MonsterMarker {
+                    monster_id: monster.id,
+                },
+                Mesh3d(mesh),
+                MeshMaterial3d(self.materials.add(StandardMaterial {
+                    base_color: color,
+                    perceptual_roughness: 0.7,
+                    ..default()
+                })),
+                transform.with_translation(transform.translation + offset),
+            ))
+            .id()
     }
 
     /// Spawn a 3D model for a floor object based on its class
-    pub fn spawn_object(&mut self, commands: &mut Commands, obj: &nh_core::object::Object, transform: Transform) -> Entity {
+    pub fn spawn_object(
+        &mut self,
+        commands: &mut Commands,
+        obj: &nh_core::object::Object,
+        transform: Transform,
+    ) -> Entity {
         use nh_core::object::ObjectClass;
 
         let (mesh, material, scale, offset) = match obj.class {
@@ -379,15 +404,24 @@ impl<'a> ModelBuilder<'a> {
             }
         };
 
-        commands.spawn((
-            Mesh3d(mesh),
-            MeshMaterial3d(material),
-            transform.with_translation(transform.translation + offset).with_scale(scale),
-        )).id()
+        commands
+            .spawn((
+                Mesh3d(mesh),
+                MeshMaterial3d(material),
+                transform
+                    .with_translation(transform.translation + offset)
+                    .with_scale(scale),
+            ))
+            .id()
     }
 
     /// Spawn a 3D pile indicator (stack of objects)
-    pub fn spawn_pile(&mut self, commands: &mut Commands, count: usize, transform: Transform) -> Entity {
+    pub fn spawn_pile(
+        &mut self,
+        commands: &mut Commands,
+        count: usize,
+        transform: Transform,
+    ) -> Entity {
         // Create a small pile of stacked discs
         let disc = self.meshes.add(Cylinder::new(0.1, 0.02));
         let mat = self.materials.add(StandardMaterial {
@@ -397,10 +431,12 @@ impl<'a> ModelBuilder<'a> {
             ..default()
         });
 
-        let parent = commands.spawn((
-            Transform::from_translation(transform.translation),
-            Visibility::Inherited,
-        )).id();
+        let parent = commands
+            .spawn((
+                Transform::from_translation(transform.translation),
+                Visibility::Inherited,
+            ))
+            .id();
 
         // Stack 2-4 discs based on pile size
         let stack_count = (count.min(4)).max(2);
@@ -408,11 +444,13 @@ impl<'a> ModelBuilder<'a> {
 
         for i in 0..stack_count {
             let y_offset = i as f32 * 0.025;
-            let child = commands.spawn((
-                Mesh3d(disc.clone()),
-                MeshMaterial3d(mat.clone()),
-                Transform::from_xyz(0.0, y_offset + 0.01, 0.0),
-            )).id();
+            let child = commands
+                .spawn((
+                    Mesh3d(disc.clone()),
+                    MeshMaterial3d(mat.clone()),
+                    Transform::from_xyz(0.0, y_offset + 0.01, 0.0),
+                ))
+                .id();
             children.push(child);
         }
 
@@ -424,22 +462,22 @@ impl<'a> ModelBuilder<'a> {
 /// Convert NetHack color index to Bevy Color (reused from entities.rs logic)
 fn nethack_color_to_bevy(color: u8) -> Color {
     match color {
-        0 => Color::BLACK,                   // CLR_BLACK
-        1 => Color::srgb(0.8, 0.0, 0.0),     // CLR_RED
-        2 => Color::srgb(0.0, 0.6, 0.0),     // CLR_GREEN
-        3 => Color::srgb(0.6, 0.4, 0.2),     // CLR_BROWN
-        4 => Color::srgb(0.0, 0.0, 0.8),     // CLR_BLUE
-        5 => Color::srgb(0.8, 0.0, 0.8),     // CLR_MAGENTA
-        6 => Color::srgb(0.0, 0.8, 0.8),     // CLR_CYAN
-        7 => Color::srgb(0.6, 0.6, 0.6),     // CLR_GRAY
-        8 => Color::srgb(0.3, 0.3, 0.3),     // CLR_NO_COLOR (dark gray)
-        9 => Color::srgb(1.0, 0.5, 0.0),     // CLR_ORANGE
-        10 => Color::srgb(0.0, 1.0, 0.0),    // CLR_BRIGHT_GREEN
-        11 => Color::srgb(1.0, 1.0, 0.0),    // CLR_YELLOW
-        12 => Color::srgb(0.3, 0.3, 1.0),    // CLR_BRIGHT_BLUE
-        13 => Color::srgb(1.0, 0.3, 1.0),    // CLR_BRIGHT_MAGENTA
-        14 => Color::srgb(0.3, 1.0, 1.0),    // CLR_BRIGHT_CYAN
-        15 => Color::WHITE,                  // CLR_WHITE
+        0 => Color::BLACK,                // CLR_BLACK
+        1 => Color::srgb(0.8, 0.0, 0.0),  // CLR_RED
+        2 => Color::srgb(0.0, 0.6, 0.0),  // CLR_GREEN
+        3 => Color::srgb(0.6, 0.4, 0.2),  // CLR_BROWN
+        4 => Color::srgb(0.0, 0.0, 0.8),  // CLR_BLUE
+        5 => Color::srgb(0.8, 0.0, 0.8),  // CLR_MAGENTA
+        6 => Color::srgb(0.0, 0.8, 0.8),  // CLR_CYAN
+        7 => Color::srgb(0.6, 0.6, 0.6),  // CLR_GRAY
+        8 => Color::srgb(0.3, 0.3, 0.3),  // CLR_NO_COLOR (dark gray)
+        9 => Color::srgb(1.0, 0.5, 0.0),  // CLR_ORANGE
+        10 => Color::srgb(0.0, 1.0, 0.0), // CLR_BRIGHT_GREEN
+        11 => Color::srgb(1.0, 1.0, 0.0), // CLR_YELLOW
+        12 => Color::srgb(0.3, 0.3, 1.0), // CLR_BRIGHT_BLUE
+        13 => Color::srgb(1.0, 0.3, 1.0), // CLR_BRIGHT_MAGENTA
+        14 => Color::srgb(0.3, 1.0, 1.0), // CLR_BRIGHT_CYAN
+        15 => Color::WHITE,               // CLR_WHITE
         _ => Color::WHITE,
     }
 }

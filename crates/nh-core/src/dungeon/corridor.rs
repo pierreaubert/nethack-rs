@@ -215,7 +215,131 @@ fn join_rooms(
     tracker.merge(room_a, room_b);
 }
 
+/// Check if there's a door next to a position (4 cardinal directions)
+/// Matches C's bydoor()
+///
+/// Checks if any of the 4 cardinal adjacent cells (N, S, E, W) contains a door.
+pub fn bydoor(level: &Level, x: i32, y: i32) -> bool {
+    let directions = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)];
+
+    for (nx, ny) in &directions {
+        if *nx >= 0 && *ny >= 0 && (*nx as usize) < COLNO && (*ny as usize) < ROWNO {
+            let cell_type = level.cells[*nx as usize][*ny as usize].typ;
+            if matches!(cell_type, CellType::Door | CellType::SecretDoor) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Check if there's a door next to a position (8 directions including diagonals)
+/// Matches C's nexttodoor()
+///
+/// Checks all 8 adjacent cells (including diagonals) for doors.
+pub fn nexttodoor(level: &Level, x: i32, y: i32) -> bool {
+    for dx in -1..=1 {
+        for dy in -1..=1 {
+            if dx == 0 && dy == 0 {
+                continue; // Skip center
+            }
+            let nx = x + dx;
+            let ny = y + dy;
+            if nx >= 0 && ny >= 0 && (nx as usize) < COLNO && (ny as usize) < ROWNO {
+                let cell_type = level.cells[nx as usize][ny as usize].typ;
+                if matches!(cell_type, CellType::Door | CellType::SecretDoor) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Check if a position is valid for placing a door
+/// Matches C's okdoor()
+///
+/// A position is valid for a door if:
+/// 1. It's on a wall (HWall or VWall)
+/// 2. There's no door already next to it (bydoor check)
+pub fn okdoor(level: &Level, x: i32, y: i32) -> bool {
+    if x < 0 || y < 0 || x >= COLNO as i32 || y >= ROWNO as i32 {
+        return false;
+    }
+
+    let cell_type = level.cells[x as usize][y as usize].typ;
+
+    // Must be on a wall
+    if !matches!(cell_type, CellType::HWall | CellType::VWall) {
+        return false;
+    }
+
+    // Must not be near another door
+    !bydoor(level, x, y)
+}
+
+/// Place a corridor or secret corridor at a position
+/// Matches C's corr()
+///
+/// Randomly chooses between a regular corridor (98%) or secret corridor (2%).
+pub fn corr(level: &mut Level, x: usize, y: usize, rng: &mut GameRng) {
+    if x >= COLNO || y >= ROWNO {
+        return;
+    }
+
+    // 2% chance of secret corridor (matches C's rn2(50) != 0)
+    if rng.rn2(50) == 0 {
+        level.cells[x][y].typ = CellType::SecretCorridor;
+    } else {
+        level.cells[x][y].typ = CellType::Corridor;
+    }
+}
+
+/// Find a door position in a wall region
+/// Matches C's finddpos() - finds a random door position in a wall
+///
+/// Tries to find a valid door position (via okdoor) in the given area,
+/// with multiple fallback strategies.
+pub fn finddpos(
+    level: &Level,
+    xl: usize,
+    yl: usize,
+    xh: usize,
+    yh: usize,
+    rng: &mut GameRng,
+) -> Option<(usize, usize)> {
+    // Try random position first
+    let x = xl + rng.rn2((xh - xl + 1) as u32) as usize;
+    let y = yl + rng.rn2((yh - yl + 1) as u32) as usize;
+
+    if okdoor(level, x as i32, y as i32) {
+        return Some((x, y));
+    }
+
+    // Scan the area linearly
+    for x in xl..=xh {
+        for y in yl..=yh {
+            if okdoor(level, x as i32, y as i32) {
+                return Some((x, y));
+            }
+        }
+    }
+
+    // If no okdoor found, look for any door or diagonal to door
+    for x in xl..=xh {
+        for y in yl..=yh {
+            if nexttodoor(level, x as i32, y as i32) {
+                return Some((x, y));
+            }
+        }
+    }
+
+    // Last resort: return corner
+    Some((xl, yh))
+}
+
 /// Generate corridors using the 4-phase algorithm
+/// Matches C's makecorridors()
 pub fn generate_corridors(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
     if rooms.len() < 2 {
         return;
@@ -414,5 +538,120 @@ mod tests {
             .count();
 
         assert!(corridor_count >= 10, "Should have corridor cells");
+    }
+
+    #[test]
+    fn test_bydoor() {
+        let mut level = Level::new(DLevel::main_dungeon_start());
+        let mut rng = GameRng::new(42);
+
+        // Place a door at (20, 20)
+        level.cells[20][20].typ = CellType::Door;
+
+        // Should detect door next to position (adjacent cells)
+        assert!(bydoor(&level, 20, 19)); // Door to the south
+        assert!(bydoor(&level, 20, 21)); // Door to the north
+        assert!(bydoor(&level, 19, 20)); // Door to the west
+        assert!(bydoor(&level, 21, 20)); // Door to the east
+
+        // Should not detect door at diagonal
+        assert!(!bydoor(&level, 21, 19));
+        assert!(!bydoor(&level, 19, 19));
+
+        // Should not detect door far away
+        assert!(!bydoor(&level, 10, 10));
+    }
+
+    #[test]
+    fn test_nexttodoor() {
+        let mut level = Level::new(DLevel::main_dungeon_start());
+
+        // Place a door at (20, 20)
+        level.cells[20][20].typ = CellType::SecretDoor;
+
+        // Should detect door in all 8 directions (including diagonals)
+        assert!(nexttodoor(&level, 20, 19)); // North
+        assert!(nexttodoor(&level, 20, 21)); // South
+        assert!(nexttodoor(&level, 19, 20)); // West
+        assert!(nexttodoor(&level, 21, 20)); // East
+        assert!(nexttodoor(&level, 19, 19)); // NW diagonal
+        assert!(nexttodoor(&level, 21, 19)); // NE diagonal
+        assert!(nexttodoor(&level, 19, 21)); // SW diagonal
+        assert!(nexttodoor(&level, 21, 21)); // SE diagonal
+
+        // Should not detect door far away
+        assert!(!nexttodoor(&level, 10, 10));
+    }
+
+    #[test]
+    fn test_okdoor() {
+        let mut level = Level::new(DLevel::main_dungeon_start());
+
+        // Set up a wall
+        level.cells[20][20].typ = CellType::HWall;
+
+        // Should be valid on wall with no adjacent door
+        assert!(okdoor(&level, 20, 20));
+
+        // Place a door nearby
+        level.cells[20][19].typ = CellType::Door;
+
+        // Should now be invalid (has adjacent door)
+        assert!(!okdoor(&level, 20, 20));
+
+        // Position not on wall should be invalid
+        level.cells[15][15].typ = CellType::Stone;
+        assert!(!okdoor(&level, 15, 15));
+
+        // Out of bounds should be invalid
+        assert!(!okdoor(&level, -1, 10));
+        assert!(!okdoor(&level, 100, 100));
+    }
+
+    #[test]
+    fn test_corr() {
+        let mut level = Level::new(DLevel::main_dungeon_start());
+        let mut rng = GameRng::new(42);
+
+        // Place corridor at location (within COLNO x ROWNO bounds)
+        level.cells[25][15].typ = CellType::Stone;
+        corr(&mut level, 25, 15, &mut rng);
+
+        // Should be either corridor or secret corridor
+        match level.cells[25][15].typ {
+            CellType::Corridor | CellType::SecretCorridor => (),
+            _ => panic!("Expected corridor or secret corridor"),
+        }
+    }
+
+    #[test]
+    fn test_finddpos() {
+        let mut level = Level::new(DLevel::main_dungeon_start());
+        let mut rng = GameRng::new(42);
+
+        // Set up wall area (HWall at top wall)
+        for x in 10..=20 {
+            level.cells[x][10].typ = CellType::HWall;
+        }
+
+        // Find door position in wall area
+        let pos = finddpos(&level, 10, 10, 20, 10, &mut rng);
+        assert!(pos.is_some(), "Should find a valid position");
+
+        if let Some((x, y)) = pos {
+            // Should be within bounds
+            assert!(x >= 10 && x <= 20);
+            assert!(y >= 10 && y <= 10);
+        }
+    }
+
+    #[test]
+    fn test_finddpos_empty_area() {
+        let level = Level::new(DLevel::main_dungeon_start());
+        let mut rng = GameRng::new(42);
+
+        // No walls in empty area - should return last resort corner
+        let pos = finddpos(&level, 30, 30, 35, 35, &mut rng);
+        assert_eq!(pos, Some((30, 35)), "Should return corner as last resort");
     }
 }

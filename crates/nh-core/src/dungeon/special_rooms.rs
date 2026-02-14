@@ -6,6 +6,7 @@
 use crate::monster::{Monster, MonsterId, MonsterState};
 use crate::object::{Object, ObjectClass, ObjectId};
 use crate::rng::GameRng;
+use crate::{COLNO, ROWNO};
 
 use super::room::{Room, RoomType};
 use super::{CellType, Level, TrapType};
@@ -260,7 +261,12 @@ fn create_special_monster(
     sleeping: bool,
     rng: &mut GameRng,
 ) -> Monster {
-    let mut monster = Monster::new(MonsterId(0), monster_class.difficulty() as i16, x as i8, y as i8);
+    let mut monster = Monster::new(
+        MonsterId(0),
+        monster_class.difficulty() as i16,
+        x as i8,
+        y as i8,
+    );
     monster.hp = monster_class.base_hp(rng);
     monster.hp_max = monster.hp;
     monster.name = monster_class.name().to_string();
@@ -277,22 +283,18 @@ fn create_special_monster(
 
 /// Populate a special room with appropriate monsters and features
 /// This is the equivalent of C's fill_zoo()
-pub fn populate_special_room(
-    level: &mut Level,
-    room: &Room,
-    rng: &mut GameRng,
-) {
+pub fn populate_special_room(level: &mut Level, room: &Room, rng: &mut GameRng) {
     let difficulty = level.dlevel.depth();
     let (cx, cy) = room.center();
 
     // Density of monsters varies by room type
     let spawn_chance = match room.room_type {
         RoomType::Court | RoomType::Barracks => 4,  // 1 in 4
-        RoomType::Zoo | RoomType::Morgue => 3,       // 1 in 3
-        RoomType::Beehive | RoomType::Anthole => 2,  // 1 in 2
-        RoomType::LeprechaunHall => 4,               // 1 in 4
-        RoomType::CockatriceNest => 5,               // 1 in 5
-        _ => 0,  // No monsters for other room types
+        RoomType::Zoo | RoomType::Morgue => 3,      // 1 in 3
+        RoomType::Beehive | RoomType::Anthole => 2, // 1 in 2
+        RoomType::LeprechaunHall => 4,              // 1 in 4
+        RoomType::CockatriceNest => 5,              // 1 in 5
+        _ => 0,                                     // No monsters for other room types
     };
 
     if spawn_chance == 0 {
@@ -356,13 +358,7 @@ fn select_room_monster(
 }
 
 /// Place room-specific features (throne, altar, etc.)
-fn place_room_features(
-    level: &mut Level,
-    room: &Room,
-    cx: usize,
-    cy: usize,
-    _rng: &mut GameRng,
-) {
+fn place_room_features(level: &mut Level, room: &Room, cx: usize, cy: usize, _rng: &mut GameRng) {
     match room.room_type {
         RoomType::Court => {
             // Place throne at center
@@ -391,12 +387,15 @@ fn populate_temple(level: &mut Level, room: &Room, rng: &mut GameRng) {
     ];
 
     for (px, py) in priest_positions {
-        if px >= room.x && px < room.x + room.width
-            && py >= room.y && py < room.y + room.height
+        if px >= room.x
+            && px < room.x + room.width
+            && py >= room.y
+            && py < room.y + room.height
             && level.monster_at(px as i8, py as i8).is_none()
         {
-            let mut priest = create_special_monster(SpecialMonsterClass::Priest, px, py, false, rng);
-            priest.state.peaceful = true;  // Temple priests are peaceful
+            let mut priest =
+                create_special_monster(SpecialMonsterClass::Priest, px, py, false, rng);
+            priest.state.peaceful = true; // Temple priests are peaceful
             level.add_monster(priest);
             break;
         }
@@ -426,7 +425,8 @@ fn populate_swamp(level: &mut Level, room: &Room, rng: &mut GameRng) {
             } else {
                 // Non-pool cell adjacent to pool - maybe spawn fungus
                 if rng.one_in(4) && level.monster_at(x as i8, y as i8).is_none() {
-                    let monster = create_special_monster(SpecialMonsterClass::Fungus, x, y, true, rng);
+                    let monster =
+                        create_special_monster(SpecialMonsterClass::Fungus, x, y, true, rng);
                     level.add_monster(monster);
                 }
             }
@@ -491,6 +491,506 @@ pub fn is_vault(room_type: RoomType) -> bool {
     matches!(room_type, RoomType::Vault)
 }
 
+// ============================================================================
+// Feature placement functions (mkroom.c)
+// ============================================================================
+
+/// Create a fountain at a position (mkfount equivalent)
+///
+/// # Arguments
+/// * `level` - The level to place the fountain on
+/// * `trap_flag` - If true, may create a trap fountain
+/// * `x`, `y` - Position for the fountain
+/// * `rng` - Random number generator
+///
+/// # Returns
+/// True if fountain was placed successfully
+pub fn mkfount(level: &mut Level, trap_flag: bool, x: usize, y: usize, rng: &mut GameRng) -> bool {
+    // Can't place on existing features
+    if !matches!(level.cells[x][y].typ, CellType::Room | CellType::Corridor) {
+        return false;
+    }
+
+    level.cells[x][y].typ = CellType::Fountain;
+
+    // Maybe add a trap
+    if trap_flag && rng.one_in(4) {
+        level.add_trap(x as i8, y as i8, TrapType::MagicPortal);
+    }
+
+    true
+}
+
+/// Create a sink at a position (mksink equivalent)
+///
+/// # Arguments
+/// * `level` - The level to place the sink on
+/// * `x`, `y` - Position for the sink
+///
+/// # Returns
+/// True if sink was placed successfully
+pub fn mksink(level: &mut Level, x: usize, y: usize) -> bool {
+    // Can't place on existing features
+    if !matches!(level.cells[x][y].typ, CellType::Room | CellType::Corridor) {
+        return false;
+    }
+
+    level.cells[x][y].typ = CellType::Sink;
+    true
+}
+
+/// Create an altar at a position (mkaltar equivalent)
+///
+/// # Arguments
+/// * `level` - The level to place the altar on
+/// * `x`, `y` - Position for the altar
+/// * `alignment` - Altar alignment (-1 chaotic, 0 neutral, 1 lawful)
+///
+/// # Returns
+/// True if altar was placed successfully
+pub fn mkaltar(level: &mut Level, x: usize, y: usize, alignment: i8) -> bool {
+    // Can't place on existing features
+    if !matches!(level.cells[x][y].typ, CellType::Room | CellType::Corridor) {
+        return false;
+    }
+
+    level.cells[x][y].typ = CellType::Altar;
+    // Store alignment in flags (bits 0-1: 0=none, 1=lawful, 2=neutral, 3=chaotic)
+    let align_bits = match alignment {
+        1 => 1,  // Lawful
+        0 => 2,  // Neutral
+        -1 => 3, // Chaotic
+        _ => 0,  // None
+    };
+    level.cells[x][y].flags = align_bits;
+
+    true
+}
+
+/// Create an altar at a position for room creation (create_altar equivalent)
+/// This version is used during level generation and can be more flexible
+pub fn create_altar(level: &mut Level, room: &Room, rng: &mut GameRng) -> bool {
+    // Find a suitable position in the room
+    let (x, y) = room.random_point(rng);
+
+    if !matches!(level.cells[x][y].typ, CellType::Room | CellType::Corridor) {
+        return false;
+    }
+
+    // Random alignment
+    let alignment = match rng.rn2(3) {
+        0 => 1,  // Lawful
+        1 => 0,  // Neutral
+        _ => -1, // Chaotic
+    };
+
+    mkaltar(level, x, y, alignment)
+}
+
+/// Create a grave at a position (mkgrave equivalent)
+///
+/// # Arguments
+/// * `level` - The level to place the grave on
+/// * `x`, `y` - Position for the grave
+///
+/// # Returns
+/// True if grave was placed successfully
+pub fn mkgrave(level: &mut Level, x: usize, y: usize) -> bool {
+    // Can't place on existing features
+    if !matches!(level.cells[x][y].typ, CellType::Room | CellType::Corridor) {
+        return false;
+    }
+
+    level.cells[x][y].typ = CellType::Grave;
+    true
+}
+
+/// Make a grave with optional contents (make_grave equivalent)
+///
+/// # Arguments
+/// * `level` - The level to place the grave on
+/// * `x`, `y` - Position for the grave
+/// * `rng` - Random number generator
+///
+/// # Returns
+/// True if grave was placed successfully
+pub fn make_grave(level: &mut Level, x: usize, y: usize, rng: &mut GameRng) -> bool {
+    if !mkgrave(level, x, y) {
+        return false;
+    }
+
+    // 50% chance of corpse
+    if rng.one_in(2) {
+        // Would place corpse here - simplified for now
+    }
+
+    // 25% chance of gold
+    if rng.one_in(4) {
+        let gold_amount = rng.rn2(50) as i32 + 10;
+        let mut gold = Object::new(ObjectId(0), 0, ObjectClass::Coin);
+        gold.quantity = gold_amount;
+        level.add_object(gold, x as i8, y as i8);
+    }
+
+    true
+}
+
+/// Make niches in walls of a room (make_niches equivalent)
+///
+/// Creates alcoves in the walls that can contain items or traps.
+///
+/// # Arguments
+/// * `level` - The level to modify
+/// * `room` - The room to add niches to
+/// * `rng` - Random number generator
+pub fn make_niches(level: &mut Level, room: &Room, rng: &mut GameRng) {
+    // Number of niches based on room size
+    let num_niches = 1 + rng.rn2(((room.width + room.height) / 6) as u32) as usize;
+
+    for _ in 0..num_niches {
+        makeniche(level, room, rng);
+    }
+}
+
+/// Make a single niche in a wall (makeniche equivalent)
+fn makeniche(level: &mut Level, room: &Room, rng: &mut GameRng) {
+    // Pick a wall direction
+    let dir = rng.rn2(4);
+
+    // Find position based on direction
+    let (x, y) = match dir {
+        0 => {
+            // North wall
+            (
+                room.x + rng.rn2(room.width as u32) as usize,
+                room.y.saturating_sub(1),
+            )
+        }
+        1 => {
+            // South wall
+            (
+                room.x + rng.rn2(room.width as u32) as usize,
+                room.y + room.height,
+            )
+        }
+        2 => {
+            // West wall
+            (
+                room.x.saturating_sub(1),
+                room.y + rng.rn2(room.height as u32) as usize,
+            )
+        }
+        _ => {
+            // East wall
+            (
+                room.x + room.width,
+                room.y + rng.rn2(room.height as u32) as usize,
+            )
+        }
+    };
+
+    place_niche(level, x, y, rng);
+}
+
+/// Place a niche at a specific position (place_niche equivalent)
+fn place_niche(level: &mut Level, x: usize, y: usize, rng: &mut GameRng) {
+    // Must be a wall
+    if !level.cells[x][y].typ.is_wall() {
+        return;
+    }
+
+    // Convert to niche (room floor)
+    level.cells[x][y].typ = CellType::Room;
+
+    // Maybe add trap (10% chance)
+    if rng.one_in(10) {
+        level.add_trap(x as i8, y as i8, TrapType::Teleport);
+    }
+}
+
+/// Add mineral deposits to level (mineralize equivalent)
+///
+/// Places gold and gems in walls throughout the level.
+///
+/// # Arguments
+/// * `level` - The level to modify
+/// * `rng` - Random number generator
+pub fn mineralize(level: &mut Level, rng: &mut GameRng) {
+    let depth = level.dlevel.depth();
+
+    // Number of deposits based on depth
+    let num_gold = rng.rn2((depth / 3 + 2) as u32) as usize;
+    let num_gems = rng.rn2((depth / 5 + 1) as u32) as usize;
+
+    // Place gold deposits
+    for _ in 0..num_gold {
+        // Find a wall
+        for _ in 0..100 {
+            let x = rng.rn2(COLNO as u32) as usize;
+            let y = rng.rn2(ROWNO as u32) as usize;
+
+            if level.cells[x][y].typ.is_wall() {
+                let gold_amount = rng.rn2((depth * 10) as u32) as i32 + 10;
+                let mut gold = Object::new(ObjectId(0), 0, ObjectClass::Coin);
+                gold.quantity = gold_amount;
+                // buried minerals are embedded in walls
+                level.add_object(gold, x as i8, y as i8);
+                break;
+            }
+        }
+    }
+
+    // Place gems (simplified - would use gem class)
+    for _ in 0..num_gems {
+        for _ in 0..100 {
+            let x = rng.rn2(COLNO as u32) as usize;
+            let y = rng.rn2(ROWNO as u32) as usize;
+
+            if level.cells[x][y].typ.is_wall() {
+                let gem = Object::new(ObjectId(0), 0, ObjectClass::Gem);
+                // buried minerals are embedded in walls
+                level.add_object(gem, x as i8, y as i8);
+                break;
+            }
+        }
+    }
+}
+
+/// Create fumaroles (volcanic vents) in a room (fumaroles equivalent)
+///
+/// Used in special volcanic areas.
+pub fn fumaroles(level: &mut Level, room: &Room, rng: &mut GameRng) {
+    let num_vents = 2 + rng.rn2(4) as usize;
+
+    for _ in 0..num_vents {
+        let (x, y) = room.random_point(rng);
+        if matches!(level.cells[x][y].typ, CellType::Room | CellType::Corridor) {
+            level.cells[x][y].typ = CellType::Lava;
+        }
+    }
+}
+
+/// Create a zoo room (mkzoo equivalent)
+///
+/// A zoo is a room filled with random monsters and items.
+pub fn mkzoo(level: &mut Level, room: &mut Room, rng: &mut GameRng) {
+    room.room_type = RoomType::Zoo;
+    fill_zoo(level, room, rng);
+}
+
+/// Fill a zoo-type room with monsters and items (fill_zoo equivalent)
+pub fn fill_zoo(level: &mut Level, room: &Room, rng: &mut GameRng) {
+    // Population density
+    let spawn_chance = 3; // 1 in 3
+
+    // Iterate through room cells
+    for x in room.x..room.x + room.width {
+        for y in room.y..room.y + room.height {
+            // Skip walls
+            if level.cells[x][y].typ.is_wall() {
+                continue;
+            }
+
+            // Skip if occupied
+            if level.monster_at(x as i8, y as i8).is_some() {
+                continue;
+            }
+
+            // Probability-based spawn
+            if rng.rn2(spawn_chance) == 0 {
+                let monster =
+                    create_special_monster(SpecialMonsterClass::RandomMonster, x, y, true, rng);
+                level.add_monster(monster);
+
+                // Zoo monsters are often near items
+                if rng.one_in(2) {
+                    let item = Object::new(ObjectId(0), 0, ObjectClass::Food);
+                    level.add_object(item, x as i8, y as i8);
+                }
+            }
+        }
+    }
+
+    // Room is lit
+    for x in room.x..room.x + room.width {
+        for y in room.y..room.y + room.height {
+            level.cells[x][y].lit = true;
+        }
+    }
+}
+
+/// Create a shop room (mkshop equivalent)
+///
+/// Creates a shop with shopkeeper and merchandise.
+pub fn mkshop(level: &mut Level, room: &mut Room, shop_type: RoomType, rng: &mut GameRng) -> bool {
+    // Validate shop type
+    if !matches!(
+        shop_type,
+        RoomType::GeneralShop
+            | RoomType::ArmorShop
+            | RoomType::ScrollShop
+            | RoomType::PotionShop
+            | RoomType::WeaponShop
+            | RoomType::FoodShop
+            | RoomType::RingShop
+            | RoomType::WandShop
+            | RoomType::ToolShop
+            | RoomType::BookShop
+            | RoomType::HealthFoodShop
+            | RoomType::CandleShop
+    ) {
+        return false;
+    }
+
+    room.room_type = shop_type;
+
+    // Find door position for shopkeeper (use room edge as entrance)
+    // Default to top-left corner of room as entrance point
+    let door_x = room.x;
+    let door_y = room.y;
+
+    // Place shopkeeper near entrance
+    shkinit(level, room, door_x, door_y, rng);
+
+    // Stock the shop
+    stock_room(level, room, rng);
+
+    true
+}
+
+/// Initialize shopkeeper (shkinit equivalent)
+fn shkinit(level: &mut Level, room: &Room, door_x: usize, door_y: usize, rng: &mut GameRng) {
+    // Find position near door inside room
+    let positions = [
+        (door_x.saturating_sub(1), door_y),
+        (door_x + 1, door_y),
+        (door_x, door_y.saturating_sub(1)),
+        (door_x, door_y + 1),
+    ];
+
+    for (sx, sy) in positions {
+        if sx >= room.x
+            && sx < room.x + room.width
+            && sy >= room.y
+            && sy < room.y + room.height
+            && level.monster_at(sx as i8, sy as i8).is_none()
+        {
+            // Create shopkeeper (using priest class as placeholder for shopkeeper)
+            let mut shopkeeper = create_special_monster(
+                SpecialMonsterClass::Priest, // Would be shopkeeper class
+                sx,
+                sy,
+                false,
+                rng,
+            );
+            shopkeeper.name = "shopkeeper".to_string();
+            shopkeeper.state.peaceful = true;
+            level.add_monster(shopkeeper);
+            break;
+        }
+    }
+}
+
+/// Stock a room with items (stock_room equivalent)
+fn stock_room(level: &mut Level, room: &Room, rng: &mut GameRng) {
+    // Determine item class based on room type
+    let item_class = match room.room_type {
+        RoomType::ArmorShop => ObjectClass::Armor,
+        RoomType::WeaponShop => ObjectClass::Weapon,
+        RoomType::ScrollShop => ObjectClass::Scroll,
+        RoomType::PotionShop => ObjectClass::Potion,
+        RoomType::FoodShop | RoomType::HealthFoodShop => ObjectClass::Food,
+        RoomType::RingShop => ObjectClass::Ring,
+        RoomType::WandShop => ObjectClass::Wand,
+        RoomType::ToolShop => ObjectClass::Tool,
+        RoomType::BookShop => ObjectClass::Spellbook,
+        RoomType::CandleShop => ObjectClass::Tool, // Candles are tools
+        _ => ObjectClass::Random,                  // General shop
+    };
+
+    // Stock each floor tile
+    for x in room.x..room.x + room.width {
+        for y in room.y..room.y + room.height {
+            if !stock_room_goodpos(level, x, y) {
+                continue;
+            }
+
+            // 50% chance of item per tile
+            if rng.one_in(2) {
+                let item = Object::new(ObjectId(0), 0, item_class);
+                level.add_object(item, x as i8, y as i8);
+            }
+        }
+    }
+}
+
+/// Check if position is good for shop item (stock_room_goodpos equivalent)
+fn stock_room_goodpos(level: &Level, x: usize, y: usize) -> bool {
+    // Must be floor
+    if !matches!(level.cells[x][y].typ, CellType::Room | CellType::Corridor) {
+        return false;
+    }
+
+    // No monster
+    if level.monster_at(x as i8, y as i8).is_some() {
+        return false;
+    }
+
+    true
+}
+
+/// Create a temple room (mktemple equivalent)
+pub fn mktemple(level: &mut Level, room: &mut Room, alignment: i8, rng: &mut GameRng) {
+    room.room_type = RoomType::Temple;
+
+    let (cx, cy) = room.center();
+
+    // Place altar
+    mkaltar(level, cx, cy, alignment);
+
+    // Initialize priest
+    priestini(level, room, cx, cy, alignment, rng);
+}
+
+/// Initialize temple priest (priestini equivalent)
+fn priestini(
+    level: &mut Level,
+    room: &Room,
+    altar_x: usize,
+    altar_y: usize,
+    _alignment: i8,
+    rng: &mut GameRng,
+) {
+    // Find position near altar
+    let positions = [
+        (altar_x.saturating_sub(1), altar_y),
+        (altar_x + 1, altar_y),
+        (altar_x, altar_y.saturating_sub(1)),
+        (altar_x, altar_y + 1),
+    ];
+
+    for (px, py) in positions {
+        if px >= room.x
+            && px < room.x + room.width
+            && py >= room.y
+            && py < room.y + room.height
+            && level.monster_at(px as i8, py as i8).is_none()
+        {
+            let mut priest =
+                create_special_monster(SpecialMonsterClass::Priest, px, py, false, rng);
+            priest.state.peaceful = true;
+            level.add_monster(priest);
+            break;
+        }
+    }
+}
+
+/// Create a swamp room (mkswamp equivalent)
+pub fn mkswamp(level: &mut Level, room: &mut Room, rng: &mut GameRng) {
+    room.room_type = RoomType::Swamp;
+    populate_swamp(level, room, rng);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -512,7 +1012,10 @@ mod tests {
 
         // Kobolds should be more common than dragons at low difficulty
         println!("Low diff - Kobolds: {}, Dragons: {}", kobolds, dragons);
-        assert!(kobolds > dragons, "Kobolds should be more common at low difficulty");
+        assert!(
+            kobolds > dragons,
+            "Kobolds should be more common at low difficulty"
+        );
 
         // High difficulty should produce more strong monsters
         kobolds = 0;
@@ -545,12 +1048,17 @@ mod tests {
             }
         }
 
-        println!("Morgue distribution - Ghosts: {}, Wraiths: {}, Zombies: {}",
-                 ghosts, wraiths, zombies);
+        println!(
+            "Morgue distribution - Ghosts: {}, Wraiths: {}, Zombies: {}",
+            ghosts, wraiths, zombies
+        );
 
         // Zombies should be most common (~60%)
         assert!(zombies > ghosts, "Zombies should be most common");
-        assert!(zombies > wraiths, "Zombies should be more common than wraiths");
+        assert!(
+            zombies > wraiths,
+            "Zombies should be more common than wraiths"
+        );
 
         // Ghost and wraith should be roughly equal (~20% each)
         let diff = (ghosts as i32 - wraiths as i32).abs();
@@ -575,13 +1083,21 @@ mod tests {
             }
         }
 
-        println!("Squad distribution - Soldiers: {}, Sergeants: {}, Lieutenants: {}, Captains: {}",
-                 soldiers, sergeants, lieutenants, captains);
+        println!(
+            "Squad distribution - Soldiers: {}, Sergeants: {}, Lieutenants: {}, Captains: {}",
+            soldiers, sergeants, lieutenants, captains
+        );
 
         // Soldiers should be most common
         assert!(soldiers > sergeants, "Soldiers should be most common");
-        assert!(soldiers > lieutenants, "Soldiers should be more common than lieutenants");
-        assert!(soldiers > captains, "Soldiers should be more common than captains");
+        assert!(
+            soldiers > lieutenants,
+            "Soldiers should be more common than lieutenants"
+        );
+        assert!(
+            soldiers > captains,
+            "Soldiers should be more common than captains"
+        );
     }
 
     #[test]
@@ -601,8 +1117,10 @@ mod tests {
         let ant3 = anthole_monster(43, 10);
         let ant4 = anthole_monster(44, 10);
         // At least one should be different
-        assert!(ant1 != ant3 || ant1 != ant4 || ant3 != ant4,
-                "Different seeds should produce variety");
+        assert!(
+            ant1 != ant3 || ant1 != ant4 || ant3 != ant4,
+            "Different seeds should produce variety"
+        );
     }
 
     #[test]
@@ -618,8 +1136,8 @@ mod tests {
         assert!(needs_population(RoomType::Morgue));
         assert!(needs_population(RoomType::Zoo));
         assert!(!needs_population(RoomType::Ordinary));
-        assert!(!needs_population(RoomType::Vault));  // Vault has gold, not monsters
-        assert!(!needs_population(RoomType::GeneralShop));  // Shops handled separately
+        assert!(!needs_population(RoomType::Vault)); // Vault has gold, not monsters
+        assert!(!needs_population(RoomType::GeneralShop)); // Shops handled separately
     }
 
     #[test]
@@ -637,7 +1155,7 @@ mod tests {
         let mut rng = GameRng::new(42);
         let dlevel = DLevel {
             dungeon_num: 0,
-            level_num: 10,  // Depth 10 for good gold amounts
+            level_num: 10, // Depth 10 for good gold amounts
         };
         let mut level = Level::new(dlevel);
 
@@ -656,14 +1174,14 @@ mod tests {
         populate_vault(&mut level, &room, &mut rng);
 
         // Should have gold piles
-        assert!(
-            !level.objects.is_empty(),
-            "Vault should have gold piles"
-        );
+        assert!(!level.objects.is_empty(), "Vault should have gold piles");
 
         // All objects should be gold
         assert!(
-            level.objects.iter().all(|obj| obj.class == ObjectClass::Coin),
+            level
+                .objects
+                .iter()
+                .all(|obj| obj.class == ObjectClass::Coin),
             "Vault should only have gold"
         );
 
@@ -674,8 +1192,10 @@ mod tests {
             }
         }
 
-        println!("Vault has {} gold piles, total value: {}",
-                 level.objects.len(),
-                 level.objects.iter().map(|o| o.quantity).sum::<i32>());
+        println!(
+            "Vault has {} gold piles, total value: {}",
+            level.objects.len(),
+            level.objects.iter().map(|o| o.quantity).sum::<i32>()
+        );
     }
 }

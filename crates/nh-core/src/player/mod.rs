@@ -14,9 +14,10 @@ mod you;
 
 pub use alignment::{Alignment, AlignmentType};
 pub use attributes::{Attribute, Attributes};
+pub use attributes::{attr2attrname, attrval};
 pub use conduct::Conduct;
 pub use hunger::HungerState;
 pub use properties::{Property, PropertyFlags, PropertySet};
 pub use role::{Gender, Race, Role};
 pub use skills::{Skill, SkillLevel, SkillSet, SkillType};
-pub use you::{Encumbrance, Position, You};
+pub use you::{Encumbrance, LUCKADD, Position, StatusEffect, TrapType as PlayerTrapType, You, stone_luck};

@@ -73,10 +73,10 @@ pub enum Intelligence {
 pub fn monster_intelligence(monster_type: i16) -> Intelligence {
     // Simplified - in real NetHack this comes from permonst data
     match monster_type {
-        0..=5 => Intelligence::Animal,      // Basic creatures
-        6..=10 => Intelligence::Low,        // Orcs, goblins
-        11..=15 => Intelligence::Average,   // Humanoids
-        16..=20 => Intelligence::High,      // Dragons, liches
+        0..=5 => Intelligence::Animal,    // Basic creatures
+        6..=10 => Intelligence::Low,      // Orcs, goblins
+        11..=15 => Intelligence::Average, // Humanoids
+        16..=20 => Intelligence::High,    // Dragons, liches
         _ => Intelligence::Average,
     }
 }
@@ -163,7 +163,20 @@ pub fn should_use_ranged(
 
     // Intelligence affects decision
     let intelligence = monster_intelligence(monster.monster_type);
-    let use_chance = match intelligence {
+
+    // Phase 18: Personality modifier
+    // Aggressive monsters prefer ranged less (want melee)
+    // Defensive/Tactical monsters prefer ranged more
+    let personality_bonus: i32 = match monster.personality {
+        super::Personality::Aggressive => -15,
+        super::Personality::Defensive => 15,
+        super::Personality::Tactical => 20,
+        super::Personality::Coward => 25, // Prefers distance
+        super::Personality::Berserker => -20,
+        super::Personality::Cautious => 10,
+    };
+
+    let mut use_chance: i32 = match intelligence {
         Intelligence::Mindless => 0,
         Intelligence::Animal => 10,
         Intelligence::Low => 30,
@@ -172,18 +185,37 @@ pub fn should_use_ranged(
         Intelligence::Genius => 90,
     };
 
-    rng.percent(use_chance)
+    use_chance += personality_bonus;
+    use_chance = use_chance.clamp(0, 100);
+
+    rng.percent(use_chance as u32)
 }
 
 /// Determine if monster should retreat
 pub fn should_retreat(monster: &Monster, _rng: &mut GameRng) -> bool {
-    // Low HP monsters with intelligence may retreat
+    // Phase 18: Use morale system if available
+    let intelligence = monster_intelligence(monster.monster_type);
+
+    // Calculate morale-based retreat if personality is assigned
+    // This uses the enhanced morale system from Phase 18
+    let mut morale_calc = monster.morale.clone();
+    morale_calc.calculate(monster.personality, monster.hp, monster.hp_max);
+
+    if let Some(_reason) = morale_calc.should_retreat(
+        intelligence,
+        monster.personality,
+        monster.hp,
+        monster.hp_max,
+    ) {
+        return true;
+    }
+
+    // Fallback to basic HP-based retreat for backward compatibility
     if monster.hp <= 0 || monster.hp_max <= 0 {
         return false;
     }
 
     let hp_percent = (monster.hp * 100) / monster.hp_max;
-    let intelligence = monster_intelligence(monster.monster_type);
 
     match intelligence {
         Intelligence::Mindless | Intelligence::Animal => false,
@@ -195,11 +227,7 @@ pub fn should_retreat(monster: &Monster, _rng: &mut GameRng) -> bool {
 }
 
 /// Check if monster should call for help
-pub fn should_call_for_help(
-    monster: &Monster,
-    level: &Level,
-    rng: &mut GameRng,
-) -> bool {
+pub fn should_call_for_help(monster: &Monster, level: &Level, rng: &mut GameRng) -> bool {
     let intelligence = monster_intelligence(monster.monster_type);
 
     // Only intelligent monsters call for help
@@ -232,7 +260,7 @@ pub fn should_call_for_help(
         100
     };
 
-    let call_chance = match intelligence {
+    let mut call_chance = match intelligence {
         Intelligence::Low => 10,
         Intelligence::Average => 20,
         Intelligence::High => 40,
@@ -240,9 +268,18 @@ pub fn should_call_for_help(
         _ => 0,
     };
 
+    // Phase 18: Personality modifier
+    // High ally-loyalty personalities are more likely to call for help
+    let profile = super::personality::PersonalityProfile::for_personality(monster.personality);
+    if profile.ally_loyalty > 50 {
+        call_chance += 20; // Loyal monsters call earlier
+    } else if profile.ally_loyalty < -50 {
+        call_chance = (call_chance / 2).max(5); // Disloyal monsters rarely call
+    }
+
     // More likely to call when hurt
     let adjusted_chance = if hp_percent < 50 {
-        call_chance * 2
+        (call_chance * 2).min(90)
     } else {
         call_chance
     };
@@ -300,12 +337,35 @@ pub fn determine_tactics(
         return TacticalAction::None;
     }
 
-    // Check retreat first (self-preservation)
+    // Phase 18: Check retreat first (morale + personality driven)
     if should_retreat(monster, rng) {
         return TacticalAction::Retreat;
     }
 
-    // Check ranged attack
+    // Phase 18: Personality-driven tactical preferences
+    let profile = super::personality::PersonalityProfile::for_personality(monster.personality);
+
+    // Aggressive monsters prefer melee, less likely to use ranged
+    // Defensive/Coward monsters prefer ranged, higher chance to stay back
+    match monster.personality {
+        super::Personality::Berserker => {
+            // Berserkers charge - never use ranged, go for melee
+            return TacticalAction::None;
+        }
+        super::Personality::Aggressive => {
+            // Aggressive monsters only use ranged as last resort
+            if rng.percent(20) && should_use_ranged(monster, player, level, rng) {
+                return TacticalAction::RangedAttack {
+                    target_x: player.pos.x,
+                    target_y: player.pos.y,
+                };
+            }
+            return TacticalAction::None;
+        }
+        _ => {}
+    }
+
+    // Check ranged attack (default logic for other personalities)
     if should_use_ranged(monster, player, level, rng) {
         return TacticalAction::RangedAttack {
             target_x: player.pos.x,
@@ -313,20 +373,39 @@ pub fn determine_tactics(
         };
     }
 
-    // Check call for help
-    if should_call_for_help(monster, level, rng) {
-        return TacticalAction::CallForHelp;
+    // Phase 18: Personality-driven ally support
+    // High ally-loyalty monsters are more likely to call for help
+    if profile.ally_loyalty > 40 {
+        if should_call_for_help(monster, level, rng) {
+            return TacticalAction::CallForHelp;
+        }
     }
 
+    // Coward monsters try to hide or run
+    if monster.personality == super::Personality::Coward && rng.percent(30) {
+        return TacticalAction::Hide;
+    }
+
+    // Default: no special tactic, use basic movement
     TacticalAction::None
 }
 
+/// Check if monster can use breath weapon (Phase 18)
+pub fn can_use_breath(monster: &Monster) -> bool {
+    // Check if monster has breath weapon capability
+    monster.has_breath_attack() && monster.resources.breath_ready()
+}
+
+/// Check if monster can cast spells (Phase 18)
+pub fn can_cast_spells_tactic(monster: &Monster) -> bool {
+    // Check if monster has spell capability and mana
+    monster.can_cast_spells()
+        && monster.resources.spells_ready()
+        && monster.resources.mana_current > 5
+}
+
 /// Group behavior - monsters of same type coordinate
-pub fn group_behavior(
-    monster_id: MonsterId,
-    level: &Level,
-    player: &You,
-) -> Option<(i8, i8)> {
+pub fn group_behavior(monster_id: MonsterId, level: &Level, player: &You) -> Option<(i8, i8)> {
     let monster = level.monster(monster_id)?;
 
     // Find allies of same type
@@ -366,6 +445,307 @@ pub fn group_behavior(
     } else {
         None
     }
+}
+
+// ============================================================================
+// Weapon selection functions (weapon.c: select_hwep, select_rwep, mon_wield_item)
+// ============================================================================
+
+/// Weapon check states for monsters
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
+pub enum WeaponCheck {
+    #[default]
+    NoWeaponWanted = 0,
+    NeedWeapon = 1,
+    NeedHthWeapon = 2,
+    NeedRangedWeapon = 3,
+    NeedPickAxe = 4,
+    NeedAxe = 5,
+    NeedPickOrAxe = 6,
+}
+
+/// Hand-to-hand weapon preference order (from weapon.c hwep[])
+const HWEP_PREFERENCE: &[i16] = &[
+    // Corpse (cockatrice) handled specially
+    // Two-handed weapons first (for strong monsters)
+    100, // TSURUGI
+    101, // RUNESWORD
+    102, // DWARVISH_MATTOCK
+    103, // TWO_HANDED_SWORD
+    104, // BATTLE_AXE
+    // One-handed weapons
+    105, // KATANA
+    106, // UNICORN_HORN
+    107, // CRYSKNIFE
+    108, // TRIDENT
+    109, // LONG_SWORD
+    110, // ELVEN_BROADSWORD
+    111, // BROADSWORD
+    112, // SCIMITAR
+    113, // SILVER_SABER
+    114, // MORNING_STAR
+    115, // ELVEN_SHORT_SWORD
+    116, // DWARVISH_SHORT_SWORD
+    117, // SHORT_SWORD
+    118, // ORCISH_SHORT_SWORD
+    119, // MACE
+    120, // AXE
+    121, // DWARVISH_SPEAR
+    122, // SILVER_SPEAR
+    123, // ELVEN_SPEAR
+    124, // SPEAR
+    125, // ORCISH_SPEAR
+    126, // FLAIL
+    127, // BULLWHIP
+    128, // QUARTERSTAFF
+    129, // JAVELIN
+    130, // AKLYS
+    131, // CLUB
+    132, // PICK_AXE
+    133, // RUBBER_HOSE
+    134, // WAR_HAMMER
+    135, // SILVER_DAGGER
+    136, // ELVEN_DAGGER
+    137, // DAGGER
+    138, // ORCISH_DAGGER
+    139, // ATHAME
+    140, // SCALPEL
+    141, // KNIFE
+    142, // WORM_TOOTH
+];
+
+/// Ranged weapon preference order (from weapon.c rwep[])
+const RWEP_PREFERENCE: &[i16] = &[
+    200, // CREAM_PIE
+    201, // BOULDER (for giants)
+    202, // ARROW
+    203, // ELVEN_ARROW
+    204, // ORCISH_ARROW
+    205, // SILVER_ARROW
+    206, // YA
+    207, // CROSSBOW_BOLT
+    208, // DART
+    209, // SHURIKEN
+    210, // BOOMERANG
+    211, // DAGGER
+    212, // ELVEN_DAGGER
+    213, // ORCISH_DAGGER
+    214, // SILVER_DAGGER
+    215, // KNIFE
+    216, // FLINT
+    217, // ROCK
+    218, // LOADSTONE
+    219, // LUCKSTONE
+    220, // TOUCHSTONE
+];
+
+/// Select a hand-to-hand weapon for a monster (select_hwep from weapon.c)
+///
+/// Chooses the best melee weapon from the monster's inventory based on:
+/// - Artifact weapons (preferred)
+/// - Weapon damage potential
+/// - Monster strength (for two-handed weapons)
+/// - Silver aversion (for undead/demons)
+///
+/// Returns the index of the selected weapon in the monster's inventory, or None.
+pub fn select_hwep(monster: &Monster) -> Option<usize> {
+    let is_strong = monster.level >= 10;
+    let has_shield = monster.worn_mask & 0x0100 != 0; // W_ARMS
+
+    // First, prefer artifacts
+    for (idx, obj) in monster.inventory.iter().enumerate() {
+        if obj.class == crate::object::ObjectClass::Weapon && obj.artifact != 0 {
+            // Check if monster can use two-handed weapons
+            if is_strong && !has_shield {
+                return Some(idx);
+            }
+            // Check if weapon is one-handed (simplified check)
+            if obj.weight < 100 {
+                return Some(idx);
+            }
+        }
+    }
+
+    // Then check standard weapons in preference order
+    for &weapon_type in HWEP_PREFERENCE {
+        for (idx, obj) in monster.inventory.iter().enumerate() {
+            if obj.object_type == weapon_type {
+                // Check two-handed weapon restrictions
+                let is_bimanual = obj.weight >= 100; // Simplified check
+                if is_bimanual && (!is_strong || has_shield) {
+                    continue;
+                }
+                // Check silver aversion (simplified)
+                // In full implementation, would check mon_hates_silver
+                return Some(idx);
+            }
+        }
+    }
+
+    None
+}
+
+/// Select a ranged weapon for a monster (select_rwep from weapon.c)
+///
+/// Chooses the best ranged weapon/ammunition from the monster's inventory.
+/// Also determines the appropriate launcher (propellor) if needed.
+///
+/// Returns (ammo_index, launcher_index) where launcher_index is None for thrown weapons.
+pub fn select_rwep(monster: &Monster) -> Option<(usize, Option<usize>)> {
+    // Check for throwable items in preference order
+    for &weapon_type in RWEP_PREFERENCE {
+        for (idx, obj) in monster.inventory.iter().enumerate() {
+            if obj.object_type == weapon_type {
+                // Check if this needs a launcher
+                let launcher_idx = find_launcher_for(monster, obj);
+
+                // Arrows need bows, bolts need crossbows
+                let needs_launcher = matches!(weapon_type, 202..=206 | 207);
+                if needs_launcher && launcher_idx.is_none() {
+                    continue;
+                }
+
+                return Some((idx, launcher_idx));
+            }
+        }
+    }
+
+    None
+}
+
+/// Find a launcher for the given ammunition
+fn find_launcher_for(monster: &Monster, ammo: &crate::object::Object) -> Option<usize> {
+    // Simplified launcher matching
+    // In full implementation, would use ammo_and_launcher()
+    let launcher_types: &[i16] = match ammo.object_type {
+        202..=206 => &[300, 301, 302, 303], // Arrows -> bows
+        207 => &[304],                      // Bolts -> crossbow
+        _ => return None,                   // Thrown weapons don't need launchers
+    };
+
+    for (idx, obj) in monster.inventory.iter().enumerate() {
+        if launcher_types.contains(&obj.object_type) {
+            return Some(idx);
+        }
+    }
+
+    None
+}
+
+/// Check if an object is a weapon that monsters know how to throw
+/// (monmightthrowwep from weapon.c)
+pub fn monmightthrowwep(obj: &crate::object::Object) -> bool {
+    RWEP_PREFERENCE.contains(&obj.object_type)
+}
+
+/// Monster wields an item based on current weapon_check state
+/// (mon_wield_item from weapon.c)
+///
+/// Returns true if the monster took time to wield, false otherwise.
+pub fn mon_wield_item(monster: &mut Monster, weapon_check: WeaponCheck) -> bool {
+    let weapon_idx = match weapon_check {
+        WeaponCheck::NoWeaponWanted => return false,
+        WeaponCheck::NeedWeapon | WeaponCheck::NeedHthWeapon => select_hwep(monster),
+        WeaponCheck::NeedRangedWeapon => select_rwep(monster).map(|(idx, _)| idx),
+        WeaponCheck::NeedPickAxe => {
+            // Find a pick-axe by object_type or name
+            monster.inventory.iter().position(|obj| {
+                obj.object_type == 132 // PICK_AXE
+                        || obj.name.as_ref().map_or(false, |n| n.to_lowercase().contains("pick"))
+            })
+        }
+        WeaponCheck::NeedAxe => {
+            // Find any axe
+            monster.inventory.iter().position(|obj| {
+                obj.object_type == 120 // AXE
+                        || obj.object_type == 104 // BATTLE_AXE
+                        || obj.name.as_ref().map_or(false, |n| n.to_lowercase().contains("axe"))
+            })
+        }
+        WeaponCheck::NeedPickOrAxe => {
+            // Prefer pick, then axe
+            monster
+                .inventory
+                .iter()
+                .position(|obj| {
+                    obj.object_type == 132
+                        || obj
+                            .name
+                            .as_ref()
+                            .map_or(false, |n| n.to_lowercase().contains("pick"))
+                })
+                .or_else(|| {
+                    monster.inventory.iter().position(|obj| {
+                        obj.object_type == 120
+                            || obj.object_type == 104
+                            || obj
+                                .name
+                                .as_ref()
+                                .map_or(false, |n| n.to_lowercase().contains("axe"))
+                    })
+                })
+        }
+    };
+
+    if let Some(idx) = weapon_idx {
+        // Check if already wielding this weapon
+        if monster.wielded == Some(idx) {
+            return false;
+        }
+
+        // Wield the weapon
+        monster.wielded = Some(idx);
+        true
+    } else {
+        false
+    }
+}
+
+/// Possibly unwield a weapon after polymorph or theft
+/// (possibly_unwield from weapon.c)
+pub fn possibly_unwield(monster: &mut Monster) {
+    if let Some(wielded_idx) = monster.wielded {
+        // Check if the weapon still exists in inventory
+        if wielded_idx >= monster.inventory.len() {
+            monster.wielded = None;
+            return;
+        }
+
+        // Check if monster can still use weapons
+        // (simplified - would check attacktype(AT_WEAP) in full implementation)
+        if monster.level < 3 {
+            monster.wielded = None;
+        }
+    }
+}
+
+/// Check if a wielded weapon is welded (cursed and can't be removed)
+/// (mwelded from wield.c)
+pub fn mwelded(monster: &Monster) -> bool {
+    if let Some(wielded_idx) = monster.wielded {
+        if let Some(weapon) = monster.inventory.get(wielded_idx) {
+            return weapon.buc == crate::object::BucStatus::Cursed
+                && weapon.class == crate::object::ObjectClass::Weapon;
+        }
+    }
+    false
+}
+
+/// Set a monster's weapon to not wielded state
+/// (setmnotwielded from wield.c)
+pub fn setmnotwielded(monster: &mut Monster) {
+    monster.wielded = None;
+}
+
+/// Get the attack for a specific attack index (getmattk from monattk.c)
+///
+/// Returns the attack at the given index, or None if invalid.
+pub fn getmattk(monster: &Monster, attack_index: usize) -> Option<&crate::combat::Attack> {
+    monster
+        .attacks
+        .get(attack_index)
+        .filter(|atk| atk.is_active())
 }
 
 #[cfg(test)]
@@ -434,7 +814,10 @@ mod tests {
         let monster = Monster::new(MonsterId(1), 0, 5, 5);
         let action = determine_tactics(&monster, &player, &level, &mut rng);
         // Animal intelligence - limited tactics
-        assert!(matches!(action, TacticalAction::None | TacticalAction::Retreat));
+        assert!(matches!(
+            action,
+            TacticalAction::None | TacticalAction::Retreat
+        ));
     }
 
     #[test]

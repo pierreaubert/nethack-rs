@@ -4,15 +4,23 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::NORMAL_SPEED;
 use crate::action::{ActionResult, Command};
 use crate::combat::artifact::ArtifactTracker;
 use crate::dungeon::{DLevel, Level};
-use crate::monster::makemon::MonsterVitals;
-use crate::object::Object;
+use crate::magic::genocide::MonsterVitals;
+use crate::monster::MonsterId;
+use crate::object::{DiscoveryState, Object};
 use crate::player::You;
 use crate::rng::GameRng;
+use crate::special::priest::Temple;
+use crate::special::quest::QuestStatus;
+use crate::special::shk::Shop;
+use crate::special::vault::Vault;
+use crate::world::timeout::do_storms;
+use crate::world::topten::{self, ScoreEntry};
 use crate::world::{Context, Flags, TimeoutManager};
-use crate::NORMAL_SPEED;
+use std::path::Path;
 
 /// Default sight range for visibility calculation (in lit rooms)
 const SIGHT_RANGE: i32 = 15;
@@ -33,7 +41,7 @@ pub enum GameLoopResult {
 }
 
 /// Main game state
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GameState {
     /// Player character
     pub player: You,
@@ -74,14 +82,29 @@ pub struct GameState {
     #[serde(skip)]
     pub message_history: Vec<String>,
 
-    /// Discovered (identified) object types by type index
-    pub discoveries: HashSet<i16>,
+    /// Object discovery state
+    pub discovery_state: DiscoveryState,
 
     /// Artifact tracker (which artifacts exist in game)
     pub artifact_tracker: ArtifactTracker,
 
-    /// Monster birth/death/genocide tracking (indexed by monster type)
-    pub monster_vitals: Vec<MonsterVitals>,
+    /// Monster genocide tracking (which species are genocided)
+    pub monster_vitals: MonsterVitals,
+
+    /// Quest status tracking
+    pub quest_status: QuestStatus,
+
+    /// Active pet monster IDs (for following between levels)
+    pub active_pets: Vec<MonsterId>,
+
+    /// Temple data for current level
+    pub temples: Vec<Temple>,
+
+    /// Shop data for current level
+    pub shops: Vec<Shop>,
+
+    /// Vault data for current level
+    pub vaults: Vec<Vault>,
 }
 
 impl Default for GameState {
@@ -93,13 +116,14 @@ impl Default for GameState {
 impl GameState {
     /// Create a new game with the given RNG
     pub fn new(mut rng: GameRng) -> Self {
+        // Initialize monster vitals early so level generation can use it
+        let monster_vitals = MonsterVitals::new();
+
         let dlevel = DLevel::main_dungeon_start();
-        let current_level = Level::new_generated(dlevel, &mut rng);
+        let current_level = Level::new_generated(dlevel, &mut rng, &monster_vitals);
 
         // Find upstairs to place player
-        let (start_x, start_y) = current_level
-            .find_upstairs()
-            .unwrap_or((40, 10)); // Default fallback position
+        let (start_x, start_y) = current_level.find_upstairs().unwrap_or((40, 10)); // Default fallback position
 
         let mut player = You::default();
         player.pos.x = start_x;
@@ -109,6 +133,15 @@ impl GameState {
         // Initialize visibility from starting position
         let mut current_level = current_level;
         current_level.update_visibility(start_x, start_y, SIGHT_RANGE);
+
+        // NOTE: Phase 6 - Monster Spawn Integration
+        // Special NPC spawning (starting pet, priests, shopkeepers, guards) would be called here.
+        // This requires integration with the level generation system to:
+        // 1. Spawn starting pet (if role is Valkyrie, etc.) at player position
+        // 2. Spawn priests in temples during level generation
+        // 3. Spawn shopkeepers in shops during level generation
+        // 4. Initialize vault data with guard positions
+        // For now, these are placeholders that the level generation system would populate
 
         Self {
             player,
@@ -123,9 +156,17 @@ impl GameState {
             monster_turns: 0,
             messages: Vec::new(),
             message_history: Vec::new(),
-            discoveries: HashSet::new(),
+            discovery_state: DiscoveryState {
+                discovered: HashMap::new(),
+                disco_count: 0,
+            },
             artifact_tracker: ArtifactTracker::new(),
-            monster_vitals: Vec::new(),
+            monster_vitals,
+            quest_status: QuestStatus::new(),
+            active_pets: Vec::new(),
+            temples: Vec::new(),
+            shops: Vec::new(),
+            vaults: Vec::new(),
         }
     }
 
@@ -139,6 +180,15 @@ impl GameState {
     /// Clear messages
     pub fn clear_messages(&mut self) {
         self.messages.clear();
+    }
+
+    /// Transfer pending messages from the current level to the game state
+    /// This should be called after monster turns to collect AI-generated messages
+    pub fn collect_level_messages(&mut self) {
+        let pending = self.current_level.take_pending_messages();
+        for msg in pending {
+            self.message(msg);
+        }
     }
 
     /// Add an object to the player's inventory
@@ -176,7 +226,10 @@ impl GameState {
 
     /// Calculate total inventory weight
     pub fn inventory_weight(&self) -> u32 {
-        self.inventory.iter().map(|o| o.weight * o.quantity as u32).sum()
+        self.inventory
+            .iter()
+            .map(|o| o.weight * o.quantity as u32)
+            .sum()
     }
 
     /// Calculate total armor class from worn equipment and dexterity
@@ -266,6 +319,12 @@ impl GameLoop {
             }
         }
 
+        // Handle quest progression
+        self.handle_quest_turn();
+
+        // Generate ambient sounds
+        self.handle_ambient_sounds();
+
         // Process monsters while player is out of movement
         while self.state.player.movement_points < NORMAL_SPEED {
             self.state.context.monsters_moving = true;
@@ -297,9 +356,7 @@ impl GameLoop {
                 // For now, just move one step (full running requires UI integration)
                 self.do_move(dir)
             }
-            Command::MoveUntilInteresting(dir) => {
-                 self.do_move(dir)
-            }
+            Command::MoveUntilInteresting(dir) => self.do_move(dir),
             Command::Rest => {
                 self.state.message("You wait.");
                 ActionResult::Success
@@ -312,13 +369,9 @@ impl GameLoop {
 
             // Object manipulation
             Command::Pickup => crate::action::pickup::do_pickup(&mut self.state),
-            Command::Drop(letter) => {
-                crate::action::pickup::do_drop(&mut self.state, letter)
-            }
+            Command::Drop(letter) => crate::action::pickup::do_drop(&mut self.state, letter),
             Command::Eat(letter) => crate::action::eat::do_eat(&mut self.state, letter),
-            Command::Apply(letter) => {
-                crate::action::apply::do_apply(&mut self.state, letter)
-            }
+            Command::Apply(letter) => crate::action::apply::do_apply(&mut self.state, letter),
             Command::Wear(letter) => crate::action::wear::do_wear(&mut self.state, letter),
             Command::TakeOff(letter) => crate::action::wear::do_takeoff(&mut self.state, letter),
             Command::Wield(letter_opt) => {
@@ -330,54 +383,54 @@ impl GameLoop {
             }
             Command::PutOn(letter) => crate::action::wear::do_puton(&mut self.state, letter),
             Command::Remove(letter) => crate::action::wear::do_remove(&mut self.state, letter),
-            Command::Quaff(letter) => {
-                crate::action::quaff::do_quaff(&mut self.state, letter)
-            }
-            Command::Read(letter) => {
-                crate::action::read::do_read(&mut self.state, letter)
-            }
+            Command::Quaff(letter) => crate::action::quaff::do_quaff(&mut self.state, letter),
+            Command::Read(letter) => crate::action::read::do_read(&mut self.state, letter),
             Command::Zap(letter, dir) => {
                 crate::action::zap::do_zap(&mut self.state, letter, Some(dir))
             }
             Command::Throw(letter, dir) => {
                 crate::action::throw::do_throw(&mut self.state, letter, dir)
-            },
+            }
             Command::Fire(dir) => {
                 // Fire uses the quivered/wielded ranged weapon
                 // For now, find first throwable item in inventory
-                let throwable = self.state.inventory.iter()
-                    .find(|o| matches!(o.class, 
-                        crate::object::ObjectClass::Weapon | 
-                        crate::object::ObjectClass::Gem |
-                        crate::object::ObjectClass::Rock))
+                let throwable = self
+                    .state
+                    .inventory
+                    .iter()
+                    .find(|o| {
+                        matches!(
+                            o.class,
+                            crate::object::ObjectClass::Weapon
+                                | crate::object::ObjectClass::Gem
+                                | crate::object::ObjectClass::Rock
+                        )
+                    })
                     .map(|o| o.inv_letter);
-                
+
                 if let Some(letter) = throwable {
                     crate::action::throw::do_throw(&mut self.state, letter, dir)
                 } else {
                     self.state.message("You have nothing to fire.");
                     ActionResult::NoTime
                 }
-            },
-
+            }
 
             // Directional actions
             Command::Open(dir) => crate::action::open_close::do_open(&mut self.state, dir),
             Command::Close(dir) => crate::action::open_close::do_close(&mut self.state, dir),
-            Command::Kick(dir) => {
-                crate::action::kick::do_kick(&mut self.state, dir)
-            }
+            Command::Kick(dir) => crate::action::kick::do_kick(&mut self.state, dir),
             Command::Fight(dir) => {
                 // Force fight - attack even peaceful monsters
                 let state = &mut self.state;
                 let (dx, dy) = dir.delta();
                 let new_x = state.player.pos.x + dx;
                 let new_y = state.player.pos.y + dy;
-                
+
                 if let Some(monster) = state.current_level.monster_at(new_x, new_y) {
                     let monster_id = monster.id;
                     let monster_name = monster.name.clone();
-                    
+
                     // Attack regardless of peaceful status
                     let result = crate::combat::player_attack_monster(
                         &mut state.player,
@@ -385,9 +438,22 @@ impl GameLoop {
                         None, // weapon
                         &mut state.rng,
                     );
-                    
+
                     if result.hit {
-                        state.message(format!("You hit the {} for {} damage!", monster_name, result.damage));
+                        state.message(format!(
+                            "You hit the {} for {} damage!",
+                            monster_name, result.damage
+                        ));
+
+                        // Phase 18: Update monster morale and threat assessment
+                        use crate::monster::combat_hooks;
+                        combat_hooks::on_player_hit_monster(
+                            monster_id,
+                            &mut state.current_level,
+                            result.damage,
+                            &state.player,
+                        );
+
                         if result.defender_died {
                             state.message(format!("You kill the {}!", monster_name));
                             state.current_level.remove_monster(monster_id);
@@ -401,7 +467,7 @@ impl GameLoop {
                     ActionResult::Success
                 }
             }
-            
+
             // Special actions
             Command::Pray => crate::action::pray::do_pray(&mut self.state),
             Command::Engrave(ref text) => {
@@ -419,14 +485,15 @@ impl GameLoop {
                 ActionResult::NoTime
             }
             Command::WhatsHere => {
-                let objects = self.state.current_level.objects_at(
-                    self.state.player.pos.x,
-                    self.state.player.pos.y,
-                );
+                let objects = self
+                    .state
+                    .current_level
+                    .objects_at(self.state.player.pos.x, self.state.player.pos.y);
                 if objects.is_empty() {
                     self.state.message("There is nothing here.");
                 } else {
-                    self.state.message(format!("You see {} item(s) here.", objects.len()));
+                    self.state
+                        .message(format!("You see {} item(s) here.", objects.len()));
                 }
                 ActionResult::NoTime
             }
@@ -445,12 +512,12 @@ impl GameLoop {
                 ActionResult::NoTime
             }
             Command::Discoveries => {
-                if self.state.discoveries.is_empty() {
+                if self.state.discovery_state.count() == 0 {
                     self.state.message("You have not made any discoveries yet.");
                 } else {
                     self.state.message(format!(
                         "You have discovered {} object type(s).",
-                        self.state.discoveries.len()
+                        self.state.discovery_state.count()
                     ));
                 }
                 ActionResult::NoTime
@@ -458,11 +525,16 @@ impl GameLoop {
             Command::Help => {
                 // Show basic help
                 self.state.message("Movement: hjklyubn or arrow keys");
-                self.state.message("Commands: i=inventory, d=drop, e=eat, w=wield, W=wear");
-                self.state.message("Actions: o=open, c=close, s=search, <=up, >=down");
-                self.state.message("Combat: F=force fight, t=throw, f=fire, z=zap");
-                self.state.message("Other: q=quaff, r=read, a=apply, p=pay, P=pray");
-                self.state.message("Info: ?=help, \\=discoveries, Ctrl+P=history");
+                self.state
+                    .message("Commands: i=inventory, d=drop, e=eat, w=wield, W=wear");
+                self.state
+                    .message("Actions: o=open, c=close, s=search, <=up, >=down");
+                self.state
+                    .message("Combat: F=force fight, t=throw, f=fire, z=zap");
+                self.state
+                    .message("Other: q=quaff, r=read, a=apply, p=pay, P=pray");
+                self.state
+                    .message("Info: ?=help, \\=discoveries, Ctrl+P=history");
                 self.state.message("System: S=save, Q=quit");
                 ActionResult::NoTime
             }
@@ -496,8 +568,20 @@ impl GameLoop {
                 ActionResult::NoTime
             }
             Command::Chat => {
-                self.state.message("There is nobody to chat with.");
-                ActionResult::NoTime
+                // Chat with adjacent NPC
+                let (dx, dy) = crate::action::Direction::Down.delta(); // Placeholder - would need UI for direction
+                let target_x = self.state.player.pos.x + dx;
+                let target_y = self.state.player.pos.y + dy;
+
+                if let Some(monster) = self.state.current_level.monster_at(target_x, target_y) {
+                    let monster_id = monster.id;
+                    let message = self.handle_talk_command(monster_id);
+                    self.state.message(message);
+                    ActionResult::Success
+                } else {
+                    self.state.message("There's nobody here to talk to.");
+                    ActionResult::NoTime
+                }
             }
             Command::Travel => {
                 self.state.message("Where do you want to travel to?");
@@ -507,13 +591,104 @@ impl GameLoop {
                 self.state.message("Options menu not available in this interface.");
                 ActionResult::NoTime
             }
-            Command::ExtendedCommand(ref cmd) => {
-                self.state.message(format!("Unknown extended command: #{}.", cmd));
+            Command::Feed => {
+                // Feed pet with food
+                // TODO: Implement pet and food selection UI
+                self.state.message("Feed which pet with what food?");
                 ActionResult::NoTime
             }
+            Command::ExtendedCommand(cmd_name) => self.handle_extended_command(&cmd_name),
             Command::Redraw => {
                 // Redraw is handled by the UI layer
                 ActionResult::NoTime
+            }
+        }
+    }
+
+    /// Handle extended commands (commands starting with #)
+    fn handle_extended_command(&mut self, cmd_name: &str) -> ActionResult {
+        use crate::action::extended;
+        use crate::action::help;
+
+        match cmd_name {
+            "version" => {
+                let version = crate::world::version::doextversion();
+                for line in version.lines() {
+                    self.state.message(line.to_string());
+                }
+                ActionResult::NoTime
+            }
+            "help" => {
+                let help_text = help::dohelp();
+                for line in help_text.lines().take(20) {
+                    self.state.message(line.to_string());
+                }
+                ActionResult::NoTime
+            }
+            "history" => {
+                let history_text = help::dohistory();
+                for line in history_text.lines().take(10) {
+                    self.state.message(line.to_string());
+                }
+                ActionResult::NoTime
+            }
+            "key bindings" | "keys" => {
+                let bindings = crate::action::keybindings::dokeylist();
+                for line in bindings.lines().take(15) {
+                    self.state.message(line.to_string());
+                }
+                ActionResult::NoTime
+            }
+            "menu controls" => {
+                let controls = crate::action::keybindings::domenucontrols();
+                for line in controls.lines() {
+                    self.state.message(line.to_string());
+                }
+                ActionResult::NoTime
+            }
+            "direction keys" => {
+                let dirs = crate::action::keybindings::show_direction_keys();
+                for line in dirs.lines() {
+                    self.state.message(line.to_string());
+                }
+                ActionResult::NoTime
+            }
+            "explore mode" | "enter explore" => {
+                let mode = crate::action::commands::enter_explore_mode();
+                self.state.message(format!(
+                    "Entering {} mode",
+                    crate::action::commands::playmode_description(mode)
+                ));
+                ActionResult::NoTime
+            }
+            "mode info" => {
+                let info = crate::action::commands::get_mode_info();
+                for line in info.lines() {
+                    self.state.message(line.to_string());
+                }
+                ActionResult::NoTime
+            }
+            "list commands" => {
+                let commands = extended::doextlist();
+                self.state.message("Available extended commands:");
+                for cmd in commands.iter().take(10) {
+                    self.state.message(format!("  #{}", cmd));
+                }
+                if commands.len() > 10 {
+                    self.state
+                        .message(format!("  ... and {} more", commands.len() - 10));
+                }
+                ActionResult::NoTime
+            }
+            _ => {
+                // Try to execute as extended command
+                if let Some(cmd) = extended::doextcmd(cmd_name) {
+                    self.execute_command(cmd)
+                } else {
+                    self.state
+                        .message(format!("Unknown extended command: {}", cmd_name));
+                    ActionResult::NoTime
+                }
             }
         }
     }
@@ -524,13 +699,22 @@ impl GameLoop {
         let state = &mut self.state;
 
         // Check if player is trapped (bear trap, pit, web, etc.)
-        if let Some(trap_type) = state.player.utraptype.filter(|_| state.player.utrap > 0) {
+        if state.player.utrap > 0 && state.player.utrap_type != crate::player::PlayerTrapType::None {
+            let player_tt = state.player.utrap_type;
+            // Convert player trap type to dungeon trap type for escape logic
+            let trap_type = match player_tt {
+                crate::player::PlayerTrapType::BearTrap => crate::dungeon::TrapType::BearTrap,
+                crate::player::PlayerTrapType::Pit => crate::dungeon::TrapType::Pit,
+                crate::player::PlayerTrapType::SpikedPit => crate::dungeon::TrapType::SpikedPit,
+                crate::player::PlayerTrapType::Web => crate::dungeon::TrapType::Web,
+                _ => crate::dungeon::TrapType::Pit, // fallback
+            };
             let strength = state.player.attr_current.get(crate::player::Attribute::Strength);
             if crate::dungeon::trap::try_escape_trap(&mut state.rng, trap_type, strength) {
                 let msg = crate::dungeon::trap::escape_trap_message(trap_type);
                 state.message(msg);
                 state.player.utrap = 0;
-                state.player.utraptype = None;
+                state.player.utrap_type = crate::player::PlayerTrapType::None;
             } else {
                 state.message("You are still trapped!");
                 state.player.utrap -= 1;
@@ -541,10 +725,16 @@ impl GameLoop {
         // Check if player is grabbed - must escape first
         if let Some(grabber_id) = state.player.grabbed_by {
             // Check if grabber still exists and is adjacent
-            let grabber_exists = state.current_level.monster(grabber_id).map(|m| {
-                let dist = (m.x - state.player.pos.x).abs().max((m.y - state.player.pos.y).abs());
-                dist <= 1
-            }).unwrap_or(false);
+            let grabber_exists = state
+                .current_level
+                .monster(grabber_id)
+                .map(|m| {
+                    let dist = (m.x - state.player.pos.x)
+                        .abs()
+                        .max((m.y - state.player.pos.y).abs());
+                    dist <= 1
+                })
+                .unwrap_or(false);
 
             if !grabber_exists {
                 // Grabber is gone or not adjacent, release
@@ -586,7 +776,19 @@ impl GameLoop {
                 );
 
                 if result.hit {
-                    state.message(format!("You hit the {} for {} damage!", monster_name, result.damage));
+                    state.message(format!(
+                        "You hit the {} for {} damage!",
+                        monster_name, result.damage
+                    ));
+
+                    // Phase 18: Update monster morale and threat assessment
+                    use crate::monster::combat_hooks;
+                    combat_hooks::on_player_hit_monster(
+                        monster_id,
+                        &mut state.current_level,
+                        result.damage,
+                        &state.player,
+                    );
 
                     if result.defender_died {
                         state.message(format!("You kill the {}!", monster_name));
@@ -614,8 +816,15 @@ impl GameLoop {
         state.player.pos.y = new_y;
         state.player.moved = true;
 
+        // Movement interrupts spells
+        if state.player.casting_spell.is_some() {
+            state.player.casting_interrupted = true;
+        }
+
         // Update visibility from new position
-        state.current_level.update_visibility(new_x, new_y, SIGHT_RANGE);
+        state
+            .current_level
+            .update_visibility(new_x, new_y, SIGHT_RANGE);
 
         // Check for traps at new position
         if let Some(trap_type) = state.current_level.trap_at(new_x, new_y).map(|t| t.trap_type) {
@@ -641,8 +850,8 @@ impl GameLoop {
                 }
 
                 if result.held_turns > 0 {
-                    state.player.utrap = result.held_turns;
-                    state.player.utraptype = Some(trap_type);
+                    state.player.utrap = result.held_turns as u32;
+                    state.player.utrap_type = crate::action::trap::to_player_trap_type(trap_type);
                 }
 
                 if result.trap_destroyed {
@@ -748,20 +957,45 @@ impl GameLoop {
 
     /// Change to a different dungeon level
     fn change_level(&mut self, destination: DLevel, going_up: bool) {
+        use crate::special::{dog, priest, vault};
+
         let current_dlevel = self.state.current_level.dlevel;
 
+        // LEAVING LEVEL - Save pet information
+        self.state.active_pets.clear();
+        let pet_ids: Vec<_> = self
+            .state
+            .current_level
+            .monsters
+            .iter()
+            .filter(|m| dog::is_pet(m))
+            .map(|m| m.id)
+            .collect();
+
+        // Check which pets will follow
+        for pet_id in pet_ids {
+            if let Some(pet) = self.state.current_level.monster(pet_id) {
+                if dog::pet_will_follow(pet, &self.state.player) {
+                    self.state.active_pets.push(pet_id);
+                }
+            }
+        }
+
         // Save current level
-        let old_level = std::mem::replace(
-            &mut self.state.current_level,
-            Level::new(destination),
-        );
+        let mut old_level =
+            std::mem::replace(&mut self.state.current_level, Level::new(destination));
+
+        // Clear priests from level before saving (they'll be respawned on return)
+        priest::clear_priests_for_save(&mut old_level);
+
         self.state.levels.insert(current_dlevel, old_level);
 
         // Load or generate destination level
         if let Some(existing_level) = self.state.levels.remove(&destination) {
             self.state.current_level = existing_level;
         } else {
-            self.state.current_level = Level::new_generated(destination, &mut self.state.rng);
+            self.state.current_level =
+                Level::new_generated(destination, &mut self.state.rng, &self.state.monster_vitals);
         }
 
         // Place player at appropriate stairs
@@ -778,7 +1012,63 @@ impl GameLoop {
             self.state.player.pos.y = y;
             self.state.player.prev_pos = self.state.player.pos;
             // Update visibility on new level
-            self.state.current_level.update_visibility(x, y, SIGHT_RANGE);
+            self.state
+                .current_level
+                .update_visibility(x, y, SIGHT_RANGE);
+        }
+
+        // ENTERING LEVEL - Restore active pets (simplified - would add at player position)
+        for _pet_id in &self.state.active_pets {
+            // TODO: Re-add pets to new level at player position
+            // This requires pet creation from saved ID or proper pet state
+        }
+
+        // Check for vault guard summoning
+        vault::summon_vault_guard(
+            &mut self.state.current_level,
+            &self.state.player,
+            self.state.turns as u32,
+        );
+
+        // Check for room entry (temples, shops, vaults)
+        self.check_room_entry();
+    }
+
+    /// Check if player entered a special room and trigger appropriate events
+    fn check_room_entry(&mut self) {
+        use crate::special::{priest, vault};
+
+        // Check if player entered a temple
+        for temple in &self.state.temples.clone() {
+            if (temple.altar_x as i32, temple.altar_y as i32)
+                == (
+                    self.state.player.pos.x as i32,
+                    self.state.player.pos.y as i32,
+                )
+            {
+                // Player entered temple - trigger altar effects
+                let messages = priest::handle_temple_entry(
+                    &self.state.current_level,
+                    &self.state.player,
+                    &Default::default(),
+                    self.state.turns as u32,
+                );
+                for msg in messages {
+                    self.state.message(msg);
+                }
+            }
+        }
+
+        // Check if player entered a vault
+        for vault_data in &mut self.state.vaults {
+            if vault_data.contains(self.state.player.pos.x as i8, self.state.player.pos.y as i8) {
+                // Player entered vault - guard may appear
+                vault::summon_vault_guard(
+                    &mut self.state.current_level,
+                    &self.state.player,
+                    self.state.turns as u32,
+                );
+            }
         }
     }
 
@@ -825,12 +1115,7 @@ impl GameLoop {
         let mut any_moved = false;
 
         // Get list of monster IDs
-        let monster_ids: Vec<_> = state
-            .current_level
-            .monsters
-            .iter()
-            .map(|m| m.id)
-            .collect();
+        let monster_ids: Vec<_> = state.current_level.monsters.iter().map(|m| m.id).collect();
 
         for id in monster_ids {
             // Check if monster has enough movement and can act
@@ -846,46 +1131,153 @@ impl GameLoop {
                     monster.movement -= NORMAL_SPEED;
                 }
 
-                // Process monster AI
-                let action = crate::monster::process_monster_ai(
-                    id,
-                    &mut state.current_level,
-                    &state.player,
-                    &mut state.rng,
-                );
+                // Check for special NPC types and handle their AI first
+                let is_special_npc = if let Some(monster) = state.current_level.monster(id) {
+                    let is_priest = monster.is_priest;
+                    let is_shopkeeper = monster.is_shopkeeper;
+                    let is_guard = monster.is_guard;
+                    let is_pet = crate::special::dog::is_pet(monster);
 
-                match action {
-                    crate::monster::AiAction::Moved(_, _) => {
-                        any_moved = true;
-                    }
-                    crate::monster::AiAction::AttackedPlayer => {
-                        any_moved = true;
-                        // Execute full monster attack sequence using mattacku
-                        if let Some(monster) = state.current_level.monster(id) {
-                            let monster_clone = monster.clone();
-                            let result = crate::combat::mattacku(
-                                &monster_clone,
-                                &mut state.player,
-                                &mut state.inventory,
-                                &mut state.current_level,
-                                &mut state.rng,
-                            );
+                    is_priest || is_shopkeeper || is_guard || is_pet
+                } else {
+                    false
+                };
 
-                            // Display all messages from the attack
-                            for msg in result.messages {
-                                state.message(msg);
+                if is_special_npc {
+                    // Handle special NPC AI - determine type and get needed data
+                    let npc_type_and_data = if let Some(monster) = state.current_level.monster(id) {
+                        if monster.is_priest {
+                            if let Some(ext) = &monster.priest_extension {
+                                Some(("priest", ext.shrine_pos))
+                            } else {
+                                None
                             }
+                        } else if monster.is_shopkeeper {
+                            Some(("shopkeeper", (0i8, 0i8)))
+                        } else if monster.is_guard {
+                            Some(("guard", (0i8, 0i8)))
+                        } else if crate::special::dog::is_pet(monster) {
+                            Some(("pet", (0i8, 0i8)))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
 
-                            // Handle monster death (e.g., from explosion)
-                            if result.monster_died {
-                                state.current_level.remove_monster(id);
+                    // Now apply the NPC AI
+                    if let Some((npc_type, shrine_pos)) = npc_type_and_data {
+                        match npc_type {
+                            "priest" => {
+                                // Clone monster to avoid borrow conflict with level
+                                if let Some(mut monster) = state.current_level.monster(id).cloned()
+                                {
+                                    crate::special::priest::move_priest_to_shrine(
+                                        &mut monster,
+                                        shrine_pos,
+                                        &state.current_level,
+                                    );
+                                    // Update monster back in level
+                                    if let Some(m) = state.current_level.monster_mut(id) {
+                                        m.x = monster.x;
+                                        m.y = monster.y;
+                                    }
+                                    any_moved = true;
+                                }
                             }
+                            "shopkeeper" => {
+                                // Clone monster to avoid borrow conflict with level
+                                let player_ref = &state.player;
+                                if let Some(mut monster) = state.current_level.monster(id).cloned()
+                                {
+                                    crate::special::shk::move_shopkeeper_to_shop(
+                                        &mut monster,
+                                        &state.current_level,
+                                        player_ref,
+                                    );
+                                    // Update monster back in level
+                                    if let Some(m) = state.current_level.monster_mut(id) {
+                                        m.x = monster.x;
+                                        m.y = monster.y;
+                                    }
+                                    any_moved = true;
+                                }
+                            }
+                            "guard" => {
+                                let player_clone = state.player.clone();
+                                if let Some(mut monster) = state.current_level.monster(id).cloned()
+                                {
+                                    crate::special::vault::move_vault_guard(
+                                        &mut monster,
+                                        &mut state.current_level,
+                                        &player_clone,
+                                    );
+                                    // Update the monster in the level
+                                    if let Some(m) = state.current_level.monster_mut(id) {
+                                        *m = monster;
+                                    }
+                                    any_moved = true;
+                                }
+                            }
+                            "pet" => {
+                                let player_clone = state.player.clone();
+                                crate::special::dog::pet_move(
+                                    id,
+                                    &mut state.current_level,
+                                    &player_clone,
+                                    &mut state.rng,
+                                );
+                                any_moved = true;
+                            }
+                            _ => {}
                         }
                     }
-                    crate::monster::AiAction::Waited => {
-                        any_moved = true;
+                } else {
+                    // Process regular monster AI
+                    let action = crate::monster::process_monster_ai(
+                        id,
+                        &mut state.current_level,
+                        &state.player,
+                        &mut state.rng,
+                    );
+
+                    match action {
+                        crate::monster::AiAction::Moved(_, _) => {
+                            any_moved = true;
+                        }
+                        crate::monster::AiAction::AttackedPlayer => {
+                            any_moved = true;
+                            // Execute full monster attack sequence using mattacku
+                            if let Some(monster) = state.current_level.monster(id) {
+                                let monster_clone = monster.clone();
+                                let result = crate::combat::mattacku(
+                                    &monster_clone,
+                                    &mut state.player,
+                                    &mut state.inventory,
+                                    &mut state.current_level,
+                                    &mut state.rng,
+                                );
+
+                                // Display all messages from the attack
+                                for msg in result.messages {
+                                    state.message(msg);
+                                }
+
+                                // Handle monster death (e.g., from explosion)
+                                if result.monster_died {
+                                    state.current_level.remove_monster(id);
+                                }
+                            }
+                        }
+                        crate::monster::AiAction::Waited => {
+                            any_moved = true;
+                        }
+                        crate::monster::AiAction::Died => {
+                            any_moved = true;
+                            state.current_level.remove_monster(id);
+                        }
+                        crate::monster::AiAction::None => {}
                     }
-                    crate::monster::AiAction::None => {}
                 }
             }
 
@@ -950,7 +1342,10 @@ impl GameLoop {
                     &grabber_clone,
                     &mut state.rng,
                 );
-                state.message(format!("The {} crushes you for {} damage!", grabber_clone.name, damage));
+                state.message(format!(
+                    "The {} crushes you for {} damage!",
+                    grabber_clone.name, damage
+                ));
             } else {
                 // Grabber no longer exists
                 state.player.grabbed_by = None;
@@ -978,17 +1373,149 @@ impl GameLoop {
             state.player.paralyzed_timeout -= 1;
         }
 
+        // Age spells (spell memory decays over time)
+        let forgotten_spells = crate::magic::spell::age_spells(&mut state.player.known_spells);
+        for spell in forgotten_spells {
+            state.message(format!("Your knowledge of {} fades.", spell.name()));
+        }
+
+        // Regenerate mana
+        crate::magic::spell::regenerate_mana(&mut state.player);
+
         // Process hunger
         state.player.digest(1);
-        if matches!(state.player.hunger_state, crate::player::HungerState::Starved) {
+        if matches!(
+            state.player.hunger_state,
+            crate::player::HungerState::Starved
+        ) {
             state.player.take_damage(1);
             if state.player.is_dead() {
                 state.message("You die from starvation.");
             }
         }
 
+        // Update pet time every 100 turns
+        if state.turns % 100 == 0 {
+            let pet_ids: Vec<_> = state
+                .current_level
+                .monsters
+                .iter()
+                .filter(|m| crate::special::dog::is_pet(m))
+                .map(|m| m.id)
+                .collect();
+
+            for pet_id in pet_ids {
+                let died = {
+                    if let Some(pet) = state.current_level.monster_mut(pet_id) {
+                        crate::special::dog::update_pet_time(pet, state.turns as u32)
+                    } else {
+                        false
+                    }
+                };
+                if died {
+                    if let Some(pet) = state.current_level.monster(pet_id) {
+                        state.message(format!("Your {} has starved!", pet.name));
+                    }
+                }
+            }
+        }
+
         // Regeneration
         Self::process_regeneration(state);
+
+        // Process storms on air level (do_storms equivalent from timeout.c)
+        // TODO: Add proper underwater detection when available
+        let storm_messages = do_storms(&mut state.rng, false);
+        for msg in storm_messages {
+            state.message(msg);
+        }
+    }
+
+    /// Handle quest progression checks
+    fn handle_quest_turn(&mut self) {
+        use crate::special::quest;
+
+        // Update quest timeout display every 100 turns
+        if self.state.turns % 100 == 0 {
+            let info = quest::get_quest_info(self.state.player.role);
+            let status_msg = quest::get_quest_status_message(&self.state.quest_status, &info);
+            self.state.message(status_msg);
+        }
+    }
+
+    /// Generate ambient sounds
+    fn handle_ambient_sounds(&mut self) {
+        use crate::special::sounds;
+
+        // Generate sounds occasionally (1/10 turns)
+        if !self.state.rng.one_in(10) {
+            return;
+        }
+
+        // Generate ambient level sounds
+        let ambient = sounds::generate_ambient_sounds(
+            &self.state.current_level,
+            self.state.player.pos.x,
+            self.state.player.pos.y,
+            &mut self.state.rng,
+        );
+        for sound in ambient {
+            self.state.message(sound);
+        }
+    }
+
+    /// Handle talk command with NPCs
+    fn handle_talk_command(&mut self, target_id: MonsterId) -> String {
+        use crate::special::{priest, quest, shk};
+
+        if let Some(monster) = self.state.current_level.monster(target_id) {
+            match true {
+                _ if monster.is_priest => {
+                    format!(
+                        "You speak to {}.",
+                        priest::get_priest_name(monster, monster.state.invisible)
+                    )
+                }
+                _ if monster.is_shopkeeper => {
+                    shk::shopkeeper_chat(monster, &self.state.current_level)
+                }
+                _ => "The creature ignores you.".to_string(),
+            }
+        } else {
+            "There's nobody here to talk to.".to_string()
+        }
+    }
+
+    /// Handle shop payment
+    fn handle_payment(&mut self, shopkeeper_id: Option<MonsterId>) -> String {
+        use crate::special::shk;
+
+        if let Some(id) = shopkeeper_id {
+            let shopkeeper_clone = self.state.current_level.monster(id).cloned();
+            if let Some(mut shopkeeper) = shopkeeper_clone {
+                let level_clone = self.state.current_level.clone();
+                if shk::pay_shopkeeper(&mut shopkeeper, &level_clone, &mut self.state.player) {
+                    "You pay your debt.".to_string()
+                } else {
+                    "You don't have enough gold to pay.".to_string()
+                }
+            } else {
+                "The shopkeeper is not here.".to_string()
+            }
+        } else {
+            "There's no shopkeeper to pay.".to_string()
+        }
+    }
+
+    /// Find shopkeeper in current location
+    fn find_shopkeeper_nearby(&self) -> Option<MonsterId> {
+        // Find shopkeeper in current level
+        self.state
+            .current_level
+            .monsters
+            .iter()
+            .find(|m| m.is_shopkeeper)
+            .map(|m| m.id)
     }
 
     /// Process a triggered timed event
@@ -1000,7 +1527,9 @@ impl GameLoop {
                 // Spawn a random monster at a random location
                 // For now, just schedule another spawn event
                 let delay = 50 + (state.rng.rnd(50) as u64);
-                state.timeouts.schedule_after(delay, TimedEventType::MonsterSpawn);
+                state
+                    .timeouts
+                    .schedule_after(delay, TimedEventType::MonsterSpawn);
             }
             TimedEventType::MonsterAction(monster_id) => {
                 // Monster-specific timed action (e.g., breath weapon cooldown)
@@ -1022,7 +1551,11 @@ impl GameLoop {
                 }
             }
             TimedEventType::Stoning => {
-                if !state.player.properties.has(crate::player::Property::StoneResistance) {
+                if !state
+                    .player
+                    .properties
+                    .has(crate::player::Property::StoneResistance)
+                {
                     state.message("You have turned to stone.");
                     state.player.hp = 0; // Instant death
                 }
@@ -1122,10 +1655,102 @@ impl GameLoop {
             _ => 20,
         };
 
-        if state.turns.is_multiple_of(energy_rate as u64) && state.player.energy < state.player.energy_max {
+        if state.turns.is_multiple_of(energy_rate as u64)
+            && state.player.energy < state.player.energy_max
+        {
             state.player.energy += 1;
         }
     }
+}
+
+// ============================================================================
+// Game Ending Functions (end.c equivalents)
+// ============================================================================
+
+/// How the game ended
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeathHow {
+    /// Killed by something
+    Killed,
+    /// Quit the game
+    Quit,
+    /// Escaped the dungeon
+    Escaped,
+    /// Ascended to demigod status
+    Ascended,
+}
+
+/// Create a score entry from the current game state (done/done2 equivalent)
+///
+/// This is called when the game ends to record the player's score.
+pub fn create_score_entry(state: &GameState, death_reason: &str, how: DeathHow) -> ScoreEntry {
+    let ascended = matches!(how, DeathHow::Ascended);
+
+    // Calculate score based on various factors
+    let mut score: i64 = 0;
+
+    // Gold collected
+    score += state.player.gold as i64;
+
+    // Experience points
+    score += (state.player.exp * 10) as i64;
+
+    // Dungeon depth bonus
+    score += (state.current_level.dlevel.level_num as i64) * 100;
+
+    // Ascension bonus
+    if ascended {
+        score += 50000;
+    }
+
+    ScoreEntry {
+        name: state.player.name.clone(),
+        score,
+        max_dlevel: state.current_level.dlevel.level_num as i32,
+        player_level: state.player.exp_level as u8,
+        role: format!("{:?}", state.player.role),
+        race: format!("{:?}", state.player.race),
+        gender: format!("{:?}", state.player.gender),
+        alignment: format!("{:?}", state.player.alignment),
+        death_reason: death_reason.to_string(),
+        ascended,
+        turns: state.turns,
+        realtime: 0, // Would need to track real time
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+    }
+}
+
+/// Handle game ending and record score (done equivalent from end.c)
+///
+/// This function is called when the game ends for any reason.
+/// It creates a score entry and saves it to the high score file.
+pub fn done(
+    state: &GameState,
+    death_reason: &str,
+    how: DeathHow,
+    score_file: Option<&Path>,
+) -> Result<ScoreEntry, topten::TopTenError> {
+    let entry = create_score_entry(state, death_reason, how);
+
+    if let Some(path) = score_file {
+        // Ensure the record file exists
+        topten::check_record_file(path)?;
+
+        // Load existing scores
+        let mut scores = topten::HighScores::load(path).unwrap_or_default();
+
+        // Add the new entry
+        scores.add_score(entry.clone());
+
+        // Save the updated scores
+        scores.save(path)?;
+    }
+
+    Ok(entry)
 }
 
 #[cfg(test)]
@@ -1285,18 +1910,18 @@ mod tests {
         use crate::monster::{Monster, MonsterId};
 
         let mut state = test_state();
-        
+
         // Create a monster that grabs the player
         let grabber_id = MonsterId(1);
         let mut grabber = Monster::new(grabber_id, 5, 5, 5);
         grabber.name = "python".to_string();
         state.current_level.monsters.push(grabber);
-        
+
         // Set player as grabbed and position adjacent to grabber
         state.player.grabbed_by = Some(grabber_id);
         state.player.pos.x = 6;
         state.player.pos.y = 5;
-        
+
         // Player should be grabbed
         assert!(state.player.grabbed_by.is_some());
     }
@@ -1306,17 +1931,17 @@ mod tests {
         use crate::monster::MonsterId;
 
         let mut state = test_state();
-        
+
         // Set player as grabbed by a non-existent monster
         let fake_grabber_id = MonsterId(999);
         state.player.grabbed_by = Some(fake_grabber_id);
         state.player.pos.x = 6;
         state.player.pos.y = 5;
-        
+
         // Create game loop and try to move
         let mut game_loop = GameLoop::new(state);
         let _result = game_loop.tick(Command::Move(crate::action::Direction::East));
-        
+
         // Player should be released since grabber doesn't exist
         assert!(game_loop.state().player.grabbed_by.is_none());
     }
@@ -1329,24 +1954,89 @@ mod tests {
         state.player.hp = 100;
         state.player.pos.x = 6;
         state.player.pos.y = 5;
-        
+
         // Create a grabbing monster
         let grabber_id = MonsterId(1);
         let mut grabber = Monster::new(grabber_id, 10, 5, 5); // Level 10 for more damage
         grabber.name = "python".to_string();
         grabber.state = MonsterState::active();
         state.current_level.monsters.push(grabber);
-        
+
         // Set player as grabbed
         state.player.grabbed_by = Some(grabber_id);
-        
+
         let initial_hp = state.player.hp;
-        
+
         // Create game loop and process a new turn
         let mut game_loop = GameLoop::new(state);
         game_loop.new_turn();
-        
+
         // Player should have taken grab damage
-        assert!(game_loop.state().player.hp < initial_hp, "Player should take grab damage");
+        assert!(
+            game_loop.state().player.hp < initial_hp,
+            "Player should take grab damage"
+        );
+    }
+
+    // ========================================================================
+    // Tests for game ending functions (create_score_entry, done)
+    // ========================================================================
+
+    #[test]
+    fn test_create_score_entry_basic() {
+        let mut state = test_state();
+        state.player.name = "TestPlayer".to_string();
+        state.player.gold = 1000;
+        state.player.exp = 500;
+        state.player.exp_level = 5;
+        state.current_level.dlevel.level_num = 10;
+
+        let entry =
+            super::create_score_entry(&state, "killed by a dragon", super::DeathHow::Killed);
+
+        assert_eq!(entry.name, "TestPlayer");
+        assert_eq!(entry.max_dlevel, 10);
+        assert_eq!(entry.player_level, 5);
+        assert_eq!(entry.death_reason, "killed by a dragon");
+        assert!(!entry.ascended);
+        // Score should include gold (1000) + exp*10 (5000) + depth*100 (1000) = 7000
+        assert_eq!(entry.score, 7000);
+    }
+
+    #[test]
+    fn test_create_score_entry_ascension() {
+        let mut state = test_state();
+        state.player.name = "Ascender".to_string();
+        state.player.gold = 0;
+        state.player.exp = 0;
+        state.current_level.dlevel.level_num = 1;
+
+        let entry = super::create_score_entry(&state, "ascended", super::DeathHow::Ascended);
+
+        assert!(entry.ascended);
+        // Score should include ascension bonus (50000) + depth*100 (100) = 50100
+        assert_eq!(entry.score, 50100);
+    }
+
+    #[test]
+    fn test_create_score_entry_quit() {
+        let state = test_state();
+
+        let entry = super::create_score_entry(&state, "quit", super::DeathHow::Quit);
+
+        assert!(!entry.ascended);
+        assert_eq!(entry.death_reason, "quit");
+    }
+
+    #[test]
+    fn test_done_without_score_file() {
+        let state = test_state();
+
+        // done() without a score file should still return the entry
+        let result = super::done(&state, "test death", super::DeathHow::Killed, None);
+
+        assert!(result.is_ok());
+        let entry = result.unwrap();
+        assert_eq!(entry.death_reason, "test death");
     }
 }

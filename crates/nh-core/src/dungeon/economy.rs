@@ -349,6 +349,156 @@ pub fn robbery_penalty(stolen_value: i32) -> i32 {
     }
 }
 
+// ============================================================================
+// Additional money/cost functions (shk.c, invent.c)
+// ============================================================================
+
+/// Count total gold in a list of objects (money_cnt equivalent)
+pub fn money_cnt(objects: &[Object]) -> i64 {
+    objects
+        .iter()
+        .filter(|obj| obj.class == ObjectClass::Coin)
+        .map(|obj| obj.quantity as i64)
+        .sum()
+}
+
+/// Cost alias for get_cost (for compatibility)
+pub fn cost(obj: &Object) -> i32 {
+    get_cost(obj, false)
+}
+
+/// Calculate cost per charge for a rechargeable item (object-based interface)
+pub fn cost_per_charge_obj(obj: &Object) -> i32 {
+    if !matches!(obj.class, ObjectClass::Wand | ObjectClass::Tool) {
+        return 0;
+    }
+
+    let base = if obj.shop_price > 0 {
+        obj.shop_price
+    } else {
+        base_cost(obj.class)
+    };
+
+    // Cost per charge is base price divided by typical charges
+    let typical_charges = match obj.class {
+        ObjectClass::Wand => 8,
+        ObjectClass::Tool => 10, // Lamps, etc.
+        _ => 1,
+    };
+
+    base / typical_charges
+}
+
+/// Check if player can afford an item
+pub fn can_afford(price: i32, player_gold: i32, credit: i32) -> bool {
+    player_gold + credit >= price
+}
+
+/// Calculate contained gold value in a container (contained_gold equivalent)
+pub fn contained_gold(container: &Object) -> i64 {
+    money_cnt(&container.contents)
+}
+
+/// Calculate total value of contained items in a container object
+pub fn contained_cost_obj(container: &Object, selling: bool) -> i32 {
+    container
+        .contents
+        .iter()
+        .map(|obj| get_cost(obj, selling))
+        .sum()
+}
+
+/// Get shopkeeper's final price with all adjustments
+pub fn final_price(obj: &Object, selling: bool, charisma: i32, is_tourist: bool) -> i32 {
+    let base = get_cost(obj, selling);
+    let with_cha = charisma_price_adjustment(base, charisma);
+    tourist_price_adjustment(with_cha, is_tourist)
+}
+
+/// Calculate angry shopkeeper surcharge
+pub fn angry_surcharge(price: i32) -> i32 {
+    price * 3 / 2 // 150% when angry
+}
+
+/// Calculate repair cost for damaged items
+pub fn repair_cost(obj: &Object) -> i32 {
+    if obj.erosion1 == 0 && obj.erosion2 == 0 {
+        return 0;
+    }
+
+    let base = if obj.shop_price > 0 {
+        obj.shop_price
+    } else {
+        base_cost(obj.class)
+    };
+
+    // Cost to repair each level of erosion
+    let erosion_levels = (obj.erosion1 + obj.erosion2) as i32;
+    (base * erosion_levels / 4).max(1)
+}
+
+/// Calculate identify cost for unknown items
+pub fn identify_cost(obj: &Object) -> i32 {
+    let base = if obj.shop_price > 0 {
+        obj.shop_price
+    } else {
+        base_cost(obj.class)
+    };
+
+    // Identify cost is typically 10% of item value, minimum 10
+    (base / 10).max(10)
+}
+
+/// Calculate enchantment service cost
+pub fn enchant_cost(obj: &Object) -> i32 {
+    let base = if obj.shop_price > 0 {
+        obj.shop_price
+    } else {
+        base_cost(obj.class)
+    };
+
+    // Enchantment cost scales with current enchantment
+    let current_ench = obj.enchantment.max(0) as i32;
+    base * (current_ench + 1)
+}
+
+/// Check if an item is billable (can be added to shop bill)
+pub fn billable(obj: &Object, in_shop: bool) -> bool {
+    if !in_shop {
+        return false;
+    }
+
+    // Can't bill gold, artifacts, quest items, etc.
+    if obj.class == ObjectClass::Coin {
+        return false;
+    }
+
+    // Can't bill artifacts
+    if obj.artifact > 0 {
+        return false;
+    }
+
+    true
+}
+
+/// Check if item is on the "costly_spot" (in shop, not on counter)
+pub fn costly_spot(x: i8, y: i8, shop_bounds: Option<(i8, i8, i8, i8)>) -> bool {
+    in_shop(x, y, shop_bounds)
+}
+
+/// Get the value of a bribe (for Kops, etc.)
+pub fn bribe_amount(level: i32, rng: &mut GameRng) -> i32 {
+    // Bribe cost scales with dungeon level
+    let base = 50 + level * 10;
+    base + rng.rnd(base as u32) as i32
+}
+
+/// Calculate insurance premium for valuables
+pub fn insurance_cost(item_value: i32) -> i32 {
+    // Premium is 5% of value, minimum 10
+    (item_value / 20).max(10)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

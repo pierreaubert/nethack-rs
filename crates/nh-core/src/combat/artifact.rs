@@ -1225,7 +1225,7 @@ pub fn arti_invoke(
         InvokeProperty::Untrap => {
             if player.utrap > 0 {
                 player.utrap = 0;
-                player.utraptype = None;
+                player.utrap_type = crate::player::PlayerTrapType::None;
                 result.messages.push("You are freed!".to_string());
                 result.success = true;
             } else {

@@ -2,7 +2,7 @@
 //!
 //! Functions for creating and initializing objects.
 
-use crate::object::{BucStatus, Object, ObjectClass, ObjectId, ObjectLocation, ObjClassDef};
+use crate::object::{BucStatus, ObjClassDef, Object, ObjectClass, ObjectId, ObjectLocation};
 use crate::rng::GameRng;
 use crate::world::{TimedEvent, TimedEventType, TimeoutManager};
 
@@ -49,8 +49,14 @@ pub struct CorpstatFlags {
 }
 
 impl CorpstatFlags {
-    pub const INIT: Self = Self { init: true, no_timeout: false };
-    pub const NONE: Self = Self { init: false, no_timeout: false };
+    pub const INIT: Self = Self {
+        init: true,
+        no_timeout: false,
+    };
+    pub const NONE: Self = Self {
+        init: false,
+        no_timeout: false,
+    };
 }
 
 // ============================================================================
@@ -149,55 +155,166 @@ struct ClassProb {
 
 /// Standard dungeon object class probabilities
 const MKOBJ_PROBS: &[ClassProb] = &[
-    ClassProb { prob: 10, class: ObjectClass::Weapon },
-    ClassProb { prob: 10, class: ObjectClass::Armor },
-    ClassProb { prob: 20, class: ObjectClass::Food },
-    ClassProb { prob: 8, class: ObjectClass::Tool },
-    ClassProb { prob: 8, class: ObjectClass::Gem },
-    ClassProb { prob: 16, class: ObjectClass::Potion },
-    ClassProb { prob: 16, class: ObjectClass::Scroll },
-    ClassProb { prob: 4, class: ObjectClass::Spellbook },
-    ClassProb { prob: 4, class: ObjectClass::Wand },
-    ClassProb { prob: 3, class: ObjectClass::Ring },
-    ClassProb { prob: 1, class: ObjectClass::Amulet },
+    ClassProb {
+        prob: 10,
+        class: ObjectClass::Weapon,
+    },
+    ClassProb {
+        prob: 10,
+        class: ObjectClass::Armor,
+    },
+    ClassProb {
+        prob: 20,
+        class: ObjectClass::Food,
+    },
+    ClassProb {
+        prob: 8,
+        class: ObjectClass::Tool,
+    },
+    ClassProb {
+        prob: 8,
+        class: ObjectClass::Gem,
+    },
+    ClassProb {
+        prob: 16,
+        class: ObjectClass::Potion,
+    },
+    ClassProb {
+        prob: 16,
+        class: ObjectClass::Scroll,
+    },
+    ClassProb {
+        prob: 4,
+        class: ObjectClass::Spellbook,
+    },
+    ClassProb {
+        prob: 4,
+        class: ObjectClass::Wand,
+    },
+    ClassProb {
+        prob: 3,
+        class: ObjectClass::Ring,
+    },
+    ClassProb {
+        prob: 1,
+        class: ObjectClass::Amulet,
+    },
 ];
 
 /// Box/container content probabilities
 const BOX_PROBS: &[ClassProb] = &[
-    ClassProb { prob: 18, class: ObjectClass::Gem },
-    ClassProb { prob: 15, class: ObjectClass::Food },
-    ClassProb { prob: 18, class: ObjectClass::Potion },
-    ClassProb { prob: 18, class: ObjectClass::Scroll },
-    ClassProb { prob: 12, class: ObjectClass::Spellbook },
-    ClassProb { prob: 7, class: ObjectClass::Coin },
-    ClassProb { prob: 6, class: ObjectClass::Wand },
-    ClassProb { prob: 5, class: ObjectClass::Ring },
-    ClassProb { prob: 1, class: ObjectClass::Amulet },
+    ClassProb {
+        prob: 18,
+        class: ObjectClass::Gem,
+    },
+    ClassProb {
+        prob: 15,
+        class: ObjectClass::Food,
+    },
+    ClassProb {
+        prob: 18,
+        class: ObjectClass::Potion,
+    },
+    ClassProb {
+        prob: 18,
+        class: ObjectClass::Scroll,
+    },
+    ClassProb {
+        prob: 12,
+        class: ObjectClass::Spellbook,
+    },
+    ClassProb {
+        prob: 7,
+        class: ObjectClass::Coin,
+    },
+    ClassProb {
+        prob: 6,
+        class: ObjectClass::Wand,
+    },
+    ClassProb {
+        prob: 5,
+        class: ObjectClass::Ring,
+    },
+    ClassProb {
+        prob: 1,
+        class: ObjectClass::Amulet,
+    },
 ];
 
 /// Rogue level object probabilities
 const ROGUE_PROBS: &[ClassProb] = &[
-    ClassProb { prob: 12, class: ObjectClass::Weapon },
-    ClassProb { prob: 12, class: ObjectClass::Armor },
-    ClassProb { prob: 22, class: ObjectClass::Food },
-    ClassProb { prob: 22, class: ObjectClass::Potion },
-    ClassProb { prob: 22, class: ObjectClass::Scroll },
-    ClassProb { prob: 5, class: ObjectClass::Wand },
-    ClassProb { prob: 5, class: ObjectClass::Ring },
+    ClassProb {
+        prob: 12,
+        class: ObjectClass::Weapon,
+    },
+    ClassProb {
+        prob: 12,
+        class: ObjectClass::Armor,
+    },
+    ClassProb {
+        prob: 22,
+        class: ObjectClass::Food,
+    },
+    ClassProb {
+        prob: 22,
+        class: ObjectClass::Potion,
+    },
+    ClassProb {
+        prob: 22,
+        class: ObjectClass::Scroll,
+    },
+    ClassProb {
+        prob: 5,
+        class: ObjectClass::Wand,
+    },
+    ClassProb {
+        prob: 5,
+        class: ObjectClass::Ring,
+    },
 ];
 
 /// Hell/Gehennom object probabilities
 const HELL_PROBS: &[ClassProb] = &[
-    ClassProb { prob: 20, class: ObjectClass::Weapon },
-    ClassProb { prob: 20, class: ObjectClass::Armor },
-    ClassProb { prob: 16, class: ObjectClass::Food },
-    ClassProb { prob: 12, class: ObjectClass::Tool },
-    ClassProb { prob: 10, class: ObjectClass::Gem },
-    ClassProb { prob: 1, class: ObjectClass::Potion },
-    ClassProb { prob: 1, class: ObjectClass::Scroll },
-    ClassProb { prob: 8, class: ObjectClass::Wand },
-    ClassProb { prob: 8, class: ObjectClass::Ring },
-    ClassProb { prob: 4, class: ObjectClass::Amulet },
+    ClassProb {
+        prob: 20,
+        class: ObjectClass::Weapon,
+    },
+    ClassProb {
+        prob: 20,
+        class: ObjectClass::Armor,
+    },
+    ClassProb {
+        prob: 16,
+        class: ObjectClass::Food,
+    },
+    ClassProb {
+        prob: 12,
+        class: ObjectClass::Tool,
+    },
+    ClassProb {
+        prob: 10,
+        class: ObjectClass::Gem,
+    },
+    ClassProb {
+        prob: 1,
+        class: ObjectClass::Potion,
+    },
+    ClassProb {
+        prob: 1,
+        class: ObjectClass::Scroll,
+    },
+    ClassProb {
+        prob: 8,
+        class: ObjectClass::Wand,
+    },
+    ClassProb {
+        prob: 8,
+        class: ObjectClass::Ring,
+    },
+    ClassProb {
+        prob: 4,
+        class: ObjectClass::Amulet,
+    },
 ];
 
 /// Location type for probability selection
@@ -275,12 +392,7 @@ pub fn random_class(rng: &mut GameRng, location: LocationType) -> ObjectClass {
 }
 
 /// Create a random object of a specific class
-pub fn mkobj(
-    ctx: &mut MkObjContext,
-    rng: &mut GameRng,
-    class: ObjectClass,
-    init: bool,
-) -> Object {
+pub fn mkobj(ctx: &mut MkObjContext, rng: &mut GameRng, class: ObjectClass, init: bool) -> Object {
     // For now, create a basic object of the class
     // In full implementation, this would select from OBJECTS array by probability
     let id = ctx.next_id();
@@ -405,7 +517,12 @@ pub fn mksobj_with_data(
     }
 
     // Multi-generation items (arrows, rocks, etc.) get quantity
-    if def.merge && matches!(def.class, ObjectClass::Weapon | ObjectClass::Gem | ObjectClass::Rock) {
+    if def.merge
+        && matches!(
+            def.class,
+            ObjectClass::Weapon | ObjectClass::Gem | ObjectClass::Rock
+        )
+    {
         // Projectiles and rocks get 6-11
         if def.skill < 0 || def.class == ObjectClass::Rock {
             obj.quantity = (rng.rn2(6) + 6) as i32;
@@ -841,7 +958,11 @@ pub fn mkcorpstat(
     monster_type: i16,
     flags: CorpstatFlags,
 ) -> Object {
-    assert!(objtype == CORPSE || objtype == STATUE, "mkcorpstat: invalid objtype {}", objtype);
+    assert!(
+        objtype == CORPSE || objtype == STATUE,
+        "mkcorpstat: invalid objtype {}",
+        objtype
+    );
 
     let id = ctx.next_id();
     let class = if objtype == CORPSE {
@@ -920,10 +1041,8 @@ pub fn set_corpsenm(
             // Eggs may hatch
             if monster_type >= 0 {
                 let delay = (rng.rn2(200) + 150) as u64;
-                let event = TimedEvent::new(
-                    obj.age as u64 + delay,
-                    TimedEventType::EggHatch(obj.id),
-                );
+                let event =
+                    TimedEvent::new(obj.age as u64 + delay, TimedEventType::EggHatch(obj.id));
                 timeout_manager.schedule(event);
             }
         }
@@ -1432,8 +1551,16 @@ mod tests {
         }
 
         // Sword should be selected more often (70% vs 30%)
-        assert!(sword_count > dagger_count, "sword={} dagger={}", sword_count, dagger_count);
+        assert!(
+            sword_count > dagger_count,
+            "sword={} dagger={}",
+            sword_count,
+            dagger_count
+        );
         // Rough check: sword should be about 2.3x more common
-        assert!(sword_count > dagger_count * 2, "sword should be much more common");
+        assert!(
+            sword_count > dagger_count * 2,
+            "sword should be much more common"
+        );
     }
 }

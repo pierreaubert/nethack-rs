@@ -1,16 +1,20 @@
 //! Direction selection UI for actions like open, close, kick
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
+use nh_core::magic::targeting::monsters_in_direction;
 
 use crate::plugins::input::GameCommand;
+use crate::resources::GameStateResource;
 
 pub struct DirectionPlugin;
 
 impl Plugin for DirectionPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DirectionSelectState>()
-            .add_systems(Update, (handle_direction_input, render_direction_ui).chain());
+        app.init_resource::<DirectionSelectState>().add_systems(
+            Update,
+            (handle_direction_input, render_direction_ui).chain(),
+        );
     }
 }
 
@@ -61,6 +65,7 @@ fn handle_direction_input(
     input: Res<ButtonInput<KeyCode>>,
     mut dir_state: ResMut<DirectionSelectState>,
     mut game_commands: EventWriter<GameCommand>,
+    mut monster_picker_state: ResMut<super::monster_picker::MonsterPickerState>,
 ) {
     if !dir_state.active {
         return;
@@ -74,24 +79,49 @@ fn handle_direction_input(
         return;
     }
 
+    // Switch to monster picker with Tab
+    if input.just_pressed(KeyCode::Tab) {
+        monster_picker_state.active = true;
+        // Copy action type if applicable
+        if let Some(DirectionAction::Zap(c)) = dir_state.action {
+            monster_picker_state.action = Some(super::monster_picker::TargetAction::Zap(c));
+        } else if let Some(DirectionAction::Throw(c)) = dir_state.action {
+            monster_picker_state.action = Some(super::monster_picker::TargetAction::Zap(c));
+        }
+        dir_state.active = false;
+        return;
+    }
+
     // Direction keys
     use nh_core::action::Direction;
 
     let direction = if input.just_pressed(KeyCode::KeyY) || input.just_pressed(KeyCode::Numpad7) {
         Some(Direction::NorthWest)
-    } else if input.just_pressed(KeyCode::KeyK) || input.just_pressed(KeyCode::Numpad8) || input.just_pressed(KeyCode::ArrowUp) {
+    } else if input.just_pressed(KeyCode::KeyK)
+        || input.just_pressed(KeyCode::Numpad8)
+        || input.just_pressed(KeyCode::ArrowUp)
+    {
         Some(Direction::North)
     } else if input.just_pressed(KeyCode::KeyU) || input.just_pressed(KeyCode::Numpad9) {
         Some(Direction::NorthEast)
-    } else if input.just_pressed(KeyCode::KeyH) || input.just_pressed(KeyCode::Numpad4) || input.just_pressed(KeyCode::ArrowLeft) {
+    } else if input.just_pressed(KeyCode::KeyH)
+        || input.just_pressed(KeyCode::Numpad4)
+        || input.just_pressed(KeyCode::ArrowLeft)
+    {
         Some(Direction::West)
     } else if input.just_pressed(KeyCode::Period) || input.just_pressed(KeyCode::Numpad5) {
         Some(Direction::Self_)
-    } else if input.just_pressed(KeyCode::KeyL) || input.just_pressed(KeyCode::Numpad6) || input.just_pressed(KeyCode::ArrowRight) {
+    } else if input.just_pressed(KeyCode::KeyL)
+        || input.just_pressed(KeyCode::Numpad6)
+        || input.just_pressed(KeyCode::ArrowRight)
+    {
         Some(Direction::East)
     } else if input.just_pressed(KeyCode::KeyB) || input.just_pressed(KeyCode::Numpad1) {
         Some(Direction::SouthWest)
-    } else if input.just_pressed(KeyCode::KeyJ) || input.just_pressed(KeyCode::Numpad2) || input.just_pressed(KeyCode::ArrowDown) {
+    } else if input.just_pressed(KeyCode::KeyJ)
+        || input.just_pressed(KeyCode::Numpad2)
+        || input.just_pressed(KeyCode::ArrowDown)
+    {
         Some(Direction::South)
     } else if input.just_pressed(KeyCode::KeyN) || input.just_pressed(KeyCode::Numpad3) {
         Some(Direction::SouthEast)
@@ -116,6 +146,7 @@ fn handle_direction_input(
 fn render_direction_ui(
     mut contexts: EguiContexts,
     dir_state: Res<DirectionSelectState>,
+    game_state: Res<GameStateResource>,
 ) {
     if !dir_state.active {
         return;
@@ -199,8 +230,53 @@ fn render_direction_ui(
                     // Reserve space for the grid
                     ui.add_space(cell_size * 3.0 + 8.0);
 
+                    // Show monsters in range per direction (for targeting spells/wands)
                     ui.label(
-                        egui::RichText::new("Press a direction key or Esc to cancel")
+                        egui::RichText::new("Monsters in each direction:")
+                            .color(egui::Color32::LIGHT_GREEN)
+                            .size(12.0),
+                    );
+
+                    // Check each cardinal direction for monsters
+                    let directions_to_check = [
+                        ((0, -1), "North"),
+                        ((1, -1), "Northeast"),
+                        ((1, 0), "East"),
+                        ((1, 1), "Southeast"),
+                        ((0, 1), "South"),
+                        ((-1, 1), "Southwest"),
+                        ((-1, 0), "West"),
+                        ((-1, -1), "Northwest"),
+                    ];
+
+                    for ((dx, dy), dir_name) in directions_to_check {
+                        let monsters = monsters_in_direction(
+                            &game_state.0.player,
+                            (dx, dy),
+                            &game_state.0.current_level,
+                            20,
+                        );
+
+                        if !monsters.is_empty() {
+                            let monster_names = monsters
+                                .iter()
+                                .take(2)
+                                .map(|m| format!("{} ({})", m.name, m.distance))
+                                .collect::<Vec<_>>()
+                                .join(", ");
+
+                            ui.label(
+                                egui::RichText::new(format!("{}: {}", dir_name, monster_names))
+                                    .color(egui::Color32::YELLOW)
+                                    .size(10.0),
+                            );
+                        }
+                    }
+
+                    ui.separator();
+
+                    ui.label(
+                        egui::RichText::new("Press Tab for monster picker, direction key to select, or Esc to cancel")
                             .color(egui::Color32::GRAY)
                             .small(),
                     );

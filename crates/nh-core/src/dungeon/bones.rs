@@ -14,8 +14,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use super::level::Level;
 use super::DLevel;
+use super::level::Level;
 use crate::monster::{Monster, MonsterId, MonsterState};
 use crate::object::{BucStatus, Object};
 use crate::rng::GameRng;
@@ -298,6 +298,155 @@ fn drop_bones_inventory(level: &mut Level, inventory: &[Object], x: i8, y: i8, r
     }
 }
 
+// ============================================================================
+// C-style API equivalents for bones I/O
+// ============================================================================
+
+/// Load bones file for a level if it exists (getbones equivalent)
+///
+/// Attempts to load and return a bones file for the given dungeon level.
+/// The bones file is deleted after loading to prevent reuse.
+///
+/// # Arguments
+/// * `dlevel` - The dungeon level to check for bones
+///
+/// # Returns
+/// Some(BonesFile) if bones were loaded successfully, None otherwise
+pub fn getbones(dlevel: &DLevel) -> Option<BonesFile> {
+    let path = BonesFile::path(dlevel);
+
+    if !path.exists() {
+        return None;
+    }
+
+    // Try to read and deserialize the bones file
+    match std::fs::read_to_string(&path) {
+        Ok(data) => {
+            match serde_json::from_str::<BonesFile>(&data) {
+                Ok(bones) => {
+                    // Delete the bones file after loading (one-time use)
+                    let _ = delete_bonesfile(dlevel);
+
+                    // Verify compatibility
+                    if bones.is_compatible() {
+                        Some(bones)
+                    } else {
+                        None
+                    }
+                }
+                Err(_) => None,
+            }
+        }
+        Err(_) => None,
+    }
+}
+
+/// Save a bones file (savebones equivalent)
+///
+/// Saves the bones data to a file for the given dungeon level.
+///
+/// # Arguments
+/// * `bones` - The bones data to save
+///
+/// # Returns
+/// Ok(()) on success, Err with message on failure
+pub fn savebones(bones: &BonesFile) -> Result<(), String> {
+    // Ensure bones directory exists
+    let bones_dir = BonesFile::bones_dir();
+    if !bones_dir.exists() {
+        std::fs::create_dir_all(&bones_dir)
+            .map_err(|e| format!("Failed to create bones directory: {}", e))?;
+    }
+
+    // Serialize and write
+    let data =
+        serde_json::to_string(bones).map_err(|e| format!("Failed to serialize bones: {}", e))?;
+
+    let path = BonesFile::path(&bones.header.dlevel);
+    std::fs::write(&path, data).map_err(|e| format!("Failed to write bones file: {}", e))?;
+
+    Ok(())
+}
+
+/// Create a new bones file (create_bonesfile equivalent)
+///
+/// Creates and opens a new bones file for writing. Returns a path to
+/// the temporary file that should be used.
+///
+/// # Arguments
+/// * `dlevel` - The dungeon level for the bones
+///
+/// # Returns
+/// The path to the bones file
+pub fn create_bonesfile(dlevel: &DLevel) -> PathBuf {
+    // Ensure bones directory exists
+    let bones_dir = BonesFile::bones_dir();
+    if !bones_dir.exists() {
+        let _ = std::fs::create_dir_all(&bones_dir);
+    }
+
+    BonesFile::path(dlevel)
+}
+
+/// Open an existing bones file for reading (open_bonesfile equivalent)
+///
+/// # Arguments
+/// * `dlevel` - The dungeon level to open bones for
+///
+/// # Returns
+/// Some with the bones file data if it exists, None otherwise
+pub fn open_bonesfile(dlevel: &DLevel) -> Option<Vec<u8>> {
+    let path = BonesFile::path(dlevel);
+    std::fs::read(&path).ok()
+}
+
+/// Delete a bones file (delete_bonesfile equivalent)
+///
+/// # Arguments
+/// * `dlevel` - The dungeon level whose bones file to delete
+///
+/// # Returns
+/// Ok(()) on success, Err with message on failure
+pub fn delete_bonesfile(dlevel: &DLevel) -> Result<(), String> {
+    let path = BonesFile::path(dlevel);
+    if path.exists() {
+        std::fs::remove_file(&path).map_err(|e| format!("Failed to delete bones file: {}", e))?;
+    }
+    Ok(())
+}
+
+/// Commit a bones file (make it permanent)
+///
+/// In the original C, this renamed a temp file to the final name.
+/// Here we just verify the file exists.
+///
+/// # Arguments
+/// * `dlevel` - The dungeon level whose bones file to commit
+///
+/// # Returns
+/// Ok(()) on success
+pub fn commit_bonesfile(dlevel: &DLevel) -> Result<(), String> {
+    let path = BonesFile::path(dlevel);
+    if path.exists() {
+        Ok(())
+    } else {
+        Err("Bones file does not exist".to_string())
+    }
+}
+
+/// Set the bones file name (set_bonesfile_name equivalent)
+///
+/// Returns the standard bones filename for a level.
+///
+/// # Arguments
+/// * `dlevel` - The dungeon level
+///
+/// # Returns
+/// The filename string
+pub fn set_bonesfile_name(dlevel: &DLevel) -> String {
+    BonesFile::filename(dlevel)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -319,8 +468,8 @@ mod tests {
             "killed by a gnome".to_string(),
             1234,
             8,
-            500,  // gold
-            50,   // max_hp
+            500, // gold
+            50,  // max_hp
         );
 
         assert_eq!(header.version, BONES_VERSION);

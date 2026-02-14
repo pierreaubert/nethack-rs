@@ -8,7 +8,7 @@
 //! - Toggle with 'M' key
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
 
 use crate::plugins::game::AppState;
 use crate::resources::GameStateResource;
@@ -83,17 +83,21 @@ fn render_minimap(
         .resizable(false)
         .collapsible(false)
         .title_bar(false)
-        .frame(egui::Frame::none().fill(egui::Color32::from_rgba_unmultiplied(
-            0,
-            0,
-            0,
-            settings.background_opacity,
-        )))
+        .frame(
+            egui::Frame::none().fill(egui::Color32::from_rgba_unmultiplied(
+                0,
+                0,
+                0,
+                settings.background_opacity,
+            )),
+        )
         .show(contexts.ctx_mut(), |ui| {
             ui.set_min_size(egui::vec2(settings.size, settings.size * 0.5));
 
-            let (response, painter) =
-                ui.allocate_painter(egui::vec2(settings.size, settings.size * 0.5), egui::Sense::hover());
+            let (response, painter) = ui.allocate_painter(
+                egui::vec2(settings.size, settings.size * 0.5),
+                egui::Sense::hover(),
+            );
 
             let rect = response.rect;
             let origin = rect.min;
@@ -174,18 +178,14 @@ fn render_minimap(
                     egui::Color32::from_rgb(255, 80, 80) // Red for hostile
                 };
 
-                let px =
-                    origin.x + offset_x + monster.x as f32 * tile_size + tile_size / 2.0;
-                let py =
-                    origin.y + offset_y + monster.y as f32 * tile_size + tile_size / 2.0;
+                let px = origin.x + offset_x + monster.x as f32 * tile_size + tile_size / 2.0;
+                let py = origin.y + offset_y + monster.y as f32 * tile_size + tile_size / 2.0;
                 painter.circle_filled(egui::pos2(px, py), tile_size * 0.6, color);
             }
 
             // Draw player (on top)
-            let player_px =
-                origin.x + offset_x + player_x as f32 * tile_size + tile_size / 2.0;
-            let player_py =
-                origin.y + offset_y + player_y as f32 * tile_size + tile_size / 2.0;
+            let player_px = origin.x + offset_x + player_x as f32 * tile_size + tile_size / 2.0;
+            let player_py = origin.y + offset_y + player_y as f32 * tile_size + tile_size / 2.0;
 
             // Player marker: white circle with border
             painter.circle_filled(
@@ -239,10 +239,11 @@ fn cell_to_minimap_color(
         | CellType::TDWall
         | CellType::TLWall
         | CellType::TRWall
-        | CellType::DBWall => egui::Color32::from_rgb(b(100), b(100), b(120)),
+        | CellType::DBWall
+        | CellType::Wall => egui::Color32::from_rgb(b(100), b(100), b(120)),
 
         // Floors
-        CellType::Room | CellType::Corridor => {
+        CellType::Room | CellType::Corridor | CellType::Vault => {
             egui::Color32::from_rgb(b(60), b(50), b(40))
         }
 
@@ -286,8 +287,6 @@ fn cell_to_minimap_color(
         }
 
         // Stairs and ladder (floor color, markers drawn separately)
-        CellType::Stairs | CellType::Ladder => {
-            egui::Color32::from_rgb(b(60), b(50), b(40))
-        }
+        CellType::Stairs | CellType::Ladder => egui::Color32::from_rgb(b(60), b(50), b(40)),
     }
 }

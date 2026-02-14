@@ -4,9 +4,9 @@
 
 use crate::rng::GameRng;
 
+use super::DLevel;
 use super::cell::CellType;
 use super::level::{Level, Stairway, TrapType};
-use super::DLevel;
 
 /// Map dimensions
 const COLNO: usize = 80;
@@ -74,7 +74,8 @@ fn generate_earth_plane(level: &mut Level, rng: &mut GameRng) {
                 let y = cy.saturating_sub(radius) + dy;
                 if x < COLNO && y < ROWNO {
                     let dist = ((dx as i32 - radius as i32).pow(2)
-                        + (dy as i32 - radius as i32).pow(2)) as usize;
+                        + (dy as i32 - radius as i32).pow(2))
+                        as usize;
                     if dist <= radius * radius {
                         level.cells[x][y].typ = CellType::Room;
                         level.cells[x][y].lit = false;
@@ -155,7 +156,8 @@ fn generate_fire_plane(level: &mut Level, rng: &mut GameRng) {
                 let y = cy.saturating_sub(radius) + dy;
                 if x < COLNO && y < ROWNO {
                     let dist = ((dx as i32 - radius as i32).pow(2)
-                        + (dy as i32 - radius as i32).pow(2)) as usize;
+                        + (dy as i32 - radius as i32).pow(2))
+                        as usize;
                     if dist <= radius * radius {
                         level.cells[x][y].typ = CellType::Room;
                         level.cells[x][y].lit = true;
@@ -204,7 +206,13 @@ impl WaterBubble {
         // Random direction
         let dx = (rng.rn2(3) as i8) - 1;
         let dy = (rng.rn2(3) as i8) - 1;
-        Self { x, y, radius, dx, dy }
+        Self {
+            x,
+            y,
+            radius,
+            dx,
+            dy,
+        }
     }
 
     /// Move the bubble one step
@@ -216,8 +224,12 @@ impl WaterBubble {
         }
 
         // Move
-        let new_x = (self.x as i32 + self.dx as i32).clamp(self.radius as i32 + 2, (COLNO - self.radius - 2) as i32) as usize;
-        let new_y = (self.y as i32 + self.dy as i32).clamp(self.radius as i32 + 2, (ROWNO - self.radius - 2) as i32) as usize;
+        let new_x = (self.x as i32 + self.dx as i32)
+            .clamp(self.radius as i32 + 2, (COLNO - self.radius - 2) as i32)
+            as usize;
+        let new_y = (self.y as i32 + self.dy as i32)
+            .clamp(self.radius as i32 + 2, (ROWNO - self.radius - 2) as i32)
+            as usize;
 
         self.x = new_x;
         self.y = new_y;
@@ -251,7 +263,8 @@ pub fn update_water_level(level: &mut Level, bubbles: &[WaterBubble]) {
                 let y = bubble.y.saturating_sub(bubble.radius) + dy;
                 if x < COLNO && y < ROWNO {
                     let dist = ((dx as i32 - bubble.radius as i32).pow(2)
-                        + (dy as i32 - bubble.radius as i32).pow(2)) as usize;
+                        + (dy as i32 - bubble.radius as i32).pow(2))
+                        as usize;
                     if dist <= bubble.radius * bubble.radius {
                         level.cells[x][y].typ = CellType::Room;
                         level.cells[x][y].lit = true;
@@ -295,7 +308,8 @@ fn generate_water_plane(level: &mut Level, rng: &mut GameRng) {
                 let y = cy.saturating_sub(radius) + dy;
                 if x < COLNO && y < ROWNO {
                     let dist = ((dx as i32 - radius as i32).pow(2)
-                        + (dy as i32 - radius as i32).pow(2)) as usize;
+                        + (dy as i32 - radius as i32).pow(2))
+                        as usize;
                     if dist <= radius * radius {
                         level.cells[x][y].typ = CellType::Room;
                         level.cells[x][y].lit = true;
@@ -335,9 +349,9 @@ fn generate_astral_plane(level: &mut Level, _rng: &mut GameRng) {
 
     // Three temples
     let temple_positions = [
-        (15, 5),   // Lawful (left)
-        (40, 5),   // Neutral (center)
-        (65, 5),   // Chaotic (right)
+        (15, 5), // Lawful (left)
+        (40, 5), // Neutral (center)
+        (65, 5), // Chaotic (right)
     ];
 
     for (tx, ty) in temple_positions {
@@ -566,7 +580,10 @@ mod tests {
         assert_eq!(altar_count, 3, "Astral plane should have 3 altars");
 
         // Should have no teleport flag
-        assert!(level.flags.no_teleport, "Astral plane should block teleport");
+        assert!(
+            level.flags.no_teleport,
+            "Astral plane should block teleport"
+        );
     }
 
     #[test]

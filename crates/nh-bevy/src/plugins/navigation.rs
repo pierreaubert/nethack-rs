@@ -3,8 +3,8 @@
 //! Allows the player to click on a tile to automatically navigate there.
 //! Uses A* algorithm for optimal pathfinding around obstacles.
 
-use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -19,16 +19,12 @@ pub struct NavigationPlugin;
 
 impl Plugin for NavigationPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<NavigationState>()
-            .add_systems(
-                Update,
-                (
-                    handle_mouse_click,
-                    process_navigation_queue,
-                )
-                    .chain()
-                    .run_if(in_state(AppState::Playing)),
-            );
+        app.init_resource::<NavigationState>().add_systems(
+            Update,
+            (handle_mouse_click, process_navigation_queue)
+                .chain()
+                .run_if(in_state(AppState::Playing)),
+        );
     }
 }
 
@@ -63,7 +59,9 @@ struct AStarNode {
 impl Ord for AStarNode {
     fn cmp(&self, other: &Self) -> Ordering {
         // Reverse ordering for min-heap behavior
-        other.f_cost.cmp(&self.f_cost)
+        other
+            .f_cost
+            .cmp(&self.f_cost)
             .then_with(|| other.g_cost.cmp(&self.g_cost))
     }
 }
@@ -131,9 +129,14 @@ pub fn find_path(
 
     // 8-directional movement
     let directions: [(i8, i8); 8] = [
-        (-1, -1), (0, -1), (1, -1),
-        (-1, 0),          (1, 0),
-        (-1, 1),  (0, 1),  (1, 1),
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+        (-1, 0),
+        (1, 0),
+        (-1, 1),
+        (0, 1),
+        (1, 1),
     ];
 
     while let Some(current) = open_set.pop() {
@@ -286,7 +289,11 @@ fn handle_mouse_click(
     }
 
     // Find path
-    if let Some(path) = find_path(&game_state.0.current_level, (player_x, player_y), (map_x, map_y)) {
+    if let Some(path) = find_path(
+        &game_state.0.current_level,
+        (player_x, player_y),
+        (map_x, map_y),
+    ) {
         if !path.is_empty() {
             nav_state.path = path;
             nav_state.active = true;
@@ -325,10 +332,16 @@ fn process_navigation_queue(
     }
 
     // Verify the path is still valid (tile might have become blocked)
-    if !game_state.0.current_level.is_walkable(next_pos.0, next_pos.1) {
+    if !game_state
+        .0
+        .current_level
+        .is_walkable(next_pos.0, next_pos.1)
+    {
         // Path blocked - recalculate or stop
         if let Some(target) = nav_state.target {
-            if let Some(new_path) = find_path(&game_state.0.current_level, (player_x, player_y), target) {
+            if let Some(new_path) =
+                find_path(&game_state.0.current_level, (player_x, player_y), target)
+            {
                 if !new_path.is_empty() {
                     nav_state.path = new_path;
                     return; // Try again next frame with new path
@@ -340,7 +353,12 @@ fn process_navigation_queue(
     }
 
     // Check if there's a monster in the way
-    if game_state.0.current_level.monster_at(next_pos.0, next_pos.1).is_some() {
+    if game_state
+        .0
+        .current_level
+        .monster_at(next_pos.0, next_pos.1)
+        .is_some()
+    {
         // Stop navigation when encountering a monster
         nav_state.clear();
         return;

@@ -117,9 +117,9 @@ impl Default for GameOptions {
 impl GameOptions {
     /// Load options from a file
     pub fn load_from_file(path: &Path) -> Result<Self, OptionsError> {
-        let contents = std::fs::read_to_string(path)
-            .map_err(|e| OptionsError::IoError(e.to_string()))?;
-        
+        let contents =
+            std::fs::read_to_string(path).map_err(|e| OptionsError::IoError(e.to_string()))?;
+
         Self::parse_config(&contents)
     }
 
@@ -129,7 +129,7 @@ impl GameOptions {
 
         for line in contents.lines() {
             let line = line.trim();
-            
+
             // Skip comments and empty lines
             if line.is_empty() || line.starts_with('#') {
                 continue;
@@ -144,10 +144,9 @@ impl GameOptions {
             // Parse BIND= lines for keybindings
             else if let Some(bind) = line.strip_prefix("BIND=") {
                 if let Some((key, cmd)) = bind.split_once(':') {
-                    options.keybindings.insert(
-                        key.trim().to_string(),
-                        cmd.trim().to_string(),
-                    );
+                    options
+                        .keybindings
+                        .insert(key.trim().to_string(), cmd.trim().to_string());
                 }
             }
         }
@@ -225,7 +224,12 @@ impl GameOptions {
                     "strained" | "n" => PickupBurden::Strained,
                     "overtaxed" | "o" => PickupBurden::Overtaxed,
                     "overloaded" | "l" => PickupBurden::Overloaded,
-                    _ => return Err(OptionsError::InvalidValue(name.to_string(), value.to_string())),
+                    _ => {
+                        return Err(OptionsError::InvalidValue(
+                            name.to_string(),
+                            value.to_string(),
+                        ));
+                    }
                 };
             }
             "number_pad" | "numpad" => {
@@ -233,7 +237,12 @@ impl GameOptions {
                     "0" | "off" => NumberPadMode::Off,
                     "1" | "on" => NumberPadMode::On,
                     "2" => NumberPadMode::Phone,
-                    _ => return Err(OptionsError::InvalidValue(name.to_string(), value.to_string())),
+                    _ => {
+                        return Err(OptionsError::InvalidValue(
+                            name.to_string(),
+                            value.to_string(),
+                        ));
+                    }
                 };
             }
             "runmode" => {
@@ -242,7 +251,12 @@ impl GameOptions {
                     "run" => RunMode::Run,
                     "walk" => RunMode::Walk,
                     "crawl" => RunMode::Crawl,
-                    _ => return Err(OptionsError::InvalidValue(name.to_string(), value.to_string())),
+                    _ => {
+                        return Err(OptionsError::InvalidValue(
+                            name.to_string(),
+                            value.to_string(),
+                        ));
+                    }
                 };
             }
             "msg_window" | "msgwindow" => {
@@ -251,11 +265,17 @@ impl GameOptions {
                     "full" | "f" => MessageWindow::Full,
                     "combination" | "c" => MessageWindow::Combination,
                     "reverse" | "r" => MessageWindow::Reverse,
-                    _ => return Err(OptionsError::InvalidValue(name.to_string(), value.to_string())),
+                    _ => {
+                        return Err(OptionsError::InvalidValue(
+                            name.to_string(),
+                            value.to_string(),
+                        ));
+                    }
                 };
             }
             "msghistory" => {
-                self.msghistory = value.parse()
+                self.msghistory = value
+                    .parse()
                     .map_err(|_| OptionsError::InvalidValue(name.to_string(), value.to_string()))?;
             }
             "fruit" => self.fruit = value.to_string(),
@@ -270,8 +290,7 @@ impl GameOptions {
     /// Save options to a file
     pub fn save_to_file(&self, path: &Path) -> Result<(), OptionsError> {
         let contents = self.to_config_string();
-        std::fs::write(path, contents)
-            .map_err(|e| OptionsError::IoError(e.to_string()))
+        std::fs::write(path, contents).map_err(|e| OptionsError::IoError(e.to_string()))
     }
 
     /// Convert options to config file format
@@ -294,17 +313,50 @@ impl GameOptions {
         // Boolean options
         lines.push(String::new());
         lines.push("# Display options".to_string());
-        lines.push(format!("OPTIONS={}", if self.color { "color" } else { "!color" }));
-        lines.push(format!("OPTIONS={}", if self.hilite_pet { "hilite_pet" } else { "!hilite_pet" }));
-        lines.push(format!("OPTIONS={}", if self.showexp { "showexp" } else { "!showexp" }));
-        lines.push(format!("OPTIONS={}", if self.time { "time" } else { "!time" }));
+        lines.push(format!(
+            "OPTIONS={}",
+            if self.color { "color" } else { "!color" }
+        ));
+        lines.push(format!(
+            "OPTIONS={}",
+            if self.hilite_pet {
+                "hilite_pet"
+            } else {
+                "!hilite_pet"
+            }
+        ));
+        lines.push(format!(
+            "OPTIONS={}",
+            if self.showexp { "showexp" } else { "!showexp" }
+        ));
+        lines.push(format!(
+            "OPTIONS={}",
+            if self.time { "time" } else { "!time" }
+        ));
 
         lines.push(String::new());
         lines.push("# Gameplay options".to_string());
-        lines.push(format!("OPTIONS={}", if self.autopickup { "autopickup" } else { "!autopickup" }));
+        lines.push(format!(
+            "OPTIONS={}",
+            if self.autopickup {
+                "autopickup"
+            } else {
+                "!autopickup"
+            }
+        ));
         lines.push(format!("OPTIONS=pickup_types:{}", self.autopickup_types));
-        lines.push(format!("OPTIONS={}", if self.safe_pet { "safe_pet" } else { "!safe_pet" }));
-        lines.push(format!("OPTIONS={}", if self.confirm { "confirm" } else { "!confirm" }));
+        lines.push(format!(
+            "OPTIONS={}",
+            if self.safe_pet {
+                "safe_pet"
+            } else {
+                "!safe_pet"
+            }
+        ));
+        lines.push(format!(
+            "OPTIONS={}",
+            if self.confirm { "confirm" } else { "!confirm" }
+        ));
 
         // Keybindings
         if !self.keybindings.is_empty() {
@@ -420,7 +472,9 @@ impl std::fmt::Display for OptionsError {
             OptionsError::IoError(e) => write!(f, "IO error: {}", e),
             OptionsError::ParseError(e) => write!(f, "Parse error: {}", e),
             OptionsError::UnknownOption(opt) => write!(f, "Unknown option: {}", opt),
-            OptionsError::InvalidValue(opt, val) => write!(f, "Invalid value '{}' for option '{}'", val, opt),
+            OptionsError::InvalidValue(opt, val) => {
+                write!(f, "Invalid value '{}' for option '{}'", val, opt)
+            }
             OptionsError::MissingValue(opt) => write!(f, "Missing value for option '{}'", opt),
         }
     }
@@ -469,10 +523,10 @@ mod tests {
         let mut opts = GameOptions::default();
         opts.name = "TestPlayer".to_string();
         opts.color = false;
-        
+
         let config_str = opts.to_config_string();
         let parsed = GameOptions::parse_config(&config_str).unwrap();
-        
+
         assert_eq!(parsed.name, "TestPlayer");
         assert!(!parsed.color);
     }

@@ -7,25 +7,23 @@ use std::time::Duration;
 
 use clap::Parser;
 use crossterm::{
-    event,
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    event, execute,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 use strum::IntoEnumIterator;
 
 use nh_core::dungeon::Level;
 use nh_core::player::{AlignmentType, Gender, Race, Role, You};
+use nh_core::save::{default_save_path, delete_save, load_game, save_game};
 use nh_core::{GameLoopResult, GameRng, GameState};
-use nh_data::monsters;
-use nh_save::{save_game, load_game, default_save_path, delete_save};
 use nh_ui::App;
 
 /// NetHack clone in Rust
 #[derive(Parser, Debug)]
 #[command(name = "nethack")]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about = "NetHack - Explore the dungeon!", long_about = None)]
 struct Args {
     /// Player name
     #[arg(short = 'u', long = "name")]
@@ -58,19 +56,57 @@ struct Args {
     /// Discovery (explore) mode
     #[arg(short = 'X', long = "discover")]
     discover: bool,
+
+    /// View high scores
+    #[arg(short = 's', long = "scores")]
+    scores: bool,
+
+    /// Recovery mode - recover from interrupted game
+    #[arg(long = "recovery")]
+    recovery: bool,
+
+    /// Playground directory (for saving games)
+    #[arg(long = "playground")]
+    playground: Option<String>,
+
+    /// Verbose output
+    #[arg(short = 'v', long = "verbose")]
+    verbose: bool,
 }
 
 fn main() -> io::Result<()> {
     // Parse command-line arguments before terminal setup
     let args = Args::parse();
-    
+
+    // Handle special modes that don't require full game setup
+
+    // View high scores
+    if args.scores {
+        display_high_scores(&args)?;
+        return Ok(());
+    }
+
+    // Show version info
+    if args.verbose {
+        println!("NetHack {}", env!("CARGO_PKG_VERSION"));
+        println!("Rust implementation of the classic roguelike");
+        println!("Built with Bevy game engine");
+        return Ok(());
+    }
+
+    // Handle recovery mode
+    if args.recovery {
+        handle_recovery_mode(&args)?;
+        return Ok(());
+    }
+
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    
+
     // If name provided via CLI, check for existing save
     let state = if let Some(ref player_name) = args.name {
         let save_path = default_save_path(player_name);
@@ -110,7 +146,7 @@ fn main() -> io::Result<()> {
                         // Delete save file on death (permadeath)
                         let save_path = default_save_path(&app.state().player.name);
                         let _ = delete_save(&save_path);
-                        
+
                         // Show death message
                         app.state_mut().message(format!("You died: {}", msg));
                         terminal.draw(|frame| app.render(frame))?;
@@ -130,9 +166,10 @@ fn main() -> io::Result<()> {
                         // Delete save file on victory
                         let save_path = default_save_path(&app.state().player.name);
                         let _ = delete_save(&save_path);
-                        
+
                         // Show victory message
-                        app.state_mut().message("Congratulations! You have ascended!");
+                        app.state_mut()
+                            .message("Congratulations! You have ascended!");
                         terminal.draw(|frame| app.render(frame))?;
                         std::thread::sleep(Duration::from_secs(3));
                         break;
@@ -165,34 +202,39 @@ fn run_character_creation(
         let name = args.name.clone().unwrap();
         return create_new_game_with_args(&name, args);
     }
-    if args.name.is_some() && args.role.is_some() && args.race.is_some() && args.gender.is_some() && args.alignment.is_some() {
+    if args.name.is_some()
+        && args.role.is_some()
+        && args.race.is_some()
+        && args.gender.is_some()
+        && args.alignment.is_some()
+    {
         let name = args.name.clone().unwrap();
         return create_new_game_with_args(&name, args);
     }
-    
+
     // Create a temporary game state for the character creation UI
     let temp_state = GameState::new(GameRng::from_entropy());
     let mut app = App::new(temp_state);
-    
+
     // Start character creation - with name if provided via CLI
     if let Some(ref name) = args.name {
         app.start_character_creation_with_name(name.clone());
     } else {
         app.start_character_creation();
     }
-    
+
     // Character creation loop
     loop {
         terminal.draw(|frame| app.render(frame))?;
-        
+
         if event::poll(Duration::from_millis(100))? {
             let evt = event::read()?;
             app.handle_event(evt);
-            
+
             // Check if character creation is complete
             if let Some(choices) = app.get_character_choices() {
                 app.finish_character_creation();
-                
+
                 // Create the actual game with the chosen options
                 return Ok(create_new_game_with_choices(
                     &choices.name,
@@ -204,7 +246,7 @@ fn run_character_creation(
                     args.discover,
                 ));
             }
-            
+
             // Check if user quit during character creation
             if app.should_quit() {
                 // Restore terminal before exiting
@@ -220,7 +262,7 @@ fn run_character_creation(
 /// Create new game using command-line args (only called when all args provided)
 fn create_new_game_with_args(player_name: &str, args: &Args) -> io::Result<GameState> {
     let mut rng = GameRng::from_entropy();
-    
+
     // Parse role from args or pick random
     let role = if args.random {
         random_role(&mut rng)
@@ -229,7 +271,7 @@ fn create_new_game_with_args(player_name: &str, args: &Args) -> io::Result<GameS
     } else {
         random_role(&mut rng)
     };
-    
+
     // Parse race from args or pick random
     let race = if args.random {
         random_race(&mut rng)
@@ -238,7 +280,7 @@ fn create_new_game_with_args(player_name: &str, args: &Args) -> io::Result<GameS
     } else {
         random_race(&mut rng)
     };
-    
+
     // Parse gender from args or pick random
     let gender = if args.random {
         random_gender(&mut rng)
@@ -247,7 +289,7 @@ fn create_new_game_with_args(player_name: &str, args: &Args) -> io::Result<GameS
     } else {
         random_gender(&mut rng)
     };
-    
+
     // Parse alignment from args or pick random
     let alignment = if args.random {
         random_alignment(&mut rng)
@@ -256,8 +298,16 @@ fn create_new_game_with_args(player_name: &str, args: &Args) -> io::Result<GameS
     } else {
         random_alignment(&mut rng)
     };
-    
-    Ok(create_new_game_with_choices(player_name, role, race, gender, alignment, args.wizard, args.discover))
+
+    Ok(create_new_game_with_choices(
+        player_name,
+        role,
+        race,
+        gender,
+        alignment,
+        args.wizard,
+        args.discover,
+    ))
 }
 
 /// Parse role from string
@@ -322,7 +372,11 @@ fn random_race(rng: &mut GameRng) -> Race {
 
 /// Random gender selection
 fn random_gender(rng: &mut GameRng) -> Gender {
-    if rng.one_in(2) { Gender::Male } else { Gender::Female }
+    if rng.one_in(2) {
+        Gender::Male
+    } else {
+        Gender::Female
+    }
 }
 
 /// Random alignment selection
@@ -333,9 +387,9 @@ fn random_alignment(rng: &mut GameRng) -> AlignmentType {
 
 /// Create a new game with specified choices
 fn create_new_game_with_choices(
-    name: &str, 
-    role: Role, 
-    race: Race, 
+    name: &str,
+    role: Role,
+    race: Race,
     gender: Gender,
     alignment: AlignmentType,
     wizard_mode: bool,
@@ -344,12 +398,7 @@ fn create_new_game_with_choices(
     let rng = GameRng::from_entropy();
 
     // Create player
-    let mut player = You::new(
-        name.to_string(),
-        role,
-        race,
-        gender,
-    );
+    let mut player = You::new(name.to_string(), role, race, gender);
     player.alignment.typ = alignment;
     player.original_alignment = alignment;
 
@@ -359,7 +408,7 @@ fn create_new_game_with_choices(
     player.energy = 1;
     player.energy_max = 1;
     player.armor_class = 10;
-    
+
     // Set game modes - wizard mode gives extra powers for debugging
     if wizard_mode {
         player.hp = 100;
@@ -367,7 +416,7 @@ fn create_new_game_with_choices(
         player.energy = 100;
         player.energy_max = 100;
     }
-    
+
     let _ = discover_mode; // TODO: implement discover mode effects
 
     // Set initial attributes (average values)
@@ -382,7 +431,7 @@ fn create_new_game_with_choices(
 
     // Create game state (includes generated level with basic monsters)
     let mut state = GameState::new(rng);
-    
+
     // Preserve the spawn position from level generation
     let spawn_pos = state.player.pos;
     let spawn_prev = state.player.prev_pos;
@@ -397,15 +446,17 @@ fn create_new_game_with_choices(
 
     // Add welcome and intro messages
     let rank = role.rank_title(1, gender);
-    state.message(format!("Welcome to NetHack! You are a {} {} {} {}.", 
-        alignment, race, gender, role));
+    state.message(format!(
+        "Welcome to NetHack! You are a {} {} {} {}.",
+        alignment, race, gender, role
+    ));
     state.message(format!("You are a {}.", rank));
-    
+
     // Wizard mode notification
     if wizard_mode {
         state.message("You are in wizard mode - debugging powers enabled!");
     }
-    
+
     // Add role-specific intro
     match role {
         Role::Valkyrie => state.message("You must prove yourself worthy to enter Valhalla."),
@@ -422,7 +473,7 @@ fn create_new_game_with_choices(
         Role::Samurai => state.message("You seek to restore honor to your family."),
         Role::Tourist => state.message("You seek adventure and souvenirs."),
     }
-    
+
     state.message("Be careful! The dungeon is full of monsters.");
 
     state
@@ -437,11 +488,11 @@ fn populate_monster_data(level: &mut Level, rng: &mut GameRng) {
         if let Some(monster) = level.monster_mut(monster_id) {
             // Pick a random monster type from the available 380+ monsters
             // Use depth-based selection for variety
-            let max_type = monsters::num_monsters().min(20) as i16; // For now, use first 20 monsters
+            let max_type = nh_core::data::monsters::num_monsters().min(20) as i16; // For now, use first 20 monsters
             let monster_type = rng.rn2(max_type as u32) as i16;
 
             // Get monster template
-            if let Some(permonst) = monsters::get_monster(monster_type) {
+            if let Some(permonst) = nh_core::data::monsters::get_monster(monster_type) {
                 monster.monster_type = monster_type;
                 monster.original_type = monster_type;
                 monster.name = permonst.name.to_string();
@@ -469,3 +520,89 @@ fn populate_monster_data(level: &mut Level, rng: &mut GameRng) {
     }
 }
 
+/// Display the high scores screen
+fn display_high_scores(args: &Args) -> io::Result<()> {
+    println!("\n=== NetHack High Scores ===\n");
+    println!(
+        "{:<4} {:<20} {:<15} {:<10}",
+        "Rank", "Player", "Score", "Level"
+    );
+    println!("{:-<50}", "");
+
+    // Placeholder - would load from score file
+    println!("{:<4} {:<20} {:<15} {:<10}", "1", "Hero", "100000", "20");
+    println!(
+        "{:<4} {:<20} {:<15} {:<10}",
+        "2", "Adventurer", "50000", "15"
+    );
+    println!("{:<4} {:<20} {:<15} {:<10}", "3", "Wanderer", "25000", "10");
+
+    if args.verbose {
+        println!("\n(Score file: ~/.nethackrc)");
+        println!("To reset scores, delete the score file.");
+    }
+
+    Ok(())
+}
+
+/// Handle recovery mode - restore interrupted games
+fn handle_recovery_mode(args: &Args) -> io::Result<()> {
+    println!("\n=== NetHack Recovery Mode ===\n");
+    println!("Available saved games for recovery:\n");
+
+    // Look for any save files that might need recovery
+    let player_name = args.name.clone().unwrap_or_else(|| "unknown".to_string());
+    let save_path = default_save_path(&player_name);
+
+    if save_path.exists() {
+        println!("Found save for player: {}", player_name);
+        println!("Path: {}", save_path.display());
+
+        // Attempt to load and show recovery info
+        match load_game(&save_path) {
+            Ok(game_state) => {
+                println!("\nGame State:");
+                println!("  Player: {}", game_state.player.name);
+                println!(
+                    "  HP: {}/{}",
+                    game_state.player.hp, game_state.player.hp_max
+                );
+                println!("  Level: {}", game_state.player.level);
+                println!("  Turn: {}", game_state.turns);
+                println!("\nTo recover this game, run: nethack -u {}", player_name);
+            }
+            Err(e) => {
+                eprintln!("Error reading save file: {}", e);
+                println!("Save file may be corrupted. Delete and start a new game.");
+            }
+        }
+    } else {
+        println!(
+            "No save file found for player: {}",
+            args.name
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or("(none specified)")
+        );
+        println!("\nTo start a new game, run: nethack");
+    }
+
+    Ok(())
+}
+
+/// Setup playground directory for saves
+fn setup_playground(playground: Option<&str>) -> io::Result<()> {
+    if let Some(path) = playground {
+        use std::path::Path;
+        let playground_path = Path::new(path);
+
+        if !playground_path.exists() {
+            std::fs::create_dir_all(playground_path)?;
+            println!("Created playground directory: {}", path);
+        }
+
+        println!("Using playground: {}", path);
+    }
+
+    Ok(())
+}

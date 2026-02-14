@@ -8,7 +8,7 @@
 //! - Save/load browser
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
 
 use crate::plugins::game::AppState;
 use crate::resources::GameStateResource;
@@ -20,7 +20,10 @@ impl Plugin for MenusPlugin {
         app.init_resource::<GameSettings>()
             .init_resource::<MenuState>()
             .init_resource::<SaveLoadState>()
-            .add_systems(Update, render_main_menu.run_if(in_state(AppState::MainMenu)))
+            .add_systems(
+                Update,
+                render_main_menu.run_if(in_state(AppState::MainMenu)),
+            )
             .add_systems(Update, render_pause_menu.run_if(in_state(AppState::Paused)))
             .add_systems(
                 Update,
@@ -43,7 +46,7 @@ pub struct MenuState {
 #[derive(Resource, Default)]
 pub struct SaveLoadState {
     /// Cached list of save files
-    pub saves: Vec<(std::path::PathBuf, nh_save::SaveHeader)>,
+    pub saves: Vec<(std::path::PathBuf, nh_core::save::SaveHeader)>,
     /// Whether the save list needs refreshing
     pub needs_refresh: bool,
     /// Selected save slot index
@@ -295,8 +298,8 @@ fn render_pause_menu(
                     .clicked()
                 {
                     // Quick save to default slot and quit
-                    let path = nh_save::default_save_path(&game_state.0.player.name);
-                    if let Err(e) = nh_save::save_game(&game_state.0, &path) {
+                    let path = nh_core::save::default_save_path(&game_state.0.player.name);
+                    if let Err(e) = nh_core::save::save_game(&game_state.0, &path) {
                         eprintln!("Failed to save game: {}", e);
                     }
                     exit.send(AppExit::Success);
@@ -364,11 +367,7 @@ fn render_game_over_screen(
                 let state = &game_state.0;
                 ui.group(|ui| {
                     ui.set_min_width(300.0);
-                    ui.label(
-                        egui::RichText::new("Character Summary")
-                            .size(16.0)
-                            .strong(),
-                    );
+                    ui.label(egui::RichText::new("Character Summary").size(16.0).strong());
                     ui.separator();
 
                     egui::Grid::new("stats_grid")
@@ -475,9 +474,7 @@ fn render_settings_panel(
 
                 ui.horizontal(|ui| {
                     ui.label("Zoom Speed:");
-                    ui.add(
-                        egui::Slider::new(&mut settings.zoom_speed, 0.1..=3.0).show_value(true),
-                    );
+                    ui.add(egui::Slider::new(&mut settings.zoom_speed, 0.1..=3.0).show_value(true));
                 });
             });
 
@@ -588,7 +585,7 @@ fn render_save_browser(
 ) {
     // Refresh save list if needed
     if save_state.needs_refresh {
-        save_state.saves = nh_save::list_saves().unwrap_or_default();
+        save_state.saves = nh_core::save::list_saves().unwrap_or_default();
         save_state.needs_refresh = false;
         save_state.selected = None;
     }
@@ -664,10 +661,10 @@ fn render_save_browser(
                     let path = if let Some(idx) = save_state.selected {
                         save_state.saves[idx].0.clone()
                     } else {
-                        nh_save::default_save_path(&game_state.0.player.name)
+                        nh_core::save::default_save_path(&game_state.0.player.name)
                     };
 
-                    match nh_save::save_game(&game_state.0, &path) {
+                    match nh_core::save::save_game(&game_state.0, &path) {
                         Ok(()) => {
                             save_state.status_message = Some("Game saved!".to_string());
                             save_state.needs_refresh = true;
@@ -681,7 +678,7 @@ fn render_save_browser(
                 if save_state.selected.is_some() && ui.button("Delete").clicked() {
                     if let Some(idx) = save_state.selected {
                         let path = &save_state.saves[idx].0;
-                        if nh_save::delete_save(path).is_ok() {
+                        if nh_core::save::delete_save(path).is_ok() {
                             save_state.status_message = Some("Save deleted.".to_string());
                             save_state.needs_refresh = true;
                         }
@@ -708,7 +705,7 @@ fn render_load_browser(
 ) {
     // Refresh save list if needed
     if save_state.needs_refresh {
-        save_state.saves = nh_save::list_saves().unwrap_or_default();
+        save_state.saves = nh_core::save::list_saves().unwrap_or_default();
         save_state.needs_refresh = false;
         save_state.selected = None;
     }
@@ -763,8 +760,7 @@ fn render_load_browser(
                                     ui.label(format!("Turn {}", header.turns));
 
                                     // Format timestamp
-                                    let datetime =
-                                        chrono_lite_format(header.timestamp);
+                                    let datetime = chrono_lite_format(header.timestamp);
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
@@ -805,7 +801,7 @@ fn render_load_browser(
                 {
                     if let Some(idx) = save_state.selected {
                         let path = &save_state.saves[idx].0;
-                        match nh_save::load_game(path) {
+                        match nh_core::save::load_game(path) {
                             Ok(loaded_state) => {
                                 game_state.0 = loaded_state;
                                 menu_state.show_load_browser = false;
@@ -822,7 +818,7 @@ fn render_load_browser(
                 if can_load && ui.button("Delete").clicked() {
                     if let Some(idx) = save_state.selected {
                         let path = &save_state.saves[idx].0;
-                        if nh_save::delete_save(path).is_ok() {
+                        if nh_core::save::delete_save(path).is_ok() {
                             save_state.needs_refresh = true;
                             save_state.selected = None;
                         }

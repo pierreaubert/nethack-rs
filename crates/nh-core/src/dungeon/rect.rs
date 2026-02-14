@@ -112,7 +112,12 @@ impl RectManager {
     pub fn init(&mut self, width: u8, height: u8) {
         self.rects.clear();
         // Leave margin for level borders
-        let rect = NhRect::new(XLIM, YLIM, width.saturating_sub(XLIM + 1), height.saturating_sub(YLIM + 1));
+        let rect = NhRect::new(
+            XLIM,
+            YLIM,
+            width.saturating_sub(XLIM + 1),
+            height.saturating_sub(YLIM + 1),
+        );
         if rect.is_valid() {
             self.rects.push(rect);
         }
@@ -121,7 +126,12 @@ impl RectManager {
     /// Get a random free rectangle that's large enough for a room
     pub fn rnd_rect(&self, rng: &mut GameRng) -> Option<NhRect> {
         // Find all rectangles large enough for a room
-        let valid: Vec<_> = self.rects.iter().filter(|r| r.is_room_size()).copied().collect();
+        let valid: Vec<_> = self
+            .rects
+            .iter()
+            .filter(|r| r.is_room_size())
+            .copied()
+            .collect();
 
         if valid.is_empty() {
             return None;
@@ -282,6 +292,92 @@ impl RectManager {
     }
 }
 
+/// Find the index of a rectangle in a list by exact match
+/// Matches C's get_rect_ind()
+///
+/// Searches through a list of rectangles and returns the index of the first
+/// rectangle that exactly matches the given rectangle's coordinates.
+///
+/// # Arguments
+/// * `rect_list` - Vector of rectangles to search
+/// * `target` - The rectangle to find
+///
+/// # Returns
+/// Some(index) if found, None if not found
+pub fn get_rect_ind(rect_list: &[NhRect], target: &NhRect) -> Option<usize> {
+    for (i, rect) in rect_list.iter().enumerate() {
+        if rect.lx == target.lx
+            && rect.ly == target.ly
+            && rect.hx == target.hx
+            && rect.hy == target.hy
+        {
+            return Some(i);
+        }
+    }
+    None
+}
+
+/// Check if a point is inside a rectangle
+/// Matches C's inside_rect()
+///
+/// Simple inclusion test: a point (x, y) is inside a rectangle if:
+/// x >= lx && x <= hx && y >= ly && y <= hy
+///
+/// # Arguments
+/// * `rect` - The rectangle to check
+/// * `x` - X coordinate of the point
+/// * `y` - Y coordinate of the point
+///
+/// # Returns
+/// true if the point is inside the rectangle (inclusive), false otherwise
+pub fn inside_rect(rect: &NhRect, x: u8, y: u8) -> bool {
+    x >= rect.lx && x <= rect.hx && y >= rect.ly && y <= rect.hy
+}
+
+/// Add a rectangle to a list and update bounding box
+/// Matches C's add_rect_to_reg()
+///
+/// This adds a new rectangle to a collection and updates a bounding box
+/// to encompass all rectangles. The bounding box expands to include the
+/// new rectangle's bounds.
+///
+/// # Arguments
+/// * `rect_list` - Mutable vector of rectangles to add to
+/// * `bounding_box` - Mutable bounding box to update
+/// * `new_rect` - The rectangle to add
+///
+/// # Returns
+/// true if added successfully, false if list is full (>= MAXRECT)
+pub fn add_rect_to_reg(
+    rect_list: &mut Vec<NhRect>,
+    bounding_box: &mut NhRect,
+    new_rect: &NhRect,
+) -> bool {
+    // Check if we have space
+    if rect_list.len() >= MAXRECT {
+        return false;
+    }
+
+    // Add the rectangle
+    rect_list.push(*new_rect);
+
+    // Update bounding box
+    if bounding_box.lx > new_rect.lx {
+        bounding_box.lx = new_rect.lx;
+    }
+    if bounding_box.ly > new_rect.ly {
+        bounding_box.ly = new_rect.ly;
+    }
+    if bounding_box.hx < new_rect.hx {
+        bounding_box.hx = new_rect.hx;
+    }
+    if bounding_box.hy < new_rect.hy {
+        bounding_box.hy = new_rect.hy;
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -393,7 +489,13 @@ mod tests {
                 let room = NhRect::new(x.saturating_sub(1), y.saturating_sub(1), x + 5, y + 4);
                 mgr.split_rects(&room);
                 rooms_placed += 1;
-                println!("Room {} at ({}, {}), {} rects remaining", rooms_placed, x, y, mgr.count());
+                println!(
+                    "Room {} at ({}, {}), {} rects remaining",
+                    rooms_placed,
+                    x,
+                    y,
+                    mgr.count()
+                );
             } else {
                 println!("No space for room {}", rooms_placed + 1);
                 break;
@@ -401,5 +503,109 @@ mod tests {
         }
 
         assert!(rooms_placed >= 3, "Should place at least 3 rooms");
+    }
+
+    #[test]
+    fn test_get_rect_ind() {
+        let mut rects = vec![
+            NhRect::new(0, 0, 10, 10),
+            NhRect::new(20, 20, 30, 30),
+            NhRect::new(5, 5, 15, 15),
+        ];
+
+        let target = NhRect::new(20, 20, 30, 30);
+        assert_eq!(get_rect_ind(&rects, &target), Some(1));
+
+        let not_found = NhRect::new(50, 50, 60, 60);
+        assert_eq!(get_rect_ind(&rects, &not_found), None);
+
+        let empty: Vec<NhRect> = vec![];
+        assert_eq!(get_rect_ind(&empty, &target), None);
+    }
+
+    #[test]
+    fn test_inside_rect() {
+        let rect = NhRect::new(10, 10, 20, 20);
+
+        // Points inside (inclusive)
+        assert!(inside_rect(&rect, 10, 10)); // Top-left corner
+        assert!(inside_rect(&rect, 15, 15)); // Middle
+        assert!(inside_rect(&rect, 20, 20)); // Bottom-right corner
+        assert!(inside_rect(&rect, 10, 20)); // Bottom-left corner
+
+        // Points outside
+        assert!(!inside_rect(&rect, 9, 15)); // Just to the left
+        assert!(!inside_rect(&rect, 21, 15)); // Just to the right
+        assert!(!inside_rect(&rect, 15, 9)); // Just above
+        assert!(!inside_rect(&rect, 15, 21)); // Just below
+        assert!(!inside_rect(&rect, 0, 0)); // Far outside
+    }
+
+    #[test]
+    fn test_inside_rect_edge_cases() {
+        // Single-point rectangle
+        let point_rect = NhRect::new(5, 5, 5, 5);
+        assert!(inside_rect(&point_rect, 5, 5));
+        assert!(!inside_rect(&point_rect, 4, 5));
+        assert!(!inside_rect(&point_rect, 6, 5));
+
+        // Line rectangle
+        let line_rect = NhRect::new(10, 10, 10, 20);
+        assert!(inside_rect(&line_rect, 10, 10));
+        assert!(inside_rect(&line_rect, 10, 15));
+        assert!(inside_rect(&line_rect, 10, 20));
+        assert!(!inside_rect(&line_rect, 9, 10));
+        assert!(!inside_rect(&line_rect, 11, 10));
+    }
+
+    #[test]
+    fn test_add_rect_to_reg() {
+        let mut rects = vec![NhRect::new(0, 0, 10, 10)];
+        let mut bbox = NhRect::new(0, 0, 10, 10);
+
+        // Add a rectangle that expands the bounding box
+        let new_rect = NhRect::new(20, 20, 30, 30);
+        let result = add_rect_to_reg(&mut rects, &mut bbox, &new_rect);
+
+        assert!(result);
+        assert_eq!(rects.len(), 2);
+        assert_eq!(bbox.lx, 0); // Left unchanged
+        assert_eq!(bbox.ly, 0); // Top unchanged
+        assert_eq!(bbox.hx, 30); // Right expanded
+        assert_eq!(bbox.hy, 30); // Bottom expanded
+    }
+
+    #[test]
+    fn test_add_rect_to_reg_contraction() {
+        let mut rects = vec![NhRect::new(10, 10, 20, 20)];
+        let mut bbox = NhRect::new(10, 10, 20, 20);
+
+        // Add a smaller rectangle inside
+        let new_rect = NhRect::new(12, 12, 18, 18);
+        let result = add_rect_to_reg(&mut rects, &mut bbox, &new_rect);
+
+        assert!(result);
+        assert_eq!(rects.len(), 2);
+        // Bounding box should stay the same (doesn't contract)
+        assert_eq!(bbox.lx, 10);
+        assert_eq!(bbox.hx, 20);
+        assert_eq!(bbox.ly, 10);
+        assert_eq!(bbox.hy, 20);
+    }
+
+    #[test]
+    fn test_add_rect_to_reg_at_capacity() {
+        let mut rects = vec![];
+        for i in 0..MAXRECT {
+            rects.push(NhRect::new(i as u8, 0, i as u8 + 1, 1));
+        }
+
+        let mut bbox = NhRect::new(0, 0, MAXRECT as u8, 1);
+        let new_rect = NhRect::new(100, 100, 101, 101);
+
+        // Should fail when at capacity
+        let result = add_rect_to_reg(&mut rects, &mut bbox, &new_rect);
+        assert!(!result);
+        assert_eq!(rects.len(), MAXRECT);
     }
 }

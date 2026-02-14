@@ -2,7 +2,7 @@
 //!
 //! Functions for manipulating containers: looting, stashing, etc.
 
-use super::{Object, ObjectId, MkObjContext};
+use super::{MkObjContext, Object, ObjectId};
 
 /// Result of a container operation
 #[derive(Debug, Clone)]
@@ -314,6 +314,140 @@ pub fn empty_container(container: &mut Object) -> Vec<Object> {
     std::mem::take(&mut container.contents)
 }
 
+// ============================================================================
+// Container UI and validation functions (Phase 4)
+// ============================================================================
+
+/// Check if a Bag of Holding would explode (ck_bag equivalent)
+///
+/// Bag of Holding explodes if you try to put another Bag of Holding or
+/// Bag of Tricks inside it.
+///
+/// # Returns
+/// true if attempting to put an invalid bag inside this one would cause explosion
+pub fn ck_bag(container: &Object) -> bool {
+    if container.object_type != 365 {
+        // Not a Bag of Holding
+        return false;
+    }
+
+    // Check contents for nested Bag of Holding or Bag of Tricks
+    for item in &container.contents {
+        if item.object_type == 365 || item.object_type == 366 {
+            // BagOfHolding or BagOfTricks found inside
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Interactive container use (use_container equivalent)
+///
+/// Shows container contents in a menu and allows player to select items.
+/// This is the main UI function for loot/stash operations.
+///
+/// Returns formatted string showing container contents ready for interaction.
+pub fn use_container(container: &Object) -> String {
+    if !container.is_container() {
+        return "That is not a container.".to_string();
+    }
+
+    if container.locked {
+        return "That container is locked.".to_string();
+    }
+
+    if container.trapped {
+        return "That container is trapped!".to_string();
+    }
+
+    if container.contents.is_empty() {
+        return "This container is empty.".to_string();
+    }
+
+    let mut result = String::from("Container contents:\n");
+    for (idx, item) in container.contents.iter().enumerate() {
+        let letter = ('a' as u8 + idx as u8) as char;
+        let name = format_container_item(item);
+        result.push_str(&format!("  {} - {}\n", letter, name));
+    }
+
+    result
+}
+
+/// Tip container contents onto the ground (tipcontainer equivalent)
+///
+/// Removes all items from container and returns them.
+/// Used when spilling a container's contents.
+pub fn tipcontainer(container: &mut Object) -> Vec<Object> {
+    container.contents.drain(..).collect()
+}
+
+/// Display container contents in a list (in_container equivalent)
+///
+/// Generates a formatted string of all items in the container.
+pub fn in_container(container: &Object) -> String {
+    if container.contents.is_empty() {
+        return "The container is empty.".to_string();
+    }
+
+    let mut result = String::new();
+    for item in &container.contents {
+        let name = format_container_item(item);
+        result.push_str(&format!("  {}\n", name));
+    }
+
+    result
+}
+
+/// Check if a container is in use (locked or being accessed)
+pub fn is_container_in_use(container: &Object) -> bool {
+    container.locked || container.trapped
+}
+
+/// Validate container state and return error if invalid
+pub fn validate_container(container: &Object) -> ContainerResult {
+    if !container.is_container() {
+        return ContainerResult::NotContainer;
+    }
+
+    if container.broken {
+        return ContainerResult::Broken;
+    }
+
+    if container.locked {
+        return ContainerResult::Locked;
+    }
+
+    if container.trapped {
+        return ContainerResult::Trapped(TrapType::Explosion); // Default trap
+    }
+
+    ContainerResult::Success
+}
+
+// Helper function to format container item names
+fn format_container_item(item: &Object) -> String {
+    let mut name = String::new();
+
+    if item.quantity > 1 {
+        name.push_str(&format!("{} ", item.quantity));
+    }
+
+    // Add basic description
+    name.push_str("item");
+
+    if item.is_worn() {
+        name.push_str(" (worn)");
+    }
+
+    if item.greased {
+        name.push_str(" (greased)");
+    }
+
+    name
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,5 +579,128 @@ mod tests {
         let result = open_container(&mut container);
         assert!(matches!(result, ContainerResult::Trapped(_)));
         assert!(!container.trapped); // Trap was triggered
+    }
+
+    // ========================================================================
+    // Phase 4 Tests: Container UI and Bag of Holding
+    // ========================================================================
+
+    #[test]
+    fn test_ck_bag_safe() {
+        let mut bag = make_container();
+        bag.object_type = 365; // Bag of Holding
+
+        // Safe contents
+        let item = make_item();
+        put_in_container(&mut bag, item);
+
+        assert!(!ck_bag(&bag)); // No explosion
+    }
+
+    #[test]
+    fn test_ck_bag_explodes_with_bag_of_holding() {
+        let mut bag = make_container();
+        bag.object_type = 365; // Bag of Holding
+
+        let mut item = make_item();
+        item.object_type = 365; // Another Bag of Holding
+        // Directly insert (put_in_container rejects this combo)
+        bag.contents.push(item);
+
+        assert!(ck_bag(&bag)); // Would explode!
+    }
+
+    #[test]
+    fn test_ck_bag_explodes_with_bag_of_tricks() {
+        let mut bag = make_container();
+        bag.object_type = 365; // Bag of Holding
+
+        let mut item = make_item();
+        item.object_type = 366; // Bag of Tricks
+        // Directly insert (put_in_container rejects this combo)
+        bag.contents.push(item);
+
+        assert!(ck_bag(&bag)); // Would explode!
+    }
+
+    #[test]
+    fn test_use_container_empty() {
+        let container = make_container();
+        let result = use_container(&container);
+        assert!(result.contains("empty"));
+    }
+
+    #[test]
+    fn test_use_container_locked() {
+        let mut container = make_container();
+        container.locked = true;
+
+        let result = use_container(&container);
+        assert!(result.contains("locked"));
+    }
+
+    #[test]
+    fn test_use_container_with_items() {
+        let mut container = make_container();
+        let item = make_item();
+        put_in_container(&mut container, item);
+
+        let result = use_container(&container);
+        assert!(result.contains("contents"));
+        assert!(result.contains("a"));
+    }
+
+    #[test]
+    fn test_tipcontainer() {
+        let mut container = make_container();
+        let item1 = make_item();
+        let mut item2 = make_item();
+        item2.id = ObjectId(101);
+        item2.object_type = 2; // Different type so items don't merge
+        put_in_container(&mut container, item1);
+        put_in_container(&mut container, item2);
+
+        let contents = tipcontainer(&mut container);
+        assert_eq!(contents.len(), 2);
+        assert!(container.contents.is_empty());
+    }
+
+    #[test]
+    fn test_in_container() {
+        let mut container = make_container();
+        let item = make_item();
+        put_in_container(&mut container, item);
+
+        let result = in_container(&container);
+        assert!(result.contains("item"));
+    }
+
+    #[test]
+    fn test_validate_container_success() {
+        let container = make_container();
+        let result = validate_container(&container);
+        assert!(matches!(result, ContainerResult::Success));
+    }
+
+    #[test]
+    fn test_validate_container_broken() {
+        let mut container = make_container();
+        container.broken = true;
+
+        let result = validate_container(&container);
+        assert!(matches!(result, ContainerResult::Broken));
+    }
+
+    #[test]
+    fn test_is_container_in_use() {
+        let mut container = make_container();
+        assert!(!is_container_in_use(&container));
+
+        container.locked = true;
+        assert!(is_container_in_use(&container));
+
+        container.locked = false;
+        container.trapped = true;
+        assert!(is_container_in_use(&container));
     }
 }

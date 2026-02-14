@@ -2,7 +2,7 @@
 //!
 //! Functions for managing player inventory.
 
-use crate::object::{Object, ObjectClass, ObjectId};
+use crate::object::{BucStatus, Object, ObjectClass, ObjectId};
 
 /// Maximum number of inventory slots (a-z, A-Z)
 pub const MAX_INVENTORY_SLOTS: usize = 52;
@@ -203,6 +203,124 @@ pub fn count_type(inventory: &[Object], object_type: i16) -> i32 {
         .sum()
 }
 
+/// Check if carrying a corpse or statue of a specific monster type (have_corpsenm equivalent)
+pub fn have_corpsenm(inventory: &[Object], monster_type: i16) -> bool {
+    inventory.iter().any(|obj| {
+        (obj.is_corpse() || obj.is_statue() || obj.is_figurine()) && obj.corpse_type == monster_type
+    })
+}
+
+/// Get a corpse or statue of a specific monster type
+pub fn get_corpsenm(inventory: &[Object], monster_type: i16) -> Option<&Object> {
+    inventory.iter().find(|obj| {
+        (obj.is_corpse() || obj.is_statue() || obj.is_figurine()) && obj.corpse_type == monster_type
+    })
+}
+
+/// Check if carrying any artifact
+pub fn carrying_artifact(inventory: &[Object]) -> bool {
+    inventory.iter().any(|obj| obj.is_artifact())
+}
+
+/// Get artifact by index
+pub fn get_artifact(inventory: &[Object], artifact_id: u8) -> Option<&Object> {
+    inventory.iter().find(|obj| obj.artifact == artifact_id)
+}
+
+/// Check if carrying any blessed object
+pub fn carrying_blessed(inventory: &[Object]) -> bool {
+    inventory.iter().any(|obj| obj.is_blessed())
+}
+
+/// Check if carrying any cursed object
+pub fn carrying_cursed(inventory: &[Object]) -> bool {
+    inventory.iter().any(|obj| obj.is_cursed())
+}
+
+/// Check if carrying any lit light source
+pub fn carrying_lit(inventory: &[Object]) -> bool {
+    inventory.iter().any(|obj| obj.is_lit())
+}
+
+/// Find object by inventory letter
+pub fn get_by_letter(inventory: &[Object], letter: char) -> Option<&Object> {
+    inventory.iter().find(|obj| obj.inv_letter == letter)
+}
+
+/// Find mutable object by inventory letter
+pub fn get_by_letter_mut(inventory: &mut [Object], letter: char) -> Option<&mut Object> {
+    inventory.iter_mut().find(|obj| obj.inv_letter == letter)
+}
+
+/// Check if carrying an object of a specific class
+pub fn carrying_class(inventory: &[Object], class: ObjectClass) -> bool {
+    inventory.iter().any(|obj| obj.class == class)
+}
+
+/// Count objects of a specific class
+pub fn count_class(inventory: &[Object], class: ObjectClass) -> i32 {
+    inventory
+        .iter()
+        .filter(|obj| obj.class == class)
+        .map(|obj| obj.quantity)
+        .sum()
+}
+
+/// Get all weapons in inventory
+pub fn weapons(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_weapon()).collect()
+}
+
+/// Get all armor in inventory
+pub fn armor(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_armor()).collect()
+}
+
+/// Get all food in inventory
+pub fn food(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_food()).collect()
+}
+
+/// Get all potions in inventory
+pub fn potions(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_potion()).collect()
+}
+
+/// Get all scrolls in inventory
+pub fn scrolls(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_scroll()).collect()
+}
+
+/// Get all wands in inventory
+pub fn wands(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_wand()).collect()
+}
+
+/// Get all rings in inventory
+pub fn rings(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_ring()).collect()
+}
+
+/// Get all amulets in inventory
+pub fn amulets(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_amulet()).collect()
+}
+
+/// Get all tools in inventory
+pub fn tools(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_tool()).collect()
+}
+
+/// Get all gems in inventory
+pub fn gems(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_gem()).collect()
+}
+
+/// Get all spellbooks in inventory
+pub fn spellbooks(inventory: &[Object]) -> Vec<&Object> {
+    inventory.iter().filter(|obj| obj.is_spellbook()).collect()
+}
+
 /// Get a summary of inventory by class
 pub fn inventory_summary(inventory: &[Object]) -> Vec<(ObjectClass, usize, i32)> {
     let mut summary: Vec<(ObjectClass, usize, i32)> = Vec::new();
@@ -238,6 +356,133 @@ pub const DEFAULT_INV_ORDER: &[ObjectClass] = &[
     ObjectClass::Chain,
 ];
 
+// ============================================================================
+// NetHack C function aliases
+// ============================================================================
+
+/// Get count of items in inventory (inv_cnt equivalent)
+/// Returns the total quantity of all items
+pub fn inv_cnt(inventory: &[Object], include_gold: bool) -> i32 {
+    inventory
+        .iter()
+        .filter(|obj| include_gold || obj.class != ObjectClass::Coin)
+        .map(|obj| obj.quantity)
+        .sum()
+}
+
+/// Get total weight of inventory (inv_weight equivalent)
+/// Returns the total weight of all items
+pub fn inv_weight(inventory: &[Object]) -> u32 {
+    total_weight(inventory)
+}
+
+/// Get weight capacity bonus based on strength (weight_cap_bonus equivalent)
+/// Higher strength allows carrying more weight
+pub fn weight_cap_bonus(strength: i8) -> u32 {
+    // Carrying capacity formula from NetHack
+    // Base is 25 * strength, with bonuses for high strength
+    let base = 25 * strength as u32;
+    let bonus = if strength >= 18 {
+        // Extra capacity for exceptional strength
+        (strength as u32 - 17) * 10
+    } else {
+        0
+    };
+    base + bonus
+}
+
+/// Calculate encumbrance level based on inventory weight and capacity (calc_capacity equivalent)
+/// Returns encumbrance level: 0=unencumbered, 1=burdened, 2=stressed, 3=strained, 4=overtaxed, 5=overloaded
+pub fn calc_capacity(inventory_weight: u32, weight_capacity: u32) -> u8 {
+    if weight_capacity == 0 {
+        return 5; // Overloaded
+    }
+
+    let ratio = (inventory_weight * 100) / weight_capacity;
+
+    if ratio < 50 {
+        0 // Unencumbered
+    } else if ratio < 75 {
+        1 // Burdened
+    } else if ratio < 100 {
+        2 // Stressed
+    } else if ratio < 125 {
+        3 // Strained
+    } else if ratio < 150 {
+        4 // Overtaxed
+    } else {
+        5 // Overloaded
+    }
+}
+
+/// Get encumbrance name
+pub const fn encumbrance_name(level: u8) -> &'static str {
+    match level {
+        0 => "Unencumbered",
+        1 => "Burdened",
+        2 => "Stressed",
+        3 => "Strained",
+        4 => "Overtaxed",
+        _ => "Overloaded",
+    }
+}
+
+// ============================================================================
+// Count functions (count_* from invent.c)
+// ============================================================================
+
+/// Count items by BUC status (count_buc equivalent)
+///
+/// Returns counts of blessed, uncursed, and cursed items.
+pub fn count_buc(inventory: &[Object]) -> (i32, i32, i32) {
+    let mut blessed = 0;
+    let mut uncursed = 0;
+    let mut cursed = 0;
+
+    for obj in inventory {
+        match obj.buc {
+            BucStatus::Blessed => blessed += obj.quantity,
+            BucStatus::Uncursed => uncursed += obj.quantity,
+            BucStatus::Cursed => cursed += obj.quantity,
+        }
+    }
+
+    (blessed, uncursed, cursed)
+}
+
+/// Count unpaid items in inventory (count_unpaid equivalent)
+pub fn count_unpaid(inventory: &[Object]) -> i32 {
+    inventory
+        .iter()
+        .filter(|obj| obj.unpaid)
+        .map(|obj| obj.quantity)
+        .sum()
+}
+
+/// Count objects in inventory (count_obj equivalent)
+///
+/// Returns the total number of objects (counting stacks as 1)
+pub fn count_obj(inventory: &[Object]) -> i32 {
+    inventory.len() as i32
+}
+
+/// Count items with a specific property
+pub fn count_with<F>(inventory: &[Object], predicate: F) -> i32
+where
+    F: Fn(&Object) -> bool,
+{
+    inventory
+        .iter()
+        .filter(|obj| predicate(obj))
+        .map(|obj| obj.quantity)
+        .sum()
+}
+
+/// Count worn items (count_worn_stuff equivalent)
+pub fn count_worn_stuff(inventory: &[Object]) -> i32 {
+    inventory.iter().filter(|obj| obj.is_worn()).count() as i32
+}
+
 /// Sort inventory by class order (for display)
 pub fn sort_by_class(inventory: &mut [Object], class_order: &[ObjectClass]) {
     inventory.sort_by(|a, b| {
@@ -260,7 +505,6 @@ pub fn sort_by_class(inventory: &mut [Object], class_order: &[ObjectClass]) {
     });
 }
 
-// ============================================================================
 // Item selection / filtering (C: getobj)
 // ============================================================================
 
@@ -523,6 +767,211 @@ pub fn throw_filter() -> ItemFilter {
     ItemFilter::all()
         .with_count()
         .with_action(ActionFilter::Throw)
+}
+
+// ============================================================================
+// Display and UI functions (display_inventory, dotypeinv, etc.)
+// ============================================================================
+
+/// Display inventory to player (display_inventory equivalent)
+///
+/// Returns formatted string showing inventory contents with letters and quantities.
+/// Used by the 'i' (inventory) command.
+pub fn display_inventory(inventory: &[Object]) -> String {
+    if inventory.is_empty() {
+        return "You are not carrying anything.".to_string();
+    }
+
+    let mut result = String::new();
+    for obj in inventory {
+        let letter = obj.inv_letter;
+        let name = format_object_name(obj);
+        let line = format!("  {} - {}\n", letter, name);
+        result.push_str(&line);
+    }
+
+    // Include weight info
+    let weight = inv_weight(inventory);
+    result.push_str(&format!("\nTotal weight: {} units", weight));
+
+    result
+}
+
+/// Display inventory of specific object class (dotypeinv equivalent)
+///
+/// Returns formatted string showing inventory items of a specific class.
+/// Used for type-specific inventory queries.
+pub fn dotypeinv(inventory: &[Object], class: ObjectClass) -> String {
+    let items: Vec<&Object> = inventory.iter().filter(|obj| obj.class == class).collect();
+
+    if items.is_empty() {
+        return format!("You are not carrying any {}s.", class);
+    }
+
+    let mut result = String::from("Your inventory:\n");
+    for obj in items {
+        let letter = obj.inv_letter;
+        let name = format_object_name(obj);
+        let line = format!("  {} - {}\n", letter, name);
+        result.push_str(&line);
+    }
+
+    result
+}
+
+/// Display packed (detailed) inventory (dolook equivalent for inventory)
+///
+/// Returns inventory with more detail (charges, wear status, etc.)
+pub fn display_packed_inventory(inventory: &[Object]) -> String {
+    if inventory.is_empty() {
+        return "You are not carrying anything.".to_string();
+    }
+
+    let mut result = String::new();
+    for obj in inventory {
+        let letter = obj.inv_letter;
+        let name = format_object_detail(obj);
+        let line = format!("  {} - {}\n", letter, name);
+        result.push_str(&line);
+    }
+
+    result
+}
+
+/// Display equipped weapons (doprwep equivalent)
+///
+/// Shows the currently equipped/wielded weapon(s).
+pub fn doprwep(inventory: &[Object]) -> String {
+    let wielded: Vec<&Object> = inventory.iter().filter(|obj| obj.is_wielded()).collect();
+
+    if wielded.is_empty() {
+        return "You are not wielding any weapon.".to_string();
+    }
+
+    let mut result = String::from("Currently wielding:\n");
+    for obj in wielded {
+        let name = format_object_name(obj);
+        result.push_str(&format!("  {}\n", name));
+    }
+
+    result
+}
+
+/// Display equipped armor (doprarm equivalent)
+///
+/// Shows all currently equipped armor pieces.
+pub fn doprarm(inventory: &[Object]) -> String {
+    let worn: Vec<&Object> = inventory
+        .iter()
+        .filter(|obj| obj.is_worn() && obj.is_armor())
+        .collect();
+
+    if worn.is_empty() {
+        return "You are not wearing any armor.".to_string();
+    }
+
+    let mut result = String::from("Currently wearing:\n");
+    for obj in worn {
+        let name = format_object_name(obj);
+        result.push_str(&format!("  {}\n", name));
+    }
+
+    result
+}
+
+/// Main inventory command handler (ddoinv equivalent)
+///
+/// Displays inventory and returns formatted inventory string.
+/// This is the top-level inventory display function called by the game loop.
+pub fn ddoinv(inventory: &[Object]) -> String {
+    let encumbrance = calc_capacity(inv_weight(inventory), 300); // Placeholder capacity
+    let (blessed, uncursed, cursed) = count_buc(inventory);
+
+    let mut result = display_inventory(inventory);
+    result.push_str(&format!(
+        "\n\nBless status: {} blessed, {} uncursed, {} cursed",
+        blessed, uncursed, cursed
+    ));
+
+    let encumb_name = encumbrance_name(encumbrance);
+    result.push_str(&format!("\nEncumbrance: {}", encumb_name));
+
+    result
+}
+
+/// Display inventory and apply a function to selection (interact)
+///
+/// Used for commands like 'drop', 'equip', 'examine', etc.
+pub fn doinv_obj<F>(inventory: &[Object], callback: F) -> String
+where
+    F: Fn(&Object) -> String,
+{
+    let mut result = String::new();
+    for obj in inventory {
+        let letter = obj.inv_letter;
+        let name = format_object_name(obj);
+        let action_result = callback(obj);
+        let line = format!("  {} - {} {}\n", letter, name, action_result);
+        result.push_str(&line);
+    }
+    result
+}
+
+// Helper function to format object name for display
+fn format_object_name(obj: &Object) -> String {
+    let mut name = String::new();
+
+    // Add quantity if > 1
+    if obj.quantity > 1 {
+        name.push_str(&format!("{} ", obj.quantity));
+    }
+
+    // Add BUC prefix
+    if obj.buc_known {
+        name.push_str(obj.buc_prefix());
+    }
+
+    // Add erosion prefix
+    name.push_str(&obj.erosion_prefix());
+
+    // Add base name (would need obj typename from discovery)
+    name.push_str("item");
+
+    // Add enchantment
+    name.push_str(&obj.enchantment_str());
+
+    // Add wear status
+    name.push_str(obj.worn_suffix());
+
+    // Add charges for wands
+    name.push_str(&obj.charges_suffix());
+
+    name
+}
+
+// Helper function to format detailed object name
+fn format_object_detail(obj: &Object) -> String {
+    let mut name = format_object_name(obj);
+
+    // Add greased status
+    if obj.greased {
+        name.push_str(" [greased]");
+    }
+
+    // Add locked/trapped status for containers
+    if obj.is_container() {
+        if obj.locked {
+            name.push_str(" [locked]");
+        }
+        if obj.trapped {
+            name.push_str(" [trapped]");
+        }
+        if !obj.contents.is_empty() {
+            name.push_str(&format!(" ({} items)", obj.contents.len()));
+        }
+    }
+
+    name
 }
 
 #[cfg(test)]
@@ -823,5 +1272,231 @@ mod tests {
         let (_, slots, total) = weapon_entry.unwrap();
         assert_eq!(*slots, 2);
         assert_eq!(*total, 8);
+    }
+
+    // ========================================================================
+    // Phase 3 Tests: Display and Command Handler Functions
+    // ========================================================================
+
+    #[test]
+    fn test_display_inventory_empty() {
+        let inventory: Vec<Object> = vec![];
+        let display = display_inventory(&inventory);
+        assert!(display.contains("not carrying anything"));
+    }
+
+    #[test]
+    fn test_display_inventory() {
+        let mut inventory = vec![
+            make_obj(1, ObjectClass::Weapon, 'a'),
+            make_obj(2, ObjectClass::Armor, 'b'),
+            make_obj(3, ObjectClass::Food, 'c'),
+        ];
+        inventory[0].quantity = 3;
+
+        let display = display_inventory(&inventory);
+        assert!(display.contains("a"));
+        assert!(display.contains("b"));
+        assert!(display.contains("c"));
+        assert!(display.contains("Total weight"));
+    }
+
+    #[test]
+    fn test_dotypeinv_weapon() {
+        let inventory = vec![
+            make_obj(1, ObjectClass::Weapon, 'a'),
+            make_obj(2, ObjectClass::Armor, 'b'),
+            make_obj(3, ObjectClass::Weapon, 'c'),
+        ];
+
+        let display = dotypeinv(&inventory, ObjectClass::Weapon);
+        assert!(display.contains("a"));
+        assert!(display.contains("c"));
+        assert!(!display.contains("b")); // Armor should not appear
+    }
+
+    #[test]
+    fn test_dotypeinv_empty() {
+        let inventory = vec![
+            make_obj(1, ObjectClass::Weapon, 'a'),
+            make_obj(2, ObjectClass::Armor, 'b'),
+        ];
+
+        let display = dotypeinv(&inventory, ObjectClass::Food);
+        assert!(display.contains("not carrying"));
+    }
+
+    #[test]
+    fn test_display_packed_inventory() {
+        let mut inventory = vec![make_obj(1, ObjectClass::Armor, 'a')];
+        inventory[0].locked = true;
+
+        let display = display_packed_inventory(&inventory);
+        assert!(display.contains("a"));
+    }
+
+    #[test]
+    fn test_doprwep() {
+        let mut inventory = vec![
+            make_obj(1, ObjectClass::Weapon, 'a'),
+            make_obj(2, ObjectClass::Weapon, 'b'),
+        ];
+        inventory[0].worn_mask = 0x8000; // W_WEP flag for wielded
+
+        let display = doprwep(&inventory);
+        assert!(display.contains("wielding"));
+        assert!(!display.contains("not wielding")); // Has a wielded weapon
+    }
+
+    #[test]
+    fn test_doprwep_empty() {
+        let inventory = vec![make_obj(1, ObjectClass::Armor, 'a')];
+
+        let display = doprwep(&inventory);
+        assert!(display.contains("not wielding"));
+    }
+
+    #[test]
+    fn test_doprarm() {
+        let mut inventory = vec![
+            make_obj(1, ObjectClass::Armor, 'a'),
+            make_obj(2, ObjectClass::Armor, 'b'),
+        ];
+        inventory[0].worn_mask = 1; // Worn
+
+        let display = doprarm(&inventory);
+        assert!(display.contains("wearing"));
+        assert!(!display.contains("not wearing"));
+    }
+
+    #[test]
+    fn test_doprarm_empty() {
+        let inventory = vec![make_obj(1, ObjectClass::Weapon, 'a')];
+
+        let display = doprarm(&inventory);
+        assert!(display.contains("not wearing"));
+    }
+
+    #[test]
+    fn test_ddoinv() {
+        let mut inventory = vec![
+            make_obj(1, ObjectClass::Coin, '$'),
+            make_obj(2, ObjectClass::Weapon, 'a'),
+        ];
+        inventory[0].buc = BucStatus::Blessed;
+
+        let display = ddoinv(&inventory);
+        assert!(display.contains("Total weight"));
+        assert!(display.contains("Bless status"));
+        assert!(display.contains("Encumbrance"));
+    }
+
+    #[test]
+    fn test_count_buc_inventory() {
+        let mut inventory = vec![
+            make_obj(1, ObjectClass::Weapon, 'a'),
+            make_obj(2, ObjectClass::Weapon, 'b'),
+            make_obj(3, ObjectClass::Weapon, 'c'),
+        ];
+        inventory[0].buc = BucStatus::Blessed;
+        inventory[1].buc = BucStatus::Cursed;
+        inventory[2].buc = BucStatus::Uncursed;
+
+        let (blessed, uncursed, cursed) = count_buc(&inventory);
+        assert_eq!(blessed, 1);
+        assert_eq!(uncursed, 1);
+        assert_eq!(cursed, 1);
+    }
+
+    #[test]
+    fn test_count_unpaid() {
+        let mut inventory = vec![
+            make_obj(1, ObjectClass::Weapon, 'a'),
+            make_obj(2, ObjectClass::Weapon, 'b'),
+            make_obj(3, ObjectClass::Weapon, 'c'),
+        ];
+        inventory[0].unpaid = true;
+        inventory[0].quantity = 5;
+        inventory[1].unpaid = true;
+        inventory[1].quantity = 3;
+
+        let unpaid = count_unpaid(&inventory);
+        assert_eq!(unpaid, 8); // 5 + 3
+    }
+
+    #[test]
+    fn test_inventory_weight() {
+        let mut inventory = vec![
+            make_obj(1, ObjectClass::Weapon, 'a'),
+            make_obj(2, ObjectClass::Armor, 'b'),
+        ];
+        inventory[0].weight = 50;
+        inventory[0].quantity = 2;
+        inventory[1].weight = 100;
+        inventory[1].quantity = 1;
+
+        let total = inv_weight(&inventory);
+        assert_eq!(total, 200); // 50*2 + 100*1
+    }
+
+    #[test]
+    fn test_calc_capacity() {
+        // Unencumbered: < 50%
+        assert_eq!(calc_capacity(25, 100), 0);
+
+        // Burdened: 50-74%
+        assert_eq!(calc_capacity(50, 100), 1);
+        assert_eq!(calc_capacity(74, 100), 1);
+
+        // Stressed: 75-99%
+        assert_eq!(calc_capacity(75, 100), 2);
+
+        // Strained: 100-124%
+        assert_eq!(calc_capacity(100, 100), 3);
+
+        // Overtaxed: 125-149%
+        assert_eq!(calc_capacity(125, 100), 4);
+
+        // Overloaded: 150%+
+        assert_eq!(calc_capacity(150, 100), 5);
+    }
+
+    #[test]
+    fn test_encumbrance_name() {
+        assert_eq!(encumbrance_name(0), "Unencumbered");
+        assert_eq!(encumbrance_name(1), "Burdened");
+        assert_eq!(encumbrance_name(2), "Stressed");
+        assert_eq!(encumbrance_name(3), "Strained");
+        assert_eq!(encumbrance_name(4), "Overtaxed");
+        assert_eq!(encumbrance_name(5), "Overloaded");
+    }
+
+    #[test]
+    fn test_weight_cap_bonus() {
+        // Low strength (3): reduced capacity
+        let low = weight_cap_bonus(3);
+
+        // High strength (18): increased capacity
+        let high = weight_cap_bonus(18);
+
+        // High should be > low
+        assert!(high > low);
+    }
+
+    #[test]
+    fn test_carrying_blessed_cursed() {
+        let mut inventory = vec![
+            make_obj(1, ObjectClass::Weapon, 'a'),
+            make_obj(2, ObjectClass::Weapon, 'b'),
+        ];
+        inventory[0].buc = BucStatus::Blessed;
+        inventory[1].buc = BucStatus::Cursed;
+
+        assert!(carrying_blessed(&inventory));
+        assert!(carrying_cursed(&inventory));
+
+        let inventory2 = vec![make_obj(1, ObjectClass::Weapon, 'a')];
+        assert!(!carrying_blessed(&inventory2));
+        assert!(!carrying_cursed(&inventory2));
     }
 }

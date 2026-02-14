@@ -5,7 +5,19 @@ use strum::{Display, EnumIter};
 
 /// Skill level
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize, Display, EnumIter,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    Serialize,
+    Deserialize,
+    Display,
+    EnumIter,
 )]
 #[repr(u8)]
 pub enum SkillLevel {
@@ -81,9 +93,7 @@ impl SkillLevel {
 }
 
 /// Skill types (weapon and spell categories)
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumIter,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumIter)]
 #[repr(u8)]
 pub enum SkillType {
     // Weapon skills
@@ -180,6 +190,11 @@ impl Skill {
         self.practice = self.practice.saturating_add(points);
     }
 
+    /// Remove practice points (clamped to 0)
+    pub fn remove_practice(&mut self, points: u16) {
+        self.practice = self.practice.saturating_sub(points);
+    }
+
     /// Check if skill can be advanced
     pub fn can_advance(&self) -> bool {
         if self.level >= self.max_level {
@@ -240,5 +255,196 @@ impl SkillSet {
     /// Count skills that can be advanced
     pub fn advanceable_count(&self) -> usize {
         self.skills.iter().filter(|s| s.can_advance()).count()
+    }
+}
+
+// Utility functions (C equivalents)
+
+/// Get the full name of a skill type (skill_name equivalent)
+pub fn skill_name(skill: SkillType) -> &'static str {
+    match skill {
+        SkillType::Dagger => "dagger",
+        SkillType::Knife => "knife",
+        SkillType::Axe => "axe",
+        SkillType::PickAxe => "pick-axe",
+        SkillType::ShortSword => "short sword",
+        SkillType::BroadSword => "broad sword",
+        SkillType::LongSword => "long sword",
+        SkillType::TwoHandedSword => "two-handed sword",
+        SkillType::Scimitar => "scimitar",
+        SkillType::Saber => "saber",
+        SkillType::Club => "club",
+        SkillType::Mace => "mace",
+        SkillType::MorningStar => "morning star",
+        SkillType::Flail => "flail",
+        SkillType::Hammer => "hammer",
+        SkillType::Quarterstaff => "quarterstaff",
+        SkillType::Polearms => "polearms",
+        SkillType::Spear => "spear",
+        SkillType::Javelin => "javelin",
+        SkillType::Trident => "trident",
+        SkillType::Lance => "lance",
+        SkillType::Bow => "bow",
+        SkillType::Sling => "sling",
+        SkillType::Crossbow => "crossbow",
+        SkillType::Dart => "dart",
+        SkillType::Shuriken => "shuriken",
+        SkillType::Boomerang => "boomerang",
+        SkillType::Whip => "whip",
+        SkillType::UnicornHorn => "unicorn horn",
+        SkillType::BareHanded => "bare handed combat",
+        SkillType::TwoWeapon => "two weapon combat",
+        SkillType::Riding => "riding",
+        SkillType::AttackSpells => "attack spells",
+        SkillType::HealingSpells => "healing spells",
+        SkillType::DivinationSpells => "divination spells",
+        SkillType::EnchantmentSpells => "enchantment spells",
+        SkillType::ClericalSpells => "clerical spells",
+        SkillType::EscapeSpells => "escape spells",
+        SkillType::MatterSpells => "matter spells",
+    }
+}
+
+/// Get the display name for a skill level (skill_level_name equivalent)
+pub fn skill_level_name(level: SkillLevel) -> &'static str {
+    match level {
+        SkillLevel::Restricted => "Restricted",
+        SkillLevel::Unskilled => "Unskilled",
+        SkillLevel::Basic => "Basic",
+        SkillLevel::Skilled => "Skilled",
+        SkillLevel::Expert => "Expert",
+        SkillLevel::Master => "Master",
+        SkillLevel::GrandMaster => "Grand Master",
+    }
+}
+
+/// Initialize player skills from role defaults (skill_init equivalent)
+///
+/// Sets up the skill set based on the player's role and race.
+/// This would typically be called at character creation.
+pub fn skill_init(skill_set: &mut SkillSet, role: &str) {
+    // Role-specific skill initializations
+    // This is a simplified version - the full implementation would be in tables
+    match role.to_lowercase().as_str() {
+        "barbarian" => {
+            skill_set.set_max(SkillType::BareHanded, SkillLevel::Master);
+            skill_set.set_max(SkillType::TwoWeapon, SkillLevel::Skilled);
+            skill_set.set_max(SkillType::BroadSword, SkillLevel::Expert);
+        }
+        "warrior" => {
+            skill_set.set_max(SkillType::BareHanded, SkillLevel::Expert);
+            skill_set.set_max(SkillType::BroadSword, SkillLevel::Expert);
+            skill_set.set_max(SkillType::Axe, SkillLevel::Skilled);
+        }
+        "monk" => {
+            skill_set.set_max(SkillType::BareHanded, SkillLevel::GrandMaster);
+            skill_set.set_max(SkillType::Quarterstaff, SkillLevel::Skilled);
+        }
+        "wizard" => {
+            skill_set.set_max(SkillType::AttackSpells, SkillLevel::Expert);
+            skill_set.set_max(SkillType::EnchantmentSpells, SkillLevel::Expert);
+        }
+        _ => {}
+    }
+}
+
+/// Add a weapon skill to the list of available skills (add_weapon_skill equivalent)
+///
+/// Increases the number of skills available for advancement.
+pub fn add_weapon_skill(skill_set: &mut SkillSet, count: i32) {
+    skill_set.slots = skill_set.slots.saturating_add(count);
+}
+
+/// Remove a weapon skill from available advancement (lose_weapon_skill equivalent)
+pub fn lose_weapon_skill(skill_set: &mut SkillSet, count: i32) {
+    skill_set.slots = skill_set.slots.saturating_sub(count);
+}
+
+/// Unrestrict a weapon skill (unrestrict_weapon_skill equivalent)
+///
+/// Marks a previously restricted skill as available for use.
+pub fn unrestrict_weapon_skill(skill_set: &mut SkillSet, skill_type: SkillType) {
+    let skill = skill_set.get_mut(skill_type);
+    if skill.level == SkillLevel::Restricted {
+        skill.level = SkillLevel::Unskilled;
+    }
+}
+
+/// Use a skill and record practice (use_skill equivalent)
+///
+/// Adds practice points to a skill based on the degree of success.
+pub fn use_skill(skill_set: &mut SkillSet, skill_type: SkillType, degree: i32) {
+    let skill = skill_set.get_mut(skill_type);
+    let practice_points = (degree.abs() as u16).max(1);
+    skill.add_practice(practice_points);
+}
+
+/// Check if a skill has peaked (peaked_skill equivalent)
+///
+/// Returns true if the skill is at max level and has enough practice
+/// to have advanced further if possible.
+pub fn peaked_skill(skill_set: &SkillSet, skill_type: SkillType) -> bool {
+    let skill = skill_set.get(skill_type);
+    if skill.level == SkillLevel::Restricted {
+        return false;
+    }
+    skill.level >= skill.max_level && skill.practice >= skill.level.advance_threshold()
+}
+
+/// Enhance weapon skill interactively (enhance_weapon_skill equivalent - stub)
+///
+/// In the original game, this presents a menu for the player to choose
+/// which skill to advance. This is a simplified version that advances
+/// the first available skill.
+pub fn enhance_weapon_skill(skill_set: &mut SkillSet) -> bool {
+    // Find the first skill that can be advanced
+    for skill_type in [
+        SkillType::BareHanded,
+        SkillType::Dagger,
+        SkillType::Knife,
+        SkillType::Axe,
+        SkillType::ShortSword,
+        SkillType::BroadSword,
+        SkillType::LongSword,
+    ] {
+        let skill = skill_set.get_mut(skill_type);
+        if skill.can_advance() {
+            return skill.advance();
+        }
+    }
+    false
+}
+
+/// Get spell skill type from spellbook object type (spell_skilltype equivalent)
+///
+/// Maps a spellbook object type to its corresponding skill type.
+pub fn spell_skilltype(booktype: u16) -> Option<SkillType> {
+    // This would be based on object table lookups in the real implementation
+    match booktype {
+        1..=10 => Some(SkillType::AttackSpells),
+        11..=20 => Some(SkillType::HealingSpells),
+        21..=30 => Some(SkillType::DivinationSpells),
+        _ => None,
+    }
+}
+
+/// Get weapon description (weapon_descr equivalent)
+///
+/// Returns a descriptive name for a weapon based on its type.
+/// Used in messages and UI.
+pub fn weapon_descr(weapon_type: SkillType) -> &'static str {
+    match weapon_type {
+        SkillType::BareHanded => "fists",
+        SkillType::Dagger => "dagger",
+        SkillType::Knife => "knife",
+        SkillType::Axe => "axe",
+        SkillType::PickAxe => "pick-axe",
+        SkillType::ShortSword => "short sword",
+        SkillType::BroadSword => "broad sword",
+        SkillType::LongSword => "long sword",
+        SkillType::TwoHandedSword => "two-handed sword",
+        SkillType::Scimitar => "scimitar",
+        SkillType::Saber => "saber",
+        _ => skill_name(weapon_type),
     }
 }

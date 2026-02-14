@@ -2,7 +2,7 @@
 
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
 
 use crate::resources::GameStateResource;
 
@@ -176,9 +176,7 @@ fn render_hud(
                         nh_core::player::HungerState::NotHungry => ("", egui::Color32::WHITE),
                         nh_core::player::HungerState::Hungry => ("Hungry", egui::Color32::YELLOW),
                         nh_core::player::HungerState::Weak => ("Weak", egui::Color32::LIGHT_RED),
-                        nh_core::player::HungerState::Fainting => {
-                            ("Fainting", egui::Color32::RED)
-                        }
+                        nh_core::player::HungerState::Fainting => ("Fainting", egui::Color32::RED),
                         nh_core::player::HungerState::Fainted => ("Fainted", egui::Color32::RED),
                         nh_core::player::HungerState::Starved => {
                             ("Starved", egui::Color32::DARK_RED)
@@ -236,9 +234,11 @@ fn render_hud(
                 .rounding(egui::Rounding::same(4.0))
                 .show(ui, |ui| {
                     ui.label(
-                        egui::RichText::new("hjklyubn:Move  i:Inventory  F1-F4:Camera  Home:Reset  Esc:Quit")
-                            .color(egui::Color32::GRAY)
-                            .small(),
+                        egui::RichText::new(
+                            "hjklyubn:Move  i:Inventory  F1-F4:Camera  Home:Reset  Esc:Quit",
+                        )
+                        .color(egui::Color32::GRAY)
+                        .small(),
                     );
                 });
         });

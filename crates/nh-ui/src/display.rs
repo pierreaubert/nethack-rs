@@ -8,7 +8,7 @@ pub fn nh_color(color: u8) -> Color {
         0 => Color::Black,
         1 => Color::Red,
         2 => Color::Green,
-        3 => Color::Yellow,   // Brown
+        3 => Color::Yellow, // Brown
         4 => Color::Blue,
         5 => Color::Magenta,
         6 => Color::Cyan,

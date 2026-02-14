@@ -159,10 +159,7 @@ impl GameRng {
 
     /// Generate a random coordinate within bounds
     pub fn random_coord(&mut self, max_x: u8, max_y: u8) -> (u8, u8) {
-        (
-            self.rn2(max_x as u32) as u8,
-            self.rn2(max_y as u32) as u8,
-        )
+        (self.rn2(max_x as u32) as u8, self.rn2(max_y as u32) as u8)
     }
 }
 

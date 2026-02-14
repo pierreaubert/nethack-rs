@@ -8,7 +8,7 @@
 
 use bevy::prelude::*;
 
-use crate::components::{MapPosition, MonsterMarker, PlayerMarker, TileMaterialType, TileMarker};
+use crate::components::{MapPosition, MonsterMarker, PlayerMarker, TileMarker, TileMaterialType};
 use crate::plugins::entities::{FloorObjectMarker, PileMarker};
 use crate::plugins::game::AppState;
 use crate::plugins::map::TileMaterials;
@@ -22,7 +22,11 @@ impl Plugin for FogOfWarPlugin {
             .init_resource::<FogSettings>()
             .add_systems(
                 Update,
-                (calculate_visibility, apply_fog_to_tiles, apply_fog_to_entities)
+                (
+                    calculate_visibility,
+                    apply_fog_to_tiles,
+                    apply_fog_to_entities,
+                )
                     .chain()
                     .run_if(in_state(AppState::Playing)),
             );
@@ -296,7 +300,14 @@ fn apply_fog_to_tiles(
     game_state: Res<GameStateResource>,
     settings: Res<FogSettings>,
     tile_materials: Res<TileMaterials>,
-    mut tile_query: Query<(&MapPosition, &TileMaterialType, &mut MeshMaterial3d<StandardMaterial>), With<TileMarker>>,
+    mut tile_query: Query<
+        (
+            &MapPosition,
+            &TileMaterialType,
+            &mut MeshMaterial3d<StandardMaterial>,
+        ),
+        With<TileMarker>,
+    >,
 ) {
     if !settings.enabled || !visibility.initialized {
         return;
@@ -312,7 +323,10 @@ fn apply_fog_to_tiles(
         // Get the appropriate material based on explored state
         let (normal, unexplored) = match mat_type {
             TileMaterialType::Floor => (&tile_materials.floor, &tile_materials.floor_unexplored),
-            TileMaterialType::Corridor => (&tile_materials.corridor, &tile_materials.corridor_unexplored),
+            TileMaterialType::Corridor => (
+                &tile_materials.corridor,
+                &tile_materials.corridor_unexplored,
+            ),
             TileMaterialType::Wall => (&tile_materials.wall, &tile_materials.wall_unexplored),
             TileMaterialType::Door => (&tile_materials.door, &tile_materials.door_unexplored),
             TileMaterialType::Stairs => (&tile_materials.stairs, &tile_materials.stairs_unexplored),
@@ -320,7 +334,10 @@ fn apply_fog_to_tiles(
             TileMaterialType::Lava => (&tile_materials.lava, &tile_materials.lava_unexplored),
             TileMaterialType::Stone => (&tile_materials.stone, &tile_materials.stone_unexplored),
             TileMaterialType::Tree => (&tile_materials.tree, &tile_materials.tree_unexplored),
-            TileMaterialType::Fountain => (&tile_materials.fountain, &tile_materials.fountain_unexplored),
+            TileMaterialType::Fountain => (
+                &tile_materials.fountain,
+                &tile_materials.fountain_unexplored,
+            ),
             TileMaterialType::Ice => (&tile_materials.ice, &tile_materials.ice_unexplored),
         };
 
@@ -352,7 +369,11 @@ fn apply_fog_to_entities(
     >,
     mut pile_query: Query<
         (&MapPosition, &mut Visibility),
-        (With<PileMarker>, Without<FloorObjectMarker>, Without<MonsterMarker>),
+        (
+            With<PileMarker>,
+            Without<FloorObjectMarker>,
+            Without<MonsterMarker>,
+        ),
     >,
 ) {
     if !settings.enabled || !visibility.initialized {

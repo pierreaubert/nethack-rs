@@ -1,7 +1,7 @@
 //! Inventory UI panel
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
 
 use crate::resources::GameStateResource;
 
@@ -72,8 +72,7 @@ fn handle_inventory_input(
                 inv_state.selected_index = (inv_state.selected_index + 1) % item_count;
             }
             if input.just_pressed(KeyCode::KeyK) || input.just_pressed(KeyCode::ArrowUp) {
-                inv_state.selected_index =
-                    (inv_state.selected_index + item_count - 1) % item_count;
+                inv_state.selected_index = (inv_state.selected_index + item_count - 1) % item_count;
             }
         }
 
@@ -114,12 +113,13 @@ fn render_inventory(
                 let weight = game_state.0.inventory_weight();
                 let capacity = game_state.0.player.carrying_capacity;
                 ui.label(
-                    egui::RichText::new(format!("Weight: {}/{}", weight, capacity))
-                        .color(if weight > capacity as u32 {
+                    egui::RichText::new(format!("Weight: {}/{}", weight, capacity)).color(
+                        if weight > capacity as u32 {
                             egui::Color32::RED
                         } else {
                             egui::Color32::GRAY
-                        }),
+                        },
+                    ),
                 );
 
                 if let Some(action) = &inv_state.action_mode {
@@ -182,7 +182,7 @@ fn render_inventory(
 
 fn item_name(item: &nh_core::object::Object) -> String {
     // Get object data if available, otherwise use class name
-    let objects = nh_data::objects::OBJECTS;
+    let objects = nh_core::data::objects::OBJECTS;
     if (item.object_type as usize) < objects.len() {
         let obj_def = &objects[item.object_type as usize];
         obj_def.name.to_string()

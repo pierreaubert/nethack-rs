@@ -17,8 +17,14 @@ impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AudioState>()
             .add_event::<SoundEffect>()
-            .add_systems(Update, play_sound_effects.run_if(in_state(AppState::Playing)))
-            .add_systems(Update, detect_sound_triggers.run_if(in_state(AppState::Playing)));
+            .add_systems(
+                Update,
+                play_sound_effects.run_if(in_state(AppState::Playing)),
+            )
+            .add_systems(
+                Update,
+                detect_sound_triggers.run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
@@ -185,7 +191,9 @@ fn detect_sound_triggers(
     let curr_pos = (state.player.pos.x, state.player.pos.y);
     if curr_pos != prev_pos {
         // Check terrain type for footstep sound
-        let cell = state.current_level.cell(curr_pos.0 as usize, curr_pos.1 as usize);
+        let cell = state
+            .current_level
+            .cell(curr_pos.0 as usize, curr_pos.1 as usize);
         let sound = match cell.typ {
             nh_core::dungeon::CellType::Pool
             | nh_core::dungeon::CellType::Moat

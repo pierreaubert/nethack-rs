@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::components::{DoorAnimation, DoorMarker, MapPosition, TileMaterialType, TileMarker};
+use crate::components::{DoorAnimation, DoorMarker, MapPosition, TileMarker, TileMaterialType};
 use crate::resources::GameStateResource;
 
 pub struct MapPlugin;
@@ -55,8 +55,8 @@ impl TextureVariants {
     /// Initialize variant counts for all texture types
     fn new() -> Self {
         let texture_names = [
-            "floor", "corridor", "wall", "door", "stairs",
-            "water", "lava", "stone", "tree", "fountain", "ice", "room",
+            "floor", "corridor", "wall", "door", "stairs", "water", "lava", "stone", "tree",
+            "fountain", "ice", "room",
         ];
 
         let mut variants = std::collections::HashMap::new();
@@ -72,9 +72,9 @@ impl TextureVariants {
 
     /// Get current texture path for a name, or None if no variants exist
     fn get_texture_path(&self, name: &str) -> Option<String> {
-        self.variants.get(name).map(|(idx, _)| {
-            format!("textures/{}-{}.jpeg", name, idx)
-        })
+        self.variants
+            .get(name)
+            .map(|(idx, _)| format!("textures/{}-{}.jpeg", name, idx))
     }
 
     /// Advance to next variant for all textures (wraps around)
@@ -133,15 +133,26 @@ fn check_level_change(
     }
 
     if map_state.current_dlevel != Some(current_dlevel) {
-        info!("Level changed from {:?} to {:?}", map_state.current_dlevel, current_dlevel);
+        info!(
+            "Level changed from {:?} to {:?}",
+            map_state.current_dlevel, current_dlevel
+        );
 
         // Advance texture variants for visual variety
         texture_variants.advance_all();
         map_state.room_change_count += 1;
-        info!("Texture variants advanced (room change #{})", map_state.room_change_count);
+        info!(
+            "Texture variants advanced (room change #{})",
+            map_state.room_change_count
+        );
 
         // Update material textures with new variants
-        update_material_textures(&tile_materials, &mut materials, &texture_variants, &asset_server);
+        update_material_textures(
+            &tile_materials,
+            &mut materials,
+            &texture_variants,
+            &asset_server,
+        );
 
         // Despawn old map
         for entity in map_query.iter() {
@@ -149,7 +160,12 @@ fn check_level_change(
         }
 
         // Spawn new map
-        spawn_map_internal(&mut commands, &game_state.0.current_level, &tile_meshes, &tile_materials);
+        spawn_map_internal(
+            &mut commands,
+            &game_state.0.current_level,
+            &tile_meshes,
+            &tile_materials,
+        );
 
         // Update state
         map_state.current_dlevel = Some(current_dlevel);
@@ -179,9 +195,9 @@ fn update_material_textures(
 
     for (handle, name) in material_mappings {
         if let Some(material) = materials.get_mut(handle) {
-            material.base_color_texture = texture_variants.get_texture_path(name).map(|path| {
-                asset_server.load(path)
-            });
+            material.base_color_texture = texture_variants
+                .get_texture_path(name)
+                .map(|path| asset_server.load(path));
         }
     }
 }
@@ -241,27 +257,41 @@ fn setup_tile_assets(
     });
 
     // Helper to create material with optional texture using variant system
-    let create_material = |materials: &mut Assets<StandardMaterial>, name: &str, color: Color, roughness: f32, emissive: Option<LinearRgba>| -> Handle<StandardMaterial> {
+    let create_material = |materials: &mut Assets<StandardMaterial>,
+                           name: &str,
+                           color: Color,
+                           roughness: f32,
+                           emissive: Option<LinearRgba>|
+     -> Handle<StandardMaterial> {
         // Try to get texture path from variants (e.g., "wall" -> "textures/wall-1.jpeg")
-        let texture = texture_variants.get_texture_path(name).map(|path| {
-            asset_server.load(path)
-        });
+        let texture = texture_variants
+            .get_texture_path(name)
+            .map(|path| asset_server.load(path));
 
         materials.add(StandardMaterial {
             base_color: color,
             base_color_texture: texture,
             perceptual_roughness: roughness,
             emissive: emissive.unwrap_or(LinearRgba::BLACK),
-            alpha_mode: if color.alpha() < 1.0 { AlphaMode::Blend } else { AlphaMode::Opaque },
+            alpha_mode: if color.alpha() < 1.0 {
+                AlphaMode::Blend
+            } else {
+                AlphaMode::Opaque
+            },
             ..default()
         })
     };
 
     // Helper to create unexplored material variant (alpha 0.3)
-    let create_unexplored = |materials: &mut Assets<StandardMaterial>, name: &str, color: Color, roughness: f32, emissive: Option<LinearRgba>| -> Handle<StandardMaterial> {
-        let texture = texture_variants.get_texture_path(name).map(|path| {
-            asset_server.load(path)
-        });
+    let create_unexplored = |materials: &mut Assets<StandardMaterial>,
+                             name: &str,
+                             color: Color,
+                             roughness: f32,
+                             emissive: Option<LinearRgba>|
+     -> Handle<StandardMaterial> {
+        let texture = texture_variants
+            .get_texture_path(name)
+            .map(|path| asset_server.load(path));
 
         // Apply alpha 0.3 to the color
         let unexplored_color = color.with_alpha(0.3);
@@ -279,29 +309,161 @@ fn setup_tile_assets(
     // Create materials with distinct colors/textures
     commands.insert_resource(TileMaterials {
         // Normal materials
-        floor: create_material(&mut materials, "room", Color::srgb(0.6, 0.5, 0.4), 0.9, None),
-        corridor: create_material(&mut materials, "corridor", Color::srgb(0.4, 0.4, 0.4), 0.9, None),
-        wall: create_material(&mut materials, "wall", Color::srgb(0.5, 0.5, 0.5), 0.8, None),
-        door: create_material(&mut materials, "door", Color::srgb(0.5, 0.3, 0.15), 0.7, None),
-        stairs: create_material(&mut materials, "stairs", Color::srgb(0.7, 0.7, 0.7), 0.6, None),
-        water: create_material(&mut materials, "water", Color::srgba(0.2, 0.4, 0.8, 0.7), 0.1, None),
-        lava: create_material(&mut materials, "lava", Color::srgb(1.0, 0.4, 0.1), 0.3, Some(LinearRgba::new(1.0, 0.3, 0.0, 1.0))),
-        stone: create_material(&mut materials, "stone", Color::srgb(0.2, 0.2, 0.2), 1.0, None),
-        tree: create_material(&mut materials, "tree", Color::srgb(0.2, 0.5, 0.2), 0.9, None),
-        fountain: create_material(&mut materials, "fountain", Color::srgb(0.4, 0.6, 0.8), 0.3, None),
-        ice: create_material(&mut materials, "ice", Color::srgba(0.8, 0.9, 1.0, 0.8), 0.1, None),
+        floor: create_material(
+            &mut materials,
+            "room",
+            Color::srgb(0.6, 0.5, 0.4),
+            0.9,
+            None,
+        ),
+        corridor: create_material(
+            &mut materials,
+            "corridor",
+            Color::srgb(0.4, 0.4, 0.4),
+            0.9,
+            None,
+        ),
+        wall: create_material(
+            &mut materials,
+            "wall",
+            Color::srgb(0.5, 0.5, 0.5),
+            0.8,
+            None,
+        ),
+        door: create_material(
+            &mut materials,
+            "door",
+            Color::srgb(0.5, 0.3, 0.15),
+            0.7,
+            None,
+        ),
+        stairs: create_material(
+            &mut materials,
+            "stairs",
+            Color::srgb(0.7, 0.7, 0.7),
+            0.6,
+            None,
+        ),
+        water: create_material(
+            &mut materials,
+            "water",
+            Color::srgba(0.2, 0.4, 0.8, 0.7),
+            0.1,
+            None,
+        ),
+        lava: create_material(
+            &mut materials,
+            "lava",
+            Color::srgb(1.0, 0.4, 0.1),
+            0.3,
+            Some(LinearRgba::new(1.0, 0.3, 0.0, 1.0)),
+        ),
+        stone: create_material(
+            &mut materials,
+            "stone",
+            Color::srgb(0.2, 0.2, 0.2),
+            1.0,
+            None,
+        ),
+        tree: create_material(
+            &mut materials,
+            "tree",
+            Color::srgb(0.2, 0.5, 0.2),
+            0.9,
+            None,
+        ),
+        fountain: create_material(
+            &mut materials,
+            "fountain",
+            Color::srgb(0.4, 0.6, 0.8),
+            0.3,
+            None,
+        ),
+        ice: create_material(
+            &mut materials,
+            "ice",
+            Color::srgba(0.8, 0.9, 1.0, 0.8),
+            0.1,
+            None,
+        ),
         // Unexplored variants (alpha 0.3)
-        floor_unexplored: create_unexplored(&mut materials, "room", Color::srgb(0.6, 0.5, 0.4), 0.9, None),
-        corridor_unexplored: create_unexplored(&mut materials, "corridor", Color::srgb(0.4, 0.4, 0.4), 0.9, None),
-        wall_unexplored: create_unexplored(&mut materials, "wall", Color::srgb(0.5, 0.5, 0.5), 0.8, None),
-        door_unexplored: create_unexplored(&mut materials, "door", Color::srgb(0.5, 0.3, 0.15), 0.7, None),
-        stairs_unexplored: create_unexplored(&mut materials, "stairs", Color::srgb(0.7, 0.7, 0.7), 0.6, None),
-        water_unexplored: create_unexplored(&mut materials, "water", Color::srgba(0.2, 0.4, 0.8, 0.7), 0.1, None),
-        lava_unexplored: create_unexplored(&mut materials, "lava", Color::srgb(1.0, 0.4, 0.1), 0.3, Some(LinearRgba::new(1.0, 0.3, 0.0, 1.0))),
-        stone_unexplored: create_unexplored(&mut materials, "stone", Color::srgb(0.2, 0.2, 0.2), 1.0, None),
-        tree_unexplored: create_unexplored(&mut materials, "tree", Color::srgb(0.2, 0.5, 0.2), 0.9, None),
-        fountain_unexplored: create_unexplored(&mut materials, "fountain", Color::srgb(0.4, 0.6, 0.8), 0.3, None),
-        ice_unexplored: create_unexplored(&mut materials, "ice", Color::srgba(0.8, 0.9, 1.0, 0.8), 0.1, None),
+        floor_unexplored: create_unexplored(
+            &mut materials,
+            "room",
+            Color::srgb(0.6, 0.5, 0.4),
+            0.9,
+            None,
+        ),
+        corridor_unexplored: create_unexplored(
+            &mut materials,
+            "corridor",
+            Color::srgb(0.4, 0.4, 0.4),
+            0.9,
+            None,
+        ),
+        wall_unexplored: create_unexplored(
+            &mut materials,
+            "wall",
+            Color::srgb(0.5, 0.5, 0.5),
+            0.8,
+            None,
+        ),
+        door_unexplored: create_unexplored(
+            &mut materials,
+            "door",
+            Color::srgb(0.5, 0.3, 0.15),
+            0.7,
+            None,
+        ),
+        stairs_unexplored: create_unexplored(
+            &mut materials,
+            "stairs",
+            Color::srgb(0.7, 0.7, 0.7),
+            0.6,
+            None,
+        ),
+        water_unexplored: create_unexplored(
+            &mut materials,
+            "water",
+            Color::srgba(0.2, 0.4, 0.8, 0.7),
+            0.1,
+            None,
+        ),
+        lava_unexplored: create_unexplored(
+            &mut materials,
+            "lava",
+            Color::srgb(1.0, 0.4, 0.1),
+            0.3,
+            Some(LinearRgba::new(1.0, 0.3, 0.0, 1.0)),
+        ),
+        stone_unexplored: create_unexplored(
+            &mut materials,
+            "stone",
+            Color::srgb(0.2, 0.2, 0.2),
+            1.0,
+            None,
+        ),
+        tree_unexplored: create_unexplored(
+            &mut materials,
+            "tree",
+            Color::srgb(0.2, 0.5, 0.2),
+            0.9,
+            None,
+        ),
+        fountain_unexplored: create_unexplored(
+            &mut materials,
+            "fountain",
+            Color::srgb(0.4, 0.6, 0.8),
+            0.3,
+            None,
+        ),
+        ice_unexplored: create_unexplored(
+            &mut materials,
+            "ice",
+            Color::srgba(0.8, 0.9, 1.0, 0.8),
+            0.1,
+            None,
+        ),
     });
 }
 
@@ -365,7 +527,11 @@ fn spawn_tile(
 
     // Helper to pick normal or unexplored material
     let mat = |normal: &Handle<StandardMaterial>, unexplored: &Handle<StandardMaterial>| {
-        if explored { normal.clone() } else { unexplored.clone() }
+        if explored {
+            normal.clone()
+        } else {
+            unexplored.clone()
+        }
     };
 
     match cell.typ {
@@ -390,6 +556,17 @@ fn spawn_tile(
                 Transform::from_translation(world_pos),
             ));
         }
+        CellType::Vault => {
+            // Vault room floor - similar to regular room
+            commands.spawn((
+                TileMarker,
+                TileMaterialType::Floor,
+                map_pos,
+                Mesh3d(meshes.floor.clone()),
+                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
+                Transform::from_translation(world_pos),
+            ));
+        }
 
         // Wall types - cube at y=0.5
         CellType::VWall
@@ -403,7 +580,8 @@ fn spawn_tile(
         | CellType::TDWall
         | CellType::TLWall
         | CellType::TRWall
-        | CellType::DBWall => {
+        | CellType::DBWall
+        | CellType::Wall => {
             commands.spawn((
                 TileMarker,
                 TileMaterialType::Wall,
@@ -421,7 +599,11 @@ fn spawn_tile(
 
             let base_rotation = Quat::IDENTITY;
             let open_rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
-            let rotation = if is_open { open_rotation } else { base_rotation };
+            let rotation = if is_open {
+                open_rotation
+            } else {
+                base_rotation
+            };
 
             // Floor under door
             commands.spawn((

@@ -15,7 +15,36 @@
 use crate::action::ActionResult;
 use crate::dungeon::CellType;
 use crate::gameloop::GameState;
+use crate::object::{Object, ObjectClass};
 use crate::player::{AlignmentType, HungerState, Property};
+
+// Trouble constants (integer form for C compatibility)
+pub const TROUBLE_STONED: i32 = 14;
+pub const TROUBLE_SLIMED: i32 = 13;
+pub const TROUBLE_STRANGLED: i32 = 12;
+pub const TROUBLE_LAVA: i32 = 11;
+pub const TROUBLE_SICK: i32 = 10;
+pub const TROUBLE_STARVING: i32 = 9;
+pub const TROUBLE_REGION: i32 = 8;
+pub const TROUBLE_HIT: i32 = 7;
+pub const TROUBLE_LYCANTHROPE: i32 = 6;
+pub const TROUBLE_COLLAPSING: i32 = 5;
+pub const TROUBLE_STUCK_IN_WALL: i32 = 4;
+pub const TROUBLE_CURSED_LEVITATION: i32 = 3;
+pub const TROUBLE_UNUSEABLE_HANDS: i32 = 2;
+pub const TROUBLE_CURSED_BLINDFOLD: i32 = 1;
+
+pub const TROUBLE_PUNISHED: i32 = -1;
+pub const TROUBLE_FUMBLING: i32 = -2;
+pub const TROUBLE_CURSED_ITEMS: i32 = -3;
+pub const TROUBLE_SADDLE: i32 = -4;
+pub const TROUBLE_BLIND: i32 = -5;
+pub const TROUBLE_POISONED: i32 = -6;
+pub const TROUBLE_WOUNDED_LEGS: i32 = -7;
+pub const TROUBLE_HUNGRY: i32 = -8;
+pub const TROUBLE_STUNNED: i32 = -9;
+pub const TROUBLE_CONFUSED: i32 = -10;
+pub const TROUBLE_HALLUCINATION: i32 = -11;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Alignment record thresholds (from C: PIOUS, DEVOUT, FERVENT, STRIDENT)
@@ -744,6 +773,419 @@ pub fn do_pray(state: &mut GameState) -> ActionResult {
     ActionResult::Success
 }
 
+pub fn dopray(state: &mut GameState) -> ActionResult {
+    do_pray(state)
+}
+
+/// Prayer occupation is complete
+pub fn prayer_done(state: &mut GameState) {
+    // Set prayer timeout
+    state.player.prayer_timeout += 100;
+
+    // Check player's standing with their god
+    let trouble = in_trouble(state);
+    if let Some(t) = trouble {
+        // God might help with trouble
+        if state.rng.one_in(3) {
+            fix_worst_trouble(state, t);
+            pleased(state);
+        } else {
+            godvoice(state, "You must prove yourself worthy.");
+        }
+    } else {
+        // Player is not in trouble - might get a boon
+        if state.rng.one_in(5) {
+            // Random boon
+            let boon = state.rng.rn2(4);
+            match boon {
+                0 => {
+                    state.message("You feel a surge of divine energy!");
+                    state.player.energy = state
+                        .player
+                        .energy
+                        .saturating_add(state.player.exp_level * 2);
+                    if state.player.energy > state.player.energy_max {
+                        state.player.energy = state.player.energy_max;
+                    }
+                }
+                1 => {
+                    state.message("You feel blessed!");
+                    state.player.luck = state.player.luck.saturating_add(1);
+                }
+                2 => {
+                    state.message("Your wounds close!");
+                    state.player.hp = state.player.hp.saturating_add(state.player.exp_level);
+                    if state.player.hp > state.player.hp_max {
+                        state.player.hp = state.player.hp_max;
+                    }
+                }
+                _ => {
+                    godvoice(state, "Continue your good works.");
+                }
+            }
+        } else {
+            godvoice(state, "I am watching over you.");
+        }
+    }
+}
+
+/// Place an object on an altar to identify or bless/curse it
+pub fn doaltarobj(state: &mut GameState) -> ActionResult {
+    let x = state.player.pos.x;
+    let y = state.player.pos.y;
+
+    let cell = state.current_level.cell(x as usize, y as usize);
+    if !matches!(cell.typ, crate::dungeon::CellType::Altar) {
+        state.message("You are not standing on an altar.");
+        return ActionResult::NoTime;
+    }
+
+    state.message("You place an object on the altar.");
+
+    // In full implementation, would identify blessed/cursed status
+    state.message("The altar glows briefly.");
+
+    ActionResult::Success
+}
+
+pub fn consume_offering(state: &mut GameState, obj: Object) {
+    state.message(format!(
+        "Your sacrifice of {} is consumed!",
+        obj.display_name()
+    ));
+}
+
+pub fn unfixable_trouble_count(_state: &GameState) -> i32 {
+    0
+}
+
+pub fn fry_by_god(state: &mut GameState) {
+    state.message("You are incinerated by holy fire!");
+    state.player.hp = 0;
+}
+
+pub fn gods_upset(state: &mut GameState) {
+    state.message("The gods are angry!");
+}
+
+pub fn godvoice(state: &mut GameState, msg: &str) {
+    state.message(format!("A voice booms: \"{}\"", msg));
+}
+
+pub fn altar_wrath(state: &mut GameState) {
+    state.message("The altar vibrates in anger!");
+}
+
+pub fn p_coaligned(state: &GameState) -> bool {
+    let altar_align = altar_alignment_at(state);
+    altar_align == Some(state.player.alignment.typ)
+}
+
+/// Summon a minion based on player's alignment and level
+pub fn summon_minion(state: &mut GameState) {
+    let player_level = state.player.exp_level;
+
+    match state.player.alignment.typ {
+        AlignmentType::Lawful => {
+            // Lawful minions: archons, angels
+            if player_level >= 20 {
+                state.message("An archon appears before you!");
+            } else if player_level >= 10 {
+                state.message("An angel appears before you!");
+            } else {
+                state.message("A white unicorn appears before you!");
+            }
+        }
+        AlignmentType::Neutral => {
+            // Neutral minions: elementals
+            if player_level >= 15 {
+                state.message("A djinni appears before you!");
+            } else {
+                state.message("A stalker appears before you!");
+            }
+        }
+        AlignmentType::Chaotic => {
+            // Chaotic minions: demons
+            if player_level >= 20 {
+                dprince(state);
+            } else if player_level >= 10 {
+                dlord(state);
+            } else {
+                demonpet(state);
+            }
+        }
+    }
+}
+
+/// Summon a demon pet
+pub fn demonpet(state: &mut GameState) {
+    // Random minor demon
+    let demons = ["imp", "quasit", "manes"];
+    let idx = state.rng.rn2(demons.len() as u32) as usize;
+    state.message(format!("A {} appears before you!", demons[idx]));
+}
+
+/// Summon a lawful minion (angel, etc.)
+pub fn lminion(state: &mut GameState) {
+    let player_level = state.player.exp_level;
+    if player_level >= 15 {
+        state.message("An angelic being appears!");
+    } else {
+        state.message("A divine servant appears!");
+    }
+}
+
+/// Summon a lawful lord (higher angel)
+pub fn llord(state: &mut GameState) {
+    state.message("A powerful angel appears!");
+}
+
+/// Summon a demon lord
+pub fn dlord(state: &mut GameState) {
+    let demon_lords = [
+        "Juiblex",
+        "Yeenoghu",
+        "Orcus",
+        "Geryon",
+        "Dispater",
+        "Baalzebub",
+    ];
+    let idx = state.rng.rn2(demon_lords.len() as u32) as usize;
+    state.message(format!("{} appears!", demon_lords[idx]));
+}
+
+/// Summon a demon prince
+pub fn dprince(state: &mut GameState) {
+    let demon_princes = ["Asmodeus", "Demogorgon"];
+    let idx = state.rng.rn2(demon_princes.len() as u32) as usize;
+    state.message(format!("The great {} appears!", demon_princes[idx]));
+}
+
+/// Count of named demons on this level
+pub fn ndemon(_state: &GameState) -> i32 {
+    // In full implementation, would count demon monsters
+    // For now, return 0
+    0
+}
+
+pub fn demon_talk(state: &mut GameState) {
+    state.message("The demon speaks.");
+}
+
+// ============================================================================
+// Turn undead functions (doturn, unturn_dead)
+// ============================================================================
+
+/// BOLT_LIM constant for turn undead range
+pub const BOLT_LIM: i32 = 8;
+
+/// Turn undead command (doturn equivalent)
+///
+/// Knights and Priests can turn undead through divine power.
+/// Other classes must know the Turn Undead spell.
+///
+/// # Arguments
+/// * `state` - The game state
+///
+/// # Returns
+/// ActionResult indicating success or failure
+pub fn doturn(state: &mut GameState) -> ActionResult {
+    use crate::monster::MonsterId;
+    use crate::player::Role;
+
+    let role = state.player.role;
+
+    // Check if player is a Priest or Knight
+    if role != Role::Priest && role != Role::Knight {
+        // Try to use the Turn Undead spell if known
+        let has_turn_spell = state
+            .player
+            .known_spells
+            .iter()
+            .any(|s| matches!(s.spell_type, crate::magic::spell::SpellType::TurnUndead));
+
+        if has_turn_spell {
+            // Would cast spell here - for now just do the turn effect
+            state.message("You invoke the turn undead spell!");
+        } else {
+            state.message("You don't know how to turn undead!");
+            return ActionResult::NoTime;
+        }
+    }
+
+    // TODO: Check if player can chant (not strangled, etc.) when strangled state tracking is implemented
+
+    // Check god anger
+    if state.player.god_anger > 6 {
+        let god_name = state.player.god_name();
+        state.message(format!(
+            "For some reason, {} seems to ignore you.",
+            god_name
+        ));
+        aggravate(state);
+        return ActionResult::Success;
+    }
+
+    // In Gehennom, turning undead doesn't work
+    // (simplified check - would check actual level in full implementation)
+
+    let god_name = state.player.god_name();
+    state.message(format!(
+        "Calling upon {}, you chant an arcane formula.",
+        god_name
+    ));
+
+    // Calculate range: 8 to 14 depending on level
+    let range = BOLT_LIM + (state.player.exp_level / 5) as i32;
+    let range_squared = range * range;
+    let player_x = state.player.pos.x;
+    let player_y = state.player.pos.y;
+    let _player_level = state.player.exp_level; // TODO: Use for undead destruction threshold
+    let is_confused = state.player.is_confused();
+
+    // Collect hostile monsters in range
+    // TODO: When permonst integration is complete, filter for undead/demon types
+    let monsters_to_affect: Vec<MonsterId> = state
+        .current_level
+        .monsters
+        .iter()
+        .filter_map(|mon| {
+            let dx = (mon.x as i32 - player_x as i32).abs();
+            let dy = (mon.y as i32 - player_y as i32).abs();
+            let dist_sq = dx * dx + dy * dy;
+
+            if dist_sq > range_squared {
+                return None;
+            }
+
+            // Check if hostile
+            if mon.state.peaceful {
+                return None;
+            }
+
+            // TODO: Check monster type for undead/demon via permonst data
+            // For now, affect all hostile monsters in range
+            Some(mon.id)
+        })
+        .collect();
+
+    let mut affected_count = 0;
+    let mut once_confused = false;
+
+    for monster_id in monsters_to_affect {
+        if is_confused {
+            if !once_confused {
+                state.message("Unfortunately, your voice falters.");
+                once_confused = true;
+            }
+            // Confused turning wakes and emboldens undead instead
+            if let Some(mon) = state.current_level.monster_mut(monster_id) {
+                mon.state.sleeping = false;
+                // Would also unfreeze, etc.
+            }
+        } else {
+            // TODO: Determine if monster can be destroyed based on type and player level
+            // For now, just make monsters flee
+            if let Some(mon) = state.current_level.monster_mut(monster_id) {
+                mon.state.fleeing = true;
+                mon.flee_timeout = 20 + state.rng.rn2(20) as u16;
+            }
+            affected_count += 1;
+        }
+    }
+
+    if affected_count == 0 && !is_confused {
+        state.message("You sense no undead nearby.");
+    } else if affected_count > 0 && !is_confused {
+        state.message(format!(
+            "You turn {} creature{}!",
+            affected_count,
+            if affected_count > 1 { "s" } else { "" }
+        ));
+    }
+
+    ActionResult::Success
+}
+
+/// Aggravate all monsters on the level
+pub fn aggravate(state: &mut GameState) {
+    state.message("You feel that monsters are aware of your presence.");
+    // Would set monsters' awareness of player to max
+    // Simplified - just wake all sleeping monsters
+    for mon in state.current_level.monsters.iter_mut() {
+        mon.state.sleeping = false;
+    }
+}
+
+/// Try to revive corpses and eggs carried by a monster or player (unturn_dead equivalent)
+///
+/// This function attempts to revive all corpses and eggs in the inventory
+/// of the specified entity, potentially spawning monsters.
+///
+/// # Arguments
+/// * `state` - The game state
+/// * `is_player` - Whether this is the player's inventory (vs a monster)
+/// * `monster_id` - If not player, the monster whose inventory to check
+///
+/// # Returns
+/// Number of corpses/eggs revived
+pub fn unturn_dead(
+    state: &mut GameState,
+    is_player: bool,
+    monster_id: Option<crate::monster::MonsterId>,
+) -> i32 {
+    use crate::object::ObjectClass;
+
+    let mut revived = 0;
+
+    if is_player {
+        // Check player's inventory for corpses and eggs
+        let corpse_eggs: Vec<(usize, bool, i16)> = state
+            .inventory
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, obj)| {
+                if obj.class == ObjectClass::Food {
+                    // Check if corpse (object_type for corpse) or egg
+                    let is_corpse = obj.object_type >= 1000 && obj.object_type < 2000; // Simplified
+                    let is_egg = obj.object_type >= 2000 && obj.object_type < 3000; // Simplified
+                    if is_corpse || is_egg {
+                        return Some((idx, is_corpse, obj.object_type));
+                    }
+                }
+                None
+            })
+            .collect();
+
+        // Process in reverse order to avoid index shifting issues
+        for (idx, is_corpse, _obj_type) in corpse_eggs.into_iter().rev() {
+            if is_corpse {
+                // Revive the corpse - create a monster
+                state.inventory.remove(idx);
+                state.message("A corpse suddenly comes alive!");
+                revived += 1;
+                // In full implementation, would spawn the appropriate monster
+            } else {
+                // Revive the egg - attach hatch timer
+                state.message("An egg begins to stir!");
+                // In full implementation, would set egg timer
+            }
+        }
+    } else if let Some(mon_id) = monster_id {
+        // Check monster's inventory
+        // Simplified - monsters don't typically carry corpses
+        let _ = mon_id; // Unused for now
+    }
+
+    revived
+}
+
+/// Revive a single egg (revive_egg equivalent)
+pub fn revive_egg(state: &mut GameState, _obj_idx: usize) {
+    state.message("An egg begins to stir!");
+    // In full implementation, would attach hatch timeout
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1260,5 +1702,31 @@ mod tests {
         god_zaps_you(&mut state);
         // Should be killed (no disintegration resistance)
         assert_eq!(state.player.hp, 0);
+    }
+
+    #[test]
+    fn test_doturn_non_priest_without_spell() {
+        let mut state = GameState::new(GameRng::from_entropy());
+        state.player.role = crate::player::Role::Valkyrie;
+        state.player.known_spells.clear();
+        let result = doturn(&mut state);
+        assert!(matches!(result, ActionResult::NoTime));
+    }
+
+    #[test]
+    fn test_doturn_priest_can_turn() {
+        let mut state = GameState::new(GameRng::from_entropy());
+        state.player.role = crate::player::Role::Priest;
+        state.player.god_anger = 0;
+        let result = doturn(&mut state);
+        assert!(matches!(result, ActionResult::Success));
+    }
+
+    #[test]
+    fn test_unturn_dead_empty_inventory() {
+        let mut state = GameState::new(GameRng::from_entropy());
+        state.inventory.clear();
+        let revived = unturn_dead(&mut state, true, None);
+        assert_eq!(revived, 0);
     }
 }

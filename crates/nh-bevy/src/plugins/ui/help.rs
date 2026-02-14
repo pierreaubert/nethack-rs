@@ -6,7 +6,7 @@
 //! - Toggle with '?' key
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
 
 use crate::plugins::game::AppState;
 
@@ -14,8 +14,10 @@ pub struct HelpPlugin;
 
 impl Plugin for HelpPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<HelpState>()
-            .add_systems(Update, (toggle_help, render_help).run_if(in_state(AppState::Playing)));
+        app.init_resource::<HelpState>().add_systems(
+            Update,
+            (toggle_help, render_help).run_if(in_state(AppState::Playing)),
+        );
     }
 }
 

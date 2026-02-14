@@ -38,7 +38,11 @@ impl<'a> MapWidget<'a> {
         if is_visible {
             // Monster at position
             if let Some(monster) = self.level.monster_at(xi, yi) {
-                let symbol = if monster.name.is_empty() { 'M' } else { monster.name.chars().next().unwrap_or('M') };
+                let symbol = if monster.name.is_empty() {
+                    'M'
+                } else {
+                    monster.name.chars().next().unwrap_or('M')
+                };
                 let color = if monster.is_hostile() {
                     Color::Red
                 } else if monster.is_pet() {
@@ -80,9 +84,17 @@ impl<'a> MapWidget<'a> {
                     Color::DarkGray
                 }
             }
-            CellType::VWall | CellType::HWall | CellType::TLCorner | CellType::TRCorner
-            | CellType::BLCorner | CellType::BRCorner | CellType::CrossWall | CellType::TUWall
-            | CellType::TDWall | CellType::TLWall | CellType::TRWall => Color::Gray,
+            CellType::VWall
+            | CellType::HWall
+            | CellType::TLCorner
+            | CellType::TRCorner
+            | CellType::BLCorner
+            | CellType::BRCorner
+            | CellType::CrossWall
+            | CellType::TUWall
+            | CellType::TDWall
+            | CellType::TLWall
+            | CellType::TRWall => Color::Gray,
             CellType::Door => Color::Yellow,
             CellType::Stairs | CellType::Ladder => Color::White,
             CellType::Pool | CellType::Moat | CellType::Water => Color::Blue,
@@ -107,9 +119,7 @@ impl<'a> MapWidget<'a> {
 
 impl Widget for MapWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title("NetHack");
+        let block = Block::default().borders(Borders::ALL).title("NetHack");
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -117,7 +127,9 @@ impl Widget for MapWidget<'_> {
         for y in 0..ROWNO.min(inner.height as usize) {
             for x in 0..COLNO.min(inner.width as usize) {
                 let (ch, style) = self.cell_display(x, y);
-                if let Some(cell) = buf.cell_mut(Position::new(inner.x + x as u16, inner.y + y as u16)) {
+                if let Some(cell) =
+                    buf.cell_mut(Position::new(inner.x + x as u16, inner.y + y as u16))
+                {
                     cell.set_char(ch);
                     cell.set_style(style);
                 }

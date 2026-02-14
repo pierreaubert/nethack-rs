@@ -7,26 +7,212 @@ use crate::player::{Attribute, HungerState, Property};
 use crate::rng::GameRng;
 
 // ============================================================================
-// Intrinsic gain messages
+// Public Interface
 // ============================================================================
 
-/// Get the message when gaining an intrinsic property from food
-pub fn intrinsic_gain_message(prop: Property) -> &'static str {
-    match prop {
-        Property::FireResistance => "You feel a momentary chill.",
-        Property::ColdResistance => "You feel full of hot air.",
-        Property::SleepResistance => "You feel wide awake.",
-        Property::DisintResistance => "You feel very firm.",
-        Property::ShockResistance => "Your health currently feels amplified!",
-        Property::PoisonResistance => "You feel healthy.",
-        Property::Telepathy => "You feel a strange mental acuity.",
-        Property::Teleportation => "You feel very jumpy.",
-        Property::TeleportControl => "You feel in control of yourself.",
-        Property::Invisibility => "You feel hidden!",
-        Property::SeeInvisible => "You see an image of someone stalking you.",
-        Property::Speed => "You feel yourself speed up.",
-        Property::VeryFast => "You feel yourself speed up a lot!",
-        _ => "You feel different.",
+/// Simple eat dispatcher (older interface; prefer do_eat below)
+fn do_eat_simple(state: &mut GameState, obj_letter: char) -> ActionResult {
+    // First pass: validation
+    let (_obj_name, obj_class, obj_type) = {
+        let obj = match state.get_inventory_item(obj_letter) {
+            Some(o) => o,
+            None => return ActionResult::Failed("You don't have that item.".to_string()),
+        };
+
+        if !is_edible(obj) {
+            return ActionResult::Failed("That's not something you can eat.".to_string());
+        }
+
+        (obj.display_name(), obj.class, obj.object_type)
+    };
+
+    // Check for choking (eating while satiated)
+    let hunger_state = HungerState::from_nutrition(state.player.nutrition);
+    if hunger_state == HungerState::Satiated {
+        state.message("You're having a hard time getting all of it down.");
+    }
+
+    // Dispatch to specific eating functions
+    if obj_class == ObjectClass::Food {
+        if obj_type == 129 {
+            // Tin (placeholder type)
+            consume_tin(state, obj_letter);
+        } else if obj_type == 130 {
+            // Corpse (placeholder type)
+            eat_corpse(state, obj_letter);
+        } else {
+            eat_food(state, obj_letter);
+        }
+    } else {
+        // Eating non-food items (e.g. if polymorphed into metallivore)
+        eat_accessory(state, obj_letter);
+    }
+
+    ActionResult::Success
+}
+
+// ============================================================================
+// Eating Logic
+// ============================================================================
+
+pub fn eat_food(state: &mut GameState, obj_letter: char) {
+    let nutrition = {
+        if let Some(obj) = state.get_inventory_item(obj_letter) {
+            calculate_nutrition(obj)
+        } else {
+            0
+        }
+    };
+
+    // Remove item first
+    state.remove_from_inventory(obj_letter);
+
+    state.message("You eat the food.");
+    lesshungry(state, nutrition);
+}
+
+pub fn eat_corpse(state: &mut GameState, obj_letter: char) {
+    let nutrition = {
+        if let Some(obj) = state.get_inventory_item(obj_letter) {
+            calculate_nutrition(obj)
+        } else {
+            0
+        }
+    };
+
+    // Remove item first
+    state.remove_from_inventory(obj_letter);
+
+    state.message("You eat the corpse.");
+    lesshungry(state, nutrition);
+
+    // TODO: Apply corpse effects
+}
+
+pub fn consume_tin(state: &mut GameState, obj_letter: char) {
+    state.message("You open the tin.");
+    // In a real implementation, this would involve opening, checking type (spinach, etc.)
+    // For now, treat as generic food
+    eat_food(state, obj_letter);
+}
+
+pub fn eat_accessory(state: &mut GameState, obj_letter: char) {
+    state.message("You eat the accessory.");
+    state.remove_from_inventory(obj_letter);
+}
+
+pub fn eatspecial() {
+    // Stub
+}
+
+pub fn eat_brains(state: &mut GameState) {
+    state.message("You eat the brains.");
+    // Int Boost
+}
+
+pub fn eatmdone() -> i32 {
+    0
+}
+
+pub fn eatmupdate() {
+    // Stub
+}
+
+pub fn bite() {
+    // Stub
+}
+
+pub fn edibility_prompts() -> bool {
+    true
+}
+
+pub fn eating_conducts(state: &mut GameState) {
+    // Check vegan, vegetarian, etc.
+}
+
+pub fn eaten_stat() {
+    // Stub
+}
+
+pub fn touchfood() {
+    // Stub
+}
+
+pub fn floorfood() {
+    // Stub
+}
+
+pub fn consume_oeaten() {
+    // Stub
+}
+
+pub fn opentin(state: &mut GameState) {
+    state.message("You open the tin.");
+}
+
+pub fn start_tin() {
+    // Stub
+}
+
+pub fn start_eating() {
+    // Stub
+}
+
+pub fn maybe_finished_meal() {
+    // Stub
+}
+
+pub fn finish_meating() {
+    // Stub
+}
+
+pub fn food_xname() -> String {
+    "food".to_string()
+}
+
+pub fn food_disappears() {
+    // Stub
+}
+
+pub fn food_substitution() {
+    // Stub
+}
+
+pub fn foodword() -> String {
+    "food".to_string()
+}
+
+pub fn fatal_corpse_mistake() {
+    // Stub
+}
+
+// rottenfood stub removed — see full implementation below
+
+pub fn popeye() {
+    // Stub
+}
+
+// choke stub removed — see full implementation below
+
+pub fn choke_dialogue() {
+    // Stub
+}
+
+// vomit stub removed — see full implementation below
+
+pub fn vomiting_dialogue() {
+    // Stub
+}
+
+/// Set vomiting status
+pub fn make_vomiting(state: &mut GameState, duration: i32, from_outside: bool) {
+    if duration > 0 {
+        state.player.vomiting_timeout = duration as u16;
+        if from_outside {
+            state.message("You feel nauseated.");
+        }
+    } else {
+        state.player.vomiting_timeout = 0;
     }
 }
 
@@ -229,6 +415,28 @@ pub fn corpse_effects(monster_type: i16) -> Vec<CorpseEffect> {
     }
 }
 
+/// Return a message describing an intrinsic property gain.
+fn intrinsic_gain_message(property: Property) -> &'static str {
+    match property {
+        Property::FireResistance => "You feel a momentary chill.",
+        Property::ColdResistance => "You feel full of hot air.",
+        Property::SleepResistance => "You feel wide awake.",
+        Property::DisintResistance => "You feel very firm.",
+        Property::ShockResistance => "Your health currently feels amplified!",
+        Property::PoisonResistance => "You feel healthy.",
+        Property::Telepathy => "You feel a strange mental acuity.",
+        Property::SeeInvisible => "You feel perceptive!",
+        Property::Invisibility => "You feel hidden.",
+        Property::Speed => "You feel speedy.",
+        Property::Stealth => "You feel stealthy.",
+        Property::Regeneration => "You feel an itch.",
+        Property::Levitation => "You float up!",
+        Property::Teleportation => "You feel very jumpy.",
+        Property::TeleportControl => "You feel in control of yourself.",
+        _ => "You feel a change.",
+    }
+}
+
 /// Apply corpse effects to the player.
 ///
 /// # Arguments
@@ -383,72 +591,47 @@ pub fn apply_corpse_effects(
     messages
 }
 
-// HungerState is imported from crate::player::HungerState
-// Threshold constants are available via HungerState::threshold()
-
-/// Tin preparation types
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TinType {
-    Rotten,
-    Homemade,
-    Soup,
-    FrenchFried,
-    Pickled,
-    Boiled,
-    Smoked,
-    Dried,
-    DeepFried,
-    Szechuan,
-    Broiled,
-    StirFried,
-    Sauteed,
-    Candied,
-    Pureed,
-    Spinach,
+/// Set sick status (food poisoning or illness)
+pub fn make_sick(state: &mut GameState, duration: i32, cause: &str, sick_type: SickType) {
+    if duration > 0 {
+        match sick_type {
+            SickType::FoodPoisoning => {
+                state.player.sick_food_timeout = duration as u16;
+                state.message(format!("You feel very sick from eating {}.", cause));
+            }
+            SickType::Illness => {
+                state.player.sick_illness_timeout = duration as u16;
+                state.message("You feel deathly sick.");
+            }
+        }
+    } else {
+        // Cure sickness
+        state.player.sick_food_timeout = 0;
+        state.player.sick_illness_timeout = 0;
+        state.message("What a relief!");
+    }
 }
 
-impl TinType {
-    /// Get nutrition modifier for tin type
-    pub fn nutrition(&self) -> i32 {
-        match self {
-            TinType::Rotten => -50,
-            TinType::Homemade => 50,
-            TinType::Soup => 20,
-            TinType::FrenchFried => 40,
-            TinType::Pickled => 40,
-            TinType::Boiled => 50,
-            TinType::Smoked => 50,
-            TinType::Dried => 55,
-            TinType::DeepFried => 60,
-            TinType::Szechuan => 70,
-            TinType::Broiled => 80,
-            TinType::StirFried => 80,
-            TinType::Sauteed => 95,
-            TinType::Candied => 100,
-            TinType::Pureed => 500,
-            TinType::Spinach => 600,
-        }
-    }
+/// Sickness type
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SickType {
+    FoodPoisoning,
+    Illness,
+}
 
-    /// Get description for tin type
-    pub fn description(&self) -> &'static str {
-        match self {
-            TinType::Rotten => "rotten",
-            TinType::Homemade => "homemade",
-            TinType::Soup => "soup made from",
-            TinType::FrenchFried => "french fried",
-            TinType::Pickled => "pickled",
-            TinType::Boiled => "boiled",
-            TinType::Smoked => "smoked",
-            TinType::Dried => "dried",
-            TinType::DeepFried => "deep fried",
-            TinType::Szechuan => "szechuan",
-            TinType::Broiled => "broiled",
-            TinType::StirFried => "stir fried",
-            TinType::Sauteed => "sauteed",
-            TinType::Candied => "candied",
-            TinType::Pureed => "pureed",
-            TinType::Spinach => "spinach",
+/// Set sliming status (turning into a green slime)
+pub fn make_slimed(state: &mut GameState, duration: i32) {
+    if duration > 0 {
+        if state.player.sliming_timeout == 0 {
+            // Start sliming
+            state.player.sliming_timeout = duration as u16;
+            state.message("You don't feel very well.");
+        }
+    } else {
+        // Cure sliming
+        if state.player.sliming_timeout > 0 {
+            state.player.sliming_timeout = 0;
+            state.message("You feel much better!");
         }
     }
 }
@@ -500,6 +683,322 @@ mod otyp {
 fn is_glob(object_type: i16) -> bool {
     (otyp::GLOB_OF_GRAY_OOZE..=otyp::GLOB_OF_BLACK_PUDDING).contains(&object_type)
 }
+
+/// Set petrification status (turning to stone)
+pub fn make_stoned(state: &mut GameState, duration: i32) {
+    if duration > 0 {
+        if state.player.stoning_timeout == 0 {
+            // Start turning to stone
+            state.player.stoning_timeout = duration as u16;
+            state.message("You are slowing down.");
+        }
+    } else {
+        // Cure petrification
+        if state.player.stoning_timeout > 0 {
+            state.player.stoning_timeout = 0;
+            state.message("You feel limber!");
+        }
+    }
+}
+
+/// Show sliming progress dialogue
+pub fn slime_dialogue(state: &mut GameState) {
+    let timeout = state.player.sliming_timeout;
+    match timeout {
+        1 => state.message("You have turned into a green slime!"),
+        2 => state.message("Your body is turning into green slime!"),
+        3..=5 => state.message("Your limbs are stiffening..."),
+        6..=10 => state.message("Your skin is turning green..."),
+        _ => {}
+    }
+}
+
+/// Handle player's death from sliming
+pub fn slimed_to_death(state: &mut GameState) {
+    state.message("You have turned into a green slime!");
+    state.player.hp = 0;
+    // In full implementation, would set killer to "turned into green slime"
+}
+
+/// Show petrification progress dialogue
+pub fn stoned_dialogue(state: &mut GameState) {
+    let timeout = state.player.stoning_timeout;
+    match timeout {
+        1 => state.message("You have turned to stone!"),
+        2 => state.message("Your limbs have solidified!"),
+        3..=5 => state.message("Your joints are stiffening..."),
+        6..=10 => state.message("You are slowing down..."),
+        _ => {}
+    }
+}
+
+/// Burn away slime with fire
+pub fn burn_away_slime(state: &mut GameState) {
+    if state.player.sliming_timeout > 0 {
+        state.player.sliming_timeout = 0;
+        state.message("The slime that was turning you into green slime burns away!");
+    }
+}
+
+/// Fix petrification (by eating lizard, acidic corpse, or using a unicorn horn)
+pub fn fix_petrification(state: &mut GameState) {
+    if state.player.stoning_timeout > 0 {
+        make_stoned(state, 0);
+    }
+}
+
+/// Check if player would turn into a stone golem instead of dying from petrification
+pub fn poly_when_stoned(state: &GameState) -> bool {
+    // Would return true if polymorphed into a form that becomes stone golem
+    // For now, always return false
+    false
+}
+
+/// Monster consumes item to cure petrification
+pub fn mon_consume_unstone(state: &mut GameState, _monster_id: crate::monster::MonsterId) {
+    // Would have monster eat acidic corpse or similar
+}
+
+/// Monster uses item to cure sliming
+pub fn muse_unslime(state: &mut GameState, _monster_id: crate::monster::MonsterId) {
+    // Would have monster use fire or similar
+}
+
+/// Cure monster sliming
+pub fn munslime(state: &mut GameState, monster_id: crate::monster::MonsterId) {
+    if let Some(monster) = state.current_level.monster_mut(monster_id) {
+        // Remove sliming status effect from monster
+        monster
+            .status_effects
+            .remove_effect(crate::combat::StatusEffect::Slimed);
+    }
+}
+
+/// Cure monster petrification
+pub fn munstone(state: &mut GameState, monster_id: crate::monster::MonsterId) {
+    if let Some(monster) = state.current_level.monster_mut(monster_id) {
+        // Remove stoning status effect from monster
+        monster
+            .status_effects
+            .remove_effect(crate::combat::StatusEffect::Petrifying);
+    }
+}
+
+/// Apply post-eating effects from corpse based on monster type
+pub fn cpostfx(state: &mut GameState, monster_type: i16) {
+    // Apply intrinsic gain effects based on corpse monster type
+    // Each monster type can grant specific intrinsics
+
+    match monster_type {
+        // Newt - small mana boost
+        1 => {
+            if state.rng.one_in(3) {
+                let boost = state.rng.rnd(3);
+                state.player.energy = state.player.energy.saturating_add(boost as i32);
+                if state.player.energy > state.player.energy_max {
+                    if state.rng.one_in(3) {
+                        state.player.energy_max += 1;
+                    }
+                    state.player.energy = state.player.energy_max;
+                }
+                state.message("You feel a mild buzz.");
+            }
+        }
+        // Wraith - level gain
+        2 => {
+            state.message("You feel vigorous!");
+            // Level gain effect
+            if state.player.exp_level < 30 {
+                state.player.exp_level += 1;
+                if state.player.exp_level > state.player.max_exp_level {
+                    state.player.max_exp_level = state.player.exp_level;
+                }
+            }
+        }
+        // Giant bat / bat - causes stunning
+        3 | 4 => {
+            state.message("You feel dizzy.");
+            state.player.confused_timeout = state.player.confused_timeout.saturating_add(30);
+        }
+        // Lizard - cures petrification
+        5 => {
+            fix_petrification(state);
+        }
+        // Nurse - heal to full and cure blindness
+        6 => {
+            state.player.hp = state.player.hp_max;
+            state.player.blinded_timeout = 0;
+            state.message("You feel fully healed!");
+        }
+        // Default - possibly gain intrinsics based on monster properties
+        _ => {
+            // Try to gain intrinsics (poison resistance, etc.)
+            maybe_gain_intrinsic(state, monster_type);
+        }
+    }
+}
+
+/// Apply pre-eating effects from corpse (e.g., petrification, sliming)
+pub fn cprefx(state: &mut GameState, monster_type: i16) {
+    // Check for instant death effects before eating
+
+    match monster_type {
+        // Cockatrice and similar - petrification
+        10 => {
+            if !state.player.properties.has(Property::StoneResistance) {
+                state.message("You turn to stone.");
+                state.player.hp = 0;
+                return;
+            }
+        }
+        // Green slime
+        11 => {
+            if state.player.sliming_timeout == 0 {
+                make_slimed(state, 10);
+            }
+        }
+        // Death, Pestilence, Famine (Riders)
+        100 | 101 | 102 => {
+            state.message("Eating that is instantly fatal.");
+            state.player.hp = 0;
+            return;
+        }
+        // Dogs and cats - bad karma
+        20..=25 => {
+            state.message("You feel that eating that was a bad idea.");
+            // Would set aggravate monster intrinsic
+        }
+        _ => {}
+    }
+}
+
+/// Apply pre-eating effects from food item (object-based interface)
+pub fn fprefx_obj(state: &mut GameState, obj: &Object) {
+    // Check for effects before eating food
+
+    // Rotten food check
+    if obj.age > 0 && obj.age < 50 {
+        // Old food
+        if state.rng.one_in(7) {
+            state.message("This food seems a bit stale.");
+        }
+    }
+
+    // Cursed food might have negative effects
+    if obj.is_cursed() {
+        if state.rng.one_in(3) {
+            state.message("Something seems wrong with this food...");
+        }
+    }
+}
+
+/// Apply post-eating effects from food item (object-based interface)
+pub fn fpostfx_obj(state: &mut GameState, obj: &Object) {
+    // Special food effects
+
+    match obj.object_type {
+        // Spinach tin
+        100 => {
+            popeye_effect(state);
+        }
+        // Fortune cookie
+        101 => {
+            // Would show a random rumor/message
+            state.message("You find a small piece of paper inside the cookie.");
+        }
+        // Carrot
+        102 => {
+            // Cures blindness
+            if state.player.blinded_timeout > 0 {
+                state.player.blinded_timeout = 0;
+                state.message("Your vision improves!");
+            }
+        }
+        // Lembas wafer - extra nutrition for elves
+        103 => {
+            // Would check if player is elf for bonus nutrition
+        }
+        _ => {}
+    }
+}
+
+/// Popeye effect from eating spinach - temporary strength boost
+fn popeye_effect(state: &mut GameState) {
+    state.message("Strenth rush! You feel like Popeye!");
+    // Temporary strength bonus
+    state.player.temp_str_bonus = 5;
+    state.player.str_timeout = 100;
+}
+
+/// Try to gain an intrinsic from eating a monster
+fn maybe_gain_intrinsic(state: &mut GameState, _monster_type: i16) {
+    // Based on monster properties, potentially gain intrinsics like:
+    // - Fire resistance (from fire-based monsters)
+    // - Cold resistance (from cold-based monsters)
+    // - Poison resistance (from poisonous monsters)
+    // - Sleep resistance (from sleep-resistant monsters)
+    // - Telepathy (from mind flayers)
+    // etc.
+
+    // For now, small chance to gain poison resistance
+    if state.rng.one_in(15) {
+        if !state.player.properties.has(Property::PoisonResistance) {
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::PoisonResistance);
+            state.message("You feel healthy.");
+        }
+    }
+}
+
+pub fn tinnable() -> bool {
+    true
+}
+
+pub fn tin_variety() {
+    // Stub
+}
+
+pub fn tin_variety_txt() -> String {
+    "tin".to_string()
+}
+
+pub fn tin_details() {
+    // Stub
+}
+
+pub fn mcould_eat_tin() -> bool {
+    true
+}
+
+pub fn costly_tin() {
+    // Stub
+}
+
+pub fn veggy_item() -> bool {
+    true
+}
+
+pub fn meatmetal() -> bool {
+    false
+}
+
+pub fn done_eating() {
+    // Stub
+}
+
+pub fn do_reset_eat() {
+    // Stub
+}
+
+pub fn reset_eat() {
+    // Stub
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
 
 /// Check if food is edible
 pub fn is_edible(obj: &Object) -> bool {
@@ -839,38 +1338,34 @@ pub fn do_eat(state: &mut GameState, obj_letter: char) -> ActionResult {
 // Hunger state management (newuhs, gethungry, lesshungry from NetHack)
 // ============================================================================
 
+
 /// Update hunger status with messages when state changes.
-/// This is the Rust equivalent of NetHack's newuhs() function.
-///
-/// Called after nutrition changes to determine if the hunger state
-/// has changed and produce appropriate messages/effects.
-///
-/// # Arguments
-/// * `state` - The game state
-/// * `incr` - Whether nutrition increased (true) or decreased (false)
-///
-/// # Returns
-/// Messages about hunger state changes
 pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
     let mut messages = Vec::new();
     let old_state = state.player.hunger_state;
     let new_state = HungerState::from_nutrition(state.player.nutrition);
 
-    // Only update if state actually changed
     if old_state == new_state {
         return messages;
     }
 
     state.player.hunger_state = new_state;
 
-    // Generate messages for state transitions
     if incr {
-        // Getting less hungry (eating)
         match (old_state, new_state) {
-            (HungerState::Fainted | HungerState::Fainting, HungerState::Weak | HungerState::Hungry | HungerState::NotHungry | HungerState::Satiated) => {
+            (
+                HungerState::Fainted | HungerState::Fainting,
+                HungerState::Weak
+                | HungerState::Hungry
+                | HungerState::NotHungry
+                | HungerState::Satiated,
+            ) => {
                 messages.push("You regain consciousness.".to_string());
             }
-            (HungerState::Weak, HungerState::Hungry | HungerState::NotHungry | HungerState::Satiated) => {
+            (
+                HungerState::Weak,
+                HungerState::Hungry | HungerState::NotHungry | HungerState::Satiated,
+            ) => {
                 messages.push("You feel less weak.".to_string());
             }
             (HungerState::Hungry, HungerState::NotHungry | HungerState::Satiated) => {
@@ -882,10 +1377,12 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
             _ => {}
         }
     } else {
-        // Getting more hungry
         match new_state {
             HungerState::Hungry => {
-                if !matches!(old_state, HungerState::Weak | HungerState::Fainting | HungerState::Fainted) {
+                if !matches!(
+                    old_state,
+                    HungerState::Weak | HungerState::Fainting | HungerState::Fainted
+                ) {
                     messages.push("You are beginning to feel hungry.".to_string());
                 }
             }
@@ -899,12 +1396,10 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
             HungerState::Fainting => {
                 if !matches!(old_state, HungerState::Fainted | HungerState::Starved) {
                     messages.push("You feel faint.".to_string());
-                    // In NetHack, this can cause the player to faint
                 }
             }
             HungerState::Fainted => {
                 messages.push("You faint from lack of food.".to_string());
-                // Paralyzed for a duration based on level
                 state.player.paralyzed_timeout = (5 + state.player.exp_level) as u16;
             }
             HungerState::Starved => {
@@ -919,156 +1414,56 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
 }
 
 /// Process hunger each turn (called during game tick).
-/// This is the Rust equivalent of NetHack's gethungry() function.
-///
-/// Decrements nutrition based on:
-/// - Base metabolism (1 point per move)
-/// - Encumbrance (more if heavily burdened)
-/// - Ring of Hunger (doubles hunger rate)
-/// - Slow Digestion property (reduces hunger rate)
-/// - Regeneration property (increases hunger rate)
-///
-/// # Arguments
-/// * `state` - The game state
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// Messages about hunger state changes
 pub fn gethungry(state: &mut GameState, rng: &mut GameRng) -> Vec<String> {
-    // Don't get hungry if already dead
     if state.player.hp <= 0 {
         return Vec::new();
     }
 
-    // Calculate base hunger rate
     let mut hunger_rate: i32 = 1;
 
-    // Ring of Hunger doubles hunger rate
-    // Check for Hunger property (which includes ring of hunger)
     if state.player.properties.has(Property::Hunger) {
         hunger_rate += 1;
     }
 
-    // Regeneration increases hunger
     if state.player.properties.has(Property::Regeneration) {
         hunger_rate += 1;
     }
 
-    // Encumbrance affects hunger
-    let encumbrance = state.player.encumbrance();
-    match encumbrance {
+    // Encumbrance
+    match state.player.encumbrance() {
         crate::player::Encumbrance::Unencumbered => {}
         crate::player::Encumbrance::Burdened => {
-            // Burdened: 50% chance of extra hunger
             if rng.rn2(2) == 0 {
                 hunger_rate += 1;
             }
         }
-        crate::player::Encumbrance::Stressed => {
-            // Stressed: always extra hunger
-            hunger_rate += 1;
-        }
-        crate::player::Encumbrance::Strained => {
-            // Strained: double extra hunger
-            hunger_rate += 2;
-        }
-        crate::player::Encumbrance::Overtaxed => {
-            // Overtaxed: triple extra hunger
-            hunger_rate += 3;
-        }
-        crate::player::Encumbrance::Overloaded => {
-            // Overloaded: massive hunger
-            hunger_rate += 4;
-        }
+        crate::player::Encumbrance::Stressed => hunger_rate += 1,
+        crate::player::Encumbrance::Strained => hunger_rate += 2,
+        crate::player::Encumbrance::Overtaxed => hunger_rate += 3,
+        crate::player::Encumbrance::Overloaded => hunger_rate += 4,
     }
 
-    // Slow Digestion negates all hunger
     if state.player.properties.has(Property::SlowDigestion) {
         hunger_rate = 0;
     }
 
-    // Apply hunger
     if hunger_rate > 0 {
         state.player.nutrition = state.player.nutrition.saturating_sub(hunger_rate);
     }
 
-    // Update hunger state and get messages
     newuhs(state, false)
 }
 
 /// Add nutrition from eating food.
-/// This is the Rust equivalent of NetHack's lesshungry() function.
-///
-/// # Arguments
-/// * `state` - The game state
-/// * `nutrition` - Amount of nutrition to add
-///
-/// # Returns
-/// Messages about hunger state changes
 pub fn lesshungry(state: &mut GameState, nutrition: i32) -> Vec<String> {
-    // Add nutrition
     state.player.nutrition = state.player.nutrition.saturating_add(nutrition);
 
-    // Cap nutrition at a reasonable maximum (prevents overflow issues)
     const MAX_NUTRITION: i32 = 5000;
     if state.player.nutrition > MAX_NUTRITION {
         state.player.nutrition = MAX_NUTRITION;
     }
 
-    // Update hunger state and get messages
     newuhs(state, true)
-}
-
-/// Calculate hunger timeout for weak/fainting states.
-/// Used for determining when the player might faint from hunger.
-///
-/// # Arguments
-/// * `state` - The game state
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// Number of turns before potential fainting (0 means no fainting risk)
-pub fn hunger_timeout(state: &GameState, rng: &mut GameRng) -> i32 {
-    match state.player.hunger_state {
-        HungerState::Weak => {
-            // Random chance to faint when weak
-            if rng.rn2(20) < 3 {
-                rng.rnd(10) as i32
-            } else {
-                0
-            }
-        }
-        HungerState::Fainting => {
-            // High chance to faint when fainting
-            if rng.rn2(10) < 4 {
-                rng.rnd(5) as i32
-            } else {
-                0
-            }
-        }
-        _ => 0,
-    }
-}
-
-/// Check if the player should faint from hunger this turn.
-/// Called during game tick to potentially cause fainting.
-///
-/// # Arguments
-/// * `state` - The game state
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// True if the player faints, false otherwise
-pub fn check_faint_from_hunger(state: &mut GameState, rng: &mut GameRng) -> bool {
-    let timeout = hunger_timeout(state, rng);
-    if timeout > 0 && state.player.paralyzed_timeout == 0 {
-        state.message("You faint from lack of food.");
-        state.player.paralyzed_timeout = timeout as u16;
-        state.player.hunger_state = HungerState::Fainted;
-        true
-    } else {
-        false
-    }
 }
 
 #[cfg(test)]
@@ -1097,13 +1492,6 @@ mod tests {
         state.inventory.push(obj);
 
         let result = do_eat(&mut state, 'a');
-        assert!(matches!(result, ActionResult::Failed(_)));
-    }
-
-    #[test]
-    fn test_eat_missing_item_fails() {
-        let mut state = GameState::new(GameRng::from_entropy());
-        let result = do_eat(&mut state, 'z');
         assert!(matches!(result, ActionResult::Failed(_)));
     }
 

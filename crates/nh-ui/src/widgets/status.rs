@@ -41,12 +41,7 @@ impl Widget for StatusWidget<'_> {
         // Line 2: Dlvl, $, AC, Exp, T, status
         let mut line2 = format!(
             "{} $:{} AC:{} Xp:{}/{} T:{}",
-            p.level,
-            p.gold,
-            p.armor_class,
-            p.exp_level,
-            p.exp,
-            p.turns_played,
+            p.level, p.gold, p.armor_class, p.exp_level, p.exp, p.turns_played,
         );
 
         // Add status conditions

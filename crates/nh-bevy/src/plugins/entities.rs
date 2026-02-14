@@ -83,7 +83,14 @@ fn check_level_change(
     monster_query: Query<Entity, With<MonsterMarker>>,
     object_query: Query<Entity, With<FloorObjectMarker>>,
     pile_query: Query<Entity, With<PileMarker>>,
-    indicator_query: Query<Entity, Or<(With<HealthIndicator>, With<StatusIndicator>, With<AllegianceIndicator>)>>,
+    indicator_query: Query<
+        Entity,
+        Or<(
+            With<HealthIndicator>,
+            With<StatusIndicator>,
+            With<AllegianceIndicator>,
+        )>,
+    >,
 ) {
     if !game_state.is_changed() {
         return;
@@ -98,18 +105,31 @@ fn check_level_change(
     }
 
     if entity_state.current_dlevel != Some(current_dlevel) {
-        info!("Level changed for entities from {:?} to {:?}", entity_state.current_dlevel, current_dlevel);
-        
+        info!(
+            "Level changed for entities from {:?} to {:?}",
+            entity_state.current_dlevel, current_dlevel
+        );
+
         // Despawn all entities
-        for entity in player_query.iter() { commands.entity(entity).despawn_recursive(); }
-        for entity in monster_query.iter() { commands.entity(entity).despawn_recursive(); }
-        for entity in object_query.iter() { commands.entity(entity).despawn_recursive(); }
-        for entity in pile_query.iter() { commands.entity(entity).despawn_recursive(); }
-        for entity in indicator_query.iter() { commands.entity(entity).despawn_recursive(); }
+        for entity in player_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
+        for entity in monster_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
+        for entity in object_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
+        for entity in pile_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
+        for entity in indicator_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
 
         // Spawn new entities
         spawn_entities_internal(&mut commands, &game_state.0, &mut meshes, &mut materials);
-        
+
         // Update state
         entity_state.current_dlevel = Some(current_dlevel);
     }
@@ -126,7 +146,7 @@ fn spawn_entities(
 }
 
 fn spawn_entities_internal(
-    commands: &mut Commands, 
+    commands: &mut Commands,
     state: &nh_core::GameState,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
@@ -139,11 +159,15 @@ fn spawn_entities_internal(
         y: state.player.pos.y,
     };
     let world_pos = player_pos.to_world();
-    
-    model_builder.spawn_player(commands, &state.player, Transform::from_translation(world_pos));
+
+    model_builder.spawn_player(
+        commands,
+        &state.player,
+        Transform::from_translation(world_pos),
+    );
 
     // Spawn monsters
-    let monsters = nh_data::monsters::MONSTERS;
+    let monsters = nh_core::data::monsters::MONSTERS;
     for monster in &state.current_level.monsters {
         let map_pos = MapPosition {
             x: monster.x,
@@ -151,8 +175,13 @@ fn spawn_entities_internal(
         };
         let world_pos = map_pos.to_world();
         let monster_def = &monsters[monster.monster_type as usize];
-        
-        let _entity = model_builder.spawn_monster(commands, monster, monster_def, Transform::from_translation(world_pos));
+
+        let _entity = model_builder.spawn_monster(
+            commands,
+            monster,
+            monster_def,
+            Transform::from_translation(world_pos),
+        );
 
         // Spawn indicators (health, status, etc) - attached to the monster entity or separate?
         // The original code spawned them separately. Let's keep them separate for now but link them by ID.
@@ -160,14 +189,14 @@ fn spawn_entities_internal(
         // For simplicity and backward compat with the update system, I'll keep the indicator spawning logic here,
         // but I need to make sure I have the entity ID if I want to parent.
         // `spawn_monster` returns ID.
-        
+
         // Re-implement indicator spawning
         let hp_percent = if monster.hp_max > 0 {
             (monster.hp as f32 / monster.hp_max as f32).clamp(0.0, 1.0)
         } else {
             1.0
         };
-        
+
         // Spawn health indicator for damaged monsters
         if hp_percent < 1.0 && hp_percent > 0.0 {
             spawn_health_indicator(commands, monster, world_pos + Vec3::Y * 0.5, hp_percent);
@@ -385,10 +414,7 @@ fn spawn_floor_objects(
 
     for obj in &level.objects {
         if obj.location == nh_core::object::ObjectLocation::Floor {
-            objects_by_pos
-                .entry((obj.x, obj.y))
-                .or_default()
-                .push(obj);
+            objects_by_pos.entry((obj.x, obj.y)).or_default().push(obj);
         }
     }
 
@@ -399,22 +425,25 @@ fn spawn_floor_objects(
         if objects.len() == 1 {
             // Single object - spawn 3D model
             let obj = objects[0];
-            let entity = model_builder.spawn_object(commands, obj, Transform::from_translation(world_pos));
+            let entity =
+                model_builder.spawn_object(commands, obj, Transform::from_translation(world_pos));
 
             // Add marker components to the spawned entity
-            commands.entity(entity).insert((
-                FloorObjectMarker { object_id: obj.id },
-                map_pos,
-            ));
+            commands
+                .entity(entity)
+                .insert((FloorObjectMarker { object_id: obj.id }, map_pos));
         } else {
             // Multiple objects - spawn pile indicator
-            let entity = model_builder.spawn_pile(commands, objects.len(), Transform::from_translation(world_pos));
+            let entity = model_builder.spawn_pile(
+                commands,
+                objects.len(),
+                Transform::from_translation(world_pos),
+            );
 
             // Add marker components
-            commands.entity(entity).insert((
-                PileMarker { x, y },
-                map_pos,
-            ));
+            commands
+                .entity(entity)
+                .insert((PileMarker { x, y }, map_pos));
         }
     }
 }
@@ -548,7 +577,7 @@ fn update_monster_indicators(
         return;
     }
 
-    let monsters = nh_data::monsters::MONSTERS;
+    let monsters = nh_core::data::monsters::MONSTERS;
     let level = &game_state.0.current_level;
 
     // Clear old indicators
@@ -599,22 +628,22 @@ fn update_monster_indicators(
 /// Convert NetHack color index to Bevy Color
 fn nethack_color_to_bevy(color: u8) -> Color {
     match color {
-        0 => Color::BLACK,                   // CLR_BLACK
-        1 => Color::srgb(0.8, 0.0, 0.0),     // CLR_RED
-        2 => Color::srgb(0.0, 0.6, 0.0),     // CLR_GREEN
-        3 => Color::srgb(0.6, 0.4, 0.2),     // CLR_BROWN
-        4 => Color::srgb(0.0, 0.0, 0.8),     // CLR_BLUE
-        5 => Color::srgb(0.8, 0.0, 0.8),     // CLR_MAGENTA
-        6 => Color::srgb(0.0, 0.8, 0.8),     // CLR_CYAN
-        7 => Color::srgb(0.6, 0.6, 0.6),     // CLR_GRAY
-        8 => Color::srgb(0.3, 0.3, 0.3),     // CLR_NO_COLOR (dark gray)
-        9 => Color::srgb(1.0, 0.5, 0.0),     // CLR_ORANGE
-        10 => Color::srgb(0.0, 1.0, 0.0),    // CLR_BRIGHT_GREEN
-        11 => Color::srgb(1.0, 1.0, 0.0),    // CLR_YELLOW
-        12 => Color::srgb(0.3, 0.3, 1.0),    // CLR_BRIGHT_BLUE
-        13 => Color::srgb(1.0, 0.3, 1.0),    // CLR_BRIGHT_MAGENTA
-        14 => Color::srgb(0.3, 1.0, 1.0),    // CLR_BRIGHT_CYAN
-        15 => Color::WHITE,                  // CLR_WHITE
+        0 => Color::BLACK,                // CLR_BLACK
+        1 => Color::srgb(0.8, 0.0, 0.0),  // CLR_RED
+        2 => Color::srgb(0.0, 0.6, 0.0),  // CLR_GREEN
+        3 => Color::srgb(0.6, 0.4, 0.2),  // CLR_BROWN
+        4 => Color::srgb(0.0, 0.0, 0.8),  // CLR_BLUE
+        5 => Color::srgb(0.8, 0.0, 0.8),  // CLR_MAGENTA
+        6 => Color::srgb(0.0, 0.8, 0.8),  // CLR_CYAN
+        7 => Color::srgb(0.6, 0.6, 0.6),  // CLR_GRAY
+        8 => Color::srgb(0.3, 0.3, 0.3),  // CLR_NO_COLOR (dark gray)
+        9 => Color::srgb(1.0, 0.5, 0.0),  // CLR_ORANGE
+        10 => Color::srgb(0.0, 1.0, 0.0), // CLR_BRIGHT_GREEN
+        11 => Color::srgb(1.0, 1.0, 0.0), // CLR_YELLOW
+        12 => Color::srgb(0.3, 0.3, 1.0), // CLR_BRIGHT_BLUE
+        13 => Color::srgb(1.0, 0.3, 1.0), // CLR_BRIGHT_MAGENTA
+        14 => Color::srgb(0.3, 1.0, 1.0), // CLR_BRIGHT_CYAN
+        15 => Color::WHITE,               // CLR_WHITE
         _ => Color::WHITE,
     }
 }

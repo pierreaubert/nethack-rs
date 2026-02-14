@@ -18,7 +18,10 @@ pub struct EffectsPlugin;
 impl Plugin for EffectsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EffectsSettings>()
-            .add_systems(Startup, spawn_environmental_effects.after(super::map::spawn_map))
+            .add_systems(
+                Startup,
+                spawn_environmental_effects.after(super::map::spawn_map),
+            )
             .add_systems(
                 Update,
                 (
@@ -171,10 +174,8 @@ fn animate_water_ripples(
                     ..default()
                 },
                 TextColor(Color::srgba(0.3, 0.5, 0.8, 0.6)),
-                Transform::from_translation(
-                    world_pos + Vec3::new(offset_x, -0.25, offset_z),
-                )
-                .with_scale(Vec3::splat(0.01)),
+                Transform::from_translation(world_pos + Vec3::new(offset_x, -0.25, offset_z))
+                    .with_scale(Vec3::splat(0.01)),
             ));
         }
     }
@@ -234,10 +235,8 @@ fn animate_lava_bubbles(
                     ..default()
                 },
                 TextColor(Color::srgba(1.0, 0.5, 0.1, 0.8)),
-                Transform::from_translation(
-                    world_pos + Vec3::new(offset_x, -0.15, offset_z),
-                )
-                .with_scale(Vec3::splat(0.008)),
+                Transform::from_translation(world_pos + Vec3::new(offset_x, -0.15, offset_z))
+                    .with_scale(Vec3::splat(0.008)),
             ));
         }
     }
@@ -321,9 +320,7 @@ fn animate_fountain_spray(
 
         // Arc motion (gravity)
         let gravity = -3.0;
-        let pos = spray.start_pos
-            + spray.velocity * t
-            + Vec3::Y * 0.5 * gravity * t * t;
+        let pos = spray.start_pos + spray.velocity * t + Vec3::Y * 0.5 * gravity * t * t;
         transform.translation = pos;
 
         // Fade out

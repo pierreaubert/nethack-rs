@@ -87,7 +87,9 @@ fn spawn_camera(mut commands: Commands) {
         MainCamera,
         Camera3d::default(),
         Projection::Orthographic(OrthographicProjection {
-            scaling_mode: ScalingMode::FixedVertical { viewport_height: 30.0 },
+            scaling_mode: ScalingMode::FixedVertical {
+                viewport_height: 30.0,
+            },
             ..OrthographicProjection::default_3d()
         }),
         Transform::from_xyz(40.0, 40.0, 10.5).looking_at(Vec3::new(40.0, 0.0, 10.5), Vec3::Z),
@@ -144,8 +146,8 @@ fn handle_mouse_input(
     }
 
     // Handle panning with middle mouse button or right mouse button
-    let panning = mouse_button.pressed(MouseButton::Middle)
-        || mouse_button.pressed(MouseButton::Right);
+    let panning =
+        mouse_button.pressed(MouseButton::Middle) || mouse_button.pressed(MouseButton::Right);
     control.is_panning = panning;
 
     if panning {
@@ -202,25 +204,27 @@ fn update_camera_projection(
             // Apply zoom to viewport height (larger = zoomed out)
             let height = 30.0 * control.zoom;
             *projection = Projection::Orthographic(OrthographicProjection {
-                scaling_mode: ScalingMode::FixedVertical { viewport_height: height },
+                scaling_mode: ScalingMode::FixedVertical {
+                    viewport_height: height,
+                },
                 ..OrthographicProjection::default_3d()
             });
         }
         CameraMode::Isometric => {
             let height = 25.0 * control.zoom;
             *projection = Projection::Orthographic(OrthographicProjection {
-                scaling_mode: ScalingMode::FixedVertical { viewport_height: height },
+                scaling_mode: ScalingMode::FixedVertical {
+                    viewport_height: height,
+                },
                 ..OrthographicProjection::default_3d()
             });
         }
         CameraMode::ThirdPerson | CameraMode::FirstPerson => {
             // For perspective, zoom affects FOV
             let base_fov = 60.0_f32.to_radians();
-            let fov = (base_fov * control.zoom).clamp(20.0_f32.to_radians(), 120.0_f32.to_radians());
-            *projection = Projection::Perspective(PerspectiveProjection {
-                fov,
-                ..default()
-            });
+            let fov =
+                (base_fov * control.zoom).clamp(20.0_f32.to_radians(), 120.0_f32.to_radians());
+            *projection = Projection::Perspective(PerspectiveProjection { fov, ..default() });
         }
     }
 }

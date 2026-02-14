@@ -6,7 +6,7 @@ mod map;
 mod messages;
 mod status;
 
-pub use help::{default_options, HelpWidget, OptionItem, OptionValue, OptionsWidget};
+pub use help::{HelpWidget, OptionItem, OptionValue, OptionsWidget, default_options};
 pub use inventory::{InventoryWidget, SelectionItem, SelectionMenu};
 pub use map::MapWidget;
 pub use messages::MessagesWidget;

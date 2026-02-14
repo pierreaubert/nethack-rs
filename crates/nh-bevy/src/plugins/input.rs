@@ -63,9 +63,9 @@ fn keyboard_to_command(
         // If no items match, we could show a message, but for now just open empty or don't open?
         // Standard NetHack behavior: "You don't have anything to eat."
         if filtered.is_empty() {
-             // For now we just don't open, maybe log?
-             // Ideally we'd show a flash message.
-             // But let's open it anyway so user sees "No applicable items found"
+            // For now we just don't open, maybe log?
+            // Ideally we'd show a flash message.
+            // But let's open it anyway so user sees "No applicable items found"
         }
 
         picker_state.active = true;
@@ -79,7 +79,10 @@ fn keyboard_to_command(
     // invert North/South and diagonal directions for arrow keys to feel natural
     let transform_for_camera = |dir: Direction| -> Direction {
         match camera_mode.get() {
-            CameraMode::TopDown | CameraMode::Isometric | CameraMode::ThirdPerson | CameraMode::FirstPerson => {
+            CameraMode::TopDown
+            | CameraMode::Isometric
+            | CameraMode::ThirdPerson
+            | CameraMode::FirstPerson => {
                 // In all 3D views, +Z is "forward" visually, which is South in map coords
                 // So we swap North↔South for intuitive up/down arrow behavior
                 match dir {
@@ -128,9 +131,9 @@ fn keyboard_to_command(
 
     if let Some(dir) = direction {
         if input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight) {
-             commands.send(GameCommand(Command::Run(dir)));
+            commands.send(GameCommand(Command::Run(dir)));
         } else {
-             commands.send(GameCommand(Command::Move(dir)));
+            commands.send(GameCommand(Command::Move(dir)));
         }
         return;
     }
@@ -166,18 +169,21 @@ fn keyboard_to_command(
         // Ctrl+D - kick (needs direction)
         dir_state.active = true;
         dir_state.action = Some(DirectionAction::Kick);
-    } else if input.just_pressed(KeyCode::KeyF) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)) {
+    } else if input.just_pressed(KeyCode::KeyF)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
         // 'F' - fight (needs direction)
         dir_state.active = true;
         dir_state.action = Some(DirectionAction::Fight);
     } else if input.just_pressed(KeyCode::Backslash) {
         // '\' - discoveries
         commands.send(GameCommand(Command::Discoveries));
-    } else if input.just_pressed(KeyCode::KeyV) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)) {
+    } else if input.just_pressed(KeyCode::KeyV)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
         // 'V' - history
         commands.send(GameCommand(Command::History));
     }
-    
     // Item commands
     else if input.just_pressed(KeyCode::KeyE) {
         open_picker(PickerAction::Eat);
@@ -199,7 +205,10 @@ fn keyboard_to_command(
         open_picker(PickerAction::PutOn);
     } else if input.just_pressed(KeyCode::KeyR) && input.pressed(KeyCode::ShiftLeft) {
         open_picker(PickerAction::Remove);
-    } else if input.just_pressed(KeyCode::KeyD) && !input.pressed(KeyCode::ShiftLeft) && !input.pressed(KeyCode::ControlLeft) {
+    } else if input.just_pressed(KeyCode::KeyD)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ControlLeft)
+    {
         open_picker(PickerAction::Drop);
     } else if input.just_pressed(KeyCode::KeyT) && !input.pressed(KeyCode::ShiftLeft) {
         open_picker(PickerAction::Throw);

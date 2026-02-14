@@ -70,7 +70,9 @@ pub fn do_pickup(state: &mut GameState) -> ActionResult {
     let y = state.player.pos.y;
 
     // Get IDs of objects at this position
-    let object_ids: Vec<_> = state.current_level.objects_at(x, y)
+    let object_ids: Vec<_> = state
+        .current_level
+        .objects_at(x, y)
         .iter()
         .map(|o| o.id)
         .collect();
@@ -106,6 +108,22 @@ pub fn do_pickup(state: &mut GameState) -> ActionResult {
     ActionResult::Success
 }
 
+pub fn dopickup(state: &mut GameState) -> ActionResult {
+    do_pickup(state)
+}
+
+pub fn pickup(state: &mut GameState) {
+    do_pickup(state);
+}
+
+pub fn pickup_object(state: &mut GameState, obj: Object) {
+    state.add_to_inventory(obj);
+}
+
+pub fn pickup_checks() -> bool {
+    true
+}
+
 /// Drop an item from inventory
 pub fn do_drop(state: &mut GameState, obj_letter: char) -> ActionResult {
     let obj = match state.get_inventory_item(obj_letter) {
@@ -131,9 +149,310 @@ pub fn do_drop(state: &mut GameState, obj_letter: char) -> ActionResult {
     }
 }
 
+pub fn dodrop(state: &mut GameState, obj_letter: char) -> ActionResult {
+    do_drop(state, obj_letter)
+}
+
+pub fn drop(state: &mut GameState, obj: Object) {
+    let x = state.player.pos.x;
+    let y = state.player.pos.y;
+    state.current_level.add_object(obj, x, y);
+}
+
+pub fn dropp(state: &mut GameState, obj_letter: char) {
+    do_drop(state, obj_letter);
+}
+
+/// Get list of inventory items that can be dropped
+pub fn droppables(state: &GameState) -> Vec<char> {
+    state
+        .inventory
+        .iter()
+        .filter(|obj| obj.worn_mask == 0 && !obj.is_wielded())
+        .map(|obj| obj.inv_letter)
+        .collect()
+}
+
+pub fn drop_to(state: &mut GameState, obj: Object, x: i8, y: i8) {
+    state.current_level.add_object(obj, x, y);
+}
+
+pub fn drop_upon_death(state: &mut GameState) {
+    // Drop all inventory
+    while let Some(obj) = state.inventory.pop() {
+        drop(state, obj);
+    }
+}
+
+pub fn dropx(state: &mut GameState, obj: Object) {
+    drop(state, obj);
+}
+
+pub fn dropy(state: &mut GameState, obj: Object) {
+    drop(state, obj);
+}
+
+pub fn dropz(state: &mut GameState, obj: Object, with_message: bool) {
+    if with_message {
+        state.message(format!("You drop {}.", obj.display_name()));
+    }
+    drop(state, obj);
+}
+
+pub fn menu_drop() {
+    // Stub
+}
+
+pub fn doddrop() {
+    // Stub: Drop multiple
+}
+
+// ============================================================================
+// Container Looting (doloot from NetHack)
+// ============================================================================
+
+/// Loot items from a container in the player's inventory
+pub fn do_loot_container(state: &mut GameState, obj_letter: char) -> ActionResult {
+    // Get container from inventory
+    let container = match state.get_inventory_item(obj_letter) {
+        Some(o) => o,
+        None => return ActionResult::Failed("You don't have that item.".to_string()),
+    };
+
+    // Check if it's actually a container (Tool class with contents)
+    if !matches!(container.class, ObjectClass::Tool) {
+        return ActionResult::Failed("That's not a container.".to_string());
+    }
+
+    // For now, show what's inside
+    if container.contents.is_empty() {
+        state.message(format!("The {} is empty.", container.display_name()));
+        return ActionResult::NoTime;
+    }
+
+    // List contents
+    let contents_str = container
+        .contents
+        .iter()
+        .map(|obj| obj.display_name())
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    state.message(format!(
+        "The {} contains: {}",
+        container.display_name(),
+        contents_str
+    ));
+
+    ActionResult::Success
+}
+
+pub fn doloot(state: &mut GameState, obj_letter: char) -> ActionResult {
+    do_loot_container(state, obj_letter)
+}
+
+pub fn able_to_loot() -> bool {
+    true
+}
+
+pub fn do_loot_cont() {
+    // Stub
+}
+
+pub fn loot_mon() {
+    // Stub
+}
+
+pub fn loot_xname() -> String {
+    "item".to_string()
+}
+
+pub fn menu_loot() {
+    // Stub
+}
+
+pub fn traditional_loot() {
+    // Stub
+}
+
+pub fn reverse_loot() {
+    // Stub
+}
+
+/// Put an item from inventory into a container
+pub fn in_container(
+    state: &mut GameState,
+    container_letter: char,
+    item_letter: char,
+) -> ActionResult {
+    // Get the item
+    let item_idx = state
+        .inventory
+        .iter()
+        .position(|o| o.inv_letter == item_letter);
+
+    let item_idx = match item_idx {
+        Some(i) => i,
+        None => return ActionResult::Failed("You don't have that item.".to_string()),
+    };
+
+    // Check if item is worn/wielded
+    if state.inventory[item_idx].worn_mask != 0 || state.inventory[item_idx].is_wielded() {
+        return ActionResult::Failed("You'll have to take it off first.".to_string());
+    }
+
+    // Get the container
+    let container_idx = state
+        .inventory
+        .iter()
+        .position(|o| o.inv_letter == container_letter);
+
+    let container_idx = match container_idx {
+        Some(i) => i,
+        None => return ActionResult::Failed("You don't have that container.".to_string()),
+    };
+
+    // Can't put container in itself
+    if container_idx == item_idx {
+        return ActionResult::Failed("You can't put something inside itself.".to_string());
+    }
+
+    // Remove item and add to container
+    let item = state.inventory.remove(item_idx);
+    let item_name = item.display_name();
+
+    // Need to re-find container index after removal
+    let container_idx = state
+        .inventory
+        .iter()
+        .position(|o| o.inv_letter == container_letter)
+        .unwrap();
+
+    let container = &mut state.inventory[container_idx];
+    let container_name = container.display_name();
+    container.contents.push(item);
+
+    state.message(format!(
+        "You put the {} in the {}.",
+        item_name, container_name
+    ));
+    ActionResult::Success
+}
+
+/// Take an item out of a container into inventory
+pub fn out_container(
+    state: &mut GameState,
+    container_letter: char,
+    item_index: usize,
+) -> ActionResult {
+    extract_from_container(state, container_letter, item_index)
+}
+
+pub fn explain_container_prompt() {
+    // Stub
+}
+
+pub fn tipcontainer() {
+    // Stub
+}
+
+pub fn picked_container() {
+    // Stub
+}
+
+pub fn dropped_container() {
+    // Stub
+}
+
+pub fn container_at(state: &GameState, x: i8, y: i8) -> bool {
+    state
+        .current_level
+        .objects_at(x, y)
+        .iter()
+        .any(|o| matches!(o.class, ObjectClass::Tool))
+}
+
+pub fn container_gone() {
+    // Stub
+}
+
+pub fn container_impact_dmg() {
+    // Stub
+}
+
+pub fn get_container_location() {
+    // Stub
+}
+
+pub fn unknwn_contnr_contents() {
+    // Stub
+}
+
+pub fn contained_stats() {
+    // Stub
+}
+
+/// Count items in a container
+pub fn count_contents(container: &Object) -> usize {
+    container.contents.len()
+}
+
+/// Extract an item from a container
+pub fn extract_from_container(
+    state: &mut GameState,
+    container_letter: char,
+    item_index: usize,
+) -> ActionResult {
+    let container = match state.get_inventory_item_mut(container_letter) {
+        Some(o) => o,
+        None => return ActionResult::Failed("You don't have that container.".to_string()),
+    };
+
+    if item_index >= container.contents.len() {
+        return ActionResult::Failed("That item is not in the container.".to_string());
+    }
+
+    // Extract item and add to inventory
+    let extracted = container.contents.remove(item_index);
+    let item_name = extracted.display_name();
+
+    state.add_to_inventory(extracted);
+    state.message(format!("You extract the {} from the container.", item_name));
+
+    ActionResult::Success
+}
+
 // ============================================================================
 // Autopickup system
 // ============================================================================
+
+pub fn autopick() {
+    // Stub
+}
+
+pub fn autopick_testobj() {
+    // Stub
+}
+
+pub fn autoquiver() {
+    // Stub
+}
+
+pub fn check_autopickup_exceptions() {
+    // Stub
+}
+
+pub fn add_autopickup_exception() {
+    // Stub
+}
+
+pub fn remove_autopickup_exception() {
+    // Stub
+}
+
+pub fn free_autopickup_exceptions() {
+    // Stub
+}
 
 /// Pickup burden threshold (how much load to allow before stopping autopickup)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -158,9 +477,20 @@ impl PickupBurden {
     pub fn allows_encumbrance(&self, enc: Encumbrance) -> bool {
         match self {
             PickupBurden::Unencumbered => enc == Encumbrance::Unencumbered,
-            PickupBurden::Burdened => matches!(enc, Encumbrance::Unencumbered | Encumbrance::Burdened),
-            PickupBurden::Stressed => matches!(enc, Encumbrance::Unencumbered | Encumbrance::Burdened | Encumbrance::Stressed),
-            PickupBurden::Strained => matches!(enc, Encumbrance::Unencumbered | Encumbrance::Burdened | Encumbrance::Stressed | Encumbrance::Strained),
+            PickupBurden::Burdened => {
+                matches!(enc, Encumbrance::Unencumbered | Encumbrance::Burdened)
+            }
+            PickupBurden::Stressed => matches!(
+                enc,
+                Encumbrance::Unencumbered | Encumbrance::Burdened | Encumbrance::Stressed
+            ),
+            PickupBurden::Strained => matches!(
+                enc,
+                Encumbrance::Unencumbered
+                    | Encumbrance::Burdened
+                    | Encumbrance::Stressed
+                    | Encumbrance::Strained
+            ),
             PickupBurden::Overtaxed => enc != Encumbrance::Overloaded,
             PickupBurden::Overloaded => true,
         }
@@ -226,11 +556,7 @@ pub fn should_autopickup(
 ///
 /// # Returns
 /// True if picking up would NOT exceed the burden threshold (safe to pick up)
-pub fn within_pickup_burden(
-    obj: &Object,
-    state: &GameState,
-    pickup_burden: PickupBurden,
-) -> bool {
+pub fn within_pickup_burden(obj: &Object, state: &GameState, pickup_burden: PickupBurden) -> bool {
     // Calculate what encumbrance would be after picking up
     let current_weight: u32 = state.inventory.iter().map(|o| o.weight).sum();
     let new_weight = current_weight + obj.weight;
@@ -296,7 +622,9 @@ pub fn do_autopickup(
     let y = state.player.pos.y;
 
     // Get IDs of objects to potentially pick up
-    let object_ids: Vec<_> = state.current_level.objects_at(x, y)
+    let object_ids: Vec<_> = state
+        .current_level
+        .objects_at(x, y)
         .iter()
         .filter(|obj| {
             should_autopickup(obj, true, autopickup_types, false)
@@ -333,7 +661,11 @@ pub fn do_autopickup(
     // Generate pickup messages
     if !picked_up.is_empty() {
         if picked_up.len() == 1 {
-            messages.push(format!("{} - {}.", state.inventory.last().map(|o| o.inv_letter).unwrap_or('?'), picked_up[0]));
+            messages.push(format!(
+                "{} - {}.",
+                state.inventory.last().map(|o| o.inv_letter).unwrap_or('?'),
+                picked_up[0]
+            ));
         } else {
             messages.push(format!("You pick up {} items.", picked_up.len()));
         }
@@ -353,10 +685,7 @@ pub fn do_autopickup(
 ///
 /// # Returns
 /// True if there are items that would be autopicked up
-pub fn has_autopickup_items(
-    state: &GameState,
-    autopickup_types: &str,
-) -> bool {
+pub fn has_autopickup_items(state: &GameState, autopickup_types: &str) -> bool {
     if !state.flags.autopickup || state.context.nopick {
         return false;
     }
@@ -364,7 +693,9 @@ pub fn has_autopickup_items(
     let x = state.player.pos.x;
     let y = state.player.pos.y;
 
-    state.current_level.objects_at(x, y)
+    state
+        .current_level
+        .objects_at(x, y)
         .iter()
         .any(|obj| matches_autopickup_type(obj, autopickup_types))
 }
@@ -389,11 +720,78 @@ pub fn has_autopickup_items(
 /// A validated string with only valid class symbols
 pub fn parse_autopickup_types(types: &str) -> String {
     let valid_symbols: &str = "$?!/\"=%()+[*";
-    types.chars().filter(|c| valid_symbols.contains(*c)).collect()
+    types
+        .chars()
+        .filter(|c| valid_symbols.contains(*c))
+        .collect()
 }
 
 /// Default autopickup types (gold, scrolls, potions, wands, amulets, rings)
 pub const DEFAULT_AUTOPICKUP_TYPES: &str = "$?!/\"=";
+
+pub fn can_reach_floor() -> bool {
+    true
+}
+
+pub fn could_reach_item() -> bool {
+    true
+}
+
+pub fn collect_obj_classes() {
+    // Stub
+}
+
+pub fn add_valid_menu_class() {
+    // Stub
+}
+
+pub fn allow_all() {
+    // Stub
+}
+
+pub fn allow_cat_no_uchain() {
+    // Stub
+}
+
+pub fn allow_category() {
+    // Stub
+}
+
+pub fn ckvalidcat() -> bool {
+    true
+}
+
+pub fn query_category() {
+    // Stub
+}
+
+pub fn query_objlist() {
+    // Stub
+}
+
+pub fn askchain() {
+    // Stub
+}
+
+pub fn ggetobj() {
+    // Stub
+}
+
+pub fn getobj() {
+    // Stub
+}
+
+pub fn oselect() {
+    // Stub
+}
+
+pub fn this_type_only() {
+    // Stub
+}
+
+pub fn n_or_more() {
+    // Stub
+}
 
 #[cfg(test)]
 mod tests {
@@ -431,7 +829,7 @@ mod tests {
     #[test]
     fn test_pickup_item_from_floor() {
         let mut state = GameState::new(GameRng::from_entropy());
-        
+
         // Place an item on the floor at player position
         let mut obj = Object::default();
         obj.class = ObjectClass::Food;
@@ -439,15 +837,15 @@ mod tests {
         let x = state.player.pos.x;
         let y = state.player.pos.y;
         state.current_level.add_object(obj, x, y);
-        
+
         // Verify item is on floor
         assert_eq!(state.current_level.objects_at(x, y).len(), 1);
         assert!(state.inventory.is_empty());
-        
+
         // Pick up
         let result = do_pickup(&mut state);
         assert!(matches!(result, ActionResult::Success));
-        
+
         // Verify item moved to inventory
         assert!(state.current_level.objects_at(x, y).is_empty());
         assert_eq!(state.inventory.len(), 1);
@@ -457,25 +855,25 @@ mod tests {
     #[test]
     fn test_drop_item_to_floor() {
         let mut state = GameState::new(GameRng::from_entropy());
-        
+
         // Add item to inventory
         let mut obj = Object::default();
         obj.class = ObjectClass::Food;
         obj.name = Some("bread".to_string());
         state.add_to_inventory(obj);
-        
+
         let letter = state.inventory[0].inv_letter;
         let x = state.player.pos.x;
         let y = state.player.pos.y;
-        
+
         // Verify item is in inventory
         assert_eq!(state.inventory.len(), 1);
         assert!(state.current_level.objects_at(x, y).is_empty());
-        
+
         // Drop
         let result = do_drop(&mut state, letter);
         assert!(matches!(result, ActionResult::Success));
-        
+
         // Verify item moved to floor
         assert!(state.inventory.is_empty());
         assert_eq!(state.current_level.objects_at(x, y).len(), 1);

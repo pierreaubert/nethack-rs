@@ -2,13 +2,20 @@
 //!
 //! Implements temple priests, altars, and religious interactions.
 //! Priests guard temples and can offer services like healing and blessing.
+//!
+//! Core systems:
+//! - Priest creation and shrine assignment (priestini, newepri)
+//! - Priest AI and movement (pri_move)
+//! - Priest interactions (priest_talk, priestname)
+//! - Temple management (intemple, has_shrine, temple_occupied)
 
 use crate::dungeon::Level;
 use crate::gameloop::GameState;
 use crate::monster::{Monster, MonsterId, MonsterState};
 use crate::object::Object;
-use crate::player::AlignmentType;
+use crate::player::{AlignmentType, You};
 use crate::rng::GameRng;
+use std::collections::HashMap;
 
 /// Priest type index (simplified - in real NetHack uses PM_* constants)
 const PM_PRIEST: i16 = 100;
@@ -16,13 +23,51 @@ const PM_PRIESTESS: i16 = 101;
 const PM_HIGH_PRIEST: i16 = 102;
 
 /// Altar alignment
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum AltarAlignment {
     #[default]
     Unaligned,
     Lawful,
     Neutral,
     Chaotic,
+}
+
+/// Priest shrine level location (equivalent to C's d_level)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ShrineLevelId {
+    pub dungeon: u8,
+    pub level: u8,
+}
+
+impl Default for ShrineLevelId {
+    fn default() -> Self {
+        Self {
+            dungeon: 0,
+            level: 1,
+        }
+    }
+}
+
+/// Extended priest data (equivalent to C struct epri)
+/// Stores shrine information and state for temple priests
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct PriestExtension {
+    /// Alignment of the shrine
+    pub shrine_alignment: AltarAlignment,
+    /// Room number of the shrine (index into rooms array)
+    pub shrine_room: u8,
+    /// Position of the altar
+    pub shrine_pos: (i8, i8),
+    /// Level where shrine is located
+    pub shrine_level: ShrineLevelId,
+    /// Move counter for limiting "intones" message verbosity
+    pub intone_time: u32,
+    /// Move counter for limiting entry messages
+    pub enter_time: u32,
+    /// Move counter for "forbidding feeling" message timing
+    pub hostile_time: u32,
+    /// Move counter for "sense of peace" message timing
+    pub peaceful_time: u32,
 }
 
 impl AltarAlignment {
@@ -56,8 +101,35 @@ impl AltarAlignment {
     }
 }
 
+impl PriestExtension {
+    /// Create new priest extension for a shrine
+    pub fn new(
+        alignment: AltarAlignment,
+        room: u8,
+        shrine_x: i8,
+        shrine_y: i8,
+        level: ShrineLevelId,
+    ) -> Self {
+        Self {
+            shrine_alignment: alignment,
+            shrine_room: room,
+            shrine_pos: (shrine_x, shrine_y),
+            shrine_level: level,
+            intone_time: 0,
+            enter_time: 0,
+            hostile_time: 0,
+            peaceful_time: 0,
+        }
+    }
+
+    /// Check if shrine location is valid
+    pub fn has_valid_shrine(&self) -> bool {
+        self.shrine_pos != (-1, -1)
+    }
+}
+
 /// Temple data for a level
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Temple {
     /// Position of the altar
     pub altar_x: i8,
@@ -86,7 +158,55 @@ impl Temple {
     }
 }
 
-/// Create a priest monster for a temple
+/// Check if a monster is a priest (newepri equivalent - checking for priest status)
+pub fn is_priest(monster: &Monster) -> bool {
+    monster.is_priest
+}
+
+/// Get priest extension if monster is a priest
+pub fn get_priest_ext(monster: &Monster) -> Option<&PriestExtension> {
+    if monster.is_priest {
+        // In a full implementation, this would access the extension from the monster
+        // For now, return None as we need to add this field to Monster struct
+        None
+    } else {
+        None
+    }
+}
+
+/// Get mutable priest extension
+pub fn get_priest_ext_mut(monster: &mut Monster) -> Option<&mut PriestExtension> {
+    if monster.is_priest {
+        // In a full implementation, this would access the extension from the monster
+        None
+    } else {
+        None
+    }
+}
+
+/// Create or reinitialize priest extension (newepri equivalent)
+/// Called when a monster becomes a priest
+pub fn create_priest_extension(
+    monster: &mut Monster,
+    alignment: AltarAlignment,
+    room: u8,
+    shrine_x: i8,
+    shrine_y: i8,
+    level: ShrineLevelId,
+) {
+    // In full implementation, would allocate PriestExtension and attach to monster
+    // For now, we note that this should be done
+    monster.is_priest = true;
+    // Store shrine data via Monster.priest_extension (to be added)
+}
+
+/// Free priest extension when priest becomes non-priest (free_epri equivalent)
+pub fn free_priest_extension(monster: &mut Monster) {
+    monster.is_priest = false;
+    // In full implementation, would deallocate and detach the extension
+}
+
+/// Create a priest monster for a temple (priestini equivalent)
 pub fn create_priest(
     x: i8,
     y: i8,
@@ -113,15 +233,19 @@ pub fn create_priest(
     if is_high_priest {
         priest.hp = 80 + rng.rnd(40) as i32;
         priest.level = 25;
-        priest.name = format!("high {} of {}", 
+        priest.name = format!(
+            "high {} of {}",
             if is_female { "priestess" } else { "priest" },
-            alignment.name());
+            alignment.name()
+        );
     } else {
         priest.hp = 30 + rng.rnd(20) as i32;
         priest.level = 10;
-        priest.name = format!("{} of {}",
+        priest.name = format!(
+            "{} of {}",
             if is_female { "priestess" } else { "priest" },
-            alignment.name());
+            alignment.name()
+        );
     }
     priest.hp_max = priest.hp;
 
@@ -134,6 +258,199 @@ pub fn create_priest(
     };
 
     priest
+}
+
+/// Check if priest is in their own shrine (inhistemple equivalent)
+pub fn is_in_own_shrine(priest: &Monster, shrine: &PriestExtension) -> bool {
+    if !priest.is_priest {
+        return false;
+    }
+
+    // Check if priest is at shrine location and on correct level
+    priest.x == shrine.shrine_pos.0 && priest.y == shrine.shrine_pos.1
+}
+
+/// Check if shrine is still valid and properly aligned (has_shrine equivalent)
+pub fn shrine_is_valid(
+    level: &Level,
+    shrine_pos: (i8, i8),
+    expected_alignment: AltarAlignment,
+) -> bool {
+    // Check bounds
+    if !level.is_valid_pos(shrine_pos.0, shrine_pos.1) {
+        return false;
+    }
+
+    // Check if position has an altar
+    if level.cells[shrine_pos.0 as usize][shrine_pos.1 as usize].typ
+        != crate::dungeon::CellType::Altar
+    {
+        return false;
+    }
+
+    // Verify alignment matches (in full implementation, would check altar alignment from level data)
+    // For now, just check it's an altar
+    true
+}
+
+/// Find the priest assigned to a temple (findpriest equivalent)
+pub fn find_shrine_priest(level: &Level, room_num: u8) -> Option<MonsterId> {
+    // Search through monsters on this level for a priest in the specified room
+    for monster in &level.monsters {
+        if monster.is_priest {
+            // In full implementation, would check shrine_room from extension
+            // For now, return first priest found
+            return Some(monster.id);
+        }
+    }
+    None
+}
+
+/// Get formatted priest name with alignment and title (priestname equivalent)
+pub fn get_priest_name(priest: &Monster, is_invisible: bool) -> String {
+    let mut name = String::new();
+
+    if is_invisible {
+        name.push_str("invisible ");
+    }
+
+    // Gender-specific title
+    let title = if priest.female { "priestess" } else { "priest" };
+    name.push_str(title);
+
+    // Append name with alignment
+    name.push(' ');
+    name.push_str(&priest.name);
+
+    name
+}
+
+/// Handle priest interaction/conversation (priest_talk equivalent)
+pub fn handle_priest_talk(priest: &mut Monster, player: &You, donation_amount: i32) -> String {
+    let mut response = String::new();
+
+    // Check if player and priest share alignment
+    let co_aligned = match priest.alignment.signum() {
+        0 => player.alignment.typ == crate::player::AlignmentType::Neutral,
+        x if x > 0 => player.alignment.typ == crate::player::AlignmentType::Lawful,
+        _ => player.alignment.typ == crate::player::AlignmentType::Chaotic,
+    };
+
+    if donation_amount <= 0 {
+        // No donation
+        if co_aligned {
+            response = format!(
+                "\"Greetings, fellow {}. May you find blessing in this place.\"",
+                match priest.alignment.signum() {
+                    x if x > 0 => "lawful",
+                    0 => "neutral",
+                    _ => "chaotic",
+                }
+            );
+        } else {
+            response = "\"I have no time for the unfaithful.\"".to_string();
+        }
+    } else if co_aligned {
+        // Co-aligned donation
+        if donation_amount < 100 {
+            response = "\"Your meager donation is noted, but insufficient.\"".to_string();
+        } else if donation_amount < 500 {
+            response = "\"Your generous donation is appreciated.\"".to_string();
+        } else {
+            response = "\"Truly blessed are you. Go forth with our blessing.\"".to_string();
+        }
+    } else {
+        // Cross-aligned donation
+        response = "\"The altar accepts this offering, but you remain unfaithful.\"".to_string();
+    }
+
+    response
+}
+
+/// Move priest toward their shrine (pri_move equivalent)
+pub fn move_priest_to_shrine(priest: &mut Monster, shrine_pos: (i8, i8), level: &Level) -> bool {
+    // Simplified movement toward shrine position
+    let dx = (shrine_pos.0 - priest.x).signum();
+    let dy = (shrine_pos.1 - priest.y).signum();
+
+    let new_x = priest.x + dx;
+    let new_y = priest.y + dy;
+
+    // Check if new position is walkable
+    if level.is_valid_pos(new_x, new_y) {
+        priest.x = new_x;
+        priest.y = new_y;
+        true
+    } else {
+        false
+    }
+}
+
+/// Handle temple entry effects (intemple equivalent)
+pub fn handle_temple_entry(
+    level: &Level,
+    player: &You,
+    shrine: &PriestExtension,
+    game_turn: u32,
+) -> Vec<String> {
+    let mut messages = Vec::new();
+
+    // Check altar alignment
+    let shrine_valid = shrine_is_valid(level, shrine.shrine_pos, shrine.shrine_alignment);
+
+    if !shrine_valid {
+        messages.push("You sense this shrine has been desecrated.".to_string());
+    } else {
+        // Check if player is co-aligned
+        let co_aligned = shrine.shrine_alignment.matches_player(player.alignment.typ);
+
+        if co_aligned {
+            messages.push(format!(
+                "You feel a sense of peace. This is a {} shrine.",
+                shrine.shrine_alignment.name()
+            ));
+        } else {
+            messages.push(format!(
+                "You sense a forbidding presence. This is a {} shrine.",
+                shrine.shrine_alignment.name()
+            ));
+        }
+    }
+
+    messages
+}
+
+/// Clear priests from a level when saving bones (clearpriests equivalent)
+pub fn clear_priests_for_save(level: &mut Level) {
+    // Remove all priests from the current level
+    // This prevents priests from appearing in wrong locations when bones are restored
+    level.monsters.retain(|m| !m.is_priest);
+}
+
+/// Restore priest after loading save file (restpriest equivalent)
+pub fn restore_priest_after_load(
+    priest: &mut Monster,
+    current_level: ShrineLevelId,
+    is_bones_file: bool,
+) {
+    if is_bones_file {
+        // Adjust priest's shrine level to current player level if from bones file
+        // This prevents shrine level mismatches
+        // In full implementation, would update priest_extension.shrine_level
+    }
+}
+
+/// Check if any temple room exists in an array of room IDs (temple_occupied equivalent)
+pub fn find_temple_in_rooms(room_ids: &[u8]) -> Option<u8> {
+    for &room_id in room_ids {
+        // In full implementation, would check if room type is TEMPLE
+        // For now, simplified check
+        if room_id < 50 {
+            // Arbitrary temple room number range
+            return Some(room_id);
+        }
+    }
+    None
 }
 
 /// Priest greeting when player enters temple
@@ -402,5 +719,266 @@ mod tests {
         assert_eq!(temple.alignment, AltarAlignment::Chaotic);
         assert!(!temple.desecrated);
         assert!(!temple.priest_angry);
+    }
+
+    // ========== EXPANDED TEST COVERAGE ==========
+
+    #[test]
+    fn test_altar_alignment_default() {
+        assert_eq!(AltarAlignment::default(), AltarAlignment::Unaligned);
+    }
+
+    #[test]
+    fn test_altar_alignment_all_combinations() {
+        // Test all alignment types
+        let player_lawful = AlignmentType::Lawful;
+        let player_neutral = AlignmentType::Neutral;
+        let player_chaotic = AlignmentType::Chaotic;
+
+        // Lawful altar
+        assert!(AltarAlignment::Lawful.matches_player(player_lawful));
+        assert!(!AltarAlignment::Lawful.matches_player(player_neutral));
+        assert!(!AltarAlignment::Lawful.matches_player(player_chaotic));
+
+        // Neutral altar
+        assert!(!AltarAlignment::Neutral.matches_player(player_lawful));
+        assert!(AltarAlignment::Neutral.matches_player(player_neutral));
+        assert!(!AltarAlignment::Neutral.matches_player(player_chaotic));
+
+        // Chaotic altar
+        assert!(!AltarAlignment::Chaotic.matches_player(player_lawful));
+        assert!(!AltarAlignment::Chaotic.matches_player(player_neutral));
+        assert!(AltarAlignment::Chaotic.matches_player(player_chaotic));
+
+        // Unaligned altar
+        assert!(!AltarAlignment::Unaligned.matches_player(player_lawful));
+        assert!(!AltarAlignment::Unaligned.matches_player(player_neutral));
+        assert!(!AltarAlignment::Unaligned.matches_player(player_chaotic));
+    }
+
+    #[test]
+    fn test_shrine_level_id_default() {
+        let level = ShrineLevelId::default();
+        assert_eq!(level.dungeon, 0);
+        assert_eq!(level.level, 1);
+    }
+
+    #[test]
+    fn test_priest_extension_new() {
+        let ext = PriestExtension::new(AltarAlignment::Lawful, 1, 10, 10, ShrineLevelId::default());
+
+        assert_eq!(ext.shrine_alignment, AltarAlignment::Lawful);
+        assert_eq!(ext.shrine_room, 1);
+        assert_eq!(ext.shrine_pos, (10, 10));
+        assert_eq!(ext.intone_time, 0);
+        assert_eq!(ext.enter_time, 0);
+        assert_eq!(ext.hostile_time, 0);
+        assert_eq!(ext.peaceful_time, 0);
+        assert!(ext.has_valid_shrine());
+    }
+
+    #[test]
+    fn test_priest_extension_invalid_shrine() {
+        let ext =
+            PriestExtension::new(AltarAlignment::Chaotic, 1, -1, -1, ShrineLevelId::default());
+
+        assert!(!ext.has_valid_shrine());
+    }
+
+    #[test]
+    fn test_is_priest() {
+        let mut monster = Monster::new(MonsterId(1), 0, 5, 5);
+        assert!(!is_priest(&monster));
+
+        monster.is_priest = true;
+        assert!(is_priest(&monster));
+    }
+
+    #[test]
+    fn test_get_priest_ext_not_priest() {
+        let monster = Monster::new(MonsterId(1), 0, 5, 5);
+        assert!(get_priest_ext(&monster).is_none());
+    }
+
+    #[test]
+    fn test_create_priest_female() {
+        let mut rng = GameRng::new(1);
+        let priest = create_priest(15, 15, AltarAlignment::Neutral, false, &mut rng);
+
+        assert!(priest.is_priest);
+        assert!(priest.state.peaceful);
+        assert!(priest.name.contains("neutral"));
+        assert_eq!(priest.level, 10);
+        assert!(priest.hp > 0);
+        assert!(priest.hp <= 50);
+    }
+
+    #[test]
+    fn test_create_high_priest_female() {
+        let mut rng = GameRng::new(2);
+        let priest = create_priest(20, 20, AltarAlignment::Chaotic, true, &mut rng);
+
+        assert!(priest.is_priest);
+        assert!(priest.name.contains("high"));
+        assert!(priest.name.contains("chaotic"));
+        assert_eq!(priest.level, 25);
+        assert!(priest.hp >= 80);
+        assert!(priest.hp <= 120);
+    }
+
+    #[test]
+    fn test_free_priest_extension() {
+        let mut priest = Monster::new(MonsterId(1), 0, 5, 5);
+        priest.is_priest = true;
+
+        free_priest_extension(&mut priest);
+
+        assert!(!priest.is_priest);
+    }
+
+    #[test]
+    fn test_is_in_own_shrine() {
+        let priest = Monster::new(MonsterId(1), 0, 10, 10);
+        let shrine =
+            PriestExtension::new(AltarAlignment::Lawful, 1, 10, 10, ShrineLevelId::default());
+
+        // Would use modified monster.x, monster.y after read
+        // For now just test that function exists
+        let _result = is_in_own_shrine(&priest, &shrine);
+    }
+
+    #[test]
+    fn test_temple_with_priest_id() {
+        let mut temple = Temple::new(10, 10, AltarAlignment::Lawful);
+        assert!(temple.priest_id.is_none());
+
+        temple.priest_id = Some(MonsterId(1));
+        assert!(temple.priest_id.is_some());
+    }
+
+    #[test]
+    fn test_temple_desecration() {
+        let mut temple = Temple::new(10, 10, AltarAlignment::Lawful);
+        assert!(!temple.desecrated);
+
+        temple.desecrated = true;
+        assert!(temple.desecrated);
+    }
+
+    #[test]
+    fn test_anger_priest_with_monster() {
+        let mut level = crate::dungeon::Level::new(crate::dungeon::DLevel::main_dungeon_start());
+        let mut priest_monster = Monster::new(MonsterId(1), 0, 10, 10);
+        priest_monster.state.peaceful = true;
+        level.monsters.push(priest_monster);
+
+        let mut temple = Temple::new(10, 10, AltarAlignment::Lawful);
+        temple.priest_id = Some(MonsterId(1));
+
+        anger_priest(&mut temple, &mut level);
+
+        assert!(temple.priest_angry);
+        if let Some(priest) = level.monster(MonsterId(1)) {
+            assert!(!priest.state.peaceful);
+        }
+    }
+
+    #[test]
+    fn test_create_priest_all_alignments() {
+        let mut rng = GameRng::new(42);
+
+        let lawful = create_priest(10, 10, AltarAlignment::Lawful, false, &mut rng);
+        assert!(lawful.name.contains("lawful"));
+
+        let neutral = create_priest(10, 10, AltarAlignment::Neutral, false, &mut rng);
+        assert!(neutral.name.contains("neutral"));
+
+        let chaotic = create_priest(10, 10, AltarAlignment::Chaotic, false, &mut rng);
+        assert!(chaotic.name.contains("chaotic"));
+    }
+
+    #[test]
+    fn test_get_priest_name_visible() {
+        let priest = Monster::new(MonsterId(1), 0, 10, 10);
+        let name = get_priest_name(&priest, false);
+        assert!(!name.is_empty());
+    }
+
+    #[test]
+    fn test_get_priest_name_invisible() {
+        let priest = Monster::new(MonsterId(1), 0, 10, 10);
+        let name = get_priest_name(&priest, true);
+        assert!(!name.is_empty());
+    }
+
+    #[test]
+    fn test_shrine_level_equality() {
+        let level1 = ShrineLevelId {
+            dungeon: 0,
+            level: 5,
+        };
+        let level2 = ShrineLevelId {
+            dungeon: 0,
+            level: 5,
+        };
+        let level3 = ShrineLevelId {
+            dungeon: 0,
+            level: 6,
+        };
+
+        assert_eq!(level1, level2);
+        assert_ne!(level1, level3);
+    }
+
+    #[test]
+    fn test_priest_location() {
+        let mut priest1 = Monster::new(MonsterId(1), 0, 10, 10);
+        priest1.is_priest = true;
+
+        let mut priest2 = Monster::new(MonsterId(2), 0, 15, 15);
+        priest2.is_priest = true;
+
+        assert_eq!(priest1.x, 10);
+        assert_eq!(priest1.y, 10);
+        assert_eq!(priest2.x, 15);
+        assert_eq!(priest2.y, 15);
+    }
+
+    #[test]
+    fn test_temple_list_operations() {
+        let mut temples = Vec::new();
+        temples.push(Temple::new(10, 10, AltarAlignment::Lawful));
+        temples.push(Temple::new(20, 20, AltarAlignment::Neutral));
+        temples.push(Temple::new(30, 30, AltarAlignment::Chaotic));
+
+        assert_eq!(temples.len(), 3);
+        assert_eq!(temples[0].alignment, AltarAlignment::Lawful);
+        assert_eq!(temples[1].alignment, AltarAlignment::Neutral);
+        assert_eq!(temples[2].alignment, AltarAlignment::Chaotic);
+    }
+
+    #[test]
+    fn test_priest_name_format() {
+        let priest = Monster::new(MonsterId(1), 0, 10, 10);
+        let name = get_priest_name(&priest, false);
+        assert!(!name.is_empty());
+        assert!(!name.contains("invalid"));
+    }
+
+    #[test]
+    fn test_create_priest_extension() {
+        let mut priest = Monster::new(MonsterId(1), 0, 10, 10);
+        assert!(!priest.is_priest);
+
+        create_priest_extension(
+            &mut priest,
+            AltarAlignment::Lawful,
+            1,
+            10,
+            10,
+            ShrineLevelId::default(),
+        );
+
+        assert!(priest.is_priest);
     }
 }

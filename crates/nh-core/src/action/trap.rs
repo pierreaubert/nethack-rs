@@ -1,13 +1,33 @@
 //! Trap mechanics (trap.c)
+//!
+//! This module provides player actions for trap interaction:
+//! - Triggering traps when stepping on them
+//! - Setting traps (future)
+//! - Searching for traps
+//! - Disarming traps
 
 use crate::action::ActionResult;
 use crate::dungeon::TrapType;
 use crate::dungeon::trap::{
     self, is_holding_trap, roll_trap_damage, trap_name,
 };
+use crate::dungeon::{CellType, Trap};
 use crate::gameloop::GameState;
 use crate::monster::{Monster, MonsterResistances};
+use crate::object::Object;
+use crate::player::PlayerTrapType;
 use crate::rng::GameRng;
+
+/// Convert a dungeon TrapType to the player's TrapType for utrap tracking.
+pub fn to_player_trap_type(tt: TrapType) -> PlayerTrapType {
+    match tt {
+        TrapType::BearTrap => PlayerTrapType::BearTrap,
+        TrapType::Pit => PlayerTrapType::Pit,
+        TrapType::SpikedPit => PlayerTrapType::SpikedPit,
+        TrapType::Web => PlayerTrapType::Web,
+        _ => PlayerTrapType::InFloor, // fallback for other holding traps
+    }
+}
 
 /// Check for and trigger traps at a position
 pub fn check_trap(state: &mut GameState, x: i8, y: i8) -> ActionResult {
@@ -36,8 +56,39 @@ pub fn check_trap(state: &mut GameState, x: i8, y: i8) -> ActionResult {
         }
 
         if result.held_turns > 0 {
-            state.player.utrap = result.held_turns;
-            state.player.utraptype = Some(trap_type);
+            state.player.utrap = result.held_turns as u32;
+            state.player.utrap_type = to_player_trap_type(trap_type);
+        }
+
+        // Apply status effect if any
+        if let Some(status) = result.status {
+            use crate::dungeon::trap::StatusEffect;
+            match status {
+                StatusEffect::Poisoned => {
+                    state.message("You are poisoned!");
+                }
+                StatusEffect::Asleep => {
+                    state.player.sleeping_timeout = result.held_turns as u16;
+                }
+                StatusEffect::Confused => {
+                    state.player.confused_timeout = result.held_turns as u16;
+                }
+                StatusEffect::Blind => {
+                    state.player.blinded_timeout = result.held_turns as u16;
+                }
+                StatusEffect::Stunned => {
+                    state.player.stunned_timeout =
+                        (result.held_turns as u16).max(state.player.stunned_timeout);
+                }
+                StatusEffect::Paralyzed => {
+                    state.player.stunned_timeout =
+                        (result.held_turns as u16).max(state.player.stunned_timeout);
+                }
+                StatusEffect::Rusted => {
+                    state.message("Your equipment rusts!");
+                    // TODO: apply rust damage to worn armor
+                }
+            }
         }
 
         if result.trap_destroyed {
@@ -75,8 +126,8 @@ pub fn trigger_trap(state: &mut GameState, trap_type: TrapType) -> ActionResult 
             ActionResult::Success
         }
         crate::dungeon::trap::TrapEffect::Trapped { turns } => {
-            state.player.utrap = turns;
-            state.player.utraptype = Some(trap_type);
+            state.player.utrap = turns as u32;
+            state.player.utrap_type = to_player_trap_type(trap_type);
             ActionResult::Success
         }
         crate::dungeon::trap::TrapEffect::Teleport { x, y } => {
@@ -125,6 +176,335 @@ pub fn do_search(state: &mut GameState) -> ActionResult {
 
     state.message("You search for traps and secret doors.");
     ActionResult::Success
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gitea stubs for trap-related functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub fn dotrap_action(state: &mut GameState, trap: &mut Trap) {
+    check_trap(state, trap.x, trap.y);
+}
+
+pub fn dountrap(state: &mut GameState, trap: &mut Trap) -> ActionResult {
+    do_disarm(state, trap.x, trap.y)
+}
+
+pub fn doidtrap(state: &mut GameState) {
+    state.message("You identify the trap.");
+}
+
+pub fn find_trap(_state: &mut GameState, trap: &mut Trap) {
+    trap.seen = true;
+}
+
+pub fn t_at(state: &GameState, x: i8, y: i8) -> Option<&Trap> {
+    state.current_level.trap_at(x, y)
+}
+
+pub fn maketrap(state: &mut GameState, x: i8, y: i8, trap_type: TrapType) {
+    let trap = Trap {
+        x,
+        y,
+        trap_type,
+        activated: false,
+        seen: false,
+        once: false,
+        madeby_u: false,
+        launch_oid: None,
+    };
+    state.current_level.traps.push(trap);
+}
+
+pub fn mktrap(_state: &mut GameState, _trap_type: i32, _count: i32, _flags: i32) {
+    // Make trap logic
+}
+
+pub fn deltrap(state: &mut GameState, trap: &Trap) {
+    if let Some(idx) = state
+        .current_level
+        .traps
+        .iter()
+        .position(|t| t.x == trap.x && t.y == trap.y)
+    {
+        state.current_level.traps.remove(idx);
+    }
+}
+
+pub fn delfloortrap(state: &mut GameState, x: i8, y: i8) {
+    if let Some(idx) = state
+        .current_level
+        .traps
+        .iter()
+        .position(|t| t.x == x && t.y == y)
+    {
+        state.current_level.traps.remove(idx);
+    }
+}
+
+pub fn steedintrap(_state: &mut GameState, _trap: &Trap) -> bool {
+    false
+}
+
+pub fn move_into_trap(state: &mut GameState, trap: &Trap) -> bool {
+    check_trap(state, trap.x, trap.y);
+    true
+}
+
+pub fn sense_trap(_state: &mut GameState, _trap: &Trap, _x: i8, _y: i8, _src_x: i8, _src_y: i8) -> bool {
+    false
+}
+
+pub fn set_trap(state: &mut GameState, _obj: &Object, _x: i8, _y: i8) {
+    state.message("You set a trap.");
+}
+
+/// Effects of being at a spot (pool, lava, trap, etc.)
+pub fn spoteffects(state: &mut GameState, x: i8, y: i8) {
+    let cell = state.current_level.cell(x as usize, y as usize);
+
+    match cell.typ {
+        CellType::Pool | CellType::Moat => {
+            pooleffects(state, false);
+        }
+        CellType::Lava => {
+            lava_effects(state);
+        }
+        CellType::Sink => {
+            state.message("You hear a gurgling noise.");
+        }
+        CellType::Fountain => {
+            if state.player.confused_timeout > 0 && state.rng.one_in(10) {
+                state.message("Oops! You drank from the fountain.");
+                crate::action::quaff::drinkfountain(state);
+            }
+        }
+        _ => {}
+    }
+
+    if let Some(_trap) = state.current_level.trap_at(x, y) {
+        check_trap(state, x, y);
+    }
+}
+
+/// Effects of stepping into pool/water
+pub fn pooleffects(state: &mut GameState, by_magic: bool) {
+    use crate::player::Property;
+
+    if state.player.properties.has(Property::Swimming) {
+        state.message("You swim through the water.");
+        return;
+    }
+    if state.player.properties.has(Property::Levitation) {
+        state.message("You float above the water.");
+        return;
+    }
+    if state.player.properties.has(Property::Flying) {
+        state.message("You fly over the water.");
+        return;
+    }
+
+    state.message("You fall into the water!");
+
+    if state.player.properties.has(Property::MagicBreathing) {
+        state.message("But you can breathe underwater!");
+        return;
+    }
+
+    let str_val = state.player.attr_current.get(crate::player::Attribute::Strength) as i32;
+    let swim_chance = 20 + str_val;
+    let roll = state.rng.rnd(100) as i32;
+
+    if roll <= swim_chance {
+        state.message("You struggle to the shore.");
+    } else if by_magic {
+        state.message("You are sinking!");
+    } else {
+        drown(state);
+    }
+}
+
+/// Effects of stepping into lava
+pub fn lava_effects(state: &mut GameState) {
+    use crate::player::Property;
+
+    if state.player.properties.has(Property::Levitation) {
+        state.message("You float above the lava.");
+        return;
+    }
+    if state.player.properties.has(Property::Flying) {
+        state.message("You fly over the lava.");
+        return;
+    }
+
+    if state.player.properties.has(Property::FireResistance) {
+        state.message("The lava feels warm!");
+        lava_damage(state);
+    } else {
+        state.message("You fall into the lava!");
+        sink_into_lava(state);
+    }
+}
+
+pub fn lava_damage(state: &mut GameState) {
+    use crate::player::Property;
+    let base_damage = state.rng.dice(2, 10) as i32;
+    let damage = if state.player.properties.has(Property::FireResistance) {
+        base_damage / 4
+    } else {
+        base_damage
+    };
+    state.message(format!("The lava burns you for {} damage!", damage));
+    state.player.take_damage(damage);
+}
+
+pub fn sink_into_lava(state: &mut GameState) {
+    use crate::player::Property;
+    if state.player.properties.has(Property::FireResistance) {
+        state.message("You sink into the lava but your fire resistance protects you!");
+        lava_damage(state);
+        state.message("You manage to crawl out of the lava.");
+    } else {
+        state.message("You sink into the lava and are incinerated!");
+        state.player.hp = 0;
+    }
+}
+
+pub fn flooreffects(state: &mut GameState, x: i8, y: i8, touch: bool) {
+    let cell = state.current_level.cell(x as usize, y as usize);
+    if !touch { return; }
+    match cell.typ {
+        CellType::Lava => { state.message("The floor is extremely hot!"); }
+        CellType::Ice => {
+            state.message("The floor is slippery!");
+            if state.rng.one_in(10) {
+                state.message("You slip and fall!");
+                state.player.stunned_timeout = 2;
+            }
+        }
+        _ => {}
+    }
+}
+
+pub fn trapmove(_state: &mut GameState, _x: i8, _y: i8, _dest_x: i8, _dest_y: i8) {}
+pub fn trapnote(_state: &mut GameState, _trap: &Trap, _boolean: bool) {}
+
+pub fn trapped_chest_at(_state: &GameState, _trap_type: i32, _x: i8, _y: i8) -> bool { false }
+
+pub fn trapped_door_at(state: &GameState, x: i8, y: i8) -> bool {
+    if let Some(cell) = state.current_level.cells.get(x as usize).and_then(|col| col.get(y as usize)) {
+        cell.typ == CellType::Door && cell.door_state().contains(crate::dungeon::DoorState::TRAPPED)
+    } else {
+        false
+    }
+}
+
+pub fn chest_trap(_state: &mut GameState, _chest: &mut Object, _force: i32, _web: bool) {}
+pub fn dofiretrap(_state: &mut GameState, _box_obj: &mut Object) {}
+pub fn domagictrap(_state: &mut GameState, _box_obj: &mut Object) {}
+pub fn domagicportal(_state: &mut GameState, _trap: &mut Trap) {}
+pub fn fall_through(_state: &mut GameState, _trap_door: bool, _dropped_objects: u32) {}
+
+pub fn fall_asleep(state: &mut GameState, how_long: i32, _wakeup_msg: bool) {
+    state.message("You fall asleep.");
+    state.player.sleeping_timeout = how_long as u16;
+}
+
+pub fn drown(state: &mut GameState) {
+    state.message("You drown.");
+    state.player.hp = 0;
+}
+
+pub fn climb_pit(state: &mut GameState) { state.message("You climb out of the pit."); }
+pub fn fill_pit(state: &mut GameState, _x: i8, _y: i8) { state.message("You fill the pit."); }
+pub fn pit_flow(_state: &mut GameState, _trap: &mut Trap, _dist: i32) {}
+pub fn conjoined_pits(_state: &mut GameState, _trap: &mut Trap, _trap2: &mut Trap, _boolean: bool) {}
+pub fn adj_nonconjoined_pit(_state: &mut GameState, _trap: &mut Trap) -> bool { false }
+pub fn adj_pit_checks(_state: &mut GameState, _trap: &mut Trap, _trap2: &mut Trap) -> bool { false }
+pub fn clear_conjoined_pits(_state: &mut GameState, _trap: &mut Trap) {}
+pub fn join_adjacent_pits(_state: &mut GameState, _trap: &mut Trap, _boolean: bool) {}
+
+pub fn reward_untrap(_state: &mut GameState, _trap: &mut Trap, _monster: &mut crate::monster::Monster) {}
+pub fn untrap_prob(_state: &mut GameState, _trap: &mut Trap) -> i32 { 50 }
+
+pub fn cnv_trap_obj(_state: &mut GameState, _otyp: i32, _count: i32, _trap: &mut Trap, _boolean: bool) -> bool { false }
+pub fn holetime() -> i32 { 0 }
+pub fn t_warn(_state: &mut GameState, _trap: &mut Trap) {}
+pub fn t_missile(_state: &mut GameState, _trap_type: i32, _trap: &mut Trap) {}
+
+/// Launch style constants
+pub const ROLL: i32 = 0x01;
+pub const FUSE: i32 = 0x02;
+pub const NEED_PICK: i32 = 0x04;
+
+/// Launch an object from one position toward another
+pub fn launch_obj(state: &mut GameState, obj: &mut Object, x: i8, y: i8, x2: i8, y2: i8, style: i32) {
+    let obj_name = obj.display_name();
+    let dx = (x2 - x).signum();
+    let dy = (y2 - y).signum();
+    let range = if style & ROLL != 0 { 20 } else { 10 };
+    let mut cur_x = x;
+    let mut cur_y = y;
+
+    for _ in 0..range {
+        cur_x += dx;
+        cur_y += dy;
+        if !state.current_level.is_valid_pos(cur_x, cur_y) { break; }
+        if cur_x == state.player.pos.x && cur_y == state.player.pos.y {
+            state.message(format!("The {} hits you!", obj_name));
+            let damage = if style & ROLL != 0 { state.rng.dice(2, 10) as i32 + 10 } else { state.rng.dice(1, 6) as i32 };
+            state.player.take_damage(damage);
+            launch_drop_spot(state, obj, cur_x, cur_y);
+            return;
+        }
+        if let Some(monster) = state.current_level.monster_at(cur_x, cur_y) {
+            let monster_id = monster.id;
+            let monster_name = monster.name.clone();
+            state.message(format!("The {} hits the {}!", obj_name, monster_name));
+            let damage = if style & ROLL != 0 { state.rng.dice(2, 10) as i32 + 10 } else { state.rng.dice(1, 6) as i32 };
+            if let Some(mon) = state.current_level.monster_mut(monster_id) {
+                mon.hp -= damage;
+                if mon.hp <= 0 {
+                    state.message(format!("The {} is killed!", monster_name));
+                    state.current_level.remove_monster(monster_id);
+                }
+            }
+            launch_drop_spot(state, obj, cur_x, cur_y);
+            return;
+        }
+        if !state.current_level.is_walkable(cur_x, cur_y) {
+            state.message(format!("The {} crashes into a wall!", obj_name));
+            launch_drop_spot(state, obj, cur_x - dx, cur_y - dy);
+            return;
+        }
+    }
+    launch_drop_spot(state, obj, cur_x, cur_y);
+}
+
+pub fn launch_drop_spot(state: &mut GameState, obj: &mut Object, x: i8, y: i8) {
+    let mut dropped = obj.clone();
+    dropped.x = x;
+    dropped.y = y;
+    state.current_level.add_object(dropped, x, y);
+}
+
+pub fn launch_in_progress() -> bool { false }
+pub fn force_launch_placement() {}
+
+pub fn mkroll_launch(state: &mut GameState, trap: &mut Trap, x: i8, y: i8, toward_player: bool, _unused: i64) {
+    let mut boulder = Object::new(crate::object::ObjectId(state.rng.rn2(10000)), 0, crate::object::ObjectClass::Rock);
+    boulder.weight = 6000;
+    let (dx, dy) = if toward_player {
+        ((state.player.pos.x - x).signum(), (state.player.pos.y - y).signum())
+    } else {
+        let dirs = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+        dirs[state.rng.rn2(4) as usize]
+    };
+    let target_x = x + dx * 20;
+    let target_y = y + dy * 20;
+    state.message("Click! You hear a rumbling sound.");
+    launch_obj(state, &mut boulder, x, y, target_x, target_y, ROLL);
+    trap.activated = true;
 }
 
 // ============================================================================
@@ -362,12 +742,13 @@ pub fn feeltrap(state: &mut GameState, x: i8, y: i8) {
 /// Float up: escape from holding traps when gaining levitation/flying
 pub fn float_up(state: &mut GameState) {
     if state.player.utrap > 0
-        && let Some(trap_type) = state.player.utraptype
-        && is_holding_trap(trap_type)
+        && matches!(state.player.utrap_type,
+            PlayerTrapType::BearTrap | PlayerTrapType::Pit |
+            PlayerTrapType::SpikedPit | PlayerTrapType::Web)
     {
         state.message("You float up, out of the trap.");
         state.player.utrap = 0;
-        state.player.utraptype = None;
+        state.player.utrap_type = PlayerTrapType::None;
     }
     state.message("You start to float in the air!");
 }
@@ -403,8 +784,8 @@ pub fn float_down(state: &mut GameState) {
             }
 
             if result.held_turns > 0 {
-                state.player.utrap = result.held_turns;
-                state.player.utraptype = Some(trap_type);
+                state.player.utrap = result.held_turns as u32;
+                state.player.utrap_type = to_player_trap_type(trap_type);
             }
 
             if result.trap_destroyed {
@@ -561,4 +942,58 @@ mod tests {
         assert!(result.held_turns > 0);
         assert!(result.damage > 0);
     }
+}
+
+/// Attempt to disarm a trap at a location
+pub fn do_disarm(state: &mut GameState, x: i8, y: i8) -> ActionResult {
+    let trap = match state.current_level.trap_at(x, y) {
+        Some(t) => t,
+        None => return ActionResult::Failed("You see no trap there.".to_string()),
+    };
+
+    // Check if trap can be disarmed
+    if !crate::dungeon::trap::can_disarm(trap.trap_type) {
+        return ActionResult::Failed(format!(
+            "You can't disarm that {}.",
+            crate::dungeon::trap::trap_name(trap.trap_type)
+        ));
+    }
+
+    let dex = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Dexterity) as i32;
+    let skill = 0; // TODO: Get disarm skill from player
+
+    let success = crate::dungeon::trap::try_disarm(&mut state.rng, &trap, dex, skill);
+
+    if success {
+        state.message(format!(
+            "You successfully disarm the {}.",
+            crate::dungeon::trap::trap_name(trap.trap_type)
+        ));
+
+        if let Some(idx) = state
+            .current_level
+            .traps
+            .iter()
+            .position(|t| t.x == x && t.y == y)
+        {
+            state.current_level.traps.remove(idx);
+        }
+
+        ActionResult::Success
+    } else {
+        state.message("You fail to disarm the trap.");
+        ActionResult::Success // Takes a turn even if failed
+    }
+}
+
+/// Attempt to escape from a trap holding the player
+pub fn try_escape(state: &mut GameState, trap_type: crate::dungeon::TrapType) -> bool {
+    let str_val = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Strength) as i8;
+    crate::dungeon::trap::try_escape_trap(&mut state.rng, trap_type, str_val)
 }

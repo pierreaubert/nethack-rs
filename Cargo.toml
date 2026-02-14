@@ -2,26 +2,27 @@
 resolver = "2"
 members = [
     "crates/nh-core",
-    "crates/nh-data",
     "crates/nh-ui",
-    "crates/nh-save",
     "crates/nethack",
-    "crates/nh-test-compare",
+    "crates/nh-test",
+    "crates/nh-compare",
     "crates/nh-bevy",
+    "crates/nh-player",
 ]
 
 [workspace.package]
-version = "0.1.8"
+version = "0.1.11"
 edition = "2024"
 license = "MIT"
-rust-version = "1.92"
+rust-version = "1.93"
 
 [workspace.dependencies]
 # Internal crates
 nh-core = { path = "crates/nh-core" }
-nh-data = { path = "crates/nh-data" }
 nh-ui = { path = "crates/nh-ui" }
-nh-save = { path = "crates/nh-save" }
+nh-test = { path = "crates/nh-test" }
+nh-compare = { path = "crates/nh-compare" }
+nh-player = { path = "crates/nh-player" }
 
 # UI
 ratatui = "0.29"
@@ -32,6 +33,14 @@ bitflags = "2.6"
 thiserror = "2.0"
 strum = { version = "0.26", features = ["derive"] }
 clap = { version = "4.5", features = ["derive"] }
+
+# Time and dates
+chrono = "0.4"
+
+# File operations
+flate2 = "1.0"
+atty = "0.2"
+dirs = "5.0"
 
 # RNG
 rand = "0.8"

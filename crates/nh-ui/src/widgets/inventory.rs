@@ -3,8 +3,8 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 
+use nh_core::data::objects::OBJECTS;
 use nh_core::object::{Object, ObjectClass};
-use nh_data::objects::OBJECTS;
 
 /// Inventory display widget
 pub struct InventoryWidget<'a> {
@@ -69,9 +69,17 @@ impl<'a> InventoryWidget<'a> {
                 nh_core::object::BucStatus::Cursed => "cursed",
                 nh_core::object::BucStatus::Uncursed => {
                     // Only show "uncursed" for items where it matters
-                    if matches!(obj.class, ObjectClass::Weapon | ObjectClass::Armor | 
-                               ObjectClass::Ring | ObjectClass::Amulet | ObjectClass::Wand |
-                               ObjectClass::Tool | ObjectClass::Potion | ObjectClass::Scroll) {
+                    if matches!(
+                        obj.class,
+                        ObjectClass::Weapon
+                            | ObjectClass::Armor
+                            | ObjectClass::Ring
+                            | ObjectClass::Amulet
+                            | ObjectClass::Wand
+                            | ObjectClass::Tool
+                            | ObjectClass::Potion
+                            | ObjectClass::Scroll
+                    ) {
                         "uncursed"
                     } else {
                         ""
@@ -151,7 +159,10 @@ impl<'a> InventoryWidget<'a> {
         if !enchant_str.is_empty() {
             parts.push(enchant_str);
         }
-        parts.push(format!("{}{}{}{}", greased_str, proof_str, erosion_str, base_name));
+        parts.push(format!(
+            "{}{}{}{}",
+            greased_str, proof_str, erosion_str, base_name
+        ));
 
         // Add worn/wielded status
         let worn_str = if obj.worn_mask != 0 {
@@ -220,8 +231,8 @@ impl Widget for InventoryWidget<'_> {
         block.render(area, buf);
 
         if self.items.is_empty() {
-            let empty = Paragraph::new("Not carrying anything.")
-                .style(Style::default().fg(Color::Gray));
+            let empty =
+                Paragraph::new("Not carrying anything.").style(Style::default().fg(Color::Gray));
             empty.render(inner, buf);
             return;
         }
@@ -242,7 +253,9 @@ impl Widget for InventoryWidget<'_> {
             // Add class header
             list_items.push(ListItem::new(Line::from(Span::styled(
                 Self::class_header(class),
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             ))));
 
             // Add items in this class
@@ -364,8 +377,7 @@ impl Widget for &SelectionMenu<'_> {
         block.render(area, buf);
 
         if self.items.is_empty() {
-            let empty = Paragraph::new("Nothing here.")
-                .style(Style::default().fg(Color::Gray));
+            let empty = Paragraph::new("Nothing here.").style(Style::default().fg(Color::Gray));
             empty.render(inner, buf);
             return;
         }
@@ -380,7 +392,9 @@ impl Widget for &SelectionMenu<'_> {
                 let text = format!("{}{} {} {}", cursor_marker, item.letter, marker, item.text);
 
                 let style = if i == self.cursor {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
                 } else if item.selected {
                     Style::default().fg(Color::Green)
                 } else {

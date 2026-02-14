@@ -4,6 +4,7 @@
 //! multishot, boomerangs, potion shattering, gem/unicorn interactions,
 //! object breakage, cockatrice eggs, monster throwing, and wand breaking.
 
+use crate::action::kick::{hurtle, hurtle_step, mhurtle, mhurtle_step};
 use crate::action::{ActionResult, Direction};
 use crate::combat::CombatEffect;
 use crate::gameloop::GameState;
@@ -586,7 +587,7 @@ pub struct GemAcceptResult {
 ///
 /// Based on C gem_accept() in dothrow.c.
 /// Luck changes depend on gem quality, identification, and alignment match.
-pub fn gem_accept(
+pub fn gem_accept_full(
     target: &mut Monster,
     obj: &Object,
     obj_material: Material,
@@ -1155,11 +1156,11 @@ pub fn do_throw(state: &mut GameState, obj_letter: char, direction: Direction) -
                     // Gem hit — check unicorn interaction
                     let damage = calculate_throw_damage(&projectile, &mut state.rng);
                     let align_val = state.player.alignment.typ.value();
-                    let gem_identified = state.discoveries.contains(&obj.object_type);
+                    let gem_identified = state.discovery_state.is_discovered(obj.object_type);
                     let (messages, luck_change, killed, teleported) = {
                         let monster = state.current_level.monster_mut(monster_id).unwrap();
                         if is_unicorn(monster) {
-                            let gem_result = gem_accept(
+                            let gem_result = gem_accept_full(
                                 monster,
                                 &projectile,
                                 Material::Gemstone,
@@ -1254,6 +1255,358 @@ pub fn do_throw(state: &mut GameState, obj_letter: char, direction: Direction) -
     }
 
     ActionResult::Success
+}
+
+/// Fire the quivered item
+pub fn do_fire(state: &mut GameState, direction: Direction) -> ActionResult {
+    // Find item with W_QUIVER
+    let quiver_letter = state
+        .inventory
+        .iter()
+        .find(|o| o.worn_mask & crate::action::wear::worn_mask::W_QUIVER != 0)
+        .map(|o| o.inv_letter);
+
+    if let Some(letter) = quiver_letter {
+        do_throw(state, letter, direction)
+    } else {
+        // No quivered item, find first throwable
+        let throwable = state
+            .inventory
+            .iter()
+            .find(|o| {
+                matches!(
+                    o.class,
+                    ObjectClass::Weapon | ObjectClass::Gem | ObjectClass::Rock
+                )
+            })
+            .map(|o| o.inv_letter);
+
+        if let Some(letter) = throwable {
+            do_throw(state, letter, direction)
+        } else {
+            state.message("You have nothing ready to fire.");
+            ActionResult::NoTime
+        }
+    }
+}
+
+/// Alias for do_throw (C compatibility)
+pub fn dothrow(state: &mut GameState, obj_letter: char, direction: Direction) -> ActionResult {
+    do_throw(state, obj_letter, direction)
+}
+
+/// Alias for do_fire (C compatibility)
+pub fn dofire(state: &mut GameState, direction: Direction) -> ActionResult {
+    do_fire(state, direction)
+}
+
+/// Throw an object that might not be in inventory (e.g. from floor)
+pub fn throwit(state: &mut GameState, obj: Object, direction: Direction) {
+    // Logic to throw an object that might not be in inventory (e.g. from floor)
+    // Stub
+    state.message(format!("You throw {}.", obj.display_name()));
+}
+
+pub fn throw_gold(state: &mut GameState, amount: i32) {
+    state.message("You throw the gold.");
+}
+
+/// Monster throws an object toward a target
+pub fn m_throw(state: &mut GameState, monster_id: u32, obj: Object, dx: i8, dy: i8, range: i32) {
+    // Get monster position
+    let (start_x, start_y, monster_name) = {
+        if let Some(mon) = state
+            .current_level
+            .monster(crate::monster::MonsterId(monster_id))
+        {
+            (mon.x, mon.y, mon.name.clone())
+        } else {
+            return;
+        }
+    };
+
+    let obj_name = obj.display_name();
+
+    // Trace projectile path
+    let mut x = start_x;
+    let mut y = start_y;
+    let mut final_x = x;
+    let mut final_y = y;
+
+    for _ in 0..range {
+        x += dx;
+        y += dy;
+
+        if !state.current_level.is_valid_pos(x, y) {
+            break;
+        }
+
+        // Check if hits player
+        if x == state.player.pos.x && y == state.player.pos.y {
+            // Monster's throw hits player
+            let to_hit =
+                10 + state.current_level.dlevel.depth() as i32 - state.player.armor_class as i32;
+            let roll = state.rng.rnd(20) as i32;
+
+            if roll <= to_hit {
+                // Hit!
+                let damage = calculate_throw_damage(&obj, &mut state.rng);
+                state.message(format!(
+                    "The {} throws {} and hits you!",
+                    monster_name, obj_name
+                ));
+                state.player.take_damage(damage);
+            } else {
+                state.message(format!(
+                    "The {} throws {} and misses!",
+                    monster_name, obj_name
+                ));
+            }
+            final_x = x;
+            final_y = y;
+            break;
+        }
+
+        // Check if hits another monster
+        if let Some(target_mon) = state.current_level.monster_at(x, y) {
+            if target_mon.id.0 != monster_id {
+                // Hits another monster
+                let target_id = target_mon.id;
+                let target_name = target_mon.name.clone();
+                let target_ac = target_mon.ac;
+
+                let to_hit = 10 - target_ac as i32;
+                let roll = state.rng.rnd(20) as i32;
+
+                if roll <= to_hit {
+                    let damage = calculate_throw_damage(&obj, &mut state.rng);
+                    state.message(format!("The {} hits the {}!", obj_name, target_name));
+
+                    if let Some(target) = state.current_level.monster_mut(target_id) {
+                        target.hp -= damage;
+                        if target.hp <= 0 {
+                            state.message(format!("The {} is killed!", target_name));
+                            state.current_level.remove_monster(target_id);
+                        }
+                    }
+                } else {
+                    state.message(format!("The {} misses the {}.", obj_name, target_name));
+                }
+                final_x = x;
+                final_y = y;
+                break;
+            }
+        }
+
+        // Check for walls
+        if !state.current_level.is_walkable(x, y) {
+            final_x = x - dx;
+            final_y = y - dy;
+            break;
+        }
+
+        final_x = x;
+        final_y = y;
+    }
+
+    // Object lands at final position
+    let mut thrown_obj = obj;
+    thrown_obj.x = final_x;
+    thrown_obj.y = final_y;
+    state.current_level.add_object(thrown_obj, final_x, final_y);
+}
+
+/// Monster throws at another monster
+pub fn thrwmm(state: &mut GameState, thrower_id: u32, target_id: u32) {
+    use crate::monster::MonsterId;
+
+    // Get positions and find throwable object
+    let (start_x, start_y, target_x, target_y) = {
+        let thrower = state.current_level.monster(MonsterId(thrower_id));
+        let target = state.current_level.monster(MonsterId(target_id));
+
+        match (thrower, target) {
+            (Some(t), Some(tgt)) => (t.x, t.y, tgt.x, tgt.y),
+            _ => return,
+        }
+    };
+
+    // Calculate direction
+    let dx = (target_x - start_x).signum();
+    let dy = (target_y - start_y).signum();
+    let range = ((target_x - start_x).abs() + (target_y - start_y).abs()) as i32 + 2;
+
+    // Create a simple projectile (rock)
+    let obj = Object::new(crate::object::ObjectId(0), 0, ObjectClass::Rock);
+
+    m_throw(state, thrower_id, obj, dx, dy, range);
+}
+
+/// Monster throws at the player
+pub fn thrwmu(state: &mut GameState, monster_id: u32) {
+    // Get monster position
+    let (start_x, start_y) = {
+        if let Some(mon) = state
+            .current_level
+            .monster(crate::monster::MonsterId(monster_id))
+        {
+            (mon.x, mon.y)
+        } else {
+            return;
+        }
+    };
+
+    // Calculate direction toward player
+    let dx = (state.player.pos.x - start_x).signum();
+    let dy = (state.player.pos.y - start_y).signum();
+    let range =
+        ((state.player.pos.x - start_x).abs() + (state.player.pos.y - start_y).abs()) as i32 + 2;
+
+    // Create a simple projectile
+    let obj = Object::new(crate::object::ObjectId(0), 0, ObjectClass::Rock);
+
+    m_throw(state, monster_id, obj, dx, dy, range);
+}
+
+/// Drop object instead of throwing it (fumbled throw)
+pub fn drop_throw(state: &mut GameState, obj: Object, x: i8, y: i8) {
+    state.message(format!("The {} slips from your grasp!", obj.display_name()));
+    let mut dropped = obj;
+    dropped.x = x;
+    dropped.y = y;
+    state.current_level.add_object(dropped, x, y);
+}
+
+/// Check if thrown object hits a specific monster
+pub fn thitmonst(state: &mut GameState, monster_id: u32, obj: &Object) -> bool {
+    if let Some(monster) = state
+        .current_level
+        .monster(crate::monster::MonsterId(monster_id))
+    {
+        let to_hit = 10 + state.player.exp_level - monster.ac as i32;
+        let roll = state.rng.rnd(20) as i32;
+        roll <= to_hit
+    } else {
+        false
+    }
+}
+
+/// Shorter alias for thitmonst
+pub fn thitm(state: &mut GameState, monster_id: u32, obj: &Object) -> bool {
+    thitmonst(state, monster_id, obj)
+}
+
+/// Toss an object straight up (catches it or it falls on head)
+pub fn toss_up(state: &mut GameState, obj: Object) {
+    state.message("You toss it up...");
+
+    // Dex check to catch it
+    let dex = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Dexterity) as i32;
+    let catch_chance = 10 + dex;
+    let roll = state.rng.rnd(20) as i32;
+
+    if roll <= catch_chance {
+        state.message("You catch it.");
+        state.add_to_inventory(obj);
+    } else {
+        state.message("It falls on your head!");
+        let damage = calculate_throw_damage(&obj, &mut state.rng);
+        state.player.take_damage(damage);
+
+        // Object lands at player's feet
+        let mut dropped = obj;
+        dropped.x = state.player.pos.x;
+        dropped.y = state.player.pos.y;
+        state
+            .current_level
+            .add_object(dropped, state.player.pos.x, state.player.pos.y);
+    }
+}
+
+/// Display miss message for thrown object
+pub fn tmiss(state: &mut GameState, obj: &Object, monster_id: u32) {
+    if let Some(monster) = state
+        .current_level
+        .monster(crate::monster::MonsterId(monster_id))
+    {
+        state.message(format!(
+            "The {} misses the {}.",
+            obj.display_name(),
+            monster.name
+        ));
+    } else {
+        state.message("It misses.");
+    }
+}
+
+/// Object hits the floor (breaking potions, etc.)
+pub fn hitfloor(state: &mut GameState, obj: &Object, x: i8, y: i8) {
+    match obj.class {
+        ObjectClass::Potion => {
+            state.message("The potion shatters!");
+            // Would apply potion effects here
+        }
+        ObjectClass::Gem => {
+            state.message("The gem clinks against the floor.");
+        }
+        ObjectClass::Weapon => {
+            state.message("The weapon clatters to the floor.");
+        }
+        _ => {
+            state.message("It hits the floor.");
+        }
+    }
+}
+
+/// Check if a unicorn accepts a thrown gem (simplified state-based version)
+pub fn gem_accept(state: &mut GameState, monster_id: u32, obj: &Object) -> bool {
+    if obj.class != ObjectClass::Gem {
+        return false;
+    }
+
+    if let Some(monster) = state
+        .current_level
+        .monster(crate::monster::MonsterId(monster_id))
+    {
+        // Check if it's a unicorn (simplified check)
+        let is_unicorn = monster.name.to_lowercase().contains("unicorn");
+        if is_unicorn {
+            // Unicorns like valuable gems
+            // Higher value = higher acceptance chance
+            let value = obj.shop_price.max(1);
+            let accept_chance = (value / 100).min(80) as i32;
+            let roll = state.rng.rnd(100) as i32;
+
+            if roll <= accept_chance {
+                state.message(format!(
+                    "The {} graciously accepts your offering.",
+                    monster.name
+                ));
+                return true;
+            } else {
+                state.message(format!("The {} ignores your offering.", monster.name));
+            }
+        }
+    }
+    false
+}
+
+/// Mark gem type as identified after throwing at unicorn
+pub fn gem_learned(state: &mut GameState, obj: &Object) {
+    if obj.class == ObjectClass::Gem {
+        state.message("You learn something about gems.");
+        // Would mark gem type as identified in discovery system
+    }
+}
+
+/// Check if an object is a boomerang that can return to player
+fn is_boomerang(obj: &crate::object::Object) -> bool {
+    // Boomerangs are throwing weapons that return
+    // In NetHack, boomerangs are typically object types 39-41
+    matches!(obj.object_type, 39..=41)
 }
 
 /// Calculate damage for thrown object
@@ -1569,7 +1922,7 @@ mod tests {
         target.alignment = 1;
         let gem = Object::new(ObjectId(1), 100, ObjectClass::Gem);
 
-        let result = gem_accept(
+        let result = gem_accept_full(
             &mut target,
             &gem,
             Material::Gemstone,
@@ -1587,7 +1940,7 @@ mod tests {
         let mut target = test_monster();
         let gem = Object::new(ObjectId(1), 100, ObjectClass::Gem);
 
-        let result = gem_accept(
+        let result = gem_accept_full(
             &mut target,
             &gem,
             Material::Glass,
@@ -1607,7 +1960,7 @@ mod tests {
         target.alignment = 0;
         let gem = Object::new(ObjectId(1), 100, ObjectClass::Gem);
 
-        let result = gem_accept(
+        let result = gem_accept_full(
             &mut target,
             &gem,
             Material::Gemstone,

@@ -75,18 +75,11 @@ pub enum AnimationEvent {
         position: Vec3,
     },
     /// Entity missed an attack
-    CombatMiss {
-        position: Vec3,
-    },
+    CombatMiss { position: Vec3 },
     /// Entity died
-    EntityDied {
-        entity: Entity,
-    },
+    EntityDied { entity: Entity },
     /// Item was picked up
-    ItemPickedUp {
-        from: Vec3,
-        to: Vec3,
-    },
+    ItemPickedUp { from: Vec3, to: Vec3 },
 }
 
 /// Component for entities currently animating movement
@@ -149,10 +142,7 @@ fn handle_animation_events(
             } => {
                 // Add flash to hit entity
                 if let Some(mut entity_commands) = commands.get_entity(*entity) {
-                    let original_color = query
-                        .get(*entity)
-                        .map(|tc| tc.0)
-                        .unwrap_or(Color::WHITE);
+                    let original_color = query.get(*entity).map(|tc| tc.0).unwrap_or(Color::WHITE);
                     entity_commands.insert(CombatFlash {
                         timer: Timer::from_seconds(settings.flash_duration, TimerMode::Once),
                         original_color,
@@ -248,10 +238,7 @@ fn spawn_pickup_particle(
     ));
 }
 
-fn animate_movement(
-    time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut MovementAnimation)>,
-) {
+fn animate_movement(time: Res<Time>, mut query: Query<(&mut Transform, &mut MovementAnimation)>) {
     for (mut transform, mut anim) in query.iter_mut() {
         anim.timer.tick(time.delta());
 
@@ -263,10 +250,7 @@ fn animate_movement(
     }
 }
 
-fn animate_combat_flash(
-    time: Res<Time>,
-    mut query: Query<(&mut TextColor, &mut CombatFlash)>,
-) {
+fn animate_combat_flash(time: Res<Time>, mut query: Query<(&mut TextColor, &mut CombatFlash)>) {
     for (mut text_color, mut flash) in query.iter_mut() {
         flash.timer.tick(time.delta());
 

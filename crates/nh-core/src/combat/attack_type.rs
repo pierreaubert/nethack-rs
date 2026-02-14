@@ -37,7 +37,6 @@ pub enum AttackType {
     Hug = 7,
 
     // 8-9 unused
-
     /// Spit attack (AT_SPIT)
     Spit = 10,
 
@@ -60,7 +59,6 @@ pub enum AttackType {
     Tentacle = 16,
 
     // 17-253 unused
-
     /// Weapon attack (AT_WEAP)
     Weapon = 254,
 

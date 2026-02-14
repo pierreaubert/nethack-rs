@@ -104,13 +104,19 @@ fn position_near_door(room: &Room, door_pos: (usize, usize)) -> (usize, usize) {
         (room.x, dy.max(room.y).min(room.y + room.height - 1))
     } else if dx >= room.x + room.width {
         // Door is on right wall
-        (room.x + room.width - 1, dy.max(room.y).min(room.y + room.height - 1))
+        (
+            room.x + room.width - 1,
+            dy.max(room.y).min(room.y + room.height - 1),
+        )
     } else if dy < room.y {
         // Door is on top wall
         (dx.max(room.x).min(room.x + room.width - 1), room.y)
     } else {
         // Door is on bottom wall
-        (dx.max(room.x).min(room.x + room.width - 1), room.y + room.height - 1)
+        (
+            dx.max(room.x).min(room.x + room.width - 1),
+            room.y + room.height - 1,
+        )
     }
 }
 
@@ -137,12 +143,30 @@ fn generate_shopkeeper_name(shop_type: RoomType, rng: &mut GameRng) -> String {
         RoomType::FoodShop => ["Njord", "Frey", "Freya", "Skirnir", "Byggvir"],
         RoomType::ScrollShop => ["Odin", "Mimir", "Saga", "Snotra", "Vör"],
         RoomType::PotionShop => ["Idunn", "Bragi", "Gefjon", "Hlin", "Sjöfn"],
-        RoomType::RingShop => ["Draupnir", "Andvaranaut", "Brisingamen", "Gullinbursti", "Megingjörð"],
+        RoomType::RingShop => [
+            "Draupnir",
+            "Andvaranaut",
+            "Brisingamen",
+            "Gullinbursti",
+            "Megingjörð",
+        ],
         RoomType::WandShop => ["Gandalf", "Merlin", "Circe", "Morgana", "Prospero"],
-        RoomType::BookShop => ["Snorri", "Völuspá", "Hávamál", "Gylfaginning", "Skáldskaparmál"],
+        RoomType::BookShop => [
+            "Snorri",
+            "Völuspá",
+            "Hávamál",
+            "Gylfaginning",
+            "Skáldskaparmál",
+        ],
         RoomType::ToolShop => ["Völund", "Dvalin", "Alfrik", "Berling", "Grer"],
         RoomType::CandleShop => ["Nótt", "Hati", "Skoll", "Mani", "Sol"],
-        _ => ["Izchak", "Asidonhopo", "Adjama", "Akhastatoth", "Annodharma"],
+        _ => [
+            "Izchak",
+            "Asidonhopo",
+            "Adjama",
+            "Akhastatoth",
+            "Annodharma",
+        ],
     };
 
     let idx = rng.rn2(base_names.len() as u32) as usize;
@@ -162,9 +186,7 @@ fn create_shop_item(classes: &[ObjectClass], rng: &mut GameRng) -> Object {
 
     // Set quantity for stackable items
     obj.quantity = match class {
-        ObjectClass::Food | ObjectClass::Potion | ObjectClass::Scroll => {
-            (rng.rnd(3) + 1) as i32
-        }
+        ObjectClass::Food | ObjectClass::Potion | ObjectClass::Scroll => (rng.rnd(3) + 1) as i32,
         ObjectClass::Coin => rng.rn2(100) as i32 + 10,
         _ => 1,
     };
@@ -260,8 +282,8 @@ pub fn is_shop_room(room_type: RoomType) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::DLevel;
+    use super::*;
 
     #[test]
     fn test_select_shop_type() {
@@ -279,7 +301,10 @@ mod tests {
             }
         }
 
-        println!("Small room - General: {}, Other: {}", general_count, other_count);
+        println!(
+            "Small room - General: {}, Other: {}",
+            general_count, other_count
+        );
 
         // General shop should be ~44%
         assert!(
@@ -291,7 +316,11 @@ mod tests {
         // Big rooms always become general shops
         for _ in 0..100 {
             let shop_type = select_shop_type(&mut rng, 25);
-            assert_eq!(shop_type, RoomType::GeneralShop, "Big rooms should be general shops");
+            assert_eq!(
+                shop_type,
+                RoomType::GeneralShop,
+                "Big rooms should be general shops"
+            );
         }
     }
 
@@ -302,7 +331,10 @@ mod tests {
         assert!(!armor_classes.contains(&ObjectClass::Weapon));
 
         let general_classes = shop_object_classes(RoomType::GeneralShop);
-        assert!(general_classes.len() > 5, "General shop should have many classes");
+        assert!(
+            general_classes.len() > 5,
+            "General shop should have many classes"
+        );
         assert!(general_classes.contains(&ObjectClass::Weapon));
         assert!(general_classes.contains(&ObjectClass::Armor));
     }
@@ -344,20 +376,14 @@ mod tests {
         populate_shop(&mut level, &room, &mut rng);
 
         // Should have a shopkeeper
-        assert!(
-            !level.monsters.is_empty(),
-            "Shop should have a shopkeeper"
-        );
+        assert!(!level.monsters.is_empty(), "Shop should have a shopkeeper");
 
         // Shopkeeper should be peaceful
         let keeper = &level.monsters[0];
         assert!(keeper.state.peaceful, "Shopkeeper should be peaceful");
 
         // Should have items
-        assert!(
-            !level.objects.is_empty(),
-            "Shop should have items"
-        );
+        assert!(!level.objects.is_empty(), "Shop should have items");
 
         // Items should be unpaid
         assert!(
@@ -365,8 +391,11 @@ mod tests {
             "Shop items should be marked as unpaid"
         );
 
-        println!("Shop has {} monsters and {} items",
-                 level.monsters.len(), level.objects.len());
+        println!(
+            "Shop has {} monsters and {} items",
+            level.monsters.len(),
+            level.objects.len()
+        );
     }
 
     #[test]

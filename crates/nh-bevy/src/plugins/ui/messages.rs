@@ -1,7 +1,7 @@
 //! Message log system
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
 
 use crate::resources::GameStateResource;
 
@@ -77,10 +77,7 @@ fn categorize_message(text: &str) -> MessageCategory {
     }
 }
 
-fn update_message_history(
-    game_state: Res<GameStateResource>,
-    mut history: ResMut<MessageHistory>,
-) {
+fn update_message_history(game_state: Res<GameStateResource>, mut history: ResMut<MessageHistory>) {
     if !game_state.is_changed() {
         return;
     }
@@ -122,7 +119,10 @@ fn render_messages(
     input: Res<ButtonInput<KeyCode>>,
 ) {
     // Toggle full log with 'P' key or 'V' (standard NetHack)
-    if input.just_pressed(KeyCode::KeyP) || (input.just_pressed(KeyCode::KeyV) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))) {
+    if input.just_pressed(KeyCode::KeyP)
+        || (input.just_pressed(KeyCode::KeyV)
+            && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)))
+    {
         history.show_full_log = !history.show_full_log;
     }
 

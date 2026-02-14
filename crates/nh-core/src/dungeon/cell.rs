@@ -19,11 +19,11 @@ pub enum CellType {
     BLCorner = 5,
     BRCorner = 6,
     CrossWall = 7,
-    TUWall = 8,    // T-wall up
-    TDWall = 9,    // T-wall down
-    TLWall = 10,   // T-wall left
-    TRWall = 11,   // T-wall right
-    DBWall = 12,   // Drawbridge wall
+    TUWall = 8,  // T-wall up
+    TDWall = 9,  // T-wall down
+    TLWall = 10, // T-wall left
+    TRWall = 11, // T-wall right
+    DBWall = 12, // Drawbridge wall
     Tree = 13,
     SecretDoor = 14,
     SecretCorridor = 15,
@@ -47,12 +47,14 @@ pub enum CellType {
     DrawbridgeDown = 33,
     Air = 34,
     Cloud = 35,
+    Wall = 36,  // Generic wall
+    Vault = 37, // Vault room floor
 }
 
 impl CellType {
     /// Check if this is a wall type
     pub const fn is_wall(&self) -> bool {
-        (*self as u8) >= 1 && (*self as u8) <= 12
+        ((*self as u8) >= 1 && (*self as u8) <= 12) || *self as u8 == 36
     }
 
     /// Check if this is a door
@@ -162,7 +164,59 @@ impl CellType {
             CellType::DrawbridgeDown => '.',
             CellType::Air => ' ',
             CellType::Cloud => '#',
+            CellType::Wall => '#',  // Generic wall
+            CellType::Vault => '.', // Vault floor
         }
+    }
+
+    /// Get the surface name for this terrain (surface equivalent)
+    ///
+    /// Returns what the player is standing "on"
+    pub const fn surface(&self) -> &'static str {
+        match self {
+            CellType::Pool | CellType::Moat | CellType::Water => "water",
+            CellType::Lava => "lava",
+            CellType::Ice => "ice",
+            CellType::Air | CellType::Cloud => "air",
+            CellType::Grave => "grave",
+            CellType::Altar => "altar",
+            CellType::Throne => "throne",
+            CellType::Fountain => "fountain",
+            CellType::Sink => "sink",
+            CellType::DrawbridgeUp | CellType::DrawbridgeDown => "drawbridge",
+            _ => "floor",
+        }
+    }
+
+    /// Get the ceiling name for this terrain (ceiling equivalent)
+    ///
+    /// Returns what's above the player
+    pub const fn ceiling(&self) -> &'static str {
+        match self {
+            CellType::Air | CellType::Cloud => "sky",
+            _ => "ceiling",
+        }
+    }
+
+    /// Get the liquid name for this terrain (hliquid equivalent)
+    ///
+    /// Returns the name of the liquid, or "water" as default
+    pub const fn hliquid(&self) -> &'static str {
+        match self {
+            CellType::Lava => "lava",
+            CellType::Pool | CellType::Moat | CellType::Water => "water",
+            _ => "water",
+        }
+    }
+
+    /// Check if this is a body of water
+    pub const fn is_water(&self) -> bool {
+        matches!(self, CellType::Pool | CellType::Moat | CellType::Water)
+    }
+
+    /// Check if this is lava
+    pub const fn is_lava(&self) -> bool {
+        matches!(self, CellType::Lava)
     }
 }
 
@@ -339,5 +393,350 @@ impl Cell {
             return state.contains(DoorState::OPEN) || state.contains(DoorState::BROKEN);
         }
         true
+    }
+
+    /// Check if this is a door (any type)
+    pub const fn is_door(&self) -> bool {
+        self.typ.is_door()
+    }
+
+    /// Check if this is a closed door
+    pub fn is_closed_door(&self) -> bool {
+        if self.typ != CellType::Door {
+            return false;
+        }
+        let state = self.door_state();
+        state.contains(DoorState::CLOSED) || state.contains(DoorState::LOCKED)
+    }
+
+    /// Check if this is an open door
+    pub fn is_open_door(&self) -> bool {
+        if self.typ != CellType::Door {
+            return false;
+        }
+        let state = self.door_state();
+        state.contains(DoorState::OPEN) || state.contains(DoorState::BROKEN)
+    }
+
+    /// Check if this is room floor
+    pub const fn is_room(&self) -> bool {
+        matches!(self.typ, CellType::Room)
+    }
+
+    /// Check if this is a corridor
+    pub const fn is_corridor(&self) -> bool {
+        matches!(self.typ, CellType::Corridor)
+    }
+
+    /// Check if this is water/pool
+    pub const fn is_water(&self) -> bool {
+        matches!(self.typ, CellType::Pool | CellType::Moat | CellType::Water)
+    }
+
+    /// Check if this is lava
+    pub const fn is_lava(&self) -> bool {
+        matches!(self.typ, CellType::Lava)
+    }
+
+    /// Check if this is ice
+    pub const fn is_ice(&self) -> bool {
+        matches!(self.typ, CellType::Ice)
+    }
+
+    /// Check if this is a trap door
+    pub const fn is_trap_door(&self) -> bool {
+        // Trap doors are tracked separately in traps vector
+        false
+    }
+
+    /// Check if this is a fountain
+    pub const fn is_fountain(&self) -> bool {
+        matches!(self.typ, CellType::Fountain)
+    }
+
+    /// Check if this is a sink
+    pub const fn is_sink(&self) -> bool {
+        matches!(self.typ, CellType::Sink)
+    }
+
+    /// Check if this is an altar
+    pub const fn is_altar(&self) -> bool {
+        matches!(self.typ, CellType::Altar)
+    }
+
+    /// Check if this is a grave
+    pub const fn is_grave(&self) -> bool {
+        matches!(self.typ, CellType::Grave)
+    }
+
+    /// Check if this is a throne
+    pub const fn is_throne(&self) -> bool {
+        matches!(self.typ, CellType::Throne)
+    }
+
+    /// Check if this is stairs (up or down)
+    pub const fn is_stairs(&self) -> bool {
+        matches!(self.typ, CellType::Stairs | CellType::Ladder)
+    }
+
+    /// Check if this is a tree
+    pub const fn is_tree(&self) -> bool {
+        matches!(self.typ, CellType::Tree)
+    }
+
+    /// Check if this is iron bars
+    pub const fn is_bars(&self) -> bool {
+        matches!(self.typ, CellType::IronBars)
+    }
+
+    /// Check if this cell is a wall
+    pub const fn is_wall(&self) -> bool {
+        self.typ.is_wall()
+    }
+}
+
+// ============================================================================
+// Free functions (C-style API equivalents)
+// ============================================================================
+
+/// Get the surface name for terrain (surface equivalent)
+pub const fn surface(cell_type: CellType) -> &'static str {
+    cell_type.surface()
+}
+
+/// Get the ceiling name for terrain (ceiling equivalent)
+pub const fn ceiling(cell_type: CellType) -> &'static str {
+    cell_type.ceiling()
+}
+
+/// Get the liquid name for terrain (hliquid equivalent)
+pub const fn hliquid(cell_type: CellType) -> &'static str {
+    cell_type.hliquid()
+}
+
+/// Get the name of a body of water (waterbody_name equivalent)
+///
+/// Returns the appropriate name for different water-like terrain.
+pub const fn waterbody_name(cell_type: CellType) -> &'static str {
+    match cell_type {
+        CellType::Pool => "pool of water",
+        CellType::Moat => "moat",
+        CellType::Water => "water",
+        CellType::Lava => "lava",
+        _ => "water",
+    }
+}
+
+/// Check if cell is a pool of water (IS_POOL equivalent)
+pub const fn is_pool(cell_type: CellType) -> bool {
+    matches!(cell_type, CellType::Pool | CellType::Moat | CellType::Water)
+}
+
+/// Check if cell is a moat (IS_MOAT equivalent)
+pub const fn is_moat(cell_type: CellType) -> bool {
+    matches!(cell_type, CellType::Moat)
+}
+
+/// Check if cell is lava (IS_LAVA equivalent)
+pub const fn is_lava(cell_type: CellType) -> bool {
+    matches!(cell_type, CellType::Lava)
+}
+
+/// Check if cell is ice (IS_ICE equivalent)
+pub const fn is_ice(cell_type: CellType) -> bool {
+    matches!(cell_type, CellType::Ice)
+}
+
+/// Check if cell is pool or lava
+pub const fn is_pool_or_lava(cell_type: CellType) -> bool {
+    is_pool(cell_type) || is_lava(cell_type)
+}
+
+/// Check if cell is solid (not passable)
+pub const fn is_solid(cell_type: CellType) -> bool {
+    !cell_type.is_passable()
+}
+
+/// Check if cell is a wall
+pub const fn iswall(cell_type: CellType) -> bool {
+    cell_type.is_wall()
+}
+
+/// Check if cell is a wall or stone
+pub const fn iswall_or_stone(cell_type: CellType) -> bool {
+    cell_type.is_wall() || matches!(cell_type, CellType::Stone)
+}
+
+/// Check if cell is a drawbridge wall (IS_DB_WALL equivalent)
+pub const fn is_db_wall(cell_type: CellType) -> bool {
+    matches!(cell_type, CellType::DBWall)
+}
+
+/// Check if this is any type of drawbridge wall (IS_DRAWBRIDGE_WALL equivalent)
+pub const fn is_drawbridge_wall(cell_type: CellType) -> bool {
+    matches!(
+        cell_type,
+        CellType::DBWall | CellType::DrawbridgeUp | CellType::DrawbridgeDown
+    )
+}
+
+/// Set a cell as lit
+pub fn set_lit(cell: &mut Cell, lit: bool) {
+    cell.was_lit = cell.lit;
+    cell.lit = lit;
+}
+
+/// Check if cell was lit before current turn (rm_waslit equivalent)
+pub const fn rm_waslit(cell: &Cell) -> bool {
+    cell.was_lit
+}
+
+/// Check if cell blocks vision at a point (does_block equivalent)
+pub const fn does_block(cell: &Cell) -> bool {
+    cell.blocks_sight()
+}
+
+/// Map a character symbol to cell type (cmap_to_type equivalent)
+///
+/// Converts a display character to the corresponding CellType.
+pub fn cmap_to_type(ch: char) -> CellType {
+    match ch {
+        ' ' => CellType::Stone,
+        '|' => CellType::VWall,
+        '-' => CellType::HWall,
+        '#' => CellType::Corridor,
+        '.' => CellType::Room,
+        '+' => CellType::Door,
+        '>' | '<' => CellType::Stairs,
+        '{' => CellType::Fountain,
+        '\\' => CellType::Throne,
+        '_' => CellType::Altar,
+        '}' => CellType::Pool,
+        _ => CellType::Stone,
+    }
+}
+
+/// Get glyph ID at a position (glyph_at equivalent)
+///
+/// Returns the remembered glyph at a cell position.
+pub const fn glyph_at(cell: &Cell) -> i32 {
+    cell.glyph
+}
+
+/// Check if coordinates are within valid map bounds (isok from hack.h)
+///
+/// This is the Rust equivalent of NetHack's isok() macro.
+/// Returns true if the coordinates are within the valid map area.
+#[inline]
+pub fn isok(x: i32, y: i32) -> bool {
+    x >= 0 && x < crate::COLNO as i32 && y >= 0 && y < crate::ROWNO as i32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_isok() {
+        assert!(isok(0, 0));
+        assert!(isok(40, 10));
+        assert!(isok(79, 20));
+        assert!(!isok(-1, 0));
+        assert!(!isok(0, -1));
+        assert!(!isok(80, 0));
+        assert!(!isok(0, 21));
+    }
+
+    #[test]
+    fn test_is_pool() {
+        assert!(is_pool(CellType::Pool));
+        assert!(is_pool(CellType::Moat));
+        assert!(is_pool(CellType::Water));
+        assert!(!is_pool(CellType::Lava));
+        assert!(!is_pool(CellType::Room));
+    }
+
+    #[test]
+    fn test_is_lava() {
+        assert!(is_lava(CellType::Lava));
+        assert!(!is_lava(CellType::Pool));
+        assert!(!is_lava(CellType::Room));
+    }
+
+    #[test]
+    fn test_is_ice() {
+        assert!(is_ice(CellType::Ice));
+        assert!(!is_ice(CellType::Pool));
+        assert!(!is_ice(CellType::Room));
+    }
+
+    #[test]
+    fn test_is_pool_or_lava() {
+        assert!(is_pool_or_lava(CellType::Pool));
+        assert!(is_pool_or_lava(CellType::Lava));
+        assert!(!is_pool_or_lava(CellType::Room));
+    }
+
+    #[test]
+    fn test_is_solid() {
+        assert!(is_solid(CellType::Stone));
+        assert!(is_solid(CellType::VWall));
+        assert!(!is_solid(CellType::Room));
+        assert!(!is_solid(CellType::Corridor));
+    }
+
+    #[test]
+    fn test_iswall() {
+        assert!(iswall(CellType::VWall));
+        assert!(iswall(CellType::HWall));
+        assert!(!iswall(CellType::Room));
+        assert!(!iswall(CellType::Stone));
+    }
+
+    #[test]
+    fn test_iswall_or_stone() {
+        assert!(iswall_or_stone(CellType::VWall));
+        assert!(iswall_or_stone(CellType::Stone));
+        assert!(!iswall_or_stone(CellType::Room));
+    }
+
+    #[test]
+    fn test_is_drawbridge_wall() {
+        assert!(is_drawbridge_wall(CellType::DBWall));
+        assert!(is_drawbridge_wall(CellType::DrawbridgeUp));
+        assert!(is_drawbridge_wall(CellType::DrawbridgeDown));
+        assert!(!is_drawbridge_wall(CellType::VWall));
+    }
+
+    #[test]
+    fn test_set_lit() {
+        let mut cell = Cell::stone();
+        cell.lit = true;
+        set_lit(&mut cell, false);
+        assert!(!cell.lit);
+        assert!(cell.was_lit);
+    }
+
+    #[test]
+    fn test_cmap_to_type() {
+        assert_eq!(cmap_to_type('.'), CellType::Room);
+        assert_eq!(cmap_to_type('#'), CellType::Corridor);
+        assert_eq!(cmap_to_type('|'), CellType::VWall);
+        assert_eq!(cmap_to_type('-'), CellType::HWall);
+        assert_eq!(cmap_to_type('+'), CellType::Door);
+    }
+
+    #[test]
+    fn test_surface() {
+        assert_eq!(surface(CellType::Pool), "water");
+        assert_eq!(surface(CellType::Lava), "lava");
+        assert_eq!(surface(CellType::Ice), "ice");
+        assert_eq!(surface(CellType::Room), "floor");
+    }
+
+    #[test]
+    fn test_ceiling() {
+        assert_eq!(ceiling(CellType::Air), "sky");
+        assert_eq!(ceiling(CellType::Room), "ceiling");
     }
 }

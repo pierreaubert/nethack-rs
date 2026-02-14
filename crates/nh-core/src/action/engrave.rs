@@ -13,6 +13,7 @@ use crate::action::ActionResult;
 use crate::dungeon::{CellType, Engraving, EngravingType};
 use crate::gameloop::GameState;
 use crate::object::ObjectClass;
+use crate::{COLNO, ROWNO};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Epitaphs and random engravings (from engrave.c)
@@ -342,17 +343,7 @@ pub fn do_engrave(state: &mut GameState, text: &str) -> ActionResult {
         return ActionResult::Success;
     }
 
-    let existing_idx = state.current_level.engravings
-        .iter()
-        .position(|e| e.x == x && e.y == y);
-
-    if let Some(idx) = existing_idx {
-        state.current_level.engravings[idx].text = text.to_string();
-        state.current_level.engravings[idx].engr_type = EngravingType::Dust;
-    } else {
-        let engraving = Engraving::new(x, y, text.to_string(), EngravingType::Dust);
-        state.current_level.engravings.push(engraving);
-    }
+    make_engr_at(state, x, y, text, EngravingType::Dust);
 
     if text.to_lowercase().contains("elbereth") {
         state.message("You feel wise.");
@@ -375,17 +366,7 @@ pub fn do_engrave_with_tool(
         return ActionResult::NoTime;
     }
 
-    let existing_idx = state.current_level.engravings
-        .iter()
-        .position(|e| e.x == x && e.y == y);
-
-    if let Some(idx) = existing_idx {
-        state.current_level.engravings[idx].text = text.to_string();
-        state.current_level.engravings[idx].engr_type = engr_type;
-    } else {
-        let engraving = Engraving::new(x, y, text.to_string(), engr_type);
-        state.current_level.engravings.push(engraving);
-    }
+    make_engr_at(state, x, y, text, engr_type);
 
     let msg = match engr_type {
         EngravingType::Dust => format!("You write \"{}\" in the dust.", text),
@@ -405,10 +386,42 @@ pub fn do_engrave_with_tool(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Reading and querying engravings
+// Creating and querying engravings
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Read engraving at current location
+/// Create or replace an engraving at (x,y)
+pub fn make_engr_at(state: &mut GameState, x: i8, y: i8, text: &str, engr_type: EngravingType) {
+    // Check for existing engraving at this location
+    let existing_idx = state
+        .current_level
+        .engravings
+        .iter()
+        .position(|e| e.x == x && e.y == y);
+
+    if let Some(idx) = existing_idx {
+        // Replace existing engraving
+        state.current_level.engravings[idx].text = text.to_string();
+        state.current_level.engravings[idx].engr_type = engr_type;
+    } else {
+        // Create new engraving
+        let engraving = Engraving::new(x, y, text.to_string(), engr_type);
+        state.current_level.engravings.push(engraving);
+    }
+}
+
+/// Delete engraving at (x,y)
+pub fn del_engr(state: &mut GameState, x: i8, y: i8) {
+    if let Some(idx) = state
+        .current_level
+        .engravings
+        .iter()
+        .position(|e| e.x == x && e.y == y)
+    {
+        state.current_level.engravings.remove(idx);
+    }
+}
+
+/// Read engraving at current location (returns text of engraving at player pos)
 pub fn read_engrave(state: &GameState) -> Option<String> {
     let x = state.player.pos.x;
     let y = state.player.pos.y;
@@ -419,11 +432,46 @@ pub fn read_engrave(state: &GameState) -> Option<String> {
         .map(|e| e.text.clone())
 }
 
-/// Get engraving at a specific position
-pub fn engrave_at(state: &GameState, x: i8, y: i8) -> Option<&Engraving> {
-    state.current_level.engravings
+/// Read engraving at specific position
+pub fn read_engr_at(state: &GameState, x: i8, y: i8) -> Option<String> {
+    state
+        .current_level
+        .engravings
         .iter()
         .find(|e| e.x == x && e.y == y)
+        .map(|e| e.text.clone())
+}
+
+/// Get engraving reference at a specific position
+pub fn engr_at(state: &GameState, x: i8, y: i8) -> Option<&Engraving> {
+    state
+        .current_level
+        .engravings
+        .iter()
+        .find(|e| e.x == x && e.y == y)
+}
+
+/// Get engraving reference at position (used by HEAD tests)
+pub fn engrave_at(state: &GameState, x: i8, y: i8) -> Option<&Engraving> {
+    engr_at(state, x, y)
+}
+
+/// Alias for engr_at
+pub fn e_at(state: &GameState, x: i8, y: i8) -> Option<&Engraving> {
+    engr_at(state, x, y)
+}
+
+/// Check if a specific text is engraved at (x,y)
+pub fn sengr_at(state: &GameState, text: &str, x: i8, y: i8, strict: bool) -> bool {
+    if let Some(engraving) = engr_at(state, x, y) {
+        if strict {
+            engraving.text == text
+        } else {
+            engraving.text.contains(text)
+        }
+    } else {
+        false
+    }
 }
 
 /// Check if "Elbereth" is engraved at position (scares most monsters)
@@ -472,13 +520,154 @@ pub fn wipe_engr_at(level: &mut crate::dungeon::Level, x: i8, y: i8, count: usiz
     }
 }
 
-/// Wipe engraving at position (simplified, removes only dust)
+/// Wipe engraving at position (state-based version, removes only dust)
 pub fn wipe_engrave_at(state: &mut GameState, x: i8, y: i8) {
     if let Some(idx) = state.current_level.engravings
         .iter()
         .position(|e| e.x == x && e.y == y && e.engr_type == EngravingType::Dust)
     {
         state.current_level.engravings.remove(idx);
+    }
+}
+
+/// Wipe/erase engraving at position (state-based, with count)
+pub fn wipe_engr_at_state(state: &mut GameState, x: i8, y: i8, cnt: usize) {
+    if let Some(idx) = state
+        .current_level
+        .engravings
+        .iter()
+        .position(|e| e.x == x && e.y == y)
+    {
+        let engraving = &mut state.current_level.engravings[idx];
+
+        // Only certain types can be wiped easily
+        if matches!(
+            engraving.engr_type,
+            EngravingType::Dust | EngravingType::BloodStain | EngravingType::Mark
+        ) {
+            // Degrade the text
+            let len = engraving.text.len();
+            if cnt >= len {
+                // Wipe completely
+                state.current_level.engravings.remove(idx);
+            } else {
+                // Wipe partial - truncate from end
+                engraving.text.truncate(len - cnt);
+            }
+        }
+    }
+}
+
+/// Wipe engraving at player position
+pub fn u_wipe_engr(state: &mut GameState, cnt: usize) {
+    wipe_engr_at_state(state, state.player.pos.x, state.player.pos.y, cnt);
+}
+
+pub fn maybe_smudge_engr(state: &mut GameState, x: i8, y: i8, val: i32) {
+    // Smudge dust engraving
+    if let Some(engraving) = engr_at(state, x, y) {
+        if engraving.engr_type == EngravingType::Dust {
+            wipe_engr_at_state(state, x, y, val as usize);
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Blind writing and engraving relocation
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Random blind writing strings (gibberish written when blind)
+/// These are obfuscated versions of various phrases
+const BLIND_WRITING: &[&str] = &[
+    "Dmfibe\"E{qemr",           // Obfuscated text
+    "Qg`z\x7f!@qkqogc",         // Obfuscated text
+    "Imsibe\"La|mg$B\x7fflwg~", // Obfuscated text
+    "Kmlf0Lkh|\x7fo",           // Obfuscated text
+    "Qgpz\x7foghd!Okm~r",       // Obfuscated text
+];
+
+/// Return a random "blind writing" string (gibberish for blind engraving)
+pub fn blengr(state: &mut GameState) -> &'static str {
+    let idx = state.rng.rn2(BLIND_WRITING.len() as u32) as usize;
+    BLIND_WRITING[idx]
+}
+
+/// Relocate an engraving to a random valid position
+pub fn rloc_engr(state: &mut GameState, engr_idx: usize) {
+    let mut tryct = 200;
+
+    while tryct > 0 {
+        tryct -= 1;
+
+        // Random position (avoiding edges): rn1(COLNO-3, 2) = 2 + rn2(COLNO-3)
+        let tx = (2 + state.rng.rn2((COLNO - 3) as u32)) as i8;
+        let ty = state.rng.rn2(ROWNO as u32) as i8;
+
+        // Check if there's already an engraving here
+        if engr_at(state, tx, ty).is_some() {
+            continue;
+        }
+
+        // Check if position is valid (passable floor)
+        if !state.current_level.is_valid_pos(tx, ty) {
+            continue;
+        }
+
+        let cell = state.current_level.cell(tx as usize, ty as usize);
+        if !cell.typ.is_passable() {
+            continue;
+        }
+
+        // Move the engraving
+        if engr_idx < state.current_level.engravings.len() {
+            state.current_level.engravings[engr_idx].x = tx;
+            state.current_level.engravings[engr_idx].y = ty;
+        }
+        return;
+    }
+    // Failed to find valid location after 200 tries, leave engraving where it is
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Save/restore and statistics
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Restore engravings from save data
+/// In Rust, this is handled by serde deserialization of the Level struct
+/// which contains the engravings Vec. This function exists for compatibility.
+pub fn rest_engravings(_state: &mut GameState) {
+    // Engravings are automatically restored when Level is deserialized via serde
+    // No additional action needed in Rust implementation
+}
+
+/// Save engravings to save data
+/// In Rust, this is handled by serde serialization of the Level struct
+/// which contains the engravings Vec. This function exists for compatibility.
+pub fn save_engravings(_state: &mut GameState) {
+    // Engravings are automatically saved when Level is serialized via serde
+    // No additional action needed in Rust implementation
+}
+
+/// Statistics about engravings (for wizard mode '#stats' command)
+#[derive(Debug, Clone, Default)]
+pub struct EngrStats {
+    pub count: usize,
+    pub total_text_len: usize,
+}
+
+/// Get statistics about current level engravings
+pub fn engr_stats(state: &GameState) -> EngrStats {
+    let count = state.current_level.engravings.len();
+    let total_text_len: usize = state
+        .current_level
+        .engravings
+        .iter()
+        .map(|e| e.text.len())
+        .sum();
+
+    EngrStats {
+        count,
+        total_text_len,
     }
 }
 
@@ -527,7 +716,7 @@ pub fn make_grave(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dungeon::{Cell, CellType, EngravingType};
+    use crate::dungeon::{Cell, CellType, Engraving, EngravingType};
     use crate::gameloop::GameState;
     use crate::player::Position;
     use crate::rng::GameRng;
@@ -886,5 +1075,78 @@ mod tests {
     #[test]
     fn test_tool_type_other() {
         assert_eq!(engrave_type_for_tool(ObjectClass::Food), EngravingType::Dust);
+    }
+
+    // ── make_engr_at / read_engr_at / del_engr tests ─────────────────────
+
+    #[test]
+    fn test_make_and_read_engraving() {
+        let mut state = GameState::default();
+        make_engr_at(&mut state, 10, 10, "Test", EngravingType::Dust);
+
+        let text = read_engr_at(&state, 10, 10);
+        assert_eq!(text, Some("Test".to_string()));
+    }
+
+    #[test]
+    fn test_del_engr() {
+        let mut state = GameState::default();
+        make_engr_at(&mut state, 10, 10, "Test", EngravingType::Dust);
+        del_engr(&mut state, 10, 10);
+
+        assert!(read_engr_at(&state, 10, 10).is_none());
+    }
+
+    #[test]
+    fn test_blengr_returns_string() {
+        let mut state = GameState::default();
+        let blind_text = blengr(&mut state);
+        // Should return one of the blind writing strings
+        assert!(!blind_text.is_empty());
+    }
+
+    #[test]
+    fn test_engr_stats() {
+        let mut state = GameState::default();
+
+        // No engravings yet
+        let stats = engr_stats(&state);
+        assert_eq!(stats.count, 0);
+        assert_eq!(stats.total_text_len, 0);
+
+        // Add some engravings
+        make_engr_at(&mut state, 10, 10, "Hello", EngravingType::Dust);
+        make_engr_at(&mut state, 15, 15, "World", EngravingType::Engrave);
+
+        let stats = engr_stats(&state);
+        assert_eq!(stats.count, 2);
+        assert_eq!(stats.total_text_len, 10); // "Hello" + "World" = 5 + 5
+    }
+
+    #[test]
+    fn test_sengr_at() {
+        let mut state = GameState::default();
+        make_engr_at(
+            &mut state,
+            10,
+            10,
+            "Elbereth lives here",
+            EngravingType::Dust,
+        );
+
+        // Strict match - should fail
+        assert!(!sengr_at(&state, "Elbereth", 10, 10, true));
+
+        // Non-strict (contains) - should succeed
+        assert!(sengr_at(&state, "Elbereth", 10, 10, false));
+    }
+
+    #[test]
+    fn test_has_elbereth_at_position() {
+        let mut state = GameState::default();
+        make_engr_at(&mut state, 10, 10, "Elbereth", EngravingType::Dust);
+
+        assert!(has_elbereth(&state, 10, 10));
+        assert!(!has_elbereth(&state, 5, 5));
     }
 }

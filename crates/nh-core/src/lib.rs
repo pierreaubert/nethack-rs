@@ -5,11 +5,13 @@
 
 pub mod action;
 pub mod combat;
+pub mod data;
 pub mod dungeon;
 pub mod magic;
 pub mod monster;
 pub mod object;
 pub mod player;
+pub mod save;
 pub mod special;
 pub mod world;
 

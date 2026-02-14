@@ -78,7 +78,8 @@ impl MailState {
     pub fn queue_mail(&mut self, message: MailMessage) {
         self.pending_mail.push(message);
         // Sort by priority (highest first)
-        self.pending_mail.sort_by(|a, b| b.priority.cmp(&a.priority));
+        self.pending_mail
+            .sort_by(|a, b| b.priority.cmp(&a.priority));
     }
 
     /// Check if mail can be delivered this turn
