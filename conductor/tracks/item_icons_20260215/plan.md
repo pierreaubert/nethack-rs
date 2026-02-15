@@ -39,8 +39,8 @@
     - [ ] Integrate item icons into the Bevy inventory and equipment UI panels
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Bevy & UI Integration' (Protocol in workflow.md) (07f41ea)
 
-## Phase 5: Validation & Coverage
-- [~] Task: Implement Strict Coverage Validation
+## Phase 5: Validation & Coverage [checkpoint: 7af7596]
+- [x] Task: Implement Strict Coverage Validation (7af7596)
     - [ ] Write a validation tool/test that checks for missing mappings across all defined items
     - [ ] Implement build-time or startup checks that fail if critical items are unmapped
-- [ ] Task: Conductor - User Manual Verification 'Phase 5: Validation & Coverage' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 5: Validation & Coverage' (Protocol in workflow.md) (7af7596)
