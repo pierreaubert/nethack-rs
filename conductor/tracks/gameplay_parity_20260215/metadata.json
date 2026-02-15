@@ -1,0 +1,8 @@
+{
+  "track_id": "gameplay_parity_20260215",
+  "type": "qa",
+  "status": "new",
+  "created_at": "2026-02-15T15:00:00Z",
+  "updated_at": "2026-02-15T15:00:00Z",
+  "description": "Assessing gameplay between the C and Rust version, expanding nh-compare and porting missing features."
+}

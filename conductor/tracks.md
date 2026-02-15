@@ -11,3 +11,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: Building an icon per item**
   *Link: [./tracks/item_icons_20260215/](./tracks/item_icons_20260215/)*
+
+---
+
+- [ ] **Track: Assessing gameplay between the C and Rust version.**
+  *Link: [./tracks/gameplay_parity_20260215/](./tracks/gameplay_parity_20260215/)*
