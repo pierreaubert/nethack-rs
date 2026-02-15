@@ -1,7 +1,7 @@
 # Implementation Plan - Shared Tile Representation System
 
 ## Phase 1: Core Definitions
-- [ ] Task: Define the base Tile data structures
+- [x] Task: Define the base Tile data structures (b29f4b6)
     - [ ] Write unit tests for Tile serialization and mapping
     - [ ] Implement the `Tile` enum and associated metadata structs
 - [ ] Task: Create the Object-to-Tile registry
