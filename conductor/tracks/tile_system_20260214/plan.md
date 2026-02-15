@@ -1,13 +1,13 @@
 # Implementation Plan - Shared Tile Representation System
 
-## Phase 1: Core Definitions
+## Phase 1: Core Definitions [checkpoint: 79ba00f]
 - [x] Task: Define the base Tile data structures (b29f4b6)
     - [ ] Write unit tests for Tile serialization and mapping
     - [ ] Implement the `Tile` enum and associated metadata structs
 - [x] Task: Create the Object-to-Tile registry (c1c4e42)
     - [ ] Write tests for the mapping registry
     - [ ] Implement a static or configuration-based mapping for core NetHack entities
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Core Definitions' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Core Definitions' (Protocol in workflow.md) (79ba00f)
 
 ## Phase 2: Frontend Integration
 - [ ] Task: Integrate with nh-tui
