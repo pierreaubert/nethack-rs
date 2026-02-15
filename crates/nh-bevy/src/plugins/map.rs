@@ -2,6 +2,7 @@
 
 use bevy::prelude::*;
 
+use nh_core::data::tile::DungeonTile;
 use crate::components::{DoorAnimation, DoorMarker, MapPosition, TileMarker, TileMaterialType};
 use crate::plugins::game::AppState;
 use crate::resources::GameStateResource;
@@ -526,6 +527,22 @@ fn spawn_map_internal(
     ));
 }
 
+impl From<DungeonTile> for TileMaterialType {
+    fn from(dt: DungeonTile) -> Self {
+        match dt {
+            DungeonTile::Floor => TileMaterialType::Floor,
+            DungeonTile::VerticalWall | DungeonTile::HorizontalWall | DungeonTile::Corner => {
+                TileMaterialType::Wall
+            }
+            DungeonTile::DoorClosed | DungeonTile::DoorOpen => TileMaterialType::Door,
+            DungeonTile::StairsUp | DungeonTile::StairsDown => TileMaterialType::Stairs,
+            DungeonTile::Pool => TileMaterialType::Water,
+            DungeonTile::Lava => TileMaterialType::Lava,
+            DungeonTile::Stone => TileMaterialType::Stone,
+        }
+    }
+}
+
 fn spawn_tile(
     commands: &mut Commands,
     cell: &nh_core::dungeon::Cell,
@@ -533,8 +550,6 @@ fn spawn_tile(
     meshes: &TileMeshes,
     materials: &TileMaterials,
 ) {
-    use nh_core::dungeon::CellType;
-
     let world_pos = map_pos.to_world();
     let explored = cell.explored;
 
@@ -547,66 +562,31 @@ fn spawn_tile(
         }
     };
 
-    match cell.typ {
-        // Floor types - flat plane at y=0
-        CellType::Room => {
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Floor,
-                map_pos,
-                Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
-                Transform::from_translation(world_pos),
-            ));
-        }
-        CellType::Corridor => {
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Corridor,
-                map_pos,
-                Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(mat(&materials.corridor, &materials.corridor_unexplored)),
-                Transform::from_translation(world_pos),
-            ));
-        }
-        CellType::Vault => {
-            // Vault room floor - similar to regular room
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Floor,
-                map_pos,
-                Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
-                Transform::from_translation(world_pos),
-            ));
-        }
+    let dungeon_tile = DungeonTile::from(cell.typ);
+    let mat_type = TileMaterialType::from(dungeon_tile);
 
-        // Wall types - cube at y=0.5
-        CellType::VWall
-        | CellType::HWall
-        | CellType::TLCorner
-        | CellType::TRCorner
-        | CellType::BLCorner
-        | CellType::BRCorner
-        | CellType::CrossWall
-        | CellType::TUWall
-        | CellType::TDWall
-        | CellType::TLWall
-        | CellType::TRWall
-        | CellType::DBWall
-        | CellType::Wall => {
+    match dungeon_tile {
+        DungeonTile::Floor => {
             commands.spawn((
                 TileMarker,
-                TileMaterialType::Wall,
+                mat_type,
+                map_pos,
+                Mesh3d(meshes.floor.clone()),
+                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
+                Transform::from_translation(world_pos),
+            ));
+        }
+        DungeonTile::VerticalWall | DungeonTile::HorizontalWall | DungeonTile::Corner => {
+            commands.spawn((
+                TileMarker,
+                mat_type,
                 map_pos,
                 Mesh3d(meshes.wall.clone()),
                 MeshMaterial3d(mat(&materials.wall, &materials.wall_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.5),
             ));
         }
-
-        // Door - rotates based on state
-        CellType::Door => {
+        DungeonTile::DoorClosed | DungeonTile::DoorOpen => {
             let door_state = cell.door_state();
             let is_open = door_state.contains(nh_core::dungeon::DoorState::OPEN);
 
@@ -631,7 +611,7 @@ fn spawn_tile(
             // Door itself - thin slab
             commands.spawn((
                 TileMarker,
-                TileMaterialType::Door,
+                mat_type,
                 DoorMarker {
                     x: map_pos.x,
                     y: map_pos.y,
@@ -645,178 +625,45 @@ fn spawn_tile(
                     .with_scale(Vec3::new(0.2, 1.0, 1.0)),
             ));
         }
-
-        // Stairs
-        CellType::Stairs | CellType::Ladder => {
+        DungeonTile::StairsUp | DungeonTile::StairsDown => {
             commands.spawn((
                 TileMarker,
-                TileMaterialType::Stairs,
+                mat_type,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(mat(&materials.stairs, &materials.stairs_unexplored)),
                 Transform::from_translation(world_pos),
             ));
         }
-
-        // Liquids - plane below floor level
-        CellType::Pool | CellType::Moat | CellType::Water => {
+        DungeonTile::Pool => {
             commands.spawn((
                 TileMarker,
-                TileMaterialType::Water,
+                mat_type,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(mat(&materials.water, &materials.water_unexplored)),
                 Transform::from_translation(world_pos - Vec3::Y * 0.3),
             ));
         }
-
-        CellType::Lava => {
+        DungeonTile::Lava => {
             commands.spawn((
                 TileMarker,
-                TileMaterialType::Lava,
+                mat_type,
                 map_pos,
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(mat(&materials.lava, &materials.lava_unexplored)),
                 Transform::from_translation(world_pos - Vec3::Y * 0.2),
             ));
         }
-
-        // Special terrain
-        CellType::Fountain => {
-            // Floor
+        DungeonTile::Stone => {
             commands.spawn((
                 TileMarker,
-                TileMaterialType::Floor,
-                map_pos,
-                Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
-                Transform::from_translation(world_pos),
-            ));
-            // Fountain pedestal
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Fountain,
-                map_pos,
-                Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(mat(&materials.fountain, &materials.fountain_unexplored)),
-                Transform::from_translation(world_pos + Vec3::Y * 0.15)
-                    .with_scale(Vec3::new(0.4, 0.3, 0.4)),
-            ));
-        }
-
-        CellType::Throne | CellType::Altar | CellType::Grave | CellType::Sink => {
-            // Floor with special feature
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Floor,
-                map_pos,
-                Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
-                Transform::from_translation(world_pos),
-            ));
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Stone,
-                map_pos,
-                Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(mat(&materials.stone, &materials.stone_unexplored)),
-                Transform::from_translation(world_pos + Vec3::Y * 0.15)
-                    .with_scale(Vec3::new(0.5, 0.3, 0.5)),
-            ));
-        }
-
-        CellType::Tree => {
-            // Floor
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Floor,
-                map_pos,
-                Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
-                Transform::from_translation(world_pos),
-            ));
-            // Tree as tall cube
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Tree,
-                map_pos,
-                Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(mat(&materials.tree, &materials.tree_unexplored)),
-                Transform::from_translation(world_pos + Vec3::Y * 0.75)
-                    .with_scale(Vec3::new(0.6, 1.5, 0.6)),
-            ));
-        }
-
-        CellType::Ice => {
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Ice,
-                map_pos,
-                Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(mat(&materials.ice, &materials.ice_unexplored)),
-                Transform::from_translation(world_pos),
-            ));
-        }
-
-        CellType::IronBars => {
-            // Floor with bars
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Corridor,
-                map_pos,
-                Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(mat(&materials.corridor, &materials.corridor_unexplored)),
-                Transform::from_translation(world_pos),
-            ));
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Stone,
-                map_pos,
-                Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(mat(&materials.stone, &materials.stone_unexplored)),
-                Transform::from_translation(world_pos + Vec3::Y * 0.5)
-                    .with_scale(Vec3::new(0.1, 1.0, 1.0)),
-            ));
-        }
-
-        CellType::DrawbridgeDown => {
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Door,
-                map_pos,
-                Mesh3d(meshes.floor.clone()),
-                MeshMaterial3d(mat(&materials.door, &materials.door_unexplored)),
-                Transform::from_translation(world_pos),
-            ));
-        }
-
-        // Stone - always spawn (semi-transparent if unexplored)
-        CellType::Stone => {
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Stone,
+                mat_type,
                 map_pos,
                 Mesh3d(meshes.wall.clone()),
                 MeshMaterial3d(mat(&materials.stone, &materials.stone_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.5),
             ));
-        }
-
-        // Secret door/corridor - looks like wall
-        CellType::SecretDoor | CellType::SecretCorridor => {
-            commands.spawn((
-                TileMarker,
-                TileMaterialType::Wall,
-                map_pos,
-                Mesh3d(meshes.wall.clone()),
-                MeshMaterial3d(mat(&materials.wall, &materials.wall_unexplored)),
-                Transform::from_translation(world_pos + Vec3::Y * 0.5),
-            ));
-        }
-
-        // Air/Cloud/DrawbridgeUp - no geometry
-        CellType::Air | CellType::Cloud | CellType::DrawbridgeUp => {
-            // Empty space - no geometry
         }
     }
 }
