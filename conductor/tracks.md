@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: Implement a shared tile representation system across TUI and Bevy frontends.**
+- [x] **Track: Implement a shared tile representation system across TUI and Bevy frontends.**
   *Link: [./tracks/tile_system_20260214/](./tracks/tile_system_20260214/)*
