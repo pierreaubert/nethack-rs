@@ -3,6 +3,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Widget};
 
+use nh_core::data::tile::{DungeonTile, Tile};
 use nh_core::dungeon::{CellType, Level};
 use nh_core::player::You;
 use nh_core::{COLNO, ROWNO};
@@ -38,11 +39,8 @@ impl<'a> MapWidget<'a> {
         if is_visible {
             // Monster at position
             if let Some(monster) = self.level.monster_at(xi, yi) {
-                let symbol = if monster.name.is_empty() {
-                    'M'
-                } else {
-                    monster.name.chars().next().unwrap_or('M')
-                };
+                let tile = nh_core::data::tile::get_tile_for_monster(monster.permonst());
+                let symbol = tile.to_ascii();
                 let color = if monster.is_hostile() {
                     Color::Red
                 } else if monster.is_pet() {
@@ -56,7 +54,8 @@ impl<'a> MapWidget<'a> {
             // Objects at position - show top object's class symbol
             let objects = self.level.objects_at(xi, yi);
             if let Some(obj) = objects.first() {
-                let symbol = obj.class.symbol();
+                let tile = nh_core::data::tile::get_tile_for_object(obj);
+                let symbol = tile.to_ascii();
                 let color = match obj.class {
                     nh_core::object::ObjectClass::Coin => Color::Yellow,
                     nh_core::object::ObjectClass::Gem => Color::Cyan,
@@ -74,7 +73,8 @@ impl<'a> MapWidget<'a> {
 
         // Terrain (shown if explored, dimmed if not currently visible)
         let cell = &self.level.cells[x][y];
-        let symbol = cell.typ.symbol();
+        let tile = Tile::Dungeon(DungeonTile::from(cell.typ));
+        let symbol = tile.to_ascii();
         let base_color = match cell.typ {
             CellType::Stone => Color::Black,
             CellType::Room | CellType::Corridor => {

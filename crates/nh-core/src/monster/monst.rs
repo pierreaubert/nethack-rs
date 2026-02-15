@@ -11,6 +11,8 @@ use super::morale::MoraleTracker;
 #[cfg(feature = "extensions")]
 use super::personality::Personality;
 use crate::combat::{AttackSet, CombatResources, StatusEffectTracker};
+use crate::data::monsters::get_monster;
+use crate::monster::PerMonst;
 use crate::object::{Object, ObjectId};
 use crate::special::dog::PetExtension;
 use crate::special::priest::PriestExtension;
@@ -424,6 +426,11 @@ impl Monster {
             spec_used: 0,
             eating_timeout: 0,
         }
+    }
+
+    /// Get the monster template for this instance
+    pub fn permonst(&self) -> &'static PerMonst {
+        get_monster(self.monster_type).expect("Invalid monster type")
     }
 
     /// Check if monster is dead

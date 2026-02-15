@@ -18,7 +18,7 @@ use nh_core::dungeon::Level;
 use nh_core::player::{AlignmentType, Gender, Race, Role, You};
 use nh_core::save::{default_save_path, delete_save, load_game, save_game};
 use nh_core::{GameLoopResult, GameRng, GameState};
-use nh_ui::App;
+use nh_tui::App;
 
 /// NetHack clone in Rust
 #[derive(Parser, Debug)]

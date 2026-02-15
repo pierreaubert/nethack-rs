@@ -3986,7 +3986,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nh-ui"
+name = "nh-tui"
 version = "0.1.11"
 dependencies = [
  "clap",

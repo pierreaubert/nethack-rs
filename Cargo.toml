@@ -18,7 +18,7 @@ rust-version = "1.93"
 [workspace.dependencies]
 # Internal crates
 nh-core = { path = "crates/nh-core" }
-nh-ui = { path = "crates/nh-ui" }
+nh-tui = { path = "crates/nh-tui" }
 nh-test = { path = "crates/nh-test" }
 nh-compare = { path = "crates/nh-compare" }
 nh-player = { path = "crates/nh-player" }
