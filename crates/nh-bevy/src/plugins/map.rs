@@ -3,6 +3,7 @@
 use bevy::prelude::*;
 
 use crate::components::{DoorAnimation, DoorMarker, MapPosition, TileMarker, TileMaterialType};
+use crate::plugins::game::AppState;
 use crate::resources::GameStateResource;
 
 pub struct MapPlugin;
@@ -12,14 +13,17 @@ impl Plugin for MapPlugin {
         app.init_resource::<MapState>()
             .insert_resource(TextureVariants::new())
             .add_systems(Startup, (setup_tile_assets, spawn_map).chain())
+            .add_systems(OnEnter(AppState::Playing), mark_map_for_respawn)
             .add_systems(
                 Update,
                 (
+                    check_level_change,
                     sync_door_states,
                     animate_doors,
-                    check_level_change,
                     animate_liquids,
-                ),
+                )
+                    .chain()
+                    .run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -28,6 +32,8 @@ impl Plugin for MapPlugin {
 struct MapState {
     current_dlevel: Option<nh_core::dungeon::DLevel>,
     room_change_count: usize,
+    /// Set when entering Playing state to force a full map respawn
+    needs_respawn: bool,
 }
 
 /// Tracks texture variants for each tile type
@@ -108,7 +114,12 @@ fn animate_liquids(
     }
 }
 
-/// Check if level changed and respawn map
+/// Mark map for respawn when entering Playing state (e.g., after character creation)
+fn mark_map_for_respawn(mut map_state: ResMut<MapState>) {
+    map_state.needs_respawn = true;
+}
+
+/// Check if level changed (or respawn forced) and respawn map
 fn check_level_change(
     mut commands: Commands,
     game_state: Res<GameStateResource>,
@@ -120,22 +131,23 @@ fn check_level_change(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
-    if !game_state.is_changed() {
+    if !game_state.is_changed() && !map_state.needs_respawn {
         return;
     }
 
     let current_dlevel = game_state.0.current_level.dlevel;
+    let force_respawn = map_state.needs_respawn;
 
-    // Initialize on first run
-    if map_state.current_dlevel.is_none() {
+    // Initialize on first run (but not if we're forcing a respawn)
+    if map_state.current_dlevel.is_none() && !force_respawn {
         map_state.current_dlevel = Some(current_dlevel);
         return;
     }
 
-    if map_state.current_dlevel != Some(current_dlevel) {
+    if map_state.current_dlevel != Some(current_dlevel) || force_respawn {
         info!(
-            "Level changed from {:?} to {:?}",
-            map_state.current_dlevel, current_dlevel
+            "Respawning map (level {:?} → {:?}, forced={})",
+            map_state.current_dlevel, current_dlevel, force_respawn
         );
 
         // Advance texture variants for visual variety
@@ -169,6 +181,7 @@ fn check_level_change(
 
         // Update state
         map_state.current_dlevel = Some(current_dlevel);
+        map_state.needs_respawn = false;
     }
 }
 

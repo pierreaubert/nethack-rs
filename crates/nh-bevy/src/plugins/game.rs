@@ -50,14 +50,18 @@ impl Plugin for GamePlugin {
 #[derive(States, Default, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum AppState {
     /// Main menu screen
-    MainMenu,
-    /// Active gameplay
     #[default]
+    MainMenu,
+    /// Character creation wizard
+    CharacterCreation,
+    /// Active gameplay
     Playing,
     /// Game is paused
     Paused,
     /// Player died
     GameOver,
+    /// Player ascended
+    Victory,
 }
 
 /// Handle ESC key - open pause menu instead of quitting

@@ -74,27 +74,21 @@ fn keyboard_to_command(
         picker_state.filtered_indices = filtered;
     };
 
-    // Transform direction based on camera mode for intuitive 3D movement
-    // In 3D views, the camera looks toward +Z (south in map terms), so we need to
-    // invert North/South and diagonal directions for arrow keys to feel natural
+    // Transform direction based on camera mode for intuitive 3D movement.
+    // TopDown/Isometric: North is at screen top (no swap needed).
+    // ThirdPerson/FirstPerson: camera faces +Z (South), so swap N↔S for arrow keys.
     let transform_for_camera = |dir: Direction| -> Direction {
         match camera_mode.get() {
-            CameraMode::TopDown
-            | CameraMode::Isometric
-            | CameraMode::ThirdPerson
-            | CameraMode::FirstPerson => {
-                // In all 3D views, +Z is "forward" visually, which is South in map coords
-                // So we swap North↔South for intuitive up/down arrow behavior
-                match dir {
-                    Direction::North => Direction::South,
-                    Direction::South => Direction::North,
-                    Direction::NorthEast => Direction::SouthEast,
-                    Direction::NorthWest => Direction::SouthWest,
-                    Direction::SouthEast => Direction::NorthEast,
-                    Direction::SouthWest => Direction::NorthWest,
-                    other => other,
-                }
-            }
+            CameraMode::TopDown | CameraMode::Isometric => dir,
+            CameraMode::ThirdPerson | CameraMode::FirstPerson => match dir {
+                Direction::North => Direction::South,
+                Direction::South => Direction::North,
+                Direction::NorthEast => Direction::SouthEast,
+                Direction::NorthWest => Direction::SouthWest,
+                Direction::SouthEast => Direction::NorthEast,
+                Direction::SouthWest => Direction::NorthWest,
+                other => other,
+            },
         }
     };
 
@@ -219,6 +213,8 @@ fn process_game_command(
     mut commands: EventReader<GameCommand>,
     mut game_state: ResMut<GameStateResource>,
     mut next_app_state: ResMut<NextState<AppState>>,
+    mut game_over_info: ResMut<crate::resources::GameOverInfo>,
+    mut exit: EventWriter<AppExit>,
 ) {
     for GameCommand(command) in commands.read() {
         // Clear previous messages
@@ -239,18 +235,34 @@ fn process_game_command(
             }
             nh_core::GameLoopResult::PlayerDied(msg) => {
                 info!("GAME OVER: {}", msg);
-                game_state.0.message(format!("You died: {}", msg));
+                game_over_info.cause_of_death = Some(msg);
+                game_over_info.is_victory = false;
+                // Delete save file (permadeath)
+                let path =
+                    nh_core::save::default_save_path(&game_state.0.player.name);
+                let _ = nh_core::save::delete_save(&path);
                 next_app_state.set(AppState::GameOver);
             }
             nh_core::GameLoopResult::PlayerQuit => {
-                info!("Player quit");
+                exit.send(AppExit::Success);
             }
             nh_core::GameLoopResult::PlayerWon => {
-                info!("You win!");
-                game_state.0.message("You ascend to demigod-hood!");
+                info!("YOU ASCENDED!");
+                game_over_info.cause_of_death = None;
+                game_over_info.is_victory = true;
+                // Delete save file (ascension is permanent too)
+                let path =
+                    nh_core::save::default_save_path(&game_state.0.player.name);
+                let _ = nh_core::save::delete_save(&path);
+                next_app_state.set(AppState::Victory);
             }
             nh_core::GameLoopResult::SaveAndQuit => {
-                info!("Game saved");
+                let path =
+                    nh_core::save::default_save_path(&game_state.0.player.name);
+                if let Err(e) = nh_core::save::save_game(&game_state.0, &path) {
+                    error!("Failed to save game: {}", e);
+                }
+                exit.send(AppExit::Success);
             }
         }
     }

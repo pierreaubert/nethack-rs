@@ -2,8 +2,7 @@
 resolver = "2"
 members = [
     "crates/nh-core",
-    "crates/nh-ui",
-    "crates/nethack",
+    "crates/nh-tui",
     "crates/nh-test",
     "crates/nh-compare",
     "crates/nh-bevy",

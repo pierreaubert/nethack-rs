@@ -1,17 +1,24 @@
-//! Menu screens - main menu, pause menu, game over, settings
+//! Menu screens - main menu, pause menu, game over, character creation, victory, settings
 //!
 //! Provides:
 //! - Main menu with new game, load, settings, quit
+//! - Character creation wizard (name, role, race, gender, alignment)
 //! - Pause menu with resume, save, settings, quit
-//! - Game over screen with stats
+//! - Game over screen with full stats (attributes, conducts, inventory)
+//! - Victory screen for ascension
 //! - Settings panel
 //! - Save/load browser
 
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
+use strum::IntoEnumIterator;
+
+use nh_core::player::{AlignmentType, Attribute, Gender, Race, Role};
 
 use crate::plugins::game::AppState;
-use crate::resources::GameStateResource;
+use crate::resources::{
+    CharacterCreationState, CharacterCreationStep, GameOverInfo, GameStateResource,
+};
 
 pub struct MenusPlugin;
 
@@ -20,14 +27,24 @@ impl Plugin for MenusPlugin {
         app.init_resource::<GameSettings>()
             .init_resource::<MenuState>()
             .init_resource::<SaveLoadState>()
+            .init_resource::<CharacterCreationState>()
+            .init_resource::<GameOverInfo>()
             .add_systems(
                 Update,
                 render_main_menu.run_if(in_state(AppState::MainMenu)),
+            )
+            .add_systems(
+                Update,
+                render_character_creation.run_if(in_state(AppState::CharacterCreation)),
             )
             .add_systems(Update, render_pause_menu.run_if(in_state(AppState::Paused)))
             .add_systems(
                 Update,
                 render_game_over_screen.run_if(in_state(AppState::GameOver)),
+            )
+            .add_systems(
+                Update,
+                render_victory_screen.run_if(in_state(AppState::Victory)),
             );
     }
 }
@@ -82,6 +99,7 @@ impl Default for GameSettings {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_main_menu(
     mut contexts: EguiContexts,
     mut next_state: ResMut<NextState<AppState>>,
@@ -90,10 +108,12 @@ fn render_main_menu(
     mut settings: ResMut<GameSettings>,
     mut save_state: ResMut<SaveLoadState>,
     mut game_state: ResMut<GameStateResource>,
+    mut cc_state: ResMut<CharacterCreationState>,
 ) {
-    // Full screen dark overlay
+    // Full screen dark overlay (non-interactable so clicks pass through to windows)
     egui::Area::new(egui::Id::new("main_menu_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
+        .interactable(false)
         .show(contexts.ctx_mut(), |ui| {
             let screen_rect = ui.ctx().screen_rect();
             ui.painter().rect_filled(
@@ -157,9 +177,8 @@ fn render_main_menu(
                     .add_sized(button_size, egui::Button::new("New Game"))
                     .clicked()
                 {
-                    // Reset to fresh game state
-                    game_state.0 = nh_core::GameState::default();
-                    next_state.set(AppState::Playing);
+                    cc_state.reset();
+                    next_state.set(AppState::CharacterCreation);
                 }
 
                 ui.add_space(10.0);
@@ -225,6 +244,7 @@ fn render_pause_menu(
     // Semi-transparent overlay
     egui::Area::new(egui::Id::new("pause_menu_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
+        .interactable(false)
         .show(contexts.ctx_mut(), |ui| {
             let screen_rect = ui.ctx().screen_rect();
             ui.painter().rect_filled(
@@ -325,15 +345,307 @@ fn render_pause_menu(
         });
 }
 
+fn render_character_creation(
+    mut contexts: EguiContexts,
+    mut next_state: ResMut<NextState<AppState>>,
+    mut cc_state: ResMut<CharacterCreationState>,
+    mut game_state: ResMut<GameStateResource>,
+) {
+    // Dark overlay
+    egui::Area::new(egui::Id::new("cc_bg"))
+        .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
+        .interactable(false)
+        .show(contexts.ctx_mut(), |ui| {
+            let screen_rect = ui.ctx().screen_rect();
+            ui.painter().rect_filled(
+                screen_rect,
+                egui::Rounding::ZERO,
+                egui::Color32::from_rgba_unmultiplied(0, 0, 0, 230),
+            );
+        });
+
+    egui::Window::new("Character Creation")
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .resizable(false)
+        .collapsible(false)
+        .min_width(400.0)
+        .show(contexts.ctx_mut(), |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(10.0);
+                ui.label(
+                    egui::RichText::new("Create Your Character")
+                        .size(28.0)
+                        .color(egui::Color32::GOLD)
+                        .strong(),
+                );
+                ui.add_space(15.0);
+            });
+
+            match cc_state.step {
+                CharacterCreationStep::EnterName => {
+                    ui.label(egui::RichText::new("What is your name?").size(16.0));
+                    ui.add_space(8.0);
+                    let response = ui.add(
+                        egui::TextEdit::singleline(&mut cc_state.name)
+                            .desired_width(300.0)
+                            .hint_text("Enter your name..."),
+                    );
+                    response.request_focus();
+                    ui.add_space(10.0);
+                    let name_valid = !cc_state.name.trim().is_empty();
+                    if ui
+                        .add_enabled(name_valid, egui::Button::new("Continue"))
+                        .clicked()
+                        || (response.lost_focus()
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                            && name_valid)
+                    {
+                        cc_state.name = cc_state.name.trim().to_string();
+                        cc_state.step = CharacterCreationStep::AskRandom;
+                    }
+                }
+                CharacterCreationStep::AskRandom => {
+                    ui.label(
+                        egui::RichText::new("Randomize your character?").size(16.0),
+                    );
+                    ui.add_space(8.0);
+                    ui.label("A random character will be assigned a role, race, gender, and alignment.");
+                    ui.add_space(15.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_sized(egui::vec2(150.0, 35.0), egui::Button::new("Yes, random!"))
+                            .clicked()
+                        {
+                            let roles: Vec<Role> = Role::iter().collect();
+                            let races: Vec<Race> = Race::iter().collect();
+                            let genders: Vec<Gender> =
+                                Gender::iter().filter(|g| *g != Gender::Neuter).collect();
+                            let aligns: Vec<AlignmentType> = AlignmentType::iter().collect();
+                            cc_state.role =
+                                Some(roles[fastrand::usize(..roles.len())]);
+                            cc_state.race =
+                                Some(races[fastrand::usize(..races.len())]);
+                            cc_state.gender =
+                                Some(genders[fastrand::usize(..genders.len())]);
+                            cc_state.alignment =
+                                Some(aligns[fastrand::usize(..aligns.len())]);
+                            cc_state.step = CharacterCreationStep::Done;
+                        }
+                        if ui
+                            .add_sized(egui::vec2(150.0, 35.0), egui::Button::new("No, I'll choose"))
+                            .clicked()
+                        {
+                            cc_state.cursor = 0;
+                            cc_state.step = CharacterCreationStep::SelectRole;
+                        }
+                    });
+                }
+                CharacterCreationStep::SelectRole => {
+                    ui.label(egui::RichText::new("Choose your role:").size(16.0));
+                    ui.add_space(8.0);
+                    egui::ScrollArea::vertical()
+                        .max_height(300.0)
+                        .show(ui, |ui| {
+                            for role in Role::iter() {
+                                let selected = cc_state.role == Some(role);
+                                if ui
+                                    .selectable_label(selected, format!("  {role}"))
+                                    .clicked()
+                                {
+                                    cc_state.role = Some(role);
+                                }
+                            }
+                        });
+                    ui.add_space(10.0);
+                    if ui
+                        .add_enabled(cc_state.role.is_some(), egui::Button::new("Continue"))
+                        .clicked()
+                    {
+                        cc_state.cursor = 0;
+                        cc_state.step = CharacterCreationStep::SelectRace;
+                    }
+                }
+                CharacterCreationStep::SelectRace => {
+                    ui.label(egui::RichText::new("Choose your race:").size(16.0));
+                    ui.add_space(8.0);
+                    for race in Race::iter() {
+                        let selected = cc_state.race == Some(race);
+                        if ui
+                            .selectable_label(selected, format!("  {race}"))
+                            .clicked()
+                        {
+                            cc_state.race = Some(race);
+                        }
+                    }
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Back").clicked() {
+                            cc_state.step = CharacterCreationStep::SelectRole;
+                        }
+                        if ui
+                            .add_enabled(cc_state.race.is_some(), egui::Button::new("Continue"))
+                            .clicked()
+                        {
+                            cc_state.step = CharacterCreationStep::SelectGender;
+                        }
+                    });
+                }
+                CharacterCreationStep::SelectGender => {
+                    ui.label(egui::RichText::new("Choose your gender:").size(16.0));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        for gender in [Gender::Male, Gender::Female] {
+                            let selected = cc_state.gender == Some(gender);
+                            if ui
+                                .selectable_label(selected, format!("  {gender}  "))
+                                .clicked()
+                            {
+                                cc_state.gender = Some(gender);
+                            }
+                        }
+                    });
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Back").clicked() {
+                            cc_state.step = CharacterCreationStep::SelectRace;
+                        }
+                        if ui
+                            .add_enabled(
+                                cc_state.gender.is_some(),
+                                egui::Button::new("Continue"),
+                            )
+                            .clicked()
+                        {
+                            cc_state.step = CharacterCreationStep::SelectAlignment;
+                        }
+                    });
+                }
+                CharacterCreationStep::SelectAlignment => {
+                    ui.label(egui::RichText::new("Choose your alignment:").size(16.0));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        for align in AlignmentType::iter() {
+                            let selected = cc_state.alignment == Some(align);
+                            if ui
+                                .selectable_label(selected, format!("  {align}  "))
+                                .clicked()
+                            {
+                                cc_state.alignment = Some(align);
+                            }
+                        }
+                    });
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Back").clicked() {
+                            cc_state.step = CharacterCreationStep::SelectGender;
+                        }
+                        if ui
+                            .add_enabled(
+                                cc_state.alignment.is_some(),
+                                egui::Button::new("Continue"),
+                            )
+                            .clicked()
+                        {
+                            cc_state.step = CharacterCreationStep::Done;
+                        }
+                    });
+                }
+                CharacterCreationStep::Done => {
+                    let role = cc_state.role.unwrap_or_default();
+                    let race = cc_state.race.unwrap_or_default();
+                    let gender = cc_state.gender.unwrap_or_default();
+                    let alignment = cc_state.alignment.unwrap_or_default();
+
+                    ui.group(|ui| {
+                        ui.set_min_width(350.0);
+                        ui.label(egui::RichText::new("Character Summary").size(16.0).strong());
+                        ui.separator();
+                        egui::Grid::new("cc_summary")
+                            .num_columns(2)
+                            .spacing([40.0, 4.0])
+                            .show(ui, |ui| {
+                                ui.label("Name:");
+                                ui.label(
+                                    egui::RichText::new(&cc_state.name)
+                                        .strong()
+                                        .color(egui::Color32::LIGHT_BLUE),
+                                );
+                                ui.end_row();
+                                ui.label("Role:");
+                                ui.label(format!("{role}"));
+                                ui.end_row();
+                                ui.label("Race:");
+                                ui.label(format!("{race}"));
+                                ui.end_row();
+                                ui.label("Gender:");
+                                ui.label(format!("{gender}"));
+                                ui.end_row();
+                                ui.label("Alignment:");
+                                ui.label(format!("{alignment}"));
+                                ui.end_row();
+                            });
+                    });
+
+                    ui.add_space(15.0);
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Back").clicked() {
+                            cc_state.step = CharacterCreationStep::SelectAlignment;
+                        }
+                        if ui
+                            .add_sized(
+                                egui::vec2(200.0, 40.0),
+                                egui::Button::new(
+                                    egui::RichText::new("Start Adventure!").size(16.0).strong(),
+                                ),
+                            )
+                            .clicked()
+                        {
+                            // Create properly initialized game state
+                            let rng = nh_core::GameRng::from_entropy();
+                            let mut state = nh_core::GameState::new_with_identity(
+                                rng,
+                                cc_state.name.clone(),
+                                role,
+                                race,
+                                gender,
+                            );
+                            state.player.alignment =
+                                nh_core::player::Alignment::new(alignment);
+
+                            // Welcome messages
+                            let title = state.player.rank_title();
+                            state.message(format!(
+                                "Welcome to NetHack, {} the {} {} {}!",
+                                state.player.name, alignment, race, title,
+                            ));
+                            state.message(
+                                "Be careful! You are about to enter the Dungeons of Doom...",
+                            );
+
+                            game_state.0 = state;
+                            next_state.set(AppState::Playing);
+                        }
+                    });
+                }
+            }
+
+            ui.add_space(10.0);
+        });
+}
+
 fn render_game_over_screen(
     mut contexts: EguiContexts,
     mut next_state: ResMut<NextState<AppState>>,
     mut exit: EventWriter<AppExit>,
-    mut game_state: ResMut<GameStateResource>,
+    game_state: Res<GameStateResource>,
+    game_over_info: Res<GameOverInfo>,
+    mut cc_state: ResMut<CharacterCreationState>,
 ) {
     // Dark overlay
     egui::Area::new(egui::Id::new("game_over_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
+        .interactable(false)
         .show(contexts.ctx_mut(), |ui| {
             let screen_rect = ui.ctx().screen_rect();
             ui.painter().rect_filled(
@@ -343,38 +655,61 @@ fn render_game_over_screen(
             );
         });
 
-    // Game over window
     egui::Window::new("Game Over")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
         .show(contexts.ctx_mut(), |ui| {
-            ui.set_min_width(350.0);
+            ui.set_min_width(450.0);
 
             ui.vertical_centered(|ui| {
                 ui.add_space(10.0);
 
                 ui.label(
-                    egui::RichText::new("YOU DIED")
-                        .size(36.0)
+                    egui::RichText::new("R.I.P.")
+                        .size(42.0)
                         .color(egui::Color32::RED)
                         .strong(),
                 );
 
-                ui.add_space(20.0);
+                ui.add_space(5.0);
 
-                // Character stats
                 let state = &game_state.0;
+                let player = &state.player;
+
+                // Player identity
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} the {} {} {}",
+                        player.name, player.alignment.typ, player.race, player.rank_title()
+                    ))
+                    .size(18.0)
+                    .color(egui::Color32::LIGHT_GRAY),
+                );
+
+                // Cause of death
+                if let Some(cause) = &game_over_info.cause_of_death {
+                    ui.add_space(5.0);
+                    ui.label(
+                        egui::RichText::new(cause)
+                            .color(egui::Color32::LIGHT_RED)
+                            .italics(),
+                    );
+                }
+
+                ui.add_space(15.0);
+
+                // Stats
                 ui.group(|ui| {
-                    ui.set_min_width(300.0);
-                    ui.label(egui::RichText::new("Character Summary").size(16.0).strong());
+                    ui.set_min_width(400.0);
+                    ui.label(egui::RichText::new("Final Statistics").size(16.0).strong());
                     ui.separator();
 
-                    egui::Grid::new("stats_grid")
+                    egui::Grid::new("death_stats_grid")
                         .num_columns(2)
                         .spacing([40.0, 4.0])
                         .show(ui, |ui| {
-                            ui.label("Turns survived:");
+                            ui.label("Turns:");
                             ui.label(format!("{}", state.turns));
                             ui.end_row();
 
@@ -382,31 +717,119 @@ fn render_game_over_screen(
                             ui.label(format!("{}", state.current_level.dlevel.depth()));
                             ui.end_row();
 
-                            ui.label("Gold collected:");
-                            ui.label(format!("{}", state.player.gold));
-                            ui.end_row();
-
-                            ui.label("Experience level:");
-                            ui.label(format!("{}", state.player.exp_level));
+                            ui.label("Gold:");
+                            ui.label(format!("{}", player.gold));
                             ui.end_row();
 
                             ui.label("Experience:");
-                            ui.label(format!("{}", state.player.exp));
+                            ui.label(format!(
+                                "Level {} ({} pts)",
+                                player.exp_level, player.exp
+                            ));
+                            ui.end_row();
+
+                            ui.label("HP:");
+                            ui.label(format!("{}/{}", player.hp, player.hp_max));
                             ui.end_row();
                         });
                 });
 
-                // Death message from messages
-                if let Some(death_msg) = state.messages.last() {
-                    ui.add_space(10.0);
-                    ui.label(
-                        egui::RichText::new(death_msg)
-                            .color(egui::Color32::LIGHT_RED)
-                            .italics(),
-                    );
+                ui.add_space(8.0);
+
+                // Attributes
+                ui.group(|ui| {
+                    ui.set_min_width(400.0);
+                    ui.label(egui::RichText::new("Attributes").size(14.0).strong());
+                    ui.separator();
+
+                    egui::Grid::new("death_attrs_grid")
+                        .num_columns(6)
+                        .spacing([15.0, 4.0])
+                        .show(ui, |ui| {
+                            for attr in Attribute::ALL {
+                                ui.label(
+                                    egui::RichText::new(attr.short_name())
+                                        .strong()
+                                        .color(egui::Color32::LIGHT_BLUE),
+                                );
+                            }
+                            ui.end_row();
+                            for attr in Attribute::ALL {
+                                ui.label(format!(
+                                    "{}",
+                                    player.attr_current.get(attr)
+                                ));
+                            }
+                            ui.end_row();
+                        });
+                });
+
+                ui.add_space(8.0);
+
+                // Conducts
+                ui.group(|ui| {
+                    ui.set_min_width(400.0);
+                    ui.label(egui::RichText::new("Conducts").size(14.0).strong());
+                    ui.separator();
+
+                    let conduct = &player.conduct;
+                    let checks: &[(&str, bool)] = &[
+                        ("Foodless", conduct.is_foodless()),
+                        ("Vegan", conduct.is_vegan()),
+                        ("Vegetarian", conduct.is_vegetarian()),
+                        ("Atheist", conduct.is_atheist()),
+                        ("Weaponless", conduct.is_weaponless()),
+                        ("Pacifist", conduct.is_pacifist()),
+                        ("Illiterate", conduct.is_illiterate()),
+                        ("Wishless", conduct.is_wishless()),
+                        ("Genocideless", conduct.is_genocideless()),
+                    ];
+
+                    egui::Grid::new("death_conduct_grid")
+                        .num_columns(2)
+                        .spacing([20.0, 2.0])
+                        .show(ui, |ui| {
+                            for (name, maintained) in checks {
+                                let (icon, color) = if *maintained {
+                                    ("*", egui::Color32::GREEN)
+                                } else {
+                                    ("-", egui::Color32::DARK_GRAY)
+                                };
+                                ui.label(
+                                    egui::RichText::new(icon).color(color).strong(),
+                                );
+                                ui.label(
+                                    egui::RichText::new(*name).color(color),
+                                );
+                                ui.end_row();
+                            }
+                        });
+                });
+
+                ui.add_space(8.0);
+
+                // Inventory summary
+                let inv_count = state.inventory.len();
+                if inv_count > 0 {
+                    ui.group(|ui| {
+                        ui.set_min_width(400.0);
+                        ui.label(
+                            egui::RichText::new(format!("Inventory ({inv_count} items)"))
+                                .size(14.0)
+                                .strong(),
+                        );
+                        ui.separator();
+                        egui::ScrollArea::vertical()
+                            .max_height(100.0)
+                            .show(ui, |ui| {
+                                for item in state.inventory.iter() {
+                                    ui.label(format!("  {}", item.doname("")));
+                                }
+                            });
+                    });
                 }
 
-                ui.add_space(20.0);
+                ui.add_space(15.0);
 
                 let button_size = egui::vec2(150.0, 35.0);
 
@@ -414,9 +837,8 @@ fn render_game_over_screen(
                     .add_sized(button_size, egui::Button::new("Try Again"))
                     .clicked()
                 {
-                    // Reset game state
-                    game_state.0 = nh_core::GameState::default();
-                    next_state.set(AppState::Playing);
+                    cc_state.reset();
+                    next_state.set(AppState::CharacterCreation);
                 }
 
                 ui.add_space(8.0);
@@ -425,8 +847,197 @@ fn render_game_over_screen(
                     .add_sized(button_size, egui::Button::new("Main Menu"))
                     .clicked()
                 {
-                    // Reset game state
-                    game_state.0 = nh_core::GameState::default();
+                    next_state.set(AppState::MainMenu);
+                }
+
+                ui.add_space(8.0);
+
+                if ui
+                    .add_sized(button_size, egui::Button::new("Quit"))
+                    .clicked()
+                {
+                    exit.send(AppExit::Success);
+                }
+
+                ui.add_space(10.0);
+            });
+        });
+}
+
+fn render_victory_screen(
+    mut contexts: EguiContexts,
+    mut next_state: ResMut<NextState<AppState>>,
+    mut exit: EventWriter<AppExit>,
+    game_state: Res<GameStateResource>,
+) {
+    // Dark overlay with gold tint
+    egui::Area::new(egui::Id::new("victory_bg"))
+        .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
+        .interactable(false)
+        .show(contexts.ctx_mut(), |ui| {
+            let screen_rect = ui.ctx().screen_rect();
+            ui.painter().rect_filled(
+                screen_rect,
+                egui::Rounding::ZERO,
+                egui::Color32::from_rgba_unmultiplied(10, 10, 40, 220),
+            );
+        });
+
+    egui::Window::new("Victory")
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .resizable(false)
+        .collapsible(false)
+        .show(contexts.ctx_mut(), |ui| {
+            ui.set_min_width(450.0);
+
+            ui.vertical_centered(|ui| {
+                ui.add_space(10.0);
+
+                ui.label(
+                    egui::RichText::new("YOU ASCENDED!")
+                        .size(42.0)
+                        .color(egui::Color32::GOLD)
+                        .strong(),
+                );
+
+                ui.add_space(5.0);
+
+                let state = &game_state.0;
+                let player = &state.player;
+
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} the {} {} {}",
+                        player.name, player.alignment.typ, player.race, player.rank_title()
+                    ))
+                    .size(18.0)
+                    .color(egui::Color32::LIGHT_BLUE),
+                );
+
+                ui.label(
+                    egui::RichText::new("achieved demigod-hood!")
+                        .size(16.0)
+                        .color(egui::Color32::GOLD)
+                        .italics(),
+                );
+
+                ui.add_space(15.0);
+
+                // Stats
+                ui.group(|ui| {
+                    ui.set_min_width(400.0);
+                    ui.label(egui::RichText::new("Final Statistics").size(16.0).strong());
+                    ui.separator();
+
+                    egui::Grid::new("victory_stats_grid")
+                        .num_columns(2)
+                        .spacing([40.0, 4.0])
+                        .show(ui, |ui| {
+                            ui.label("Turns:");
+                            ui.label(format!("{}", state.turns));
+                            ui.end_row();
+
+                            ui.label("Deepest level:");
+                            ui.label(format!("{}", state.current_level.dlevel.depth()));
+                            ui.end_row();
+
+                            ui.label("Gold:");
+                            ui.label(format!("{}", player.gold));
+                            ui.end_row();
+
+                            ui.label("Experience:");
+                            ui.label(format!(
+                                "Level {} ({} pts)",
+                                player.exp_level, player.exp
+                            ));
+                            ui.end_row();
+
+                            ui.label("HP:");
+                            ui.label(format!("{}/{}", player.hp, player.hp_max));
+                            ui.end_row();
+                        });
+                });
+
+                ui.add_space(8.0);
+
+                // Attributes
+                ui.group(|ui| {
+                    ui.set_min_width(400.0);
+                    ui.label(egui::RichText::new("Attributes").size(14.0).strong());
+                    ui.separator();
+
+                    egui::Grid::new("victory_attrs_grid")
+                        .num_columns(6)
+                        .spacing([15.0, 4.0])
+                        .show(ui, |ui| {
+                            for attr in Attribute::ALL {
+                                ui.label(
+                                    egui::RichText::new(attr.short_name())
+                                        .strong()
+                                        .color(egui::Color32::GOLD),
+                                );
+                            }
+                            ui.end_row();
+                            for attr in Attribute::ALL {
+                                ui.label(format!(
+                                    "{}",
+                                    player.attr_current.get(attr)
+                                ));
+                            }
+                            ui.end_row();
+                        });
+                });
+
+                ui.add_space(8.0);
+
+                // Conducts
+                ui.group(|ui| {
+                    ui.set_min_width(400.0);
+                    ui.label(egui::RichText::new("Conducts").size(14.0).strong());
+                    ui.separator();
+
+                    let conduct = &player.conduct;
+                    let checks: &[(&str, bool)] = &[
+                        ("Foodless", conduct.is_foodless()),
+                        ("Vegan", conduct.is_vegan()),
+                        ("Vegetarian", conduct.is_vegetarian()),
+                        ("Atheist", conduct.is_atheist()),
+                        ("Weaponless", conduct.is_weaponless()),
+                        ("Pacifist", conduct.is_pacifist()),
+                        ("Illiterate", conduct.is_illiterate()),
+                        ("Wishless", conduct.is_wishless()),
+                        ("Genocideless", conduct.is_genocideless()),
+                    ];
+
+                    egui::Grid::new("victory_conduct_grid")
+                        .num_columns(2)
+                        .spacing([20.0, 2.0])
+                        .show(ui, |ui| {
+                            for (name, maintained) in checks {
+                                let (icon, color) = if *maintained {
+                                    ("*", egui::Color32::GOLD)
+                                } else {
+                                    ("-", egui::Color32::DARK_GRAY)
+                                };
+                                ui.label(
+                                    egui::RichText::new(icon).color(color).strong(),
+                                );
+                                ui.label(
+                                    egui::RichText::new(*name).color(color),
+                                );
+                                ui.end_row();
+                            }
+                        });
+                });
+
+                ui.add_space(15.0);
+
+                let button_size = egui::vec2(150.0, 35.0);
+
+                if ui
+                    .add_sized(button_size, egui::Button::new("Main Menu"))
+                    .clicked()
+                {
                     next_state.set(AppState::MainMenu);
                 }
 
@@ -543,8 +1154,12 @@ fn render_settings_panel(
                         ui.label("< / >");
                         ui.end_row();
 
+                        ui.label("Help:");
+                        ui.label("F1 or ?");
+                        ui.end_row();
+
                         ui.label("Camera Mode:");
-                        ui.label("F1-F4");
+                        ui.label("F2-F5");
                         ui.end_row();
 
                         ui.label("Zoom:");
@@ -735,50 +1350,17 @@ fn render_load_browser(
                         for (i, (_path, header)) in save_state.saves.iter().enumerate() {
                             let selected = save_state.selected == Some(i);
 
-                            ui.group(|ui| {
-                                ui.set_min_width(350.0);
-                                let response = ui.selectable_label(selected, "");
+                            let ago = chrono_lite_format(header.timestamp);
+                            let label = format!(
+                                "{} - {} (Turn {}, {})",
+                                header.player_name, header.dlevel, header.turns, ago
+                            );
 
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new(&header.player_name)
-                                            .strong()
-                                            .size(16.0),
-                                    );
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            ui.label(
-                                                egui::RichText::new(&header.dlevel)
-                                                    .color(egui::Color32::LIGHT_BLUE),
-                                            );
-                                        },
-                                    );
-                                });
+                            if ui.selectable_label(selected, &label).clicked() {
+                                save_state.selected = Some(i);
+                            }
 
-                                ui.horizontal(|ui| {
-                                    ui.label(format!("Turn {}", header.turns));
-
-                                    // Format timestamp
-                                    let datetime = chrono_lite_format(header.timestamp);
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            ui.label(
-                                                egui::RichText::new(datetime)
-                                                    .color(egui::Color32::GRAY)
-                                                    .small(),
-                                            );
-                                        },
-                                    );
-                                });
-
-                                if response.clicked() {
-                                    save_state.selected = Some(i);
-                                }
-                            });
-
-                            ui.add_space(4.0);
+                            ui.add_space(2.0);
                         }
                     });
 

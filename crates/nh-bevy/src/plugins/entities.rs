@@ -22,6 +22,7 @@ impl Plugin for EntityPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EntityState>()
             .add_systems(Startup, spawn_entities.after(super::map::spawn_map))
+            .add_systems(OnEnter(AppState::Playing), mark_entities_for_respawn)
             .add_systems(
                 Update,
                 (
@@ -39,6 +40,8 @@ impl Plugin for EntityPlugin {
 #[derive(Resource, Default)]
 struct EntityState {
     current_dlevel: Option<nh_core::dungeon::DLevel>,
+    /// Set when entering Playing state to force a full entity respawn
+    needs_respawn: bool,
 }
 
 /// Marker for floor object entities
@@ -72,7 +75,12 @@ pub struct AllegianceIndicator {
     pub monster_id: nh_core::monster::MonsterId,
 }
 
-/// Check if level changed and respawn entities
+/// Mark entities for respawn when entering Playing state (e.g., after character creation)
+fn mark_entities_for_respawn(mut entity_state: ResMut<EntityState>) {
+    entity_state.needs_respawn = true;
+}
+
+/// Check if level changed (or respawn forced) and respawn entities
 fn check_level_change(
     mut commands: Commands,
     game_state: Res<GameStateResource>,
@@ -92,22 +100,23 @@ fn check_level_change(
         )>,
     >,
 ) {
-    if !game_state.is_changed() {
+    if !game_state.is_changed() && !entity_state.needs_respawn {
         return;
     }
 
     let current_dlevel = game_state.0.current_level.dlevel;
+    let force_respawn = entity_state.needs_respawn;
 
-    // Initialize on first run
-    if entity_state.current_dlevel.is_none() {
+    // Initialize on first run (but not if we're forcing a respawn)
+    if entity_state.current_dlevel.is_none() && !force_respawn {
         entity_state.current_dlevel = Some(current_dlevel);
         return;
     }
 
-    if entity_state.current_dlevel != Some(current_dlevel) {
+    if entity_state.current_dlevel != Some(current_dlevel) || force_respawn {
         info!(
-            "Level changed for entities from {:?} to {:?}",
-            entity_state.current_dlevel, current_dlevel
+            "Respawning entities (level {:?} → {:?}, forced={})",
+            entity_state.current_dlevel, current_dlevel, force_respawn
         );
 
         // Despawn all entities
@@ -132,6 +141,7 @@ fn check_level_change(
 
         // Update state
         entity_state.current_dlevel = Some(current_dlevel);
+        entity_state.needs_respawn = false;
     }
 }
 

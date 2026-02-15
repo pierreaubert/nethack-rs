@@ -83,6 +83,7 @@ impl Default for CameraControl {
 fn spawn_camera(mut commands: Commands) {
     // Start with top-down orthographic view centered on map
     // Map is 80x21, so center at (40, 0, 10.5)
+    // Use -Z as up so North (smaller Y / smaller Z) is at top of screen
     commands.spawn((
         MainCamera,
         Camera3d::default(),
@@ -92,7 +93,7 @@ fn spawn_camera(mut commands: Commands) {
             },
             ..OrthographicProjection::default_3d()
         }),
-        Transform::from_xyz(40.0, 40.0, 10.5).looking_at(Vec3::new(40.0, 0.0, 10.5), Vec3::Z),
+        Transform::from_xyz(40.0, 40.0, 10.5).looking_at(Vec3::new(40.0, 0.0, 10.5), Vec3::NEG_Z),
     ));
 }
 
@@ -102,13 +103,14 @@ fn switch_camera_mode(
     mut next_mode: ResMut<NextState<CameraMode>>,
     mut control: ResMut<CameraControl>,
 ) {
-    let new_mode = if input.just_pressed(KeyCode::F1) {
+    // F1 = Help (handled by help.rs), F2-F5 = Camera modes
+    let new_mode = if input.just_pressed(KeyCode::F2) {
         Some(CameraMode::TopDown)
-    } else if input.just_pressed(KeyCode::F2) {
-        Some(CameraMode::Isometric)
     } else if input.just_pressed(KeyCode::F3) {
-        Some(CameraMode::ThirdPerson)
+        Some(CameraMode::Isometric)
     } else if input.just_pressed(KeyCode::F4) {
+        Some(CameraMode::ThirdPerson)
+    } else if input.just_pressed(KeyCode::F5) {
         Some(CameraMode::FirstPerson)
     } else {
         None
@@ -158,9 +160,10 @@ fn handle_mouse_input(
 
             match camera_mode.get() {
                 CameraMode::TopDown => {
-                    // In top-down, X is left-right, Z is up-down on screen
+                    // In top-down with -Z as up (North at top of screen):
+                    // drag right → view moves right (+X), drag up → view moves up (-Z)
                     control.pan_offset.x -= delta.x * pan_multiplier;
-                    control.pan_offset.z -= delta.y * pan_multiplier;
+                    control.pan_offset.z += delta.y * pan_multiplier;
                 }
                 CameraMode::Isometric => {
                     // In isometric, we need to transform screen coords to world
@@ -297,7 +300,7 @@ fn update_camera_position(
     if direction.length_squared() > 0.001 {
         // Choose appropriate up vector based on mode
         let up = match camera_mode.get() {
-            CameraMode::TopDown => Vec3::Z, // Use Z as up for top-down to avoid gimbal lock
+            CameraMode::TopDown => Vec3::NEG_Z, // Use -Z as up so North (smaller Z) is at top
             _ => Vec3::Y,
         };
         camera_transform.look_to(direction, up);

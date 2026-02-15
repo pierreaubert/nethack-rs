@@ -235,7 +235,7 @@ fn render_hud(
                 .show(ui, |ui| {
                     ui.label(
                         egui::RichText::new(
-                            "hjklyubn:Move  i:Inventory  F1-F4:Camera  Home:Reset  Esc:Quit",
+                            "hjklyubn:Move  i:Inventory  F1:Help  F2-F5:Camera  Home:Reset  Esc:Menu",
                         )
                         .color(egui::Color32::GRAY)
                         .small(),

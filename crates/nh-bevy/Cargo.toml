@@ -17,3 +17,4 @@ bevy_egui = "0.31"
 
 # Utilities
 fastrand = "2.0"
+strum = { workspace = true }
