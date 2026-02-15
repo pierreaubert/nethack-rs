@@ -803,8 +803,35 @@ Press ESC or SPACE to close"#;
                             alignment,
                         }
                     }
-                    KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Enter => {
+                    KeyCode::Char('n') | KeyCode::Char('N') => {
                         CharacterCreationState::SelectRole { name, cursor: 0 }
+                    }
+                    KeyCode::Enter => {
+                        if cursor == 0 {
+                            // "Yes, pick for me" is selected
+                            let roles: Vec<Role> = Role::iter().collect();
+                            let races: Vec<Race> = Race::iter().collect();
+                            let genders: Vec<Gender> =
+                                Gender::iter().filter(|g| *g != Gender::Neuter).collect();
+                            let aligns: Vec<AlignmentType> = AlignmentType::iter().collect();
+
+                            let role = roles[self.selection_cursor % roles.len()];
+                            let race = races[(self.selection_cursor / 2) % races.len()];
+                            let gender =
+                                genders[(self.selection_cursor / 3) % genders.len()];
+                            let alignment =
+                                aligns[(self.selection_cursor / 5) % aligns.len()];
+
+                            CharacterCreationState::Done {
+                                name,
+                                role,
+                                race,
+                                gender,
+                                alignment,
+                            }
+                        } else {
+                            CharacterCreationState::SelectRole { name, cursor: 0 }
+                        }
                     }
                     KeyCode::Char('q') | KeyCode::Esc => {
                         self.should_quit = true;

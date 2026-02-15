@@ -142,16 +142,12 @@ fn main() -> io::Result<()> {
                 let result = app.execute(command);
 
                 match result {
-                    GameLoopResult::PlayerDied(msg) => {
+                    GameLoopResult::PlayerDied(_msg) => {
                         // Delete save file on death (permadeath)
                         let save_path = default_save_path(&app.state().player.name);
                         let _ = delete_save(&save_path);
-
-                        // Show death message
-                        app.state_mut().message(format!("You died: {}", msg));
-                        terminal.draw(|frame| app.render(frame))?;
-                        std::thread::sleep(Duration::from_secs(2));
-                        break;
+                        // Death screen is shown via UiMode::DeathScreen (set in execute())
+                        // Loop continues so the user can view the screen and press Enter
                     }
                     GameLoopResult::PlayerQuit => break,
                     GameLoopResult::SaveAndQuit => {
