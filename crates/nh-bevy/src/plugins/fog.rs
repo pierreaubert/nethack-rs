@@ -65,6 +65,8 @@ impl Default for FogSettings {
 pub struct VisibilityMap {
     /// Currently visible cells (calculated each frame)
     pub visible: Vec<Vec<bool>>,
+    /// Explored cells (monotonically increasing, synced from GameState + fog calculations)
+    pub explored: Vec<Vec<bool>>,
     /// Player position for visibility calculations
     pub player_pos: (i8, i8),
     /// Whether the map has been initialized
@@ -84,9 +86,22 @@ impl VisibilityMap {
             .unwrap_or(false)
     }
 
+    /// Check if a cell has been explored (ever visible)
+    pub fn is_explored(&self, x: usize, y: usize) -> bool {
+        if !self.initialized {
+            return false;
+        }
+        self.explored
+            .get(y)
+            .and_then(|row| row.get(x))
+            .copied()
+            .unwrap_or(false)
+    }
+
     /// Initialize the visibility map
     pub fn init(&mut self, width: usize, height: usize) {
         self.visible = vec![vec![false; width]; height];
+        self.explored = vec![vec![false; width]; height];
         self.initialized = true;
     }
 
@@ -99,12 +114,13 @@ impl VisibilityMap {
         }
     }
 
-    /// Mark a cell as visible
+    /// Mark a cell as visible (also marks as explored)
     pub fn set_visible(&mut self, x: usize, y: usize) {
-        if let Some(row) = self.visible.get_mut(y) {
-            if let Some(cell) = row.get_mut(x) {
-                *cell = true;
-            }
+        if let Some(cell) = self.visible.get_mut(y).and_then(|row| row.get_mut(x)) {
+            *cell = true;
+        }
+        if let Some(cell) = self.explored.get_mut(y).and_then(|row| row.get_mut(x)) {
+            *cell = true;
         }
     }
 }
@@ -112,15 +128,15 @@ impl VisibilityMap {
 /// Calculate visibility from player position
 fn calculate_visibility(
     mut visibility: ResMut<VisibilityMap>,
-    mut game_state: ResMut<GameStateResource>,
+    game_state: Res<GameStateResource>,
     settings: Res<FogSettings>,
 ) {
     if !settings.enabled {
         return;
     }
 
-    let state = &mut game_state.0;
-    let level = &mut state.current_level;
+    let state = &game_state.0;
+    let level = &state.current_level;
     let player_x = state.player.pos.x as usize;
     let player_y = state.player.pos.y as usize;
 
@@ -129,13 +145,21 @@ fn calculate_visibility(
         visibility.init(nh_core::COLNO, nh_core::ROWNO);
     }
 
-    // Clear previous visibility
+    // Sync explored state from GameState when it changes (handles level transitions too)
+    if game_state.is_changed() {
+        for y in 0..nh_core::ROWNO {
+            for x in 0..nh_core::COLNO {
+                visibility.explored[y][x] = level.cells[x][y].explored;
+            }
+        }
+    }
+
+    // Clear previous visibility (explored is persistent, visible is per-frame)
     visibility.clear();
     visibility.player_pos = (state.player.pos.x, state.player.pos.y);
 
     // Player's current cell is always visible
     visibility.set_visible(player_x, player_y);
-    level.cells[player_x][player_y].explored = true;
 
     // Check if player is in a lit room
     let player_cell = level.cell(player_x, player_y);
@@ -149,7 +173,6 @@ fn calculate_visibility(
                 let cell = level.cell(x, y);
                 if cell.room_number == room_num || is_room_adjacent(level, x, y, room_num) {
                     visibility.set_visible(x, y);
-                    level.cells[x][y].explored = true;
                 }
             }
         }
@@ -186,7 +209,6 @@ fn calculate_visibility(
             let ny = player_y as i32 + dy;
             if nx >= 0 && nx < nh_core::COLNO as i32 && ny >= 0 && ny < nh_core::ROWNO as i32 {
                 visibility.set_visible(nx as usize, ny as usize);
-                level.cells[nx as usize][ny as usize].explored = true;
             }
         }
     }
@@ -214,7 +236,7 @@ fn is_room_adjacent(level: &nh_core::dungeon::Level, x: usize, y: usize, room_nu
 /// Cast a ray for visibility calculation
 fn cast_ray(
     visibility: &mut VisibilityMap,
-    level: &mut nh_core::dungeon::Level,
+    level: &nh_core::dungeon::Level,
     start_x: f32,
     start_y: f32,
     dx: f32,
@@ -241,7 +263,6 @@ fn cast_ray(
         let uy = iy as usize;
 
         visibility.set_visible(ux, uy);
-        level.cells[ux][uy].explored = true;
 
         // Stop at walls, closed doors, and other vision blockers
         let cell = level.cell(ux, uy);
@@ -297,7 +318,6 @@ fn blocks_vision(cell: &nh_core::dungeon::Cell) -> bool {
 /// Swaps between normal and unexplored (semi-transparent) materials based on explored state
 fn apply_fog_to_tiles(
     visibility: Res<VisibilityMap>,
-    game_state: Res<GameStateResource>,
     settings: Res<FogSettings>,
     tile_materials: Res<TileMaterials>,
     mut tile_query: Query<
@@ -313,12 +333,9 @@ fn apply_fog_to_tiles(
         return;
     }
 
-    let level = &game_state.0.current_level;
-
     for (pos, mat_type, mut material) in tile_query.iter_mut() {
         let x = pos.x as usize;
         let y = pos.y as usize;
-        let cell = level.cell(x, y);
 
         // Get the appropriate material based on explored state
         let (normal, unexplored) = match mat_type {
@@ -341,7 +358,7 @@ fn apply_fog_to_tiles(
             TileMaterialType::Ice => (&tile_materials.ice, &tile_materials.ice_unexplored),
         };
 
-        if cell.explored {
+        if visibility.is_explored(x, y) {
             // Explored - use normal material
             if material.0 != *normal {
                 material.0 = normal.clone();

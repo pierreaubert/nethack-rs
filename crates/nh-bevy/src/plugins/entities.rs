@@ -6,6 +6,8 @@
 //! - Status effect indicators (icons for fleeing, stunned, etc.)
 //! - Pet/peaceful indicators
 
+use std::collections::HashSet;
+
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
@@ -26,12 +28,14 @@ impl Plugin for EntityPlugin {
             .add_systems(
                 Update,
                 (
-                    billboard_face_camera,
+                    check_level_change,
+                    sync_monster_entities,
                     sync_entity_positions,
                     sync_floor_objects,
                     update_monster_indicators,
-                    check_level_change,
+                    billboard_face_camera,
                 )
+                    .chain()
                     .run_if(in_state(AppState::Playing)),
             );
     }
@@ -145,6 +149,49 @@ fn check_level_change(
     }
 }
 
+/// Spawn new monster entities that appeared in GameState but don't have Bevy entities yet.
+/// Handles monsters spawning mid-game (e.g., MonsterSpawn timed events).
+fn sync_monster_entities(
+    game_state: Res<GameStateResource>,
+    monster_query: Query<&MonsterMarker>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if !game_state.is_changed() {
+        return;
+    }
+
+    let level = &game_state.0.current_level;
+    let monsters_data = nh_core::data::monsters::MONSTERS;
+
+    // Collect existing monster entity IDs
+    let existing_ids: HashSet<nh_core::monster::MonsterId> =
+        monster_query.iter().map(|m| m.monster_id).collect();
+
+    let mut model_builder = ModelBuilder::new(&mut meshes, &mut materials);
+
+    for monster in &level.monsters {
+        if !existing_ids.contains(&monster.id) {
+            // New monster - spawn it
+            let map_pos = MapPosition {
+                x: monster.x,
+                y: monster.y,
+            };
+            let world_pos = map_pos.to_world();
+            let monster_def = &monsters_data[monster.monster_type as usize];
+
+            let entity = model_builder.spawn_monster(
+                &mut commands,
+                monster,
+                monster_def,
+                Transform::from_translation(world_pos),
+            );
+            commands.entity(entity).insert(map_pos);
+        }
+    }
+}
+
 fn spawn_entities(
     mut commands: Commands,
     game_state: Res<GameStateResource>,
@@ -186,12 +233,13 @@ fn spawn_entities_internal(
         let world_pos = map_pos.to_world();
         let monster_def = &monsters[monster.monster_type as usize];
 
-        let _entity = model_builder.spawn_monster(
+        let entity = model_builder.spawn_monster(
             commands,
             monster,
             monster_def,
             Transform::from_translation(world_pos),
         );
+        commands.entity(entity).insert(map_pos);
 
         // Spawn indicators (health, status, etc) - attached to the monster entity or separate?
         // The original code spawned them separately. Let's keep them separate for now but link them by ID.

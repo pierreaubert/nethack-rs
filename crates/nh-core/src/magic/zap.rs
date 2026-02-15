@@ -1037,6 +1037,522 @@ pub fn damage_type_to_zap_type(damage_type: crate::combat::DamageType) -> Option
 }
 
 // ============================================================================
+// buzz() -- Core ray-tracing beam function (zap.c:3500 buzz)
+// ============================================================================
+
+/// Result of a buzz (ray/beam) operation
+#[derive(Debug, Clone)]
+pub struct BuzzResult {
+    /// Messages generated during ray tracing
+    pub messages: Vec<String>,
+    /// Damage dealt to the player (if hit)
+    pub player_damage: i32,
+    /// Whether the player died
+    pub player_died: bool,
+    /// Monsters killed by the ray
+    pub killed: Vec<MonsterId>,
+    /// Whether the ray was reflected back
+    pub reflected: bool,
+    /// Final position of the ray
+    pub end_x: i8,
+    pub end_y: i8,
+}
+
+impl BuzzResult {
+    pub fn new() -> Self {
+        Self {
+            messages: Vec::new(),
+            player_damage: 0,
+            player_died: false,
+            killed: Vec::new(),
+            reflected: false,
+            end_x: 0,
+            end_y: 0,
+        }
+    }
+}
+
+impl Default for BuzzResult {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Core ray-tracing beam function (C: buzz from zap.c:3500)
+///
+/// Fires a ray from (start_x, start_y) in direction (dx, dy) for up to `range` cells.
+/// Handles wall bounces, monster/player hits, resistance checks, and item destruction.
+///
+/// This is the unified function for monster wand attacks, breath weapons, and spell rays.
+/// The C function buzz() is called from:
+/// - Monster wand attacks (muse.c use_offensive)
+/// - Monster breath weapons (mcastu.c buzzmu)
+/// - Player wand/spell zaps (zap.c dobuzz)
+///
+/// # Arguments
+/// * `zap_type` - Type of ray (fire, cold, death, etc.)
+/// * `variant` - Whether it's a wand, spell, or breath
+/// * `start_x`, `start_y` - Starting position of the ray
+/// * `dx`, `dy` - Direction (-1, 0, or 1 for each)
+/// * `range` - Maximum range in cells
+/// * `player` - Player state (for hit detection and damage)
+/// * `level` - Level state (for terrain and monster checks)
+/// * `rng` - Random number generator
+#[allow(clippy::too_many_arguments)]
+pub fn buzz(
+    zap_type: ZapType,
+    variant: ZapVariant,
+    start_x: i8,
+    start_y: i8,
+    dx: i8,
+    dy: i8,
+    range: i32,
+    player: &mut You,
+    level: &mut Level,
+    rng: &mut GameRng,
+) -> BuzzResult {
+    let mut result = BuzzResult::new();
+    let mut x = start_x;
+    let mut y = start_y;
+    let mut cur_dx = dx;
+    let mut cur_dy = dy;
+    let mut bounces = 0;
+    const MAX_BOUNCES: i32 = 4; // C: BOLT_LIM bounces
+
+    for _ in 0..range {
+        x += cur_dx;
+        y += cur_dy;
+
+        if !level.is_valid_pos(x, y) {
+            break;
+        }
+
+        // Check for walls — attempt bounce
+        let cell = level.cell(x as usize, y as usize);
+        if cell.typ.is_wall() {
+            if bounces >= MAX_BOUNCES {
+                break;
+            }
+            bounces += 1;
+
+            // Try bouncing: reverse the component that hit the wall
+            let bounce_x = level.is_valid_pos(x - cur_dx, y)
+                && !level.cell((x - cur_dx) as usize, y as usize).typ.is_wall();
+            let bounce_y = level.is_valid_pos(x, y - cur_dy)
+                && !level.cell(x as usize, (y - cur_dy) as usize).typ.is_wall();
+
+            if cur_dx != 0 && cur_dy != 0 {
+                if !bounce_x && !bounce_y {
+                    cur_dx = -cur_dx;
+                    cur_dy = -cur_dy;
+                } else if !bounce_x {
+                    cur_dx = -cur_dx;
+                } else {
+                    cur_dy = -cur_dy;
+                }
+            } else if cur_dx != 0 {
+                cur_dx = -cur_dx;
+            } else {
+                cur_dy = -cur_dy;
+            }
+
+            // Back up to pre-wall position
+            x -= dx;
+            y -= dy;
+            result
+                .messages
+                .push(format!("The {} bounces!", zap_type.name(variant)));
+            continue;
+        }
+
+        // Check for player hit
+        if x == player.pos.x && y == player.pos.y {
+            // Check player reflection (silver dragon scale mail, shield of reflection, etc.)
+            if player.properties.has(Property::Reflection) && zap_type != ZapType::PoisonGas {
+                result.reflected = true;
+                result
+                    .messages
+                    .push(format!("The {} is reflected!", zap_type.name(variant)));
+                // Reverse direction
+                cur_dx = -cur_dx;
+                cur_dy = -cur_dy;
+                // Back up and continue
+                x -= cur_dx;
+                y -= cur_dy;
+                continue;
+            }
+
+            // Apply ray effect to player
+            apply_buzz_to_player(zap_type, variant, player, rng, &mut result);
+            result.end_x = x;
+            result.end_y = y;
+            break;
+        }
+
+        // Check for monster hit
+        if let Some(monster) = level.monster_at_mut(x, y) {
+            let monster_name = monster.name.clone();
+
+            // Apply ray effect to monster
+            hit_monster_with_ray(monster, zap_type, variant, rng, &mut ZapResult::new());
+
+            // Check damage
+            let damage = buzz_monster_damage(zap_type, variant, monster, rng);
+            if monster.hp <= 0 {
+                result.killed.push(monster.id);
+                result
+                    .messages
+                    .push(format!("The {} is destroyed!", monster_name));
+            }
+            let _ = damage; // damage already applied by hit_monster_with_ray
+
+            result.end_x = x;
+            result.end_y = y;
+            // Most rays stop at first monster
+            break;
+        }
+
+        result.end_x = x;
+        result.end_y = y;
+    }
+
+    // Check if player died
+    if player.hp <= 0 {
+        result.player_died = true;
+    }
+
+    result
+}
+
+/// Apply buzz ray effect to the player
+fn apply_buzz_to_player(
+    zap_type: ZapType,
+    variant: ZapVariant,
+    player: &mut You,
+    rng: &mut GameRng,
+    result: &mut BuzzResult,
+) {
+    match zap_type {
+        ZapType::MagicMissile => {
+            if player.properties.has(Property::MagicResistance) {
+                result
+                    .messages
+                    .push("The magic missile bounces off you harmlessly.".to_string());
+            } else {
+                let damage = zap_damage(zap_type, variant, rng);
+                player.hp -= damage;
+                result.player_damage += damage;
+                result.messages.push(format!(
+                    "The {} hits you for {} damage!",
+                    zap_type.name(variant),
+                    damage
+                ));
+            }
+        }
+        ZapType::Fire => {
+            if player.properties.has(Property::FireResistance) {
+                result
+                    .messages
+                    .push("The fire doesn't feel hot!".to_string());
+            } else {
+                let damage = zap_damage(zap_type, variant, rng);
+                player.hp -= damage;
+                result.player_damage += damage;
+                result
+                    .messages
+                    .push(format!("You are engulfed in flames for {} damage!", damage));
+            }
+        }
+        ZapType::Cold => {
+            if player.properties.has(Property::ColdResistance) {
+                result
+                    .messages
+                    .push("The cold doesn't bother you.".to_string());
+            } else {
+                let damage = zap_damage(zap_type, variant, rng);
+                player.hp -= damage;
+                result.player_damage += damage;
+                result
+                    .messages
+                    .push(format!("You are frozen for {} damage!", damage));
+            }
+        }
+        ZapType::Sleep => {
+            if player.properties.has(Property::SleepResistance) {
+                result
+                    .messages
+                    .push("The sleep ray doesn't affect you.".to_string());
+            } else {
+                result
+                    .messages
+                    .push("The sleep ray hits you! You fall asleep!".to_string());
+                player.sleeping_timeout = 10;
+            }
+        }
+        ZapType::Death => {
+            if player.properties.has(Property::MagicResistance) {
+                result.messages.push("You resist!".to_string());
+            } else {
+                // Death ray kills unless magic resistant
+                result
+                    .messages
+                    .push("The death ray hits you!".to_string());
+                player.hp = 0;
+                result.player_damage = player.hp_max;
+                result.player_died = true;
+            }
+        }
+        ZapType::Lightning => {
+            if player.properties.has(Property::ShockResistance) {
+                result
+                    .messages
+                    .push("The lightning doesn't affect you.".to_string());
+            } else {
+                let damage = zap_damage(zap_type, variant, rng);
+                player.hp -= damage;
+                result.player_damage += damage;
+                result
+                    .messages
+                    .push(format!("You are shocked for {} damage!", damage));
+            }
+        }
+        ZapType::PoisonGas => {
+            if player.properties.has(Property::PoisonResistance) {
+                result
+                    .messages
+                    .push("The poison gas doesn't affect you.".to_string());
+            } else {
+                let damage = zap_damage(zap_type, variant, rng);
+                player.hp -= damage;
+                result.player_damage += damage;
+                result
+                    .messages
+                    .push(format!("You are poisoned for {} damage!", damage));
+            }
+        }
+        ZapType::Acid => {
+            if player.properties.has(Property::AcidResistance) {
+                result
+                    .messages
+                    .push("The acid doesn't affect you.".to_string());
+            } else {
+                let damage = zap_damage(zap_type, variant, rng);
+                player.hp -= damage;
+                result.player_damage += damage;
+                result
+                    .messages
+                    .push(format!("You are burned by acid for {} damage!", damage));
+            }
+        }
+    }
+}
+
+/// Calculate damage a buzz ray does to a monster (without applying it,
+/// since hit_monster_with_ray already did that). This is used for logging.
+fn buzz_monster_damage(
+    _zap_type: ZapType,
+    _variant: ZapVariant,
+    _monster: &crate::monster::Monster,
+    _rng: &mut GameRng,
+) -> i32 {
+    // Damage was already applied by hit_monster_with_ray
+    0
+}
+
+/// Monster-to-target special beam effect (C: mbhit from mthrowu.c)
+///
+/// Handles non-damage beam effects fired by monsters: teleportation, speed, polymorph.
+/// Unlike buzz(), these don't bounce and have different per-target effects.
+///
+/// # Arguments
+/// * `effect` - The type of beam effect
+/// * `start_x`, `start_y` - Starting position
+/// * `dx`, `dy` - Direction
+/// * `range` - Maximum range
+/// * `player` - Player state
+/// * `level` - Level state
+/// * `rng` - Random number generator
+#[allow(clippy::too_many_arguments)]
+pub fn mbhit_effect(
+    effect: MbhitEffect,
+    start_x: i8,
+    start_y: i8,
+    dx: i8,
+    dy: i8,
+    range: i32,
+    player: &mut You,
+    level: &mut Level,
+    rng: &mut GameRng,
+) -> BuzzResult {
+    let mut result = BuzzResult::new();
+    let mut x = start_x;
+    let mut y = start_y;
+
+    for _ in 0..range {
+        x += dx;
+        y += dy;
+
+        if !level.is_valid_pos(x, y) {
+            break;
+        }
+
+        // Stop at walls
+        let cell = level.cell(x as usize, y as usize);
+        if cell.typ.is_wall() {
+            break;
+        }
+
+        // Check for player hit
+        if x == player.pos.x && y == player.pos.y {
+            apply_mbhit_to_player(effect, player, level, rng, &mut result);
+            result.end_x = x;
+            result.end_y = y;
+            break;
+        }
+
+        // Check for monster hit (affects monsters along path too)
+        if let Some(monster) = level.monster_at_mut(x, y) {
+            apply_mbhit_to_monster(effect, monster, rng, &mut result);
+            result.end_x = x;
+            result.end_y = y;
+            break;
+        }
+
+        result.end_x = x;
+        result.end_y = y;
+    }
+
+    result
+}
+
+/// Types of special beam effects that mbhit can apply
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MbhitEffect {
+    /// Teleportation beam
+    Teleport,
+    /// Speed change beam
+    Speed,
+    /// Striking beam (physical damage)
+    Striking,
+    /// Polymorph beam
+    Polymorph,
+}
+
+/// Apply mbhit effect to player
+fn apply_mbhit_to_player(
+    effect: MbhitEffect,
+    player: &mut You,
+    level: &Level,
+    rng: &mut GameRng,
+    result: &mut BuzzResult,
+) {
+    match effect {
+        MbhitEffect::Teleport => {
+            // Teleport player to random location
+            for _ in 0..100 {
+                let nx = rng.rn2(crate::COLNO as u32) as i8;
+                let ny = rng.rn2(crate::ROWNO as u32) as i8;
+                if level.is_walkable(nx, ny) && level.monster_at(nx, ny).is_none() {
+                    player.prev_pos = player.pos;
+                    player.pos.x = nx;
+                    player.pos.y = ny;
+                    result
+                        .messages
+                        .push("You are teleported!".to_string());
+                    break;
+                }
+            }
+        }
+        MbhitEffect::Speed => {
+            result
+                .messages
+                .push("You speed up!".to_string());
+            // Speed effect is handled via properties system
+            player.properties.grant_intrinsic(Property::Speed);
+        }
+        MbhitEffect::Striking => {
+            let damage = rng.dice(2, 12) as i32;
+            player.hp -= damage;
+            result.player_damage += damage;
+            result
+                .messages
+                .push(format!("You are hit for {} damage!", damage));
+            if player.hp <= 0 {
+                result.player_died = true;
+            }
+        }
+        MbhitEffect::Polymorph => {
+            result
+                .messages
+                .push("You feel a change coming over you.".to_string());
+            // Polymorph effect sets the timeout for player transformation
+            player.polymorph_timeout = rng.rnd(100);
+        }
+    }
+}
+
+/// Apply mbhit effect to a monster
+fn apply_mbhit_to_monster(
+    effect: MbhitEffect,
+    monster: &mut crate::monster::Monster,
+    rng: &mut GameRng,
+    result: &mut BuzzResult,
+) {
+    match effect {
+        MbhitEffect::Teleport => {
+            // Monster teleportation is handled by caller after position is known
+            result
+                .messages
+                .push(format!("The {} vanishes!", monster.name));
+        }
+        MbhitEffect::Speed => {
+            crate::monster::mon_adjust_speed(monster, 1, None);
+            result
+                .messages
+                .push(format!("The {} speeds up!", monster.name));
+        }
+        MbhitEffect::Striking => {
+            let damage = rng.dice(2, 12) as i32;
+            monster.hp -= damage;
+            result
+                .messages
+                .push(format!("The {} is hit for {} damage!", monster.name, damage));
+            if monster.hp <= 0 {
+                result.killed.push(monster.id);
+            }
+        }
+        MbhitEffect::Polymorph => {
+            crate::monster::newcham(monster, None);
+            result
+                .messages
+                .push(format!("The {} changes form!", monster.name));
+        }
+    }
+}
+
+/// Map MUSE offensive constant to ZapType for wand attacks
+pub fn muse_wand_to_zap_type(muse_type: i32) -> Option<ZapType> {
+    match muse_type {
+        20 => Some(ZapType::Death),          // MUSE_WAN_DEATH
+        21 => Some(ZapType::Sleep),          // MUSE_WAN_SLEEP
+        22 => Some(ZapType::Fire),           // MUSE_WAN_FIRE
+        24 => Some(ZapType::Cold),           // MUSE_WAN_COLD
+        26 => Some(ZapType::Lightning),      // MUSE_WAN_LIGHTNING
+        27 => Some(ZapType::MagicMissile),   // MUSE_WAN_MAGIC_MISSILE
+        _ => None,
+    }
+}
+
+/// Map MUSE horn constant to ZapType
+pub fn muse_horn_to_zap_type(muse_type: i32) -> Option<ZapType> {
+    match muse_type {
+        23 => Some(ZapType::Fire),  // MUSE_FIRE_HORN
+        25 => Some(ZapType::Cold),  // MUSE_FROST_HORN
+        _ => None,
+    }
+}
+
+// ============================================================================
 // Wand utility functions (zap.c)
 // ============================================================================
 

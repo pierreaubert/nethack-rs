@@ -173,6 +173,12 @@ pub use zap::{
     zapdir_to_glyph,
     zapnodir,
     zappable,
+    BuzzResult,
+    MbhitEffect,
+    buzz,
+    mbhit_effect,
+    muse_wand_to_zap_type,
+    muse_horn_to_zap_type,
 };
 
 // Extensions: Advanced Spell System exports (Rust-only)

@@ -3,6 +3,7 @@
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::render::camera::ScalingMode;
+use bevy_egui::EguiContexts;
 
 use crate::components::{CameraMode, PlayerMarker};
 
@@ -59,7 +60,7 @@ impl Default for CameraSettings {
     }
 }
 
-/// Runtime camera control state (zoom and pan)
+/// Runtime camera control state (zoom, pan, and orbit)
 #[derive(Resource)]
 pub struct CameraControl {
     /// Zoom level (1.0 = default, smaller = zoomed in, larger = zoomed out)
@@ -68,6 +69,8 @@ pub struct CameraControl {
     pub pan_offset: Vec3,
     /// Whether we're currently panning (mouse held)
     pub is_panning: bool,
+    /// Horizontal orbit angle in radians (rotation around Y axis)
+    pub orbit_yaw: f32,
 }
 
 impl Default for CameraControl {
@@ -76,6 +79,7 @@ impl Default for CameraControl {
             zoom: 1.0,
             pan_offset: Vec3::ZERO,
             is_panning: false,
+            orbit_yaw: 0.0,
         }
     }
 }
@@ -116,74 +120,73 @@ fn switch_camera_mode(
         None
     };
 
-    if let Some(mode) = new_mode {
-        if *current_mode.get() != mode {
-            next_mode.set(mode);
-            // Reset pan offset when switching modes
-            control.pan_offset = Vec3::ZERO;
-        }
+    if let Some(mode) = new_mode.filter(|m| *current_mode.get() != *m) {
+        next_mode.set(mode);
+        // Reset pan and orbit when switching modes
+        control.pan_offset = Vec3::ZERO;
+        control.orbit_yaw = 0.0;
     }
 
     // Reset view with Home key
     if input.just_pressed(KeyCode::Home) {
         control.zoom = 1.0;
         control.pan_offset = Vec3::ZERO;
+        control.orbit_yaw = 0.0;
     }
 }
 
 fn handle_mouse_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     mouse_scroll: Res<AccumulatedMouseScroll>,
     mouse_motion: Res<AccumulatedMouseMotion>,
-    camera_mode: Res<State<CameraMode>>,
     settings: Res<CameraSettings>,
     mut control: ResMut<CameraControl>,
+    mut egui_contexts: EguiContexts,
 ) {
-    // Handle zoom with scroll wheel
-    let scroll_delta = mouse_scroll.delta.y;
-    if scroll_delta != 0.0 {
-        // Zoom in = smaller value (see more detail), zoom out = larger value (see more)
-        let zoom_change = -scroll_delta * settings.zoom_speed;
-        control.zoom = (control.zoom + zoom_change).clamp(settings.min_zoom, settings.max_zoom);
+    let egui_wants_pointer = egui_contexts.ctx_mut().wants_pointer_input();
+
+    // Handle zoom with scroll wheel (unless egui wants it)
+    if !egui_wants_pointer {
+        let scroll_delta = mouse_scroll.delta.y;
+        if scroll_delta != 0.0 {
+            let zoom_change = -scroll_delta * settings.zoom_speed;
+            control.zoom = (control.zoom + zoom_change).clamp(settings.min_zoom, settings.max_zoom);
+        }
     }
 
-    // Handle panning with middle mouse button or right mouse button
-    let panning =
+    // Don't process drag input when egui is using the pointer
+    if egui_wants_pointer {
+        control.is_panning = false;
+        return;
+    }
+
+    let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+    let left = mouse_button.pressed(MouseButton::Left);
+    let right_or_mid =
         mouse_button.pressed(MouseButton::Middle) || mouse_button.pressed(MouseButton::Right);
+
+    // Left-drag without shift → orbit (rotate camera around target)
+    if left && !shift && !right_or_mid {
+        let delta = mouse_motion.delta;
+        if delta != Vec2::ZERO {
+            let sensitivity = 0.005;
+            control.orbit_yaw -= delta.x * sensitivity;
+        }
+    }
+
+    // Right/middle drag, or shift+left drag → pan
+    let panning = right_or_mid || (left && shift);
     control.is_panning = panning;
 
     if panning {
         let delta = mouse_motion.delta;
         if delta != Vec2::ZERO {
-            // Convert screen delta to world delta based on camera mode
             let pan_multiplier = control.zoom * settings.pan_speed;
-
-            match camera_mode.get() {
-                CameraMode::TopDown => {
-                    // In top-down with -Z as up (North at top of screen):
-                    // drag right → view moves right (+X), drag up → view moves up (-Z)
-                    control.pan_offset.x -= delta.x * pan_multiplier;
-                    control.pan_offset.z += delta.y * pan_multiplier;
-                }
-                CameraMode::Isometric => {
-                    // In isometric, we need to transform screen coords to world
-                    // Approximate: diagonal movement
-                    let dx = (-delta.x + delta.y) * pan_multiplier * 0.7;
-                    let dz = (-delta.x - delta.y) * pan_multiplier * 0.7;
-                    control.pan_offset.x += dx;
-                    control.pan_offset.z += dz;
-                }
-                CameraMode::ThirdPerson => {
-                    // Pan left-right and forward-back relative to view
-                    control.pan_offset.x -= delta.x * pan_multiplier;
-                    control.pan_offset.z += delta.y * pan_multiplier;
-                }
-                CameraMode::FirstPerson => {
-                    // In first person, could rotate view instead, but for now just pan
-                    control.pan_offset.x -= delta.x * pan_multiplier * 0.5;
-                    control.pan_offset.z += delta.y * pan_multiplier * 0.5;
-                }
-            }
+            // Rotate pan direction by orbit angle so panning is screen-relative
+            let orbit = Quat::from_rotation_y(control.orbit_yaw);
+            let screen_delta = Vec3::new(-delta.x, 0.0, delta.y) * pan_multiplier;
+            control.pan_offset += orbit * screen_delta;
         }
     }
 }
@@ -253,41 +256,45 @@ fn update_camera_position(
     // Apply pan offset to base position
     let base_pos = player_pos + control.pan_offset;
 
+    // Orbit rotation quaternion (around Y axis)
+    let orbit = Quat::from_rotation_y(control.orbit_yaw);
+
     let (target_pos, target_look) = match camera_mode.get() {
         CameraMode::TopDown => {
             // Directly above, looking down
-            // Height scales with zoom for orthographic
             let height = 40.0;
             let pos = Vec3::new(base_pos.x, height, base_pos.z);
             let look = Vec3::new(base_pos.x, 0.0, base_pos.z);
             (pos, look)
         }
         CameraMode::Isometric => {
-            // 45-degree angle from southeast
+            // 45-degree angle, rotated by orbit_yaw
             let dist = settings.isometric_distance * control.zoom;
-            let offset = Vec3::new(dist, dist, dist);
+            let base_offset = Vec3::new(dist, dist, dist);
+            let offset = orbit * base_offset;
             let pos = base_pos + offset;
             (pos, base_pos)
         }
         CameraMode::ThirdPerson => {
-            // Behind and above player (looking north by default)
-            // Distance scales with zoom
+            // Behind and above player, rotated by orbit_yaw
             let dist = settings.third_person_distance * control.zoom;
             let height = settings.third_person_height * control.zoom;
-            let pos = base_pos + Vec3::new(0.0, height, -dist);
+            let base_offset = Vec3::new(0.0, height, -dist);
+            let offset = orbit * base_offset;
+            let pos = base_pos + offset;
             let look = base_pos + Vec3::Y * 0.5;
             (pos, look)
         }
         CameraMode::FirstPerson => {
-            // At player eye level
+            // At player eye level, look direction rotated by orbit_yaw
             let pos = base_pos + Vec3::Y * 0.8;
-            // Look forward (north in this case)
-            let look = pos + Vec3::Z * 10.0;
+            let look_dir = orbit * Vec3::Z;
+            let look = pos + look_dir * 10.0;
             (pos, look)
         }
     };
 
-    // Smooth interpolation (faster when panning for responsiveness)
+    // Smooth interpolation (faster when panning/orbiting for responsiveness)
     let speed = if control.is_panning {
         15.0 * time.delta_secs()
     } else {
@@ -300,7 +307,7 @@ fn update_camera_position(
     if direction.length_squared() > 0.001 {
         // Choose appropriate up vector based on mode
         let up = match camera_mode.get() {
-            CameraMode::TopDown => Vec3::NEG_Z, // Use -Z as up so North (smaller Z) is at top
+            CameraMode::TopDown => orbit * Vec3::NEG_Z, // Rotate up vector with orbit
             _ => Vec3::Y,
         };
         camera_transform.look_to(direction, up);

@@ -1,0 +1,1 @@
+{"mappings": [{"identifier": {"class": "Weapon"}, "icon": {"tui_char": ")", "tui_color": "gray", "bevy_sprite": "sword.png"}}]}

@@ -1,13 +1,13 @@
 # Implementation Plan - Per-Item Icon System
 
 ## Phase 1: `nh-assets` Infrastructure & Core Logic
-- [ ] Task: Scaffold the `nh-assets` crate
+- [x] Task: Scaffold the `nh-assets` crate (08d53a8)
     - [ ] Create `crates/nh-assets` with basic `Cargo.toml` and `src/lib.rs`
     - [ ] Add `nh-assets` to the workspace `members` in the root `Cargo.toml`
-- [ ] Task: Define the Mapping Schema and Data Structures
+- [x] Task: Define the Mapping Schema and Data Structures (842cf17)
     - [ ] Write unit tests for the mapping schema serialization/deserialization
     - [ ] Implement `ItemIconDefinition` and `AssetMapping` structs (supporting TUI symbols and Bevy paths)
-- [ ] Task: Implement the Lookup Registry
+- [x] Task: Implement the Lookup Registry (4b3a7e9)
     - [ ] Write tests for the lookup registry (base type, state, and material-based matching)
     - [ ] Implement the `AssetRegistry` with support for loading from a configuration file (YAML/JSON)
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: nh-assets Infrastructure & Core Logic' (Protocol in workflow.md)

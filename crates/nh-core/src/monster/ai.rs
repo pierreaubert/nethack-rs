@@ -307,7 +307,7 @@ impl MoveFlags {
 pub fn dochug(
     monster_id: MonsterId,
     level: &mut Level,
-    player: &You,
+    player: &mut You,
     rng: &mut GameRng,
 ) -> AiAction {
     // ========== SECTION A: PRE-MOVEMENT CHECKS ==========
@@ -657,7 +657,7 @@ fn dochug_movement(
 pub fn dochugw(
     monster_id: MonsterId,
     level: &mut Level,
-    player: &You,
+    player: &mut You,
     rng: &mut GameRng,
 ) -> AiAction {
     // Line 1851-1855: Check if player is occupied (monmove.c:1851-1855)
@@ -879,7 +879,7 @@ pub fn domove_core(
 pub fn process_monster_ai(
     monster_id: MonsterId,
     level: &mut Level,
-    player: &You,
+    player: &mut You,
     rng: &mut GameRng,
 ) -> AiAction {
     dochugw(monster_id, level, player, rng)
@@ -1147,7 +1147,7 @@ pub fn process_fleeing_ai(
 pub fn process_monster_ai_full(
     monster_id: MonsterId,
     level: &mut Level,
-    player: &You,
+    player: &mut You,
     rng: &mut GameRng,
 ) -> AiAction {
     let monster = match level.monster(monster_id) {
