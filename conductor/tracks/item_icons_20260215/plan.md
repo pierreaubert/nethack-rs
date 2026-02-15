@@ -13,22 +13,22 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: nh-assets Infrastructure & Core Logic' (Protocol in workflow.md) (386747c)
 
 ## Phase 2: Asset Generation & Initial Mapping [checkpoint: e68f6ed]
-- [~] Task: Setup Asset Generation Pipeline
+- [x] Task: Setup Asset Generation Pipeline (e68f6ed)
     - [ ] Create a script or documentation for the "banana" icon generation workflow
     - [ ] Define the aesthetic parameters (palette, size, style) in a shared configuration
-- [ ] Task: Populate Initial Core Assets
+- [x] Task: Populate Initial Core Assets (e68f6ed)
     - [ ] Generate and map a subset of core items (e.g., Long Sword, Potion, Leather Armor)
     - [ ] Write tests to ensure these core assets are correctly resolved by the registry
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Asset Generation & Initial Mapping' (Protocol in workflow.md) (e68f6ed)
 
-## Phase 3: TUI Integration
-- [~] Task: Update `nh-tui` Map Rendering
+## Phase 3: `nh-tui` Integration [checkpoint: aa43056]
+- [x] Task: Update `nh-tui` Map Rendering (aa43056)
     - [ ] Write tests for TUI icon-to-cell conversion
     - [ ] Update the map rendering loop in `nh-tui` to use `nh-assets` for item symbols and colors
-- [ ] Task: Integrate Icons into TUI Inventory
+- [x] Task: Integrate Icons into TUI Inventory (aa43056)
     - [ ] Write tests for inventory item rendering with icons
     - [ ] Update `nh-tui` inventory menus to display item-specific icons/symbols
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: TUI Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: TUI Integration' (Protocol in workflow.md) (aa43056)
 
 ## Phase 4: Bevy & UI Integration
 - [ ] Task: Implement Bevy Asset Loading System
