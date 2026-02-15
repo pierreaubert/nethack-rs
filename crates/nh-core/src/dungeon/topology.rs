@@ -638,6 +638,7 @@ impl Default for LRegion {
 ///
 /// # Returns
 /// Restored DungeonSystem if successful
+#[cfg(feature = "std")]
 pub fn restore_dungeon(data: &str) -> Result<DungeonSystem, String> {
     serde_json::from_str(data).map_err(|e| format!("Failed to restore dungeon: {}", e))
 }
@@ -651,6 +652,7 @@ pub fn restore_dungeon(data: &str) -> Result<DungeonSystem, String> {
 ///
 /// # Returns
 /// Serialized string if successful
+#[cfg(feature = "std")]
 pub fn save_dungeon(system: &DungeonSystem) -> Result<String, String> {
     serde_json::to_string(system).map_err(|e| format!("Failed to save dungeon: {}", e))
 }

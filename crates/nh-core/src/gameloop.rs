@@ -171,6 +171,7 @@ pub struct GameState {
     pub vaults: Vec<Vault>,
 }
 
+#[cfg(feature = "std")]
 impl Default for GameState {
     fn default() -> Self {
         Self::new(GameRng::from_entropy())
@@ -1084,9 +1085,17 @@ impl GameLoop {
 
         match cmd_name {
             "version" => {
-                let version = crate::world::version::doextversion();
-                for line in version.lines() {
-                    self.state.message(line.to_string());
+                #[cfg(feature = "std")]
+                {
+                    let version = crate::world::version::doextversion();
+                    for line in version.lines() {
+                        self.state.message(line.to_string());
+                    }
+                }
+                #[cfg(not(feature = "std"))]
+                {
+                    let version = crate::world::version::getversionstring();
+                    self.state.message(version);
                 }
                 ActionResult::NoTime
             }
@@ -1491,7 +1500,7 @@ impl GameLoop {
 
         // Save current level
         let mut old_level =
-            std::mem::replace(&mut self.state.current_level, Level::new(destination));
+            core::mem::replace(&mut self.state.current_level, Level::new(destination));
 
         // Clear priests from level before saving (they'll be respawned on return)
         priest::clear_priests_for_save(&mut old_level);

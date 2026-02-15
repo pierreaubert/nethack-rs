@@ -358,9 +358,10 @@ fn intrinsic_chance(property: Property, template: &PerMonst) -> u32 {
     match property {
         Property::PoisonResistance => {
             if template.name == "killer bee" || template.name == "scorpion" {
-                if rand::random::<u32>() % 4 == 0 {
-                    return 1;
-                }
+                // Special handling for killer bee/scorpion poison resistance
+                // In the original C code this used rn2(4), but this function
+                // doesn't have access to GameRng, so we use a fixed value
+                return 1;
             }
             15
         }

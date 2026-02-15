@@ -48,7 +48,8 @@ impl GameRng {
         }
     }
 
-    /// Create a new RNG with a random seed
+    /// Create a new RNG with a random seed (requires std feature for entropy source)
+    #[cfg(feature = "std")]
     pub fn from_entropy() -> Self {
         let seed = rand::random();
         Self::new(seed)
@@ -166,6 +167,7 @@ impl GameRng {
     }
 }
 
+#[cfg(feature = "std")]
 impl Default for GameRng {
     fn default() -> Self {
         Self::from_entropy()

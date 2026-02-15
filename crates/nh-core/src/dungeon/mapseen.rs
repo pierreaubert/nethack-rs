@@ -581,11 +581,13 @@ pub fn interest_mapseen(mapseen: &MapSeen) -> bool {
 // ============================================================================
 
 /// Save mapseen chain to JSON
+#[cfg(feature = "std")]
 pub fn save_mapseen(chain: &MapSeenChain) -> Result<String, String> {
     serde_json::to_string(chain).map_err(|e| format!("Failed to save mapseen: {}", e))
 }
 
 /// Load mapseen chain from JSON
+#[cfg(feature = "std")]
 pub fn load_mapseen(data: &str) -> Result<MapSeenChain, String> {
     serde_json::from_str(data).map_err(|e| format!("Failed to load mapseen: {}", e))
 }

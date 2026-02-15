@@ -93,9 +93,13 @@ fn audit_2_1_monster_field_parser() {
         println!("    {}: {}", field, if *ok { "PARSED" } else { "STUB (returns zero/empty)" });
     }
 
+    // Parser now extracts real field values (9/11 fields parsed).
+    // The old assertion expected stubs; this was a canary to detect improvement.
     assert!(
-        returns_zeros,
-        "If this fails, someone fixed the parser — update this audit!"
+        parsed_count >= 9,
+        "Parser should have at least 9/11 fields parsed, got {}/{}",
+        parsed_count,
+        fields_needed.len()
     );
 }
 

@@ -119,6 +119,6 @@ pub fn get_tile_for_monster(monster: &PerMonst) -> Tile {
 pub fn get_tile_for_object(obj: &Object) -> Tile {
     // If it has a custom name, we could use it, but usually we want the type name
     // For now, use the name from the object class definition
-    let class_def = get_object(unsafe { std::mem::transmute::<i16, ObjectType>(obj.object_type) });
+    let class_def = get_object(unsafe { core::mem::transmute::<i16, ObjectType>(obj.object_type) });
     Tile::Object(class_def.name.to_string())
 }

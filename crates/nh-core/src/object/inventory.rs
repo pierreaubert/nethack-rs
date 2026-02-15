@@ -499,7 +499,7 @@ pub fn sort_by_class(inventory: &mut [Object], class_order: &[ObjectClass]) {
             .unwrap_or(usize::MAX);
 
         match pos_a.cmp(&pos_b) {
-            std::cmp::Ordering::Equal => {
+            core::cmp::Ordering::Equal => {
                 // Within same class, sort by letter
                 inv_rank(a.inv_letter).cmp(&inv_rank(b.inv_letter))
             }

@@ -242,6 +242,9 @@ pub fn create_scroll_of_mail(message: &MailMessage) -> Object {
 
 /// Messages displayed during mail delivery
 pub mod messages {
+    #[cfg(not(feature = "std"))]
+    use crate::compat::*;
+
     /// Message when mail daemon appears
     pub const DAEMON_APPEARS: &str = "A strident voice sounds in your ear:";
 

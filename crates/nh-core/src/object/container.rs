@@ -314,7 +314,7 @@ pub fn count_total_items(container: &Object) -> i32 {
 
 /// Empty a container, returning all contents.
 pub fn empty_container(container: &mut Object) -> Vec<Object> {
-    std::mem::take(&mut container.contents)
+    core::mem::take(&mut container.contents)
 }
 
 // ============================================================================

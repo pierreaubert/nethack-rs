@@ -9,6 +9,9 @@ members = [
     "crates/nh-player",
     "crates/nh-assets",
 ]
+# Note: crates/nh-polkadot is NOT a workspace member.
+# It requires a nightly toolchain and custom RISC-V target (PolkaVM).
+# Build it independently: cd crates/nh-polkadot && cargo build --release
 
 [workspace.package]
 version = "0.1.11"
@@ -31,8 +34,8 @@ crossterm = "0.28"
 
 # Utilities
 bitflags = "2.6"
-thiserror = "2.0"
-strum = { version = "0.26", features = ["derive"] }
+thiserror = { version = "2.0", default-features = false }
+strum = { version = "0.26", default-features = false, features = ["derive"] }
 clap = { version = "4.5", features = ["derive"] }
 
 # Time and dates
@@ -44,11 +47,11 @@ atty = "0.2"
 dirs = "5.0"
 
 # RNG
-rand = "0.8"
+rand = { version = "0.8", default-features = false }
 rand_chacha = "0.3"
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_json = "1.0"
 
 # Testing

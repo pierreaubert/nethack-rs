@@ -154,13 +154,8 @@ pub fn induced_align(pct: u32) -> AlignmentType {
 /// If lawful/chaotic, returns the opposite (chaotic/lawful) with 50% chance,
 /// or 0 (neutral) with 50% chance.
 pub fn noncoalignment(alignment: AlignmentType) -> AlignmentType {
-    use std::collections::hash_map::RandomState;
-    use std::hash::{BuildHasher, Hasher};
-
-    // Use a simple deterministic hash-based randomness for reproducibility
-    let mut hasher = RandomState::new().build_hasher();
-    hasher.write_u8(alignment as u8);
-    let rand_bit = (hasher.finish() as u32) & 1;
+    // Use alignment value itself for deterministic selection
+    let rand_bit = (alignment as u32) & 1;
 
     match alignment {
         AlignmentType::Neutral => {

@@ -118,12 +118,12 @@ pub use mapseen::{
     // Functions
     format_mapseen,
     interest_mapseen,
-    load_mapseen,
     mapseen_temple,
     print_mapseen,
     recalc_mapseen,
-    save_mapseen,
 };
+#[cfg(feature = "std")]
+pub use mapseen::{load_mapseen, save_mapseen};
 pub use maze::{generate_maze, is_maze_level};
 pub use quest::{
     QuestInfo, QuestStatus, generate_quest_goal, generate_quest_home, generate_quest_locate,
@@ -213,7 +213,6 @@ pub use topology::{
     print_branch_info,
     print_dungeon,
     put_lregion_here,
-    // New topology functions
-    restore_dungeon,
-    save_dungeon,
 };
+#[cfg(feature = "std")]
+pub use topology::{restore_dungeon, save_dungeon};

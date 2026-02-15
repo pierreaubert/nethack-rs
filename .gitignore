@@ -2,6 +2,10 @@
 /target
 paniclog
 
+# python
+venv
+__pycache__
+
 # ML training
 /logs
 /checkpoints

@@ -7,11 +7,11 @@
 //! - License information
 //! - Options documentation
 
-/// Main help content sections
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
+/// Main help content sections
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HelpSection {
     /// Main help/tutorial
     Help,
