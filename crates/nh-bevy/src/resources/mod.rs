@@ -4,10 +4,15 @@ use bevy::prelude::*;
 use nh_core::monster::MonsterId;
 use nh_core::player::{AlignmentType, Gender, Race, Role};
 use std::collections::HashMap;
+use nh_assets::registry::AssetRegistry;
 
 /// Wrapper around nh_core::GameState for Bevy
 #[derive(Resource)]
 pub struct GameStateResource(pub nh_core::GameState);
+
+/// Wrapper around AssetRegistry for Bevy
+#[derive(Resource)]
+pub struct AssetRegistryResource(pub AssetRegistry);
 
 /// Tracks previous HP values for combat detection
 #[derive(Resource, Default)]

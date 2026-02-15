@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 
-use crate::resources::GameStateResource;
+use crate::resources::{GameStateResource, AssetRegistryResource};
 
 pub struct InventoryPlugin;
 
@@ -93,6 +93,7 @@ fn render_inventory(
     mut contexts: EguiContexts,
     inv_state: Res<InventoryState>,
     game_state: Res<GameStateResource>,
+    asset_registry: Res<AssetRegistryResource>,
 ) {
     if !inv_state.open {
         return;
@@ -144,8 +145,15 @@ fn render_inventory(
 
                             let item_color = object_class_color(&item.class);
 
+                            // Check for mapped icon
+                            let mut prefix = String::new();
+                            if let Ok(icon) = asset_registry.0.get_icon(item) {
+                                prefix = format!("[{}] ", icon.tui_char);
+                            }
+
                             let text = format!(
-                                "{} - {}{}",
+                                "{}{} - {}{}",
+                                prefix,
                                 item.inv_letter,
                                 item_name(item),
                                 if item.quantity > 1 {

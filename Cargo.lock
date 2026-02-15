@@ -3915,6 +3915,7 @@ dependencies = [
  "bevy",
  "bevy_egui",
  "fastrand",
+ "nh-assets",
  "nh-core",
  "strum",
 ]

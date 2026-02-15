@@ -31,7 +31,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3: TUI Integration' (Protocol in workflow.md) (aa43056)
 
 ## Phase 4: Bevy & UI Integration
-- [ ] Task: Implement Bevy Asset Loading System
+- [~] Task: Implement Bevy Asset Loading System
     - [ ] Write tests for Bevy texture atlas/sprite loading from the mapping registry
     - [ ] Implement a Bevy system to load and manage item textures based on `nh-assets`
 - [ ] Task: Update Bevy Map and UI Rendering

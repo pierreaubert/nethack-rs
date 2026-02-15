@@ -3,9 +3,19 @@
 use bevy::asset::AssetPlugin;
 use bevy::prelude::*;
 use nh_bevy::GamePlugin;
+use nh_bevy::resources::AssetRegistryResource;
+use nh_assets::registry::AssetRegistry;
+use nh_assets::mapping::AssetMapping;
 
 fn main() {
+    // Load asset mapping
+    let assets_path = "crates/nh-assets/initial_mapping.json";
+    let registry = AssetRegistry::load_from_file(assets_path).unwrap_or_else(|_| {
+        AssetRegistry::new(AssetMapping::default())
+    });
+
     App::new()
+        .insert_resource(AssetRegistryResource(registry))
         .add_plugins(
             DefaultPlugins
                 .set(WindowPlugin {
