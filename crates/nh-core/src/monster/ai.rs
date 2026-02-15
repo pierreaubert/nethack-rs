@@ -3960,219 +3960,32 @@ pub fn m_move(monster_id: MonsterId, level: &mut Level, player: &You, after: i32
     };
 
     // ========== SECTION A: INITIALIZATION & SPECIAL CASES ==========
+    // Trap escape (790-799): mtrapped → mintrap()
+    // Eating delay (802-806): eating_turns countdown
+    // Hide-under (808-809): 10% chance to stay hidden
+    // Perceived player position (811): set_apparxy()
+    // Ability checks (816-821): tunneling, door capabilities
 
-    // Line 790-799: Check if trapped (monmove.c:790-799)
-    // Monsters can be in traps and must escape before moving
-    // TODO: if mtrapped: match mintrap(monster_id, level):
-    // TODO:   case 0: continue (escaped trap)
-    // TODO:   case 1: return 3 (stuck in trap)
-    // TODO:   case 2: return 2 (died in trap)
-
-    // Line 802-806: Check if eating (monmove.c:802-806)
-    // Some monsters are eating corpses and can't move
-    // TODO: if monster.eating_turns > 0:
-    // TODO:   monster.eating_turns -= 1
-    // TODO:   return 3 (busy eating)
-
-    // Line 808-809: Check hide-under (monmove.c:808-809)
-    // Creatures hiding under objects may stay hidden
-    // TODO: if monster.hiding_object:
-    // TODO:   if rng.one_in(10): return 3 (stay hidden)
-
-    // Line 811: Set perceived player position (monmove.c:811)
-    // Update monster's view of where player actually is
-    // TODO: set_apparxy(monster) - update player position perception
-
-    // Line 816-821: Ability checks (monmove.c:816-821)
-    // Verify monster can perform terrain-specific actions
-    // TODO: Check tunneling capability (can_tunnel)
-    // TODO: Check door opening/unlocking/busting abilities
-
-    // Line 822-823: Worm special case (monmove.c:822-823)
-    // Worms have completely different movement logic
-    // TODO: if is_worm(monster): return worm_move(monster_id, level)
-
-    // Line 825-827: Tamed monster special case (monmove.c:825-827)
-    // Tamed pets follow player instead of moving independently
-    // TODO: if monster.state.tame: return dog_move(monster_id, level, player)
-
-    // Line 831-837: Shopkeeper special case (monmove.c:831-837)
-    // Shopkeepers stay in shops and sell items
-    // TODO: if is_shopkeeper(monster): return shk_move(monster_id, level, player)
-
-    // Line 841-847: Guard special case (monmove.c:841-847)
-    // Vault guards protect treasure
-    // TODO: if is_guard(monster): return gd_move(monster_id, level, player)
-
-    // Line 851-867: Covetous monster special case (monmove.c:851-867)
-    // Wizards and liches pursue specific artifacts
-    // TODO: if is_covetous(monster):
-    // TODO:   goal = get_artifact_location(monster)
-    // TODO:   if goal == player: try_attack(monster_id, level, player)
-    // TODO:   goto postmov after movement
-
-    // Line 871-877: Priest special case (monmove.c:871-877)
-    // Aligned priests protect altars and move to temples
-    // TODO: if is_priest(monster): return pri_move(monster_id, level, player)
-
-    // Line 880-886: Mail daemon special case (monmove.c:880-886)
-    // Mail daemons vanish after delivering mail
-    // TODO: if monster_type == PM_MAIL_DAEMON:
-    // TODO:   removemons() - remove from level
-    // TODO:   return 2 (vanished)
-
-    // Line 890-897: Tengu teleport special case (monmove.c:890-897)
-    // Tengu can teleport when immobilized (can't move normally)
-    // TODO: if is_tengu(monster) && !can_move && rng.one_in(5):
-    // TODO:   rloc(monster_id, level) or mnexto(monster_id, level)
-    // TODO:   goto postmov
+    // Special-case delegation (822-897):
+    // - Worms → worm_move(), Pets → dog_move(), Shopkeepers → shk_move()
+    // - Guards → gd_move(), Covetous → artifact pursuit, Priests → pri_move()
+    // - Mail daemon → vanish, Tengu → teleport when stuck
 
     // ========== SECTION B: NORMAL MOVEMENT PATH ==========
 
-    // Line 900-901: Swallow check (monmove.c:900-901)
-    // If monster is inside gelatinous cube, it can't move independently
-    // TODO: if swallowed_by_monster:
-    // TODO:   return 1 (can't escape swallow, return success anyway)
+    // Swallow check: trapped monsters can't move (monmove.c:900-901)
+    // Movement direction (monmove.c:902-938): fleeing→away, confused→random, peaceful→wander
+    // Item seeking (monmove.c:941-1071): type-based preferences, SQSRCHRADIUS=15
+    // Movement flags (monmove.c:1079-1108): ALLOW_WALL/WATER/AIR, OPEN/KNOCK/BUST_DOOR
+    // Position scoring (monmove.c:1109-1163): mfndpos + best score selection
 
-    // Line 902-938: Movement direction determination (monmove.c:902-938)
-    // Complex logic for choosing which way to move
-    // TODO: Calculate approach direction:
-    // TODO:   if fleeing: opposite of player direction
-    // TODO:   if confused: random direction
-    // TODO:   if peaceful: wander or stay
-    // TODO:   if invisible: don't track player
-    // TODO:   if tracking: move toward last seen position
+    // Movement execution (monmove.c:1168-1249):
+    // - Stuck timeout, weapon check, monster-vs-monster attack, displacement, region check
+    // - Actual position update + worm body management
 
-    // Line 941-964: Item seeking setup (monmove.c:941-964)
-    // Check if monster should scan for nearby items
-    // TODO: if should_seek_items(monster):
-    // TODO:   set item_preference_flags based on monster type
-    // TODO:   gold: leprechauns, dragons, demons
-    // TODO:   gems: dragons, certain undead
-    // TODO:   magic: wizards, necromancers
-    // TODO:   corpses: carnivores, undead
-
-    // Line 968-1071: Object search loop (monmove.c:968-1071)
-    // Scan for objects within search radius
-    // TODO: search_radius = SQSRCHRADIUS (15 squares)
-    // TODO: for each object on level within radius:
-    // TODO:   if matches item_preferences:
-    // TODO:     if can_pickup(monster, object):
-    // TODO:       goal_x, goal_y = object.position
-
-    // Line 1073-1077: Tunneling suppression (monmove.c:1073-1077)
-    // Prevent tunneling if monster would dig through to reach player (too obvious)
-    // TODO: if is_hostile && needs_pick && target != player:
-    // TODO:   disable_tunneling = true
-
-    // Line 1079-1108: Movement flag construction (monmove.c:1079-1108)
-    // Build movement flags based on monster capabilities
-    // TODO: movement_flags = 0
-    // TODO: if can_climb: set ALLOW_WALL
-    // TODO: if can_swim: set ALLOW_WATER
-    // TODO: if can_fly: set ALLOW_AIR
-    // TODO: if can_open_door: set OPEN_DOOR
-    // TODO: if can_knock_door: set KNOCK_DOOR
-    // TODO: if can_bust_door: set BUST_DOOR
-
-    // Line 1109-1163: Position finding (monmove.c:1109-1163)
-    // Get list of valid adjacent positions to move to
-    // TODO: positions = mfndpos(monster_id, level, movement_flags)
-    // TODO: for each position in positions:
-    // TODO:   score = score_position(monster, position, goal)
-    // TODO:   if score > best_score:
-    // TODO:     best_score = score
-    // TODO:     best_position = position
-
-    // ========== SECTION C: EXECUTION OF MOVEMENT ==========
-
-    // Line 1168-1169: Stuck check (monmove.c:1168-1169)
-    // If monster has been stuck for too long, abort movement
-    // TODO: if stuck_timer >= STUCK_THRESHOLD && goal != player:
-    // TODO:   return 3 (stuck, give up)
-
-    // Line 1171-1172: Weapon check (monmove.c:1171-1172)
-    // If monster needs a pick for terrain, check before moving
-    // TODO: if terrain_requires_pick && !has_pick:
-    // TODO:   if m_digweapon_check() fails:
-    // TODO:     return 3 (no appropriate tool)
-
-    // Line 1201-1222: Monster-to-monster attack (monmove.c:1201-1222)
-    // If target position has another monster, attack instead of move
-    // TODO: if monster_at(new_x, new_y) == some_other_monster:
-    // TODO:   mattackm(monster_id, other_monster_id, level)
-    // TODO:   return 1 (attacked instead of moving)
-
-    // Line 1225-1235: Monster displacement (monmove.c:1225-1235)
-    // Some monsters can displace weaker monsters
-    // TODO: if can_displace(monster, other_monster):
-    // TODO:   mdisplacem(monster_id, other_monster_id, level)
-    // TODO:   domove_core(monster_id, old_x, old_y, new_x, new_y, level)
-
-    // Line 1238-1239: Region check (monmove.c:1238-1239)
-    // Check if movement crosses region boundaries (shops, temples)
-    // TODO: if !m_in_out_region(monster_id, new_x, new_y, level):
-    // TODO:   return 3 (can't enter/exit region)
-
-    // Line 1241-1249: Actual movement execution (monmove.c:1241-1249)
-    // Execute the actual movement
-    // TODO: remove_monster_from_position(monster_id, level, old_x, old_y)
-    // TODO: place_monster_at_position(monster_id, level, new_x, new_y)
-    // TODO: if is_worm(monster):
-    // TODO:   worm_move(monster_id, level)
-
-    // ========== SECTION D: POST-MOVEMENT ==========
-
-    // Line 1277-1294: Vampire fog shift (monmove.c:1277-1294)
-    // Vampires can shapeshift when blocked by doors
-    // TODO: if is_vampshifter(monster) && closed_door_at(new_x, new_y):
-    // TODO:   shapeshift_vampire(monster_id, level)
-
-    // Line 1296-1302: Trap & polymorph handling (monmove.c:1296-1302)
-    // Check for traps at new location
-    // TODO: mintrap(monster_id, level)
-    // TODO: Refresh monster pointer in case of polymorph
-
-    // Line 1305-1397: Door interactions (monmove.c:1305-1397)
-    // Handle doors, locks, and secret doors
-    // TODO: if amorphous_ooze: pass under doors
-    // TODO: if closed_door: try_unlock() or try_open() or try_bust()
-    // TODO: if secret_door: reveal door (only if smart enough)
-    // TODO: if door_has_trap: trigger trap
-
-    // Line 1398-1410: Iron bars (monmove.c:1398-1410)
-    // Some monsters can rust or corrode iron bars
-    // TODO: if iron_bars_at(new_x, new_y):
-    // TODO:   if can_rust: dissolve_bars()
-    // TODO:   if can_corrode: dissolve_bars()
-
-    // Line 1414-1415: Tunneling (monmove.c:1414-1415)
-    // If moved into rock, tunnel through
-    // TODO: if new_position_is_rock && can_tunnel:
-    // TODO:   mdig_tunnel(monster_id, level)
-
-    // Line 1418-1427: Swallow update (monmove.c:1418-1427)
-    // If gelatinous cube moved, update what's inside it
-    // TODO: if is_gelatinous_cube:
-    // TODO:   update_cube_contents(monster_id, level)
-
-    // Line 1429-1483: Item pickup (monmove.c:1429-1483)
-    // Pick up items on the ground
-    // TODO: Check for metallivorous eating (metal monsters)
-    // TODO: for each object at new_x, new_y:
-    // TODO:   if matches_preference(monster, object):
-    // TODO:     pickup(monster_id, object, level)
-    // TODO:   if gelatinous_cube: absorb object
-
-    // Line 1485-1492: Hide-under management (monmove.c:1485-1492)
-    // Creatures that hide under objects reposition
-    // TODO: if hides_under && object_at(new_x, new_y):
-    // TODO:   find_object_to_hide_under(monster_id, level)
-
-    // Line 1494-1496: Shopkeeper post-move (monmove.c:1494-1496)
-    // Handle any special shopkeeper state changes
-    // TODO: if is_shopkeeper(monster):
-    // TODO:   after_shk_move(monster_id, level)
+    // Post-movement (monmove.c:1277-1496):
+    // - Vampire fog shift, trap triggers, door interactions, iron bar corrosion
+    // - Tunneling, gelatinous cube contents, item pickup, hide-under, shopkeeper
 
     1 // Default: moved successfully
 }

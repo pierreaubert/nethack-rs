@@ -25,11 +25,31 @@ impl AssetRegistry {
         Self { mapping }
     }
 
-    /// Load the registry from a JSON file.
+    /// Load the registry from a JSON file and validate coverage.
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, RegistryError> {
         let content = std::fs::read_to_string(path)?;
         let mapping: AssetMapping = serde_json::from_str(&content)?;
-        Ok(Self::new(mapping))
+        let registry = Self::new(mapping);
+        registry.validate_coverage()?;
+        Ok(registry)
+    }
+
+    /// Validate that all basic object classes have at least one mapping.
+    fn validate_coverage(&self) -> Result<(), RegistryError> {
+        use nh_core::object::{ObjectClass, ObjectId, Object};
+        use strum::IntoEnumIterator;
+
+        for class in ObjectClass::iter() {
+            if matches!(class, ObjectClass::Random | ObjectClass::IllObj) {
+                continue;
+            }
+            
+            let obj = Object::new(ObjectId(0), 0, class);
+            if self.get_icon(&obj).is_err() {
+                return Err(RegistryError::NotFound(format!("Missing mapping for class: {:?}", class)));
+            }
+        }
+        Ok(())
     }
 
     /// Find the best matching icon for a given object.

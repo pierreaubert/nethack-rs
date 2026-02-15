@@ -40,7 +40,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Bevy & UI Integration' (Protocol in workflow.md) (07f41ea)
 
 ## Phase 5: Validation & Coverage
-- [ ] Task: Implement Strict Coverage Validation
+- [~] Task: Implement Strict Coverage Validation
     - [ ] Write a validation tool/test that checks for missing mappings across all defined items
     - [ ] Implement build-time or startup checks that fail if critical items are unmapped
 - [ ] Task: Conductor - User Manual Verification 'Phase 5: Validation & Coverage' (Protocol in workflow.md)
