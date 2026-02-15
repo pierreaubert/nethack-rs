@@ -12,14 +12,14 @@
     - [ ] Implement the `AssetRegistry` with support for loading from a configuration file (YAML/JSON)
 - [x] Task: Conductor - User Manual Verification 'Phase 1: nh-assets Infrastructure & Core Logic' (Protocol in workflow.md) (386747c)
 
-## Phase 2: Asset Generation & Initial Mapping
+## Phase 2: Asset Generation & Initial Mapping [checkpoint: e68f6ed]
 - [~] Task: Setup Asset Generation Pipeline
     - [ ] Create a script or documentation for the "banana" icon generation workflow
     - [ ] Define the aesthetic parameters (palette, size, style) in a shared configuration
 - [ ] Task: Populate Initial Core Assets
     - [ ] Generate and map a subset of core items (e.g., Long Sword, Potion, Leather Armor)
     - [ ] Write tests to ensure these core assets are correctly resolved by the registry
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Asset Generation & Initial Mapping' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Asset Generation & Initial Mapping' (Protocol in workflow.md) (e68f6ed)
 
 ## Phase 3: TUI Integration
 - [ ] Task: Update `nh-tui` Map Rendering
