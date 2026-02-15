@@ -4,8 +4,8 @@
 //!   cargo run --example rl_bot_parallel -p nh-test-compare -- [OPTIONS]
 
 use nh_core::{GameLoop, GameRng, GameState};
-use nh_test::state::common::{GameAction, UnifiedGameState};
-use nh_test::state::rust_extractor::RustGameEngine;
+use nh_player::state::common::{GameAction, UnifiedGameState};
+use nh_player::state::rust_extractor::RustGameEngine;
 
 use clap::{Parser, ValueEnum};
 use rand::Rng;

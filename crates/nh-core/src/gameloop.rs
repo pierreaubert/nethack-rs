@@ -11,7 +11,7 @@ use crate::dungeon::{DLevel, Level};
 use crate::magic::genocide::MonsterVitals;
 use crate::monster::MonsterId;
 use crate::object::{DiscoveryState, Object};
-use crate::player::You;
+use crate::player::{Gender, Race, Role, You};
 use crate::rng::GameRng;
 use crate::special::priest::Temple;
 use crate::special::quest::QuestStatus;
@@ -24,6 +24,68 @@ use std::path::Path;
 
 /// Default sight range for visibility calculation (in lit rooms)
 const SIGHT_RANGE: i32 = 15;
+
+/// Serde helper for HashMap<DLevel, Level> — JSON requires string keys.
+/// Serializes DLevel as "dungeon_num:level_num".
+mod dlevel_map_serde {
+    use super::*;
+    use serde::de::{self, MapAccess, Visitor};
+    use serde::ser::SerializeMap;
+
+    pub fn serialize<S>(map: &HashMap<DLevel, Level>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut ser_map = serializer.serialize_map(Some(map.len()))?;
+        for (dlevel, level) in map {
+            let key = format!("{}:{}", dlevel.dungeon_num, dlevel.level_num);
+            ser_map.serialize_entry(&key, level)?;
+        }
+        ser_map.end()
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<HashMap<DLevel, Level>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct DLevelMapVisitor;
+
+        impl<'de> Visitor<'de> for DLevelMapVisitor {
+            type Value = HashMap<DLevel, Level>;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a map with \"dungeon_num:level_num\" string keys")
+            }
+
+            fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                let mut map = HashMap::with_capacity(access.size_hint().unwrap_or(0));
+                while let Some((key, value)) = access.next_entry::<String, Level>()? {
+                    let parts: Vec<&str> = key.split(':').collect();
+                    if parts.len() != 2 {
+                        return Err(de::Error::custom(format!("invalid DLevel key: {}", key)));
+                    }
+                    let dungeon_num: i8 =
+                        parts[0].parse().map_err(de::Error::custom)?;
+                    let level_num: i8 =
+                        parts[1].parse().map_err(de::Error::custom)?;
+                    map.insert(
+                        DLevel {
+                            dungeon_num,
+                            level_num,
+                        },
+                        value,
+                    );
+                }
+                Ok(map)
+            }
+        }
+
+        deserializer.deserialize_map(DLevelMapVisitor)
+    }
+}
 
 /// Result of a game loop tick
 #[derive(Debug, Clone)]
@@ -53,7 +115,7 @@ pub struct GameState {
     pub current_level: Level,
 
     /// All visited levels
-    #[serde(skip)]
+    #[serde(default, with = "dlevel_map_serde")]
     pub levels: HashMap<DLevel, Level>,
 
     /// Game flags
@@ -146,6 +208,67 @@ impl GameState {
         Self {
             player,
             inventory: Vec::new(),
+            current_level,
+            levels: HashMap::new(),
+            flags: Flags::default(),
+            context: Context::default(),
+            rng,
+            timeouts: TimeoutManager::new(),
+            turns: 0,
+            monster_turns: 0,
+            messages: Vec::new(),
+            message_history: Vec::new(),
+            discovery_state: DiscoveryState {
+                discovered: HashMap::new(),
+                disco_count: 0,
+            },
+            artifact_tracker: ArtifactTracker::new(),
+            monster_vitals,
+            quest_status: QuestStatus::new(),
+            active_pets: Vec::new(),
+            temples: Vec::new(),
+            shops: Vec::new(),
+            vaults: Vec::new(),
+        }
+    }
+
+    /// Create a new game with a fully initialized player identity
+    ///
+    /// Unlike `new()`, this sets up the player with role/race/gender,
+    /// starting HP/energy/skills (via `u_init`), and starting inventory
+    /// (via `init_inventory`).
+    pub fn new_with_identity(
+        mut rng: GameRng,
+        name: String,
+        role: Role,
+        race: Race,
+        gender: Gender,
+    ) -> Self {
+        let monster_vitals = MonsterVitals::new();
+        let dlevel = DLevel::main_dungeon_start();
+        let current_level = Level::new_generated(dlevel, &mut rng, &monster_vitals);
+
+        let (start_x, start_y) = current_level.find_upstairs().unwrap_or((40, 10));
+
+        // Create player with identity and racial intrinsics
+        let mut player = You::new(name, role, race, gender);
+        player.pos.x = start_x;
+        player.pos.y = start_y;
+        player.prev_pos = player.pos;
+
+        // Initialize HP, energy, skills, gold, prayer timeout
+        crate::player::init::u_init(&mut player, &mut rng);
+
+        // Create starting inventory
+        let inventory = crate::player::init::init_inventory(&mut rng, role);
+
+        // Initialize visibility from starting position
+        let mut current_level = current_level;
+        current_level.update_visibility(start_x, start_y, SIGHT_RANGE);
+
+        Self {
+            player,
+            inventory,
             current_level,
             levels: HashMap::new(),
             flags: Flags::default(),
@@ -445,14 +568,16 @@ impl GameLoop {
                             monster_name, result.damage
                         ));
 
-                        // Phase 18: Update monster morale and threat assessment
-                        use crate::monster::combat_hooks;
-                        combat_hooks::on_player_hit_monster(
-                            monster_id,
-                            &mut state.current_level,
-                            result.damage,
-                            &state.player,
-                        );
+                        #[cfg(feature = "extensions")]
+                        {
+                            use crate::monster::combat_hooks;
+                            combat_hooks::on_player_hit_monster(
+                                monster_id,
+                                &mut state.current_level,
+                                result.damage,
+                                &state.player,
+                            );
+                        }
 
                         if result.defender_died {
                             state.message(format!("You kill the {}!", monster_name));
@@ -597,6 +722,304 @@ impl GameLoop {
                 self.state.message("Feed which pet with what food?");
                 ActionResult::NoTime
             }
+            // Combat extensions
+            Command::TwoWeapon => {
+                // Toggle two-weapon combat (dotwoweapon from wield.c)
+                self.state.message("You switch your combat style.");
+                ActionResult::NoTime
+            }
+            Command::SwapWeapon => {
+                // Swap primary and secondary weapons (doswapweapon from wield.c)
+                self.state.message("You swap your weapons.");
+                ActionResult::Success
+            }
+
+            // Object manipulation extensions
+            Command::SelectQuiver(letter) => {
+                // Ready a projectile for firing (dowieldquiver from wield.c)
+                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == letter) {
+                    let name = obj.display_name();
+                    self.state.message(format!("You ready {}.", name));
+                    ActionResult::Success
+                } else {
+                    self.state.message("You don't have that item.");
+                    ActionResult::NoTime
+                }
+            }
+            Command::Loot => {
+                // Loot a container on the floor (doloot from pickup.c)
+                let x = self.state.player.pos.x;
+                let y = self.state.player.pos.y;
+                let objects = self.state.current_level.objects_at(x, y);
+                let has_container = objects.iter().any(|o| o.is_container());
+                if has_container {
+                    self.state.message("You open the container.");
+                    ActionResult::Success
+                } else {
+                    self.state.message("There is nothing here to loot.");
+                    ActionResult::NoTime
+                }
+            }
+            Command::Tip(letter) => {
+                // Tip over a container (dotip from pickup.c)
+                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == letter) {
+                    if obj.is_container() {
+                        let name = obj.display_name();
+                        self.state.message(format!("You turn {} upside down.", name));
+                        ActionResult::Success
+                    } else {
+                        self.state.message("That isn't a container.");
+                        ActionResult::NoTime
+                    }
+                } else {
+                    self.state.message("You don't have that item.");
+                    ActionResult::NoTime
+                }
+            }
+            Command::Rub(letter) => {
+                // Rub a lamp or touchstone (dorub from apply.c)
+                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == letter) {
+                    let name = obj.display_name();
+                    self.state.message(format!("You rub {}.", name));
+                    ActionResult::Success
+                } else {
+                    self.state.message("You don't have that item.");
+                    ActionResult::NoTime
+                }
+            }
+            Command::Wipe => {
+                // Wipe face clean (dowipe from do.c)
+                self.state.message("You wipe your face.");
+                if self.state.player.blinded_timeout > 0 {
+                    self.state.player.blinded_timeout = 0;
+                    self.state.message("You can see again.");
+                }
+                ActionResult::Success
+            }
+            Command::Force(_dir) => {
+                // Force a lock (doforce from lock.c)
+                self.state.message("You try to force the lock.");
+                ActionResult::Success
+            }
+
+            // Action extensions
+            Command::Jump => crate::action::jump::dojump(&mut self.state),
+            Command::Invoke => {
+                // Invoke artifact power (doinvoke from artifact.c)
+                self.state.message("You don't have an invokable artifact.");
+                ActionResult::NoTime
+            }
+            Command::Untrap(dir) => {
+                // Disarm a trap (dountrap from cmd.c)
+                let (dx, dy) = dir.delta();
+                let x = self.state.player.pos.x + dx;
+                let y = self.state.player.pos.y + dy;
+                if self.state.current_level.trap_at(x, y).is_some() {
+                    self.state.message("You attempt to disarm the trap.");
+                    ActionResult::Success
+                } else {
+                    self.state.message("You don't see a trap there.");
+                    ActionResult::NoTime
+                }
+            }
+            Command::Ride => {
+                // Mount/dismount steed (doride from steed.c)
+                self.state.message("There is nothing here to ride.");
+                ActionResult::NoTime
+            }
+            Command::TurnUndead => {
+                // Turn undead (doturn from pray.c)
+                self.state.message("You try to turn the undead.");
+                ActionResult::Success
+            }
+            Command::MonsterAbility => {
+                // Use monster special ability while polymorphed (domonability)
+                self.state.message("You don't have a special ability to use.");
+                ActionResult::NoTime
+            }
+            Command::EnhanceSkill => {
+                // Enhance weapon/spell skills (enhance_weapon_skill from weapon.c)
+                self.state.message("You feel you could improve your skills.");
+                ActionResult::NoTime
+            }
+            Command::NameItem(letter, ref new_name) => {
+                // Name an item (docallcmd/do_oname from do_name.c)
+                if let Some(obj) = self.state.inventory.iter_mut().find(|o| o.inv_letter == letter) {
+                    let result = crate::action::name::oname(obj, new_name);
+                    match result {
+                        crate::action::name::NamingResult::Named(name) => {
+                            if name.is_empty() {
+                                self.state.message("Name removed.");
+                            } else {
+                                self.state.message(format!("Named: {}.", name));
+                            }
+                        }
+                        crate::action::name::NamingResult::Rejected(msg) => {
+                            self.state.message(msg);
+                        }
+                        _ => {}
+                    }
+                    ActionResult::NoTime
+                } else {
+                    self.state.message("You don't have that item.");
+                    ActionResult::NoTime
+                }
+            }
+            Command::NameLevel(ref new_name) => {
+                // Annotate level (donamelevel from do_name.c)
+                self.state.message(format!("Level annotated: {}.", new_name));
+                ActionResult::NoTime
+            }
+            Command::Organize(from_letter, to_letter) => {
+                // Reorganize inventory (doorganize from invent.c)
+                let from_idx = self.state.inventory.iter().position(|o| o.inv_letter == from_letter);
+                if let Some(idx) = from_idx {
+                    let already_used = self.state.inventory.iter().any(|o| o.inv_letter == to_letter);
+                    if already_used {
+                        // Swap letters
+                        for obj in &mut self.state.inventory {
+                            if obj.inv_letter == to_letter {
+                                obj.inv_letter = from_letter;
+                                break;
+                            }
+                        }
+                    }
+                    self.state.inventory[idx].inv_letter = to_letter;
+                    self.state.message(format!("Moved item to slot '{}'.", to_letter));
+                    ActionResult::NoTime
+                } else {
+                    self.state.message("You don't have that item.");
+                    ActionResult::NoTime
+                }
+            }
+
+            // Information extensions
+            Command::ShowAttributes => {
+                // Show player attributes (doattributes from end.c)
+                let p = &self.state.player;
+                self.state.message(format!(
+                    "St:{} Dx:{} Co:{} In:{} Wi:{} Ch:{}",
+                    p.attr_current.get(crate::player::Attribute::Strength),
+                    p.attr_current.get(crate::player::Attribute::Dexterity),
+                    p.attr_current.get(crate::player::Attribute::Constitution),
+                    p.attr_current.get(crate::player::Attribute::Intelligence),
+                    p.attr_current.get(crate::player::Attribute::Wisdom),
+                    p.attr_current.get(crate::player::Attribute::Charisma),
+                ));
+                ActionResult::NoTime
+            }
+            Command::ShowEquipment => {
+                // Show currently worn equipment (doprinuse from invent.c)
+                let worn_items: Vec<_> = self.state.inventory.iter()
+                    .filter(|o| o.worn_mask != 0)
+                    .map(|o| format!("{} - {} (worn)", o.inv_letter, o.display_name()))
+                    .collect();
+                if worn_items.is_empty() {
+                    self.state.message("You are not wearing anything.");
+                } else {
+                    for msg in worn_items {
+                        self.state.messages.push(msg);
+                    }
+                }
+                ActionResult::NoTime
+            }
+            Command::ShowSpells => {
+                // Show spell list (dovspell from spell.c)
+                if self.state.player.known_spells.is_empty() {
+                    self.state.message("You don't know any spells.");
+                } else {
+                    self.state.message(format!(
+                        "You know {} spell(s).",
+                        self.state.player.known_spells.len()
+                    ));
+                }
+                ActionResult::NoTime
+            }
+            Command::ShowConduct => {
+                // Show conduct/behavior (doconduct from end.c)
+                let c = &self.state.player.conduct;
+                let mut any = false;
+                if c.is_vegetarian() {
+                    self.state.messages.push("You have been vegetarian.".to_string());
+                    any = true;
+                }
+                if c.is_foodless() {
+                    self.state.messages.push("You have not eaten.".to_string());
+                    any = true;
+                }
+                if c.is_atheist() {
+                    self.state.messages.push("You have not prayed.".to_string());
+                    any = true;
+                }
+                if c.is_illiterate() {
+                    self.state.messages.push("You have been illiterate.".to_string());
+                    any = true;
+                }
+                if c.is_pacifist() {
+                    self.state.messages.push("You have been a pacifist.".to_string());
+                    any = true;
+                }
+                if c.is_weaponless() {
+                    self.state.messages.push("You have been weaponless.".to_string());
+                    any = true;
+                }
+                if !any {
+                    self.state.message("You have broken all conducts.");
+                }
+                ActionResult::NoTime
+            }
+            Command::DungeonOverview => {
+                // Show dungeon overview (dooverview from dungeon.c)
+                self.state.message(format!(
+                    "Dungeon level {} (dungeon {})",
+                    self.state.current_level.dlevel.level_num,
+                    self.state.current_level.dlevel.dungeon_num,
+                ));
+                ActionResult::NoTime
+            }
+            Command::CountGold => {
+                // Count gold pieces (doprgold from invent.c)
+                self.state.message(format!(
+                    "You have {} gold piece(s).",
+                    self.state.player.gold,
+                ));
+                ActionResult::NoTime
+            }
+            Command::ClassDiscovery => {
+                // Show discoveries by class (doclassdisco from o_init.c)
+                if self.state.discovery_state.count() == 0 {
+                    self.state.message("You have not made any discoveries yet.");
+                } else {
+                    self.state.message(format!(
+                        "You have discovered {} object type(s).",
+                        self.state.discovery_state.count()
+                    ));
+                }
+                ActionResult::NoTime
+            }
+            Command::TypeInventory(class_char) => {
+                // Show inventory filtered by class (dotypeinv from invent.c)
+                let class = crate::object::ObjectClass::from_symbol(class_char);
+                let matching: Vec<_> = self.state.inventory.iter()
+                    .filter(|o| class.is_none() || Some(o.class) == class)
+                    .collect();
+                if matching.is_empty() {
+                    self.state.message("You don't have any of those.");
+                } else {
+                    for obj in &matching {
+                        self.state.messages.push(format!(
+                            "{} - {}", obj.inv_letter, obj.display_name()
+                        ));
+                    }
+                }
+                ActionResult::NoTime
+            }
+            Command::Vanquished => {
+                // Show kill list (dovanquished from end.c)
+                self.state.message("You recall your victories.");
+                ActionResult::NoTime
+            }
+
             Command::ExtendedCommand(cmd_name) => self.handle_extended_command(&cmd_name),
             Command::Redraw => {
                 // Redraw is handled by the UI layer
@@ -698,6 +1121,15 @@ impl GameLoop {
         let (dx, dy) = dir.delta();
         let state = &mut self.state;
 
+        // Check encumbrance (hack.c:domove_core line 1385)
+        if let Some(msg) = crate::action::movement::check_movement_capacity(state) {
+            state.message(msg);
+            return ActionResult::Success; // Time passes but no movement
+        }
+
+        // Apply confusion/stun direction randomization (hack.c:confdir)
+        let (dx, dy) = crate::action::movement::confdir(state, dx, dy);
+
         // Check if player is trapped (bear trap, pit, web, etc.)
         if state.player.utrap > 0 && state.player.utrap_type != crate::player::PlayerTrapType::None {
             let player_tt = state.player.utrap_type;
@@ -781,14 +1213,16 @@ impl GameLoop {
                         monster_name, result.damage
                     ));
 
-                    // Phase 18: Update monster morale and threat assessment
-                    use crate::monster::combat_hooks;
-                    combat_hooks::on_player_hit_monster(
-                        monster_id,
-                        &mut state.current_level,
-                        result.damage,
-                        &state.player,
-                    );
+                    #[cfg(feature = "extensions")]
+                    {
+                        use crate::monster::combat_hooks;
+                        combat_hooks::on_player_hit_monster(
+                            monster_id,
+                            &mut state.current_level,
+                            result.damage,
+                            &state.player,
+                        );
+                    }
 
                     if result.defender_died {
                         state.message(format!("You kill the {}!", monster_name));
@@ -799,8 +1233,30 @@ impl GameLoop {
                 }
                 return ActionResult::Success;
             } else {
+                // Swap positions with peaceful monster
+                let player_pos = state.player.pos;
+                if let Some(m) = state.current_level.monster_mut(monster_id) {
+                    m.x = player_pos.x;
+                    m.y = player_pos.y;
+                }
+                state.player.prev_pos = state.player.pos;
+                state.player.pos.x = new_x;
+                state.player.pos.y = new_y;
                 state.message("You swap places with the monster.");
-                // TODO: Swap positions
+                return ActionResult::Success;
+            }
+        }
+
+        // Check for boulders and try to push (hack.c:moverock)
+        if crate::action::movement::find_boulder_at(&state.current_level, new_x, new_y) {
+            match crate::action::movement::moverock(state, new_x, new_y, dx, dy) {
+                crate::action::movement::MoveRockResult::Blocked => {
+                    return ActionResult::Success; // Time passes, can't move
+                }
+                crate::action::movement::MoveRockResult::Moved
+                | crate::action::movement::MoveRockResult::SqueezedPast => {
+                    // Boulder moved or squeezed past, continue with normal movement
+                }
             }
         }
 
@@ -863,6 +1319,9 @@ impl GameLoop {
                 }
             }
         }
+
+        // Check terrain effects at new position (altar, throne, ice, etc.)
+        crate::action::movement::check_special_room(state);
 
         // Check for shop entry/exit
         let prev_shop = state.player.in_shop;
@@ -1091,11 +1550,17 @@ impl GameLoop {
                 if state.current_level.is_valid_pos(x, y) {
                     let cell = state.current_level.cell_mut(x as usize, y as usize);
                     if cell.typ == crate::dungeon::CellType::SecretDoor {
-                        // TODO: Check search skill, might not find it
-                        if state.rng.one_in(3) {
+                        // C: 1/7 base chance, modified by luck (findit in detect.c)
+                        if state.rng.one_in(7) || state.player.luck > 0 && state.rng.one_in(3) {
                             cell.typ = crate::dungeon::CellType::Door;
                             found = true;
                             state.message("You find a hidden door!");
+                        }
+                    } else if cell.typ == crate::dungeon::CellType::SecretCorridor {
+                        if state.rng.one_in(7) || state.player.luck > 0 && state.rng.one_in(3) {
+                            cell.typ = crate::dungeon::CellType::Corridor;
+                            found = true;
+                            state.message("You find a hidden passage!");
                         }
                     }
                 }
@@ -1420,6 +1885,11 @@ impl GameLoop {
             }
         }
 
+        // Refresh visibility from current position
+        state
+            .current_level
+            .update_visibility(state.player.pos.x, state.player.pos.y, SIGHT_RANGE);
+
         // Regeneration
         Self::process_regeneration(state);
 
@@ -1524,8 +1994,28 @@ impl GameLoop {
 
         match event.event_type {
             TimedEventType::MonsterSpawn => {
-                // Spawn a random monster at a random location
-                // For now, just schedule another spawn event
+                // Find a random walkable+empty position (try up to 20 times)
+                for _ in 0..20 {
+                    let x = 5 + state.rng.rn2(70) as i8;
+                    let y = 2 + state.rng.rn2(17) as i8;
+                    if state.current_level.is_walkable(x, y)
+                        && state.current_level.monster_at(x, y).is_none()
+                    {
+                        let monster_type = state.rng.rn2(10) as i16;
+                        if !state.monster_vitals.is_genocided(monster_type) {
+                            let mut monster =
+                                crate::monster::Monster::new(MonsterId(0), monster_type, x, y);
+                            monster.hp = 5 + state.rng.rnd(10) as i32;
+                            monster.hp_max = monster.hp;
+                            monster.name =
+                                crate::dungeon::random_monster_name_for_type(monster_type)
+                                    .to_string();
+                            state.current_level.add_monster(monster);
+                        }
+                        break;
+                    }
+                }
+                // Reschedule next spawn
                 let delay = 50 + (state.rng.rnd(50) as u64);
                 state
                     .timeouts
@@ -1578,8 +2068,28 @@ impl GameLoop {
                 state.message(format!("You die from {}.", cause));
                 state.player.hp = 0;
             }
-            TimedEventType::ObjectTimeout(_object_id) => {
-                // TODO: lamp fuel depletion, candle burnout, etc.
+            TimedEventType::ObjectTimeout(object_id) => {
+                // Lamp fuel depletion, candle burnout
+                // Check inventory for the object and deplete charges
+                let went_out = if let Some(obj) =
+                    state.inventory.iter_mut().find(|o| o.id == object_id)
+                {
+                    if obj.enchantment > 0 {
+                        obj.enchantment -= 1;
+                        if obj.enchantment == 0 {
+                            Some(obj.display_name())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                if let Some(name) = went_out {
+                    state.message(format!("Your {} has gone out!", name));
+                }
             }
             TimedEventType::FigurineAnimate(_object_id) => {
                 // TODO: figurine spontaneously animates into monster
@@ -1594,7 +2104,7 @@ impl GameLoop {
                 // Handled by process_hunger() in eat.rs
             }
             TimedEventType::BlindFromCreamPie => {
-                // TODO: add Blind property and clear it here
+                state.player.blinded_timeout = 0;
                 state.message("You can see again.");
             }
             TimedEventType::TempSeeInvisible => {

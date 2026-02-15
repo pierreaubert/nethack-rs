@@ -12,6 +12,7 @@
 
 pub mod agent;
 pub mod compare;
+pub mod ffi;
 pub mod orchestrator;
 pub mod state;
 

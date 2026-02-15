@@ -5,8 +5,8 @@
 //! by running many short sessions with random seeds.
 
 use nh_core::{GameLoop, GameRng, GameState};
-use nh_test::c_interface::CGameEngine;
-use nh_test::orchestrator::{DualGameOrchestrator, OrchestratorConfig};
+use nh_player::ffi::CGameEngine;
+use nh_player::orchestrator::{DualGameOrchestrator, OrchestratorConfig};
 use std::io::Write;
 use std::time::Instant;
 

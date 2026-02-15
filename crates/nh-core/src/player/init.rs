@@ -1,0 +1,702 @@
+//! Player initialization (u_init.c)
+//!
+//! Sets up the player's starting inventory, skills, and attributes
+//! based on their role and race. Called at character creation.
+
+use crate::object::{BucStatus, Object, ObjectClass};
+use crate::player::{Role, SkillLevel, SkillSet, SkillType};
+use crate::rng::GameRng;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Starting inventory item descriptor
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One item in a role's starting inventory (C: struct trobj)
+#[derive(Debug, Clone, Copy)]
+pub struct StartingItem {
+    /// Object type index (0 = random within class)
+    pub otyp: i16,
+    /// Enchantment/charges (i8::MAX = random)
+    pub spe: i8,
+    /// Object class
+    pub class: ObjectClass,
+    /// Quantity
+    pub quantity: u8,
+    /// BUC status: 0=uncursed, 1=blessed, 2=random
+    pub bless: u8,
+}
+
+const UNDEF_SPE: i8 = i8::MAX;
+const UNDEF_BLESS: u8 = 2;
+
+impl StartingItem {
+    const fn new(otyp: i16, spe: i8, class: ObjectClass, quantity: u8, bless: u8) -> Self {
+        Self { otyp, spe, class, quantity, bless }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Role starting inventories
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Archeologist starting inventory
+static ARCHEOLOGIST_INV: &[StartingItem] = &[
+    StartingItem::new(185, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),   // BULLWHIP
+    StartingItem::new(282, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_JACKET
+    StartingItem::new(268, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // FEDORA
+    StartingItem::new(346, 0, ObjectClass::Food, 3, 0),               // FOOD_RATION
+    StartingItem::new(193, UNDEF_SPE, ObjectClass::Tool, 1, UNDEF_BLESS), // PICK_AXE
+    StartingItem::new(208, UNDEF_SPE, ObjectClass::Tool, 1, UNDEF_BLESS), // TINNING_KIT
+    StartingItem::new(374, 0, ObjectClass::Gem, 1, 0),                // TOUCHSTONE
+    StartingItem::new(218, 0, ObjectClass::Tool, 1, 0),               // SACK
+];
+
+/// Barbarian starting inventory
+static BARBARIAN_INV: &[StartingItem] = &[
+    StartingItem::new(153, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // TWO_HANDED_SWORD
+    StartingItem::new(148, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // AXE
+    StartingItem::new(275, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // RING_MAIL
+    StartingItem::new(346, 0, ObjectClass::Food, 1, 0),               // FOOD_RATION
+];
+
+/// Caveman starting inventory
+static CAVEMAN_INV: &[StartingItem] = &[
+    StartingItem::new(155, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // CLUB
+    StartingItem::new(163, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SLING
+    StartingItem::new(372, 0, ObjectClass::Gem, 15, UNDEF_BLESS),     // FLINT (qty variable)
+    StartingItem::new(373, 0, ObjectClass::Gem, 3, 0),                // ROCK
+    StartingItem::new(281, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_ARMOR
+];
+
+/// Healer starting inventory
+static HEALER_INV: &[StartingItem] = &[
+    StartingItem::new(170, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SCALPEL
+    StartingItem::new(264, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
+    StartingItem::new(211, 0, ObjectClass::Tool, 1, 0),               // STETHOSCOPE
+    StartingItem::new(306, 0, ObjectClass::Potion, 4, UNDEF_BLESS),   // POT_HEALING
+    StartingItem::new(307, 0, ObjectClass::Potion, 4, UNDEF_BLESS),   // POT_EXTRA_HEALING
+    StartingItem::new(244, UNDEF_SPE, ObjectClass::Wand, 1, UNDEF_BLESS), // WAN_SLEEP
+    StartingItem::new(393, 0, ObjectClass::Spellbook, 1, 1),          // SPE_HEALING
+    StartingItem::new(394, 0, ObjectClass::Spellbook, 1, 1),          // SPE_EXTRA_HEALING
+    StartingItem::new(413, 0, ObjectClass::Spellbook, 1, 1),          // SPE_STONE_TO_FLESH
+    StartingItem::new(338, 0, ObjectClass::Food, 5, 0),               // APPLE
+];
+
+/// Knight starting inventory
+static KNIGHT_INV: &[StartingItem] = &[
+    StartingItem::new(143, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LONG_SWORD
+    StartingItem::new(152, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LANCE
+    StartingItem::new(275, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // RING_MAIL
+    StartingItem::new(260, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // HELMET
+    StartingItem::new(258, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
+    StartingItem::new(264, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
+    StartingItem::new(338, 0, ObjectClass::Food, 10, 0),              // APPLE
+    StartingItem::new(339, 0, ObjectClass::Food, 10, 0),              // CARROT
+];
+
+/// Monk starting inventory
+static MONK_INV: &[StartingItem] = &[
+    StartingItem::new(264, 2, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
+    StartingItem::new(283, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // ROBE
+    StartingItem::new(0, UNDEF_SPE, ObjectClass::Spellbook, 1, 1),    // Random spellbook
+    StartingItem::new(0, UNDEF_SPE, ObjectClass::Scroll, 1, UNDEF_BLESS), // Random scroll
+    StartingItem::new(306, 0, ObjectClass::Potion, 3, UNDEF_BLESS),   // POT_HEALING
+    StartingItem::new(346, 0, ObjectClass::Food, 3, 0),               // FOOD_RATION
+    StartingItem::new(338, 0, ObjectClass::Food, 5, UNDEF_BLESS),     // APPLE
+    StartingItem::new(340, 0, ObjectClass::Food, 5, UNDEF_BLESS),     // ORANGE
+    StartingItem::new(353, 0, ObjectClass::Food, 3, UNDEF_BLESS),     // FORTUNE_COOKIE
+];
+
+/// Priest starting inventory
+static PRIEST_INV: &[StartingItem] = &[
+    StartingItem::new(156, 1, ObjectClass::Weapon, 1, 1),             // MACE (blessed)
+    StartingItem::new(283, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // ROBE
+    StartingItem::new(258, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
+    StartingItem::new(311, 0, ObjectClass::Potion, 4, 1),             // POT_WATER (holy)
+    StartingItem::new(350, 0, ObjectClass::Food, 1, 0),               // CLOVE_OF_GARLIC
+    StartingItem::new(351, 0, ObjectClass::Food, 1, 0),               // SPRIG_OF_WOLFSBANE
+    StartingItem::new(0, UNDEF_SPE, ObjectClass::Spellbook, 2, UNDEF_BLESS), // Random spellbooks
+];
+
+/// Ranger starting inventory
+static RANGER_INV: &[StartingItem] = &[
+    StartingItem::new(139, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // DAGGER
+    StartingItem::new(163, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // BOW
+    StartingItem::new(164, 2, ObjectClass::Weapon, 50, UNDEF_BLESS),  // ARROW (qty variable)
+    StartingItem::new(164, 0, ObjectClass::Weapon, 30, UNDEF_BLESS),  // ARROW
+    StartingItem::new(291, 2, ObjectClass::Armor, 1, UNDEF_BLESS),    // CLOAK_OF_DISPLACEMENT
+    StartingItem::new(347, 0, ObjectClass::Food, 4, 0),               // CRAM_RATION
+];
+
+/// Rogue starting inventory
+static ROGUE_INV: &[StartingItem] = &[
+    StartingItem::new(141, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SHORT_SWORD
+    StartingItem::new(139, 0, ObjectClass::Weapon, 10, 0),            // DAGGER (qty variable)
+    StartingItem::new(281, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_ARMOR
+    StartingItem::new(320, 0, ObjectClass::Potion, 1, 0),             // POT_SICKNESS
+    StartingItem::new(221, 0, ObjectClass::Tool, 1, 0),               // LOCK_PICK
+    StartingItem::new(218, 0, ObjectClass::Tool, 1, 0),               // SACK
+];
+
+/// Samurai starting inventory
+static SAMURAI_INV: &[StartingItem] = &[
+    StartingItem::new(144, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // KATANA
+    StartingItem::new(141, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SHORT_SWORD (wakizashi)
+    StartingItem::new(167, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // YUMI
+    StartingItem::new(168, 0, ObjectClass::Weapon, 25, UNDEF_BLESS),  // YA (qty variable)
+    StartingItem::new(276, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SPLINT_MAIL
+];
+
+/// Tourist starting inventory
+static TOURIST_INV: &[StartingItem] = &[
+    StartingItem::new(165, 2, ObjectClass::Weapon, 25, UNDEF_BLESS),  // DART (qty variable)
+    StartingItem::new(0, UNDEF_SPE, ObjectClass::Food, 10, 0),        // Random food
+    StartingItem::new(307, 0, ObjectClass::Potion, 2, UNDEF_BLESS),   // POT_EXTRA_HEALING
+    StartingItem::new(423, 0, ObjectClass::Scroll, 4, UNDEF_BLESS),   // SCR_MAGIC_MAPPING
+    StartingItem::new(284, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // HAWAIIAN_SHIRT
+    StartingItem::new(212, UNDEF_SPE, ObjectClass::Tool, 1, 0),       // EXPENSIVE_CAMERA
+    StartingItem::new(220, 0, ObjectClass::Tool, 1, 0),               // CREDIT_CARD
+];
+
+/// Valkyrie starting inventory
+static VALKYRIE_INV: &[StartingItem] = &[
+    StartingItem::new(143, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LONG_SWORD
+    StartingItem::new(139, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // DAGGER
+    StartingItem::new(258, 3, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
+    StartingItem::new(346, 0, ObjectClass::Food, 1, 0),               // FOOD_RATION
+];
+
+/// Wizard starting inventory
+static WIZARD_INV: &[StartingItem] = &[
+    StartingItem::new(154, 1, ObjectClass::Weapon, 1, 1),             // QUARTERSTAFF (blessed)
+    StartingItem::new(293, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // CLOAK_OF_MAGIC_RESISTANCE
+    StartingItem::new(0, UNDEF_SPE, ObjectClass::Wand, 1, UNDEF_BLESS), // Random wand
+    StartingItem::new(0, UNDEF_SPE, ObjectClass::Ring, 2, UNDEF_BLESS), // Random rings
+    StartingItem::new(0, UNDEF_SPE, ObjectClass::Potion, 3, UNDEF_BLESS), // Random potions
+    StartingItem::new(0, UNDEF_SPE, ObjectClass::Scroll, 3, UNDEF_BLESS), // Random scrolls
+    StartingItem::new(395, 0, ObjectClass::Spellbook, 1, 1),          // SPE_FORCE_BOLT
+    StartingItem::new(0, UNDEF_SPE, ObjectClass::Spellbook, 1, UNDEF_BLESS), // Random spellbook
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Role skill initialization tables
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// (SkillType, max SkillLevel) pairs for a role
+type SkillTable = &'static [(SkillType, SkillLevel)];
+
+fn skill_table_for_role(role: Role) -> SkillTable {
+    match role {
+        Role::Archeologist => &[
+            (SkillType::Whip, SkillLevel::Expert),
+            (SkillType::PickAxe, SkillLevel::Expert),
+            (SkillType::Club, SkillLevel::Skilled),
+            (SkillType::Sling, SkillLevel::Skilled),
+            (SkillType::Dart, SkillLevel::Basic),
+            (SkillType::BareHanded, SkillLevel::Basic),
+            (SkillType::AttackSpells, SkillLevel::Basic),
+            (SkillType::DivinationSpells, SkillLevel::Expert),
+        ],
+        Role::Barbarian => &[
+            (SkillType::Dagger, SkillLevel::Expert),
+            (SkillType::Axe, SkillLevel::Expert),
+            (SkillType::ShortSword, SkillLevel::Expert),
+            (SkillType::BroadSword, SkillLevel::Expert),
+            (SkillType::TwoHandedSword, SkillLevel::Expert),
+            (SkillType::Club, SkillLevel::Skilled),
+            (SkillType::Mace, SkillLevel::Skilled),
+            (SkillType::Hammer, SkillLevel::Expert),
+            (SkillType::Spear, SkillLevel::Skilled),
+            (SkillType::TwoWeapon, SkillLevel::Skilled),
+            (SkillType::BareHanded, SkillLevel::Master),
+            (SkillType::Riding, SkillLevel::Basic),
+        ],
+        Role::Caveman => &[
+            (SkillType::Club, SkillLevel::Expert),
+            (SkillType::Sling, SkillLevel::Expert),
+            (SkillType::Mace, SkillLevel::Skilled),
+            (SkillType::Flail, SkillLevel::Skilled),
+            (SkillType::Hammer, SkillLevel::Expert),
+            (SkillType::Quarterstaff, SkillLevel::Skilled),
+            (SkillType::Spear, SkillLevel::Skilled),
+            (SkillType::Javelin, SkillLevel::Skilled),
+            (SkillType::BareHanded, SkillLevel::Expert),
+            (SkillType::AttackSpells, SkillLevel::Basic),
+        ],
+        Role::Healer => &[
+            (SkillType::Dagger, SkillLevel::Skilled),
+            (SkillType::Knife, SkillLevel::Expert),
+            (SkillType::Quarterstaff, SkillLevel::Skilled),
+            (SkillType::Crossbow, SkillLevel::Skilled),
+            (SkillType::Dart, SkillLevel::Expert),
+            (SkillType::BareHanded, SkillLevel::Basic),
+            (SkillType::HealingSpells, SkillLevel::Expert),
+            (SkillType::EnchantmentSpells, SkillLevel::Skilled),
+        ],
+        Role::Knight => &[
+            (SkillType::Dagger, SkillLevel::Basic),
+            (SkillType::BroadSword, SkillLevel::Skilled),
+            (SkillType::LongSword, SkillLevel::Expert),
+            (SkillType::TwoHandedSword, SkillLevel::Skilled),
+            (SkillType::Lance, SkillLevel::Expert),
+            (SkillType::Mace, SkillLevel::Skilled),
+            (SkillType::MorningStar, SkillLevel::Skilled),
+            (SkillType::Spear, SkillLevel::Skilled),
+            (SkillType::Javelin, SkillLevel::Skilled),
+            (SkillType::Crossbow, SkillLevel::Skilled),
+            (SkillType::TwoWeapon, SkillLevel::Skilled),
+            (SkillType::BareHanded, SkillLevel::Expert),
+            (SkillType::Riding, SkillLevel::Expert),
+            (SkillType::HealingSpells, SkillLevel::Skilled),
+            (SkillType::ClericalSpells, SkillLevel::Skilled),
+        ],
+        Role::Monk => &[
+            (SkillType::Quarterstaff, SkillLevel::Skilled),
+            (SkillType::Shuriken, SkillLevel::Basic),
+            (SkillType::Spear, SkillLevel::Basic),
+            (SkillType::Javelin, SkillLevel::Basic),
+            (SkillType::Crossbow, SkillLevel::Basic),
+            (SkillType::BareHanded, SkillLevel::GrandMaster),
+            (SkillType::HealingSpells, SkillLevel::Expert),
+            (SkillType::ClericalSpells, SkillLevel::Skilled),
+            (SkillType::EscapeSpells, SkillLevel::Skilled),
+            (SkillType::AttackSpells, SkillLevel::Basic),
+        ],
+        Role::Priest => &[
+            (SkillType::Club, SkillLevel::Expert),
+            (SkillType::Mace, SkillLevel::Expert),
+            (SkillType::MorningStar, SkillLevel::Expert),
+            (SkillType::Flail, SkillLevel::Expert),
+            (SkillType::Hammer, SkillLevel::Expert),
+            (SkillType::Quarterstaff, SkillLevel::Expert),
+            (SkillType::Sling, SkillLevel::Skilled),
+            (SkillType::BareHanded, SkillLevel::Skilled),
+            (SkillType::HealingSpells, SkillLevel::Expert),
+            (SkillType::ClericalSpells, SkillLevel::Expert),
+            (SkillType::DivinationSpells, SkillLevel::Expert),
+        ],
+        Role::Ranger => &[
+            (SkillType::Dagger, SkillLevel::Expert),
+            (SkillType::Knife, SkillLevel::Skilled),
+            (SkillType::ShortSword, SkillLevel::Skilled),
+            (SkillType::Bow, SkillLevel::Expert),
+            (SkillType::Crossbow, SkillLevel::Expert),
+            (SkillType::Dart, SkillLevel::Expert),
+            (SkillType::Spear, SkillLevel::Skilled),
+            (SkillType::Javelin, SkillLevel::Skilled),
+            (SkillType::TwoWeapon, SkillLevel::Skilled),
+            (SkillType::BareHanded, SkillLevel::Basic),
+            (SkillType::DivinationSpells, SkillLevel::Skilled),
+            (SkillType::EscapeSpells, SkillLevel::Skilled),
+        ],
+        Role::Rogue => &[
+            (SkillType::Dagger, SkillLevel::Expert),
+            (SkillType::Knife, SkillLevel::Expert),
+            (SkillType::ShortSword, SkillLevel::Expert),
+            (SkillType::BroadSword, SkillLevel::Skilled),
+            (SkillType::LongSword, SkillLevel::Skilled),
+            (SkillType::Club, SkillLevel::Skilled),
+            (SkillType::Saber, SkillLevel::Skilled),
+            (SkillType::Crossbow, SkillLevel::Expert),
+            (SkillType::Dart, SkillLevel::Expert),
+            (SkillType::Sling, SkillLevel::Skilled),
+            (SkillType::TwoWeapon, SkillLevel::Expert),
+            (SkillType::BareHanded, SkillLevel::Skilled),
+            (SkillType::DivinationSpells, SkillLevel::Skilled),
+            (SkillType::EscapeSpells, SkillLevel::Skilled),
+            (SkillType::MatterSpells, SkillLevel::Skilled),
+        ],
+        Role::Samurai => &[
+            (SkillType::Dagger, SkillLevel::Basic),
+            (SkillType::Knife, SkillLevel::Skilled),
+            (SkillType::ShortSword, SkillLevel::Expert),
+            (SkillType::BroadSword, SkillLevel::Expert),
+            (SkillType::LongSword, SkillLevel::Expert),
+            (SkillType::Bow, SkillLevel::Expert),
+            (SkillType::Spear, SkillLevel::Skilled),
+            (SkillType::Polearms, SkillLevel::Skilled),
+            (SkillType::Lance, SkillLevel::Skilled),
+            (SkillType::Flail, SkillLevel::Skilled),
+            (SkillType::TwoWeapon, SkillLevel::Expert),
+            (SkillType::BareHanded, SkillLevel::Master),
+            (SkillType::Riding, SkillLevel::Skilled),
+            (SkillType::ClericalSpells, SkillLevel::Skilled),
+        ],
+        Role::Tourist => &[
+            (SkillType::Dagger, SkillLevel::Expert),
+            (SkillType::Dart, SkillLevel::Expert),
+            (SkillType::Sling, SkillLevel::Skilled),
+            (SkillType::Whip, SkillLevel::Skilled),
+            (SkillType::UnicornHorn, SkillLevel::Skilled),
+            (SkillType::BareHanded, SkillLevel::Skilled),
+            (SkillType::Riding, SkillLevel::Basic),
+            (SkillType::EnchantmentSpells, SkillLevel::Skilled),
+            (SkillType::DivinationSpells, SkillLevel::Basic),
+        ],
+        Role::Valkyrie => &[
+            (SkillType::Dagger, SkillLevel::Expert),
+            (SkillType::Axe, SkillLevel::Expert),
+            (SkillType::ShortSword, SkillLevel::Skilled),
+            (SkillType::BroadSword, SkillLevel::Skilled),
+            (SkillType::LongSword, SkillLevel::Expert),
+            (SkillType::TwoHandedSword, SkillLevel::Expert),
+            (SkillType::Scimitar, SkillLevel::Skilled),
+            (SkillType::Spear, SkillLevel::Skilled),
+            (SkillType::Hammer, SkillLevel::Expert),
+            (SkillType::Lance, SkillLevel::Skilled),
+            (SkillType::TwoWeapon, SkillLevel::Skilled),
+            (SkillType::BareHanded, SkillLevel::Expert),
+            (SkillType::Riding, SkillLevel::Skilled),
+        ],
+        Role::Wizard => &[
+            (SkillType::Dagger, SkillLevel::Expert),
+            (SkillType::Quarterstaff, SkillLevel::Expert),
+            (SkillType::BareHanded, SkillLevel::Basic),
+            (SkillType::AttackSpells, SkillLevel::Expert),
+            (SkillType::HealingSpells, SkillLevel::Skilled),
+            (SkillType::DivinationSpells, SkillLevel::Expert),
+            (SkillType::EnchantmentSpells, SkillLevel::Expert),
+            (SkillType::ClericalSpells, SkillLevel::Skilled),
+            (SkillType::EscapeSpells, SkillLevel::Expert),
+            (SkillType::MatterSpells, SkillLevel::Expert),
+        ],
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main initialization
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Get the starting inventory table for a role
+pub fn starting_inventory(role: Role) -> &'static [StartingItem] {
+    match role {
+        Role::Archeologist => ARCHEOLOGIST_INV,
+        Role::Barbarian => BARBARIAN_INV,
+        Role::Caveman => CAVEMAN_INV,
+        Role::Healer => HEALER_INV,
+        Role::Knight => KNIGHT_INV,
+        Role::Monk => MONK_INV,
+        Role::Priest => PRIEST_INV,
+        Role::Ranger => RANGER_INV,
+        Role::Rogue => ROGUE_INV,
+        Role::Samurai => SAMURAI_INV,
+        Role::Tourist => TOURIST_INV,
+        Role::Valkyrie => VALKYRIE_INV,
+        Role::Wizard => WIZARD_INV,
+    }
+}
+
+/// Initialize player skills based on role (C: skill_init)
+pub fn init_skills(skills: &mut SkillSet, role: Role) {
+    let table = skill_table_for_role(role);
+    for &(skill_type, max_level) in table {
+        skills.set_max(skill_type, max_level);
+        // Set starting level to Unskilled for skills above Restricted
+        let skill = skills.get_mut(skill_type);
+        if skill.level == SkillLevel::Restricted {
+            skill.level = SkillLevel::Unskilled;
+        }
+    }
+}
+
+/// Convert a starting item descriptor into an Object (C: ini_inv per-item logic)
+pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mut u32) -> Object {
+    let id = *next_id;
+    *next_id += 1;
+
+    let mut obj = Object::new(crate::object::ObjectId(id), item.otyp, item.class);
+    obj.quantity = item.quantity as i32;
+
+    // Set enchantment
+    if item.spe != UNDEF_SPE {
+        obj.enchantment = item.spe;
+    } else {
+        // Random enchantment based on class
+        obj.enchantment = match item.class {
+            ObjectClass::Wand => rng.rn2(5) as i8 + 3,  // 3-7 charges
+            ObjectClass::Tool => rng.rn2(5) as i8 + 1,  // 1-5
+            _ => 0,
+        };
+    }
+
+    // Set BUC status
+    obj.buc = match item.bless {
+        0 => BucStatus::Uncursed,
+        1 => BucStatus::Blessed,
+        _ => {
+            // Random BUC: 80% uncursed, 10% blessed, 10% cursed
+            let roll = rng.rn2(10);
+            if roll == 0 {
+                BucStatus::Blessed
+            } else if roll == 1 {
+                BucStatus::Cursed
+            } else {
+                BucStatus::Uncursed
+            }
+        }
+    };
+
+    obj
+}
+
+/// Initialize a player's starting inventory (C: u_init inventory section)
+pub fn init_inventory(rng: &mut GameRng, role: Role) -> Vec<Object> {
+    let items = starting_inventory(role);
+    let mut inventory = Vec::with_capacity(items.len());
+    let mut next_id: u32 = 1;
+    let mut letter = b'a';
+
+    for item in items {
+        let mut obj = make_starting_object(item, rng, &mut next_id);
+        obj.inv_letter = letter as char;
+        if letter < b'z' {
+            letter += 1;
+        }
+        inventory.push(obj);
+    }
+
+    inventory
+}
+
+/// Full player initialization (C: u_init)
+///
+/// Sets initial HP, energy, attributes, skills, inventory, and prayer timeout.
+pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) {
+    let role = player.role;
+
+    // Set initial HP (C: newhp)
+    let base_hp = match role {
+        Role::Monk | Role::Priest | Role::Knight | Role::Valkyrie => 14,
+        Role::Barbarian => 16,
+        Role::Wizard => 10,
+        _ => 12,
+    };
+    player.hp = base_hp;
+    player.hp_max = base_hp;
+
+    // Set initial energy (C: newpw)
+    let base_pw = match role {
+        Role::Wizard => 15,
+        Role::Priest | Role::Healer => 10,
+        Role::Monk => 8,
+        Role::Knight => 5,
+        _ => 2,
+    };
+    player.energy = base_pw;
+    player.energy_max = base_pw;
+
+    // Set initial level
+    player.exp_level = 1;
+    player.max_exp_level = 1;
+
+    // Initialize skills
+    init_skills(&mut player.skills, role);
+
+    // Set prayer timeout (C: u.ublesscnt = 300)
+    player.bless_count = 300;
+
+    // Give Knight intrinsic jumping
+    if role == Role::Knight {
+        player.properties.grant_intrinsic(crate::player::Property::Jumping);
+    }
+
+    // Set initial nutrition
+    player.nutrition = 900;
+    player.hunger_state = crate::player::HungerState::NotHungry;
+
+    // Initialize gold for certain roles (C: rn1(x,y) = rnd(x)+y-1)
+    match role {
+        Role::Healer => player.gold = (rng.rnd(1000) + 1000) as i32, // rn1(1000, 1001) = 1001..2000
+        Role::Tourist => player.gold = rng.rnd(1000) as i32,
+        _ => {}
+    }
+}
+
+/// Check if a spell discipline is restricted for the player's role (C: restricted_spell_discipline)
+pub fn restricted_spell_discipline(role: Role, skill: SkillType) -> bool {
+    let table = skill_table_for_role(role);
+    if !skill.is_spell() {
+        return false;
+    }
+    !table.iter().any(|&(st, _)| st == skill)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::player::Race;
+
+    #[test]
+    fn test_starting_inventory_all_roles() {
+        for role in [
+            Role::Archeologist, Role::Barbarian, Role::Caveman, Role::Healer,
+            Role::Knight, Role::Monk, Role::Priest, Role::Ranger,
+            Role::Rogue, Role::Samurai, Role::Tourist, Role::Valkyrie, Role::Wizard,
+        ] {
+            let items = starting_inventory(role);
+            assert!(!items.is_empty(), "No inventory for {:?}", role);
+            // Verify all items have valid classes
+            for item in items {
+                assert!(item.quantity > 0, "Zero quantity for {:?} item", role);
+            }
+        }
+    }
+
+    #[test]
+    fn test_init_inventory_creates_objects() {
+        let mut rng = GameRng::new(42);
+        let inventory = init_inventory(&mut rng, Role::Valkyrie);
+        assert_eq!(inventory.len(), VALKYRIE_INV.len());
+        // Check letters are sequential
+        for (i, obj) in inventory.iter().enumerate() {
+            assert_eq!(obj.inv_letter, (b'a' + i as u8) as char);
+        }
+    }
+
+    #[test]
+    fn test_init_skills_barbarian() {
+        let mut skills = SkillSet::default();
+        init_skills(&mut skills, Role::Barbarian);
+        // Barbarian should have Expert in two-handed sword
+        assert_eq!(
+            skills.get(SkillType::TwoHandedSword).max_level,
+            SkillLevel::Expert
+        );
+        // And Master in bare-handed
+        assert_eq!(
+            skills.get(SkillType::BareHanded).max_level,
+            SkillLevel::Master
+        );
+        // Unskilled initially (not restricted)
+        assert_eq!(
+            skills.get(SkillType::BareHanded).level,
+            SkillLevel::Unskilled
+        );
+    }
+
+    #[test]
+    fn test_init_skills_wizard() {
+        let mut skills = SkillSet::default();
+        init_skills(&mut skills, Role::Wizard);
+        assert_eq!(
+            skills.get(SkillType::AttackSpells).max_level,
+            SkillLevel::Expert
+        );
+        assert_eq!(
+            skills.get(SkillType::MatterSpells).max_level,
+            SkillLevel::Expert
+        );
+        // Riding should still be restricted
+        assert_eq!(
+            skills.get(SkillType::Riding).max_level,
+            SkillLevel::Restricted
+        );
+    }
+
+    #[test]
+    fn test_init_skills_monk_grandmaster() {
+        let mut skills = SkillSet::default();
+        init_skills(&mut skills, Role::Monk);
+        assert_eq!(
+            skills.get(SkillType::BareHanded).max_level,
+            SkillLevel::GrandMaster
+        );
+    }
+
+    #[test]
+    fn test_u_init_hp_varies_by_role() {
+        let mut rng = GameRng::new(42);
+        let mut wizard = crate::player::You::new("Test".into(), Role::Wizard, Race::Human, crate::player::Gender::Male);
+        let mut barb = crate::player::You::new("Test".into(), Role::Barbarian, Race::Human, crate::player::Gender::Male);
+        u_init(&mut wizard, &mut rng);
+        u_init(&mut barb, &mut rng);
+        assert!(barb.hp_max > wizard.hp_max);
+    }
+
+    #[test]
+    fn test_u_init_energy_varies_by_role() {
+        let mut rng = GameRng::new(42);
+        let mut wizard = crate::player::You::new("Test".into(), Role::Wizard, Race::Human, crate::player::Gender::Male);
+        let mut barb = crate::player::You::new("Test".into(), Role::Barbarian, Race::Human, crate::player::Gender::Male);
+        u_init(&mut wizard, &mut rng);
+        u_init(&mut barb, &mut rng);
+        assert!(wizard.energy_max > barb.energy_max);
+    }
+
+    #[test]
+    fn test_u_init_knight_gets_jumping() {
+        let mut rng = GameRng::new(42);
+        let mut knight = crate::player::You::new("Test".into(), Role::Knight, Race::Human, crate::player::Gender::Male);
+        u_init(&mut knight, &mut rng);
+        assert!(knight.properties.has(crate::player::Property::Jumping));
+    }
+
+    #[test]
+    fn test_u_init_bless_count() {
+        let mut rng = GameRng::new(42);
+        let mut player = crate::player::You::new("Test".into(), Role::Valkyrie, Race::Human, crate::player::Gender::Male);
+        u_init(&mut player, &mut rng);
+        assert_eq!(player.bless_count, 300);
+    }
+
+    #[test]
+    fn test_u_init_healer_gold() {
+        let mut rng = GameRng::new(42);
+        let mut healer = crate::player::You::new("Test".into(), Role::Healer, Race::Human, crate::player::Gender::Male);
+        u_init(&mut healer, &mut rng);
+        assert!(healer.gold >= 1001, "Healer gold should be 1001..2000, got {}", healer.gold);
+    }
+
+    #[test]
+    fn test_restricted_spell_discipline_wizard() {
+        // Wizard has Attack, Healing, Divination, Enchantment, Clerical, Escape, Matter
+        assert!(!restricted_spell_discipline(Role::Wizard, SkillType::AttackSpells));
+        assert!(!restricted_spell_discipline(Role::Wizard, SkillType::MatterSpells));
+        // Non-spell skills always return false
+        assert!(!restricted_spell_discipline(Role::Wizard, SkillType::Dagger));
+    }
+
+    #[test]
+    fn test_restricted_spell_discipline_barbarian() {
+        // Barbarian has no spell skills in table
+        assert!(restricted_spell_discipline(Role::Barbarian, SkillType::AttackSpells));
+        assert!(restricted_spell_discipline(Role::Barbarian, SkillType::HealingSpells));
+    }
+
+    #[test]
+    fn test_make_starting_object_blessed() {
+        let mut rng = GameRng::new(42);
+        let mut next_id = 1;
+        let item = StartingItem::new(156, 1, ObjectClass::Weapon, 1, 1); // blessed mace
+        let obj = make_starting_object(&item, &mut rng, &mut next_id);
+        assert_eq!(obj.buc, BucStatus::Blessed);
+        assert_eq!(obj.enchantment, 1);
+    }
+
+    #[test]
+    fn test_make_starting_object_uncursed() {
+        let mut rng = GameRng::new(42);
+        let mut next_id = 1;
+        let item = StartingItem::new(346, 0, ObjectClass::Food, 3, 0); // uncursed food
+        let obj = make_starting_object(&item, &mut rng, &mut next_id);
+        assert_eq!(obj.buc, BucStatus::Uncursed);
+        assert_eq!(obj.quantity, 3);
+    }
+
+    #[test]
+    fn test_skill_tables_complete() {
+        // Every role should have at least 4 skill entries
+        for role in [
+            Role::Archeologist, Role::Barbarian, Role::Caveman, Role::Healer,
+            Role::Knight, Role::Monk, Role::Priest, Role::Ranger,
+            Role::Rogue, Role::Samurai, Role::Tourist, Role::Valkyrie, Role::Wizard,
+        ] {
+            let table = skill_table_for_role(role);
+            assert!(table.len() >= 4, "Too few skills for {:?}: {}", role, table.len());
+        }
+    }
+}

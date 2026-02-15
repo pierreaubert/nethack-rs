@@ -4,6 +4,7 @@
 
 pub mod apply;
 pub mod commands;
+pub mod dig;
 pub mod eat;
 pub mod engrave;
 pub mod extended;
@@ -13,6 +14,9 @@ pub mod helpers;
 pub mod jump;
 pub mod keybindings;
 pub mod kick;
+pub mod level_change;
+pub mod movement;
+pub mod name;
 pub mod open_close;
 pub mod pickup;
 pub mod pray;
@@ -23,6 +27,7 @@ pub mod teleport;
 pub mod throw;
 pub mod trap;
 pub mod wear;
+pub mod music;
 pub mod zap;
 
 /// Player command types
@@ -41,6 +46,8 @@ pub enum Command {
     Fight(Direction),
     Fire(Direction),
     Throw(char, Direction),
+    TwoWeapon,
+    SwapWeapon,
 
     // Object manipulation
     Pickup,
@@ -55,6 +62,13 @@ pub enum Command {
     PutOn(char),
     Remove(char),
     Wield(Option<char>),
+    SelectQuiver(char),
+    Loot,
+    Tip(char),
+    Dip,
+    Rub(char),
+    Wipe,
+    Force(Direction),
 
     // Information
     Inventory,
@@ -63,6 +77,15 @@ pub enum Command {
     Help,
     Discoveries,
     History,
+    ShowAttributes,
+    ShowEquipment,
+    ShowSpells,
+    ShowConduct,
+    DungeonOverview,
+    CountGold,
+    ClassDiscovery,
+    TypeInventory(char),
+    Vanquished,
 
     // Actions
     Open(Direction),
@@ -71,12 +94,21 @@ pub enum Command {
     Search,
     Pray,
     Offer,
-    Dip,
     Engrave(String),
     Pay,
     Chat,
     Feed,
     Sit,
+    Jump,
+    Invoke,
+    Untrap(Direction),
+    Ride,
+    TurnUndead,
+    MonsterAbility,
+    EnhanceSkill,
+    NameItem(char, String),
+    NameLevel(String),
+    Organize(char, char),
 
     // Meta
     Save,

@@ -20,6 +20,7 @@ mod shop;
 mod special_level;
 mod special_rooms;
 mod topology;
+pub mod region;
 pub mod trap;
 
 pub use bones::{BonesFile, BonesHeader, BonesManager};
@@ -71,6 +72,7 @@ pub use dlevel::{
 };
 pub use endgame::{Plane, WaterBubble, create_water_bubbles, generate_plane, update_water_level};
 pub use generation::generate_rooms_and_corridors;
+pub(crate) use generation::random_monster_name_for_type;
 pub use generation::{
     NO_ROOM,
     ROOMOFFSET,

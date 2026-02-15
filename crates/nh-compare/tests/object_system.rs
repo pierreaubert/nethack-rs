@@ -317,8 +317,7 @@ fn test_inventory_merging() {
 }
 
 /// Test inventory weight calculation.
-/// NOTE: inventory::total_weight currently sums per-unit weight, not weight*quantity.
-/// This is a known divergence from C. container::total_weight does it correctly.
+/// total_weight correctly multiplies weight*quantity.
 #[test]
 fn test_inventory_weight() {
     use nh_core::object::inventory;
@@ -335,13 +334,10 @@ fn test_inventory_weight() {
     obj2.quantity = 1;
     let _ = inventory::add_to_inventory(&mut inv, obj2);
 
-    // BUG: inventory::total_weight sums per-unit weight, not weight*quantity
-    // Should be 30*2 + 100 = 160, but currently returns 30 + 100 = 130
+    // 30*2 + 100*1 = 160
     let total = inventory::total_weight(&inv);
-    assert_eq!(total, 130,
-        "inventory::total_weight sums per-unit weight (known bug), got {}", total);
-
-    println!("OK: Inventory weight calculated (known bug: doesn't multiply by quantity)");
+    assert_eq!(total, 160,
+        "inventory::total_weight should multiply weight by quantity, got {}", total);
 }
 
 /// Test inventory is_full at 52 slots.

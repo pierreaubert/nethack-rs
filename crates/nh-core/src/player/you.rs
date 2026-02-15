@@ -151,12 +151,16 @@ pub struct You {
     pub property_binding: crate::magic::property_binding::PropertyBinding,
     pub equipped_items: Vec<u32>, // Track currently equipped item IDs for property binding
 
-    // Phase 8: Spell mechanics (synergies, specialization, mastery)
+    // Extensions: Spell mechanics (synergies, specialization, mastery)
+    #[cfg(feature = "extensions")]
     pub spell_synergy_tracker: crate::magic::spell_synergies::SpellSynergyTracker,
+    #[cfg(feature = "extensions")]
     pub specialization_tracker: crate::magic::school_specialization::SpecializationTracker,
+    #[cfg(feature = "extensions")]
     pub mastery_tracker: crate::magic::mastery_advancement::MasteryAdvancementTracker,
 
-    // Advanced spell system state
+    // Extensions: Advanced spell system state
+    #[cfg(feature = "extensions")]
     pub advanced_spell_state: crate::magic::advanced_spells::AdvancedSpellState,
 
     // Status effects
@@ -233,6 +237,10 @@ pub struct You {
     // Religion
     pub god_anger: i32,
     pub prayer_timeout: i32,
+    /// Blessing count — turns until god will help again (C: ublesscnt)
+    pub bless_count: i32,
+    /// Number of artifact gifts from god (C: ugifts)
+    pub god_gifts: i32,
 
     // Turns
     pub turns_played: u64,
@@ -301,11 +309,15 @@ impl Default for You {
             property_binding: crate::magic::property_binding::PropertyBinding::new(),
             equipped_items: Vec::new(),
 
+            #[cfg(feature = "extensions")]
             spell_synergy_tracker: crate::magic::spell_synergies::SpellSynergyTracker::new(),
+            #[cfg(feature = "extensions")]
             specialization_tracker: crate::magic::school_specialization::SpecializationTracker::new(
             ),
+            #[cfg(feature = "extensions")]
             mastery_tracker: crate::magic::mastery_advancement::MasteryAdvancementTracker::new(),
 
+            #[cfg(feature = "extensions")]
             advanced_spell_state: crate::magic::advanced_spells::AdvancedSpellState::new(),
 
             confused_timeout: 0,
@@ -361,6 +373,8 @@ impl Default for You {
 
             god_anger: 0,
             prayer_timeout: 0,
+            bless_count: 0,
+            god_gifts: 0,
 
             turns_played: 0,
 

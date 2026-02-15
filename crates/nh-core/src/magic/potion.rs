@@ -2,6 +2,8 @@
 //!
 //! Handles drinking potions and their effects.
 
+use crate::monster::Monster;
+use crate::monster::MonsterResistances;
 use crate::object::{BucStatus, Object};
 use crate::player::Attribute;
 use crate::player::{Property, You};
@@ -799,6 +801,8 @@ pub struct PotionHitResult {
     pub effects_applied: Vec<String>,
     /// Whether player is the target
     pub hit_player: bool,
+    /// Whether the target died
+    pub player_died: bool,
 }
 
 impl PotionHitResult {
@@ -809,6 +813,7 @@ impl PotionHitResult {
             broke: true,
             effects_applied: Vec::new(),
             hit_player: false,
+            player_died: false,
         }
     }
 
@@ -824,29 +829,24 @@ impl Default for PotionHitResult {
     }
 }
 
-/// Handle thrown potion hitting the player
-/// Simplified version adapted from potion.c:1313 potionhit()
-///
-/// # Arguments
-/// * `potion` - The potion object being thrown
-/// * `player` - Player that was hit
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// PotionHitResult with damage, messages, and effect information
-pub fn potionhit(potion: &Object, player: &mut You, rng: &mut GameRng) -> PotionHitResult {
+/// Handle thrown potion hitting the player (potion.c:1313)
+pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) -> PotionHitResult {
     let mut result = PotionHitResult::new();
     let Some(ptype) = PotionType::from_object_type(potion.object_type) else {
         return result.with_message("The potion crashes but nothing happens.");
     };
 
     result.hit_player = true;
-    result.damage = rng.rnd(2) as i32; // 0-1 damage from breaking on head
-    result.messages.push("The potion crashes!".to_string());
+    result.damage = rng.rnd(2) as i32;
+    result
+        .messages
+        .push("The bottle crashes on your head and breaks into shards.".to_string());
+
+    let blessed = potion.is_blessed();
+    let cursed = potion.is_cursed();
 
     match ptype {
         PotionType::Oil => {
-            // Oil potion: if lit, causes burning oil effect
             if potion.is_lit() {
                 result
                     .messages
@@ -855,15 +855,9 @@ pub fn potionhit(potion: &Object, player: &mut You, rng: &mut GameRng) -> Potion
                     result.damage = rng.dice(3, 6) as i32;
                     result.effects_applied.push("burning_oil".to_string());
                 }
-            } else {
-                result.messages.pop(); // Remove generic crash message
-                result
-                    .messages
-                    .push("You are splashed with oil.".to_string());
             }
         }
         PotionType::Polymorph => {
-            result.messages.pop(); // Replace crash message
             result
                 .messages
                 .push("You feel a little strange!".to_string());
@@ -873,31 +867,114 @@ pub fn potionhit(potion: &Object, player: &mut You, rng: &mut GameRng) -> Potion
         }
         PotionType::Acid => {
             if !player.properties.has(Property::AcidResistance) {
-                let curse_factor = if potion.is_cursed() {
-                    2
-                } else if potion.is_blessed() {
-                    1
-                } else {
-                    1
-                };
-                result.damage =
-                    rng.dice(curse_factor, if potion.is_blessed() { 4 } else { 8 }) as i32;
-                result.messages.pop(); // Replace crash message
+                let nd = if cursed { 2 } else { 1 };
+                let nsides = if blessed { 4 } else { 8 };
+                result.damage = rng.dice(nd, nsides) as i32;
                 result.messages.push(format!(
                     "This burns{}!",
-                    if potion.is_blessed() {
+                    if blessed {
                         " a little"
-                    } else if potion.is_cursed() {
+                    } else if cursed {
                         " a lot"
                     } else {
                         ""
                     }
                 ));
-                result.effects_applied.push("acid_burn".to_string());
+            }
+        }
+        PotionType::Healing | PotionType::ExtraHealing | PotionType::FullHealing => {
+            // Healing potions heal the player when thrown at them
+            let heal = match ptype {
+                PotionType::FullHealing => player.hp_max - player.hp,
+                PotionType::ExtraHealing => rng.dice(6, 8) as i32,
+                _ => rng.dice(6, 4) as i32,
+            };
+            player.hp = (player.hp + heal).min(player.hp_max);
+            result
+                .messages
+                .push("You feel better.".to_string());
+            // Cure blindness for blessed healing / extra healing / full healing
+            let cureblind = matches!(ptype, PotionType::FullHealing)
+                || (matches!(ptype, PotionType::ExtraHealing) && !cursed)
+                || blessed;
+            if cureblind && player.blinded_timeout > 0 {
+                player.blinded_timeout = 0;
+                result.messages.push("Your vision clears.".to_string());
+            }
+        }
+        PotionType::Sleeping => {
+            if !player.properties.has(Property::SleepResistance) {
+                player.sleeping_timeout = rng.rnd(12) as u16;
+                result
+                    .messages
+                    .push("You fall asleep!".to_string());
+            }
+        }
+        PotionType::Paralysis => {
+            if !player.properties.has(Property::FreeAction) {
+                player.paralyzed_timeout =
+                    player.paralyzed_timeout.saturating_add(rng.rnd(25) as u16);
+                result
+                    .messages
+                    .push("Your limbs freeze!".to_string());
+            } else {
+                result
+                    .messages
+                    .push("You stiffen momentarily.".to_string());
+            }
+        }
+        PotionType::Confusion | PotionType::Booze => {
+            player.confused_timeout = player.confused_timeout.saturating_add(rng.rnd(5) as u16);
+            result
+                .messages
+                .push("You feel somewhat dizzy.".to_string());
+        }
+        PotionType::Blindness => {
+            let duration = 64 + rng.rn2(32) as u16;
+            player.blinded_timeout = player.blinded_timeout.saturating_add(duration);
+            result
+                .messages
+                .push("It suddenly gets dark.".to_string());
+        }
+        PotionType::Speed => {
+            let duration = rng.rnd(5);
+            player.properties.set_timeout(Property::Speed, duration);
+            result
+                .messages
+                .push("Your knees seem more flexible now.".to_string());
+        }
+        PotionType::Invisibility => {
+            let duration = rng.rnd(15) + 31;
+            player.properties.set_timeout(Property::Invisibility, duration);
+            result
+                .messages
+                .push("For an instant you couldn't see yourself.".to_string());
+        }
+        PotionType::Water => {
+            if blessed {
+                // Holy water splashed on player
+                result
+                    .messages
+                    .push("You feel a sense of purity.".to_string());
+            } else if cursed {
+                // Unholy water
+                result
+                    .messages
+                    .push("You feel contaminated.".to_string());
+            }
+        }
+        PotionType::Sickness => {
+            if !player.properties.has(Property::PoisonResistance) {
+                let hp_loss = if player.hp > 2 { player.hp / 2 } else { 1 };
+                player.hp -= hp_loss;
+                result
+                    .messages
+                    .push("You feel rather ill.".to_string());
+                result.player_died = player.hp <= 0;
             }
         }
         _ => {
-            // Default: just a crash
+            // Other potions: just splash with no special effect
         }
     }
 
@@ -905,9 +982,346 @@ pub fn potionhit(potion: &Object, player: &mut You, rng: &mut GameRng) -> Potion
     result
 }
 
+/// Handle thrown potion hitting a monster (potion.c:1416)
+pub fn potionhit_monster(
+    potion: &Object,
+    monster: &mut Monster,
+    rng: &mut GameRng,
+) -> PotionHitResult {
+    let mut result = PotionHitResult::new();
+    let Some(ptype) = PotionType::from_object_type(potion.object_type) else {
+        result.messages.push("Crash!".to_string());
+        return result;
+    };
+
+    let blessed = potion.is_blessed();
+    let cursed = potion.is_cursed();
+
+    // Physical damage from the bottle
+    if rng.rn2(5) != 0 && monster.hp > 1 {
+        monster.hp -= 1;
+        result.damage = 1;
+    }
+    result.messages.push("The bottle crashes and breaks into shards.".to_string());
+
+    match ptype {
+        PotionType::Healing
+        | PotionType::ExtraHealing
+        | PotionType::FullHealing
+        | PotionType::Restore
+        | PotionType::GainAbility => {
+            // Healing potions heal the monster
+            if monster.hp < monster.hp_max {
+                monster.hp = monster.hp_max;
+                result
+                    .messages
+                    .push(format!("The monster looks sound and hale again."));
+            }
+            // Cure blindness for healing potions
+            let cureblind = matches!(ptype, PotionType::FullHealing)
+                || (matches!(ptype, PotionType::ExtraHealing) && !cursed)
+                || blessed;
+            if cureblind {
+                monster.state.blinded = false;
+            }
+            result.effects_applied.push("healing".to_string());
+        }
+        PotionType::Sickness => {
+            // Sickness halves monster HP
+            if !monster.resistances.contains(MonsterResistances::POISON) {
+                if monster.hp_max > 3 {
+                    monster.hp_max /= 2;
+                }
+                if monster.hp > 2 {
+                    monster.hp /= 2;
+                }
+                if monster.hp > monster.hp_max {
+                    monster.hp = monster.hp_max;
+                }
+                result
+                    .messages
+                    .push("The monster looks rather ill.".to_string());
+            }
+        }
+        PotionType::Confusion | PotionType::Booze => {
+            monster.state.confused = true;
+            result
+                .messages
+                .push("The monster looks confused.".to_string());
+        }
+        PotionType::Invisibility => {
+            monster.state.invisible = true;
+            result
+                .messages
+                .push("The monster vanishes!".to_string());
+        }
+        PotionType::Sleeping => {
+            if !monster.resistances.contains(MonsterResistances::SLEEP) {
+                monster.state.sleeping = true;
+                result
+                    .messages
+                    .push("The monster falls asleep.".to_string());
+            }
+        }
+        PotionType::Paralysis => {
+            if monster.state.can_move {
+                monster.state.can_move = false;
+                monster.state.paralyzed = true;
+                result
+                    .messages
+                    .push("The monster is frozen in place!".to_string());
+            }
+        }
+        PotionType::Speed => {
+            monster.state.hasted = true;
+            result
+                .messages
+                .push("The monster seems to move faster.".to_string());
+        }
+        PotionType::Blindness => {
+            monster.state.blinded = true;
+            result
+                .messages
+                .push("The monster is blinded.".to_string());
+        }
+        PotionType::Acid => {
+            if !monster.resistances.contains(MonsterResistances::ACID) {
+                let nd = if cursed { 2 } else { 1 };
+                let nsides = if blessed { 4 } else { 8 };
+                let dmg = rng.dice(nd, nsides) as i32;
+                monster.hp -= dmg;
+                result.damage += dmg;
+                result
+                    .messages
+                    .push("The monster writhes in pain!".to_string());
+            }
+        }
+        PotionType::Water => {
+            // Holy water damages undead/demons
+            if blessed && (monster.is_undead() || monster.is_demon()) {
+                let dmg = rng.dice(2, 6) as i32;
+                monster.hp -= dmg;
+                result.damage += dmg;
+                result
+                    .messages
+                    .push("The monster shrieks in pain!".to_string());
+            } else if cursed && (monster.is_undead() || monster.is_demon()) {
+                // Unholy water heals undead/demons
+                monster.hp = (monster.hp + rng.dice(2, 6) as i32).min(monster.hp_max);
+                result
+                    .messages
+                    .push("The monster looks healthier.".to_string());
+            }
+        }
+        PotionType::Oil => {
+            if potion.is_lit() {
+                let dmg = rng.dice(3, 6) as i32;
+                monster.hp -= dmg;
+                result.damage += dmg;
+                result
+                    .messages
+                    .push("The burning oil splashes the monster!".to_string());
+            }
+        }
+        PotionType::Polymorph => {
+            result.effects_applied.push("polymorph".to_string());
+            result
+                .messages
+                .push("The monster shimmers and changes!".to_string());
+        }
+        _ => {
+            // Other potions: splash with no special effect on monsters
+        }
+    }
+
+    // Wake up monster (unless calmed by healing/speed/invis/sleep)
+    if !matches!(
+        ptype,
+        PotionType::Healing
+            | PotionType::ExtraHealing
+            | PotionType::FullHealing
+            | PotionType::Restore
+            | PotionType::GainAbility
+            | PotionType::Speed
+            | PotionType::Invisibility
+            | PotionType::Sleeping
+    ) {
+        monster.state.sleeping = false;
+    }
+
+    result.broke = true;
+    result
+}
+
+/// Inhale potion vapors (potion.c:1613 potionbreathe)
+/// Called when a potion breaks near the player
+pub fn potionbreathe(potion: &Object, player: &mut You, rng: &mut GameRng) -> PotionResult {
+    let mut result = PotionResult::new();
+    result.consumed = false; // Vapors don't consume the potion (already broken)
+
+    let Some(ptype) = PotionType::from_object_type(potion.object_type) else {
+        return result;
+    };
+
+    let blessed = potion.is_blessed();
+    let cursed = potion.is_cursed();
+
+    match ptype {
+        PotionType::Restore | PotionType::GainAbility => {
+            if cursed {
+                result
+                    .messages
+                    .push("Ulch! That potion smells terrible!".to_string());
+            } else {
+                // Vapors restore one (or all if blessed) depleted stats
+                let start = rng.rn2(6) as usize;
+                let attrs = [
+                    Attribute::Strength,
+                    Attribute::Dexterity,
+                    Attribute::Constitution,
+                    Attribute::Intelligence,
+                    Attribute::Wisdom,
+                    Attribute::Charisma,
+                ];
+                for offset in 0..6 {
+                    let idx = (start + offset) % 6;
+                    let attr = attrs[idx];
+                    let current = player.attr_current.get(attr);
+                    let max = player.attr_max.get(attr);
+                    if current < max {
+                        player.attr_current.set(attr, current + 1);
+                        if !blessed {
+                            break; // Only first if not blessed
+                        }
+                    }
+                }
+            }
+        }
+        PotionType::Healing => {
+            if player.hp < player.hp_max {
+                player.hp += 1;
+            }
+            if blessed && player.blinded_timeout > 0 {
+                player.blinded_timeout = 0;
+                result.messages.push("Your vision clears.".to_string());
+            }
+        }
+        PotionType::ExtraHealing => {
+            if player.hp < player.hp_max {
+                player.hp += 1;
+            }
+            // Extra healing vapors always heal one more
+            if player.hp < player.hp_max {
+                player.hp += 1;
+            }
+            if !cursed && player.blinded_timeout > 0 {
+                player.blinded_timeout = 0;
+                result.messages.push("Your vision clears.".to_string());
+            }
+        }
+        PotionType::FullHealing => {
+            if player.hp < player.hp_max {
+                player.hp += 1;
+            }
+            if player.hp < player.hp_max {
+                player.hp += 1;
+            }
+            if player.hp < player.hp_max {
+                player.hp += 1;
+            }
+            player.blinded_timeout = 0;
+            result.messages.push("Your vision clears.".to_string());
+        }
+        PotionType::Sickness => {
+            // Vapors damage unless healer
+            if player.hp <= 5 {
+                player.hp = 1;
+            } else {
+                player.hp -= 5;
+            }
+        }
+        PotionType::Hallucination => {
+            result
+                .messages
+                .push("You have a momentary vision.".to_string());
+        }
+        PotionType::Confusion | PotionType::Booze => {
+            if player.confused_timeout == 0 {
+                result
+                    .messages
+                    .push("You feel somewhat dizzy.".to_string());
+            }
+            player.confused_timeout = player.confused_timeout.saturating_add(rng.rnd(5) as u16);
+        }
+        PotionType::Invisibility => {
+            result
+                .messages
+                .push("For an instant you couldn't see yourself.".to_string());
+        }
+        PotionType::Paralysis => {
+            if !player.properties.has(Property::FreeAction) {
+                result
+                    .messages
+                    .push("Something seems to be holding you.".to_string());
+                player.paralyzed_timeout =
+                    player.paralyzed_timeout.saturating_add(rng.rnd(5) as u16);
+            } else {
+                result
+                    .messages
+                    .push("You stiffen momentarily.".to_string());
+            }
+        }
+        PotionType::Sleeping => {
+            if !player.properties.has(Property::SleepResistance) {
+                result
+                    .messages
+                    .push("You feel rather tired.".to_string());
+                player.sleeping_timeout =
+                    player.sleeping_timeout.saturating_add(rng.rnd(5) as u16);
+            } else {
+                result.messages.push("You yawn.".to_string());
+            }
+        }
+        PotionType::Speed => {
+            result
+                .messages
+                .push("Your knees seem more flexible now.".to_string());
+            let duration = rng.rnd(5);
+            player.properties.set_timeout(Property::Speed, duration);
+        }
+        PotionType::Blindness => {
+            if player.blinded_timeout == 0 {
+                result
+                    .messages
+                    .push("It suddenly gets dark.".to_string());
+            }
+            player.blinded_timeout = player.blinded_timeout.saturating_add(rng.rnd(5) as u16);
+        }
+        _ => {
+            // Other potions: no vapor effect
+        }
+    }
+
+    result
+}
+
+/// Backward-compatible alias
+pub fn potionhit(potion: &Object, player: &mut You, rng: &mut GameRng) -> PotionHitResult {
+    potionhit_player(potion, player, rng)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::monster::MonsterId;
+
+    fn make_potion(ptype: PotionType, buc: BucStatus) -> Object {
+        let mut obj = Object::default();
+        obj.object_type = ptype as i16;
+        obj.class = crate::object::ObjectClass::Potion;
+        obj.buc = buc;
+        obj
+    }
 
     #[test]
     fn test_potion_type_from_object() {
@@ -943,7 +1357,6 @@ mod tests {
 
     #[test]
     fn test_glow_color() {
-        // Test color ranges
         let c = glow_color(3);
         assert_eq!(c, "blue");
 
@@ -954,7 +1367,7 @@ mod tests {
         assert_eq!(c, "yellow");
 
         let c = glow_color(100);
-        assert_eq!(c, "blue"); // Default
+        assert_eq!(c, "blue");
     }
 
     #[test]
@@ -992,5 +1405,268 @@ mod tests {
 
         let result = result.with_message("Crash!");
         assert_eq!(result.messages.len(), 1);
+    }
+
+    // ==========================================================================
+    // potionhit_player tests
+    // ==========================================================================
+
+    #[test]
+    fn test_potionhit_player_healing() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        player.hp = 10;
+        player.hp_max = 50;
+        let potion = make_potion(PotionType::Healing, BucStatus::Uncursed);
+        let result = potionhit_player(&potion, &mut player, &mut rng);
+        assert!(player.hp > 10, "Healing potion should heal player");
+        assert!(result.broke);
+        assert!(result.hit_player);
+    }
+
+    #[test]
+    fn test_potionhit_player_acid() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        player.hp = 50;
+        player.hp_max = 50;
+        let potion = make_potion(PotionType::Acid, BucStatus::Uncursed);
+        let result = potionhit_player(&potion, &mut player, &mut rng);
+        assert!(result.damage > 0, "Acid potion should deal damage");
+        assert!(result.messages.iter().any(|m| m.contains("burns")));
+    }
+
+    #[test]
+    fn test_potionhit_player_sleep() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        let potion = make_potion(PotionType::Sleeping, BucStatus::Uncursed);
+        let _result = potionhit_player(&potion, &mut player, &mut rng);
+        assert!(
+            player.sleeping_timeout > 0,
+            "Sleep potion should put player to sleep"
+        );
+    }
+
+    #[test]
+    fn test_potionhit_player_paralysis_with_free_action() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        player.properties.grant_intrinsic(Property::FreeAction);
+        let potion = make_potion(PotionType::Paralysis, BucStatus::Uncursed);
+        let result = potionhit_player(&potion, &mut player, &mut rng);
+        assert_eq!(
+            player.paralyzed_timeout, 0,
+            "Free Action should prevent paralysis"
+        );
+        assert!(result.messages.iter().any(|m| m.contains("momentarily")));
+    }
+
+    #[test]
+    fn test_potionhit_player_confusion() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        let potion = make_potion(PotionType::Confusion, BucStatus::Uncursed);
+        let _result = potionhit_player(&potion, &mut player, &mut rng);
+        assert!(
+            player.confused_timeout > 0,
+            "Confusion potion should confuse player"
+        );
+    }
+
+    #[test]
+    fn test_potionhit_player_blindness() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        let potion = make_potion(PotionType::Blindness, BucStatus::Uncursed);
+        let _result = potionhit_player(&potion, &mut player, &mut rng);
+        assert!(
+            player.blinded_timeout > 0,
+            "Blindness potion should blind player"
+        );
+    }
+
+    // ==========================================================================
+    // potionhit_monster tests
+    // ==========================================================================
+
+    #[test]
+    fn test_potionhit_monster_healing() {
+        let mut monster = Monster::new(MonsterId(0), 0, 5, 5);
+        let mut rng = GameRng::new(42);
+        monster.hp = 5;
+        monster.hp_max = 20;
+        let potion = make_potion(PotionType::Healing, BucStatus::Uncursed);
+        let _result = potionhit_monster(&potion, &mut monster, &mut rng);
+        assert_eq!(
+            monster.hp, monster.hp_max,
+            "Healing potion should fully heal monster"
+        );
+    }
+
+    #[test]
+    fn test_potionhit_monster_sickness() {
+        let mut monster = Monster::new(MonsterId(0), 0, 5, 5);
+        let mut rng = GameRng::new(42);
+        monster.hp = 20;
+        monster.hp_max = 20;
+        monster.resistances = MonsterResistances::empty(); // No poison resistance
+        let potion = make_potion(PotionType::Sickness, BucStatus::Uncursed);
+        let _result = potionhit_monster(&potion, &mut monster, &mut rng);
+        // Sickness halves HP and max HP; bottle hit may also do 1 damage
+        assert_eq!(monster.hp_max, 10, "Sickness should halve monster max HP");
+        assert!(
+            monster.hp <= 10,
+            "Sickness should halve monster HP (plus possible bottle damage)"
+        );
+    }
+
+    #[test]
+    fn test_potionhit_monster_sleeping() {
+        let mut monster = Monster::new(MonsterId(0), 0, 5, 5);
+        let mut rng = GameRng::new(42);
+        monster.resistances = MonsterResistances::empty(); // No sleep resistance
+        let potion = make_potion(PotionType::Sleeping, BucStatus::Uncursed);
+        let _result = potionhit_monster(&potion, &mut monster, &mut rng);
+        assert!(
+            monster.state.sleeping,
+            "Sleep potion should put monster to sleep"
+        );
+    }
+
+    #[test]
+    fn test_potionhit_monster_paralysis() {
+        let mut monster = Monster::new(MonsterId(0), 0, 5, 5);
+        let mut rng = GameRng::new(42);
+        monster.state.can_move = true;
+        let potion = make_potion(PotionType::Paralysis, BucStatus::Uncursed);
+        let _result = potionhit_monster(&potion, &mut monster, &mut rng);
+        assert!(
+            monster.state.paralyzed,
+            "Paralysis potion should paralyze monster"
+        );
+        assert!(
+            !monster.state.can_move,
+            "Paralyzed monster cannot move"
+        );
+    }
+
+    #[test]
+    fn test_potionhit_monster_speed() {
+        let mut monster = Monster::new(MonsterId(0), 0, 5, 5);
+        let mut rng = GameRng::new(42);
+        let potion = make_potion(PotionType::Speed, BucStatus::Uncursed);
+        let _result = potionhit_monster(&potion, &mut monster, &mut rng);
+        assert!(
+            monster.state.hasted,
+            "Speed potion should haste monster"
+        );
+    }
+
+    #[test]
+    fn test_potionhit_monster_acid() {
+        let mut monster = Monster::new(MonsterId(0), 0, 5, 5);
+        let mut rng = GameRng::new(42);
+        monster.hp = 50;
+        monster.hp_max = 50;
+        let potion = make_potion(PotionType::Acid, BucStatus::Uncursed);
+        let result = potionhit_monster(&potion, &mut monster, &mut rng);
+        assert!(result.damage > 0, "Acid should deal damage to monster");
+        assert!(monster.hp < 50);
+    }
+
+    // ==========================================================================
+    // potionbreathe tests
+    // ==========================================================================
+
+    #[test]
+    fn test_potionbreathe_healing() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        player.hp = 10;
+        player.hp_max = 50;
+        let potion = make_potion(PotionType::Healing, BucStatus::Uncursed);
+        let _result = potionbreathe(&potion, &mut player, &mut rng);
+        assert_eq!(player.hp, 11, "Healing vapors should heal 1 HP");
+    }
+
+    #[test]
+    fn test_potionbreathe_full_healing_cures_blindness() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        player.blinded_timeout = 50;
+        let potion = make_potion(PotionType::FullHealing, BucStatus::Uncursed);
+        let result = potionbreathe(&potion, &mut player, &mut rng);
+        assert_eq!(
+            player.blinded_timeout, 0,
+            "Full healing vapors cure blindness"
+        );
+        assert!(result.messages.iter().any(|m| m.contains("vision clears")));
+    }
+
+    #[test]
+    fn test_potionbreathe_sickness_damages() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        player.hp = 20;
+        player.hp_max = 50;
+        let potion = make_potion(PotionType::Sickness, BucStatus::Uncursed);
+        let _result = potionbreathe(&potion, &mut player, &mut rng);
+        assert_eq!(player.hp, 15, "Sickness vapors should reduce HP by 5");
+    }
+
+    #[test]
+    fn test_potionbreathe_confusion() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        let potion = make_potion(PotionType::Confusion, BucStatus::Uncursed);
+        let result = potionbreathe(&potion, &mut player, &mut rng);
+        assert!(
+            player.confused_timeout > 0,
+            "Confusion vapors should confuse"
+        );
+        assert!(result.messages.iter().any(|m| m.contains("dizzy")));
+    }
+
+    #[test]
+    fn test_potionbreathe_sleep_with_resistance() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        player.properties.grant_intrinsic(Property::SleepResistance);
+        let potion = make_potion(PotionType::Sleeping, BucStatus::Uncursed);
+        let result = potionbreathe(&potion, &mut player, &mut rng);
+        assert_eq!(
+            player.sleeping_timeout, 0,
+            "Sleep resistance prevents sleep from vapors"
+        );
+        assert!(result.messages.iter().any(|m| m.contains("yawn")));
+    }
+
+    #[test]
+    fn test_potionbreathe_restore_ability_blessed() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        // Reduce some stats below max
+        player.attr_max.set(Attribute::Strength, 18);
+        player.attr_max.set(Attribute::Dexterity, 16);
+        player.attr_current.set(Attribute::Strength, 14);
+        player.attr_current.set(Attribute::Dexterity, 12);
+        let potion = make_potion(PotionType::Restore, BucStatus::Blessed);
+        let _result = potionbreathe(&potion, &mut player, &mut rng);
+        // Blessed should restore all depleted stats by 1
+        assert!(
+            player.attr_current.get(Attribute::Strength) >= 15
+                || player.attr_current.get(Attribute::Dexterity) >= 13,
+            "Blessed restore vapors should improve at least one stat"
+        );
+    }
+
+    #[test]
+    fn test_potionbreathe_speed() {
+        let mut player = You::default();
+        let mut rng = GameRng::new(42);
+        let potion = make_potion(PotionType::Speed, BucStatus::Uncursed);
+        let result = potionbreathe(&potion, &mut player, &mut rng);
+        assert!(result.messages.iter().any(|m| m.contains("flexible")));
     }
 }

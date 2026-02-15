@@ -323,15 +323,17 @@ pub fn mattacku(
                 result.effects.push(effect);
             }
 
-            // Phase 18: Record successful hit in monster's combat memory
-            use crate::monster::combat_hooks;
-            combat_hooks::on_monster_hit_player(
-                attacker.id,
-                level,
-                attack_result.damage,
-                attack.attack_type,
-                attack.damage_type,
-            );
+            #[cfg(feature = "extensions")]
+            {
+                use crate::monster::combat_hooks;
+                combat_hooks::on_monster_hit_player(
+                    attacker.id,
+                    level,
+                    attack_result.damage,
+                    attack.attack_type,
+                    attack.damage_type,
+                );
+            }
         } else {
             // Miss message
             let near_miss = rng.one_in(2);
@@ -339,9 +341,11 @@ pub fn mattacku(
                 .messages
                 .push(miss_message(&attacker_name, near_miss));
 
-            // Phase 18: Record miss in monster's combat memory
-            use crate::monster::combat_hooks;
-            combat_hooks::on_monster_miss_player(attacker.id, level, attack.attack_type);
+            #[cfg(feature = "extensions")]
+            {
+                use crate::monster::combat_hooks;
+                combat_hooks::on_monster_miss_player(attacker.id, level, attack.attack_type);
+            }
         }
 
         // Check for player death

@@ -4,8 +4,8 @@
 //! to find behavioral differences between the Rust and C implementations.
 
 use nh_core::{GameLoop, GameRng, GameState};
-use nh_test::c_interface::CGameEngine;
-use nh_test::orchestrator::{DualGameOrchestrator, MultiSessionSummary, OrchestratorConfig};
+use nh_player::ffi::CGameEngine;
+use nh_player::orchestrator::{DualGameOrchestrator, OrchestratorConfig};
 
 fn run_comparison(seed: u64, max_turns: u64) {
     println!("=== Comparison Session (seed={}) ===", seed);

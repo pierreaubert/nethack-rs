@@ -657,6 +657,121 @@ fn object_class_from_symbol(symbol: char) -> Option<ObjectClass> {
 }
 
 // ============================================================================
+// dosearch — Player search command (detect.c:1610)
+// ============================================================================
+
+/// Player search command wrapper (dosearch from detect.c:1610).
+///
+/// Searches all 8 adjacent squares for secret doors, traps, and hidden monsters.
+/// Uses search_bonus from player stats (enhanced searching ability).
+pub fn dosearch(
+    level: &mut Level,
+    player: &You,
+    rng: &mut GameRng,
+) -> DetectResult {
+    // dosearch calls dosearch0 with search_bonus = 0 and autosearch = false
+    dosearch0(level, player, 0, false, rng)
+}
+
+// ============================================================================
+// Container trap detection (detect.c:1442)
+// ============================================================================
+
+/// Check if containers in a list are trapped (detect_obj_traps from detect.c:1442).
+///
+/// Returns the number of trapped containers found and messages.
+pub fn detect_obj_traps(
+    objects: &[Object],
+    known: bool,
+) -> (usize, Vec<String>) {
+    let mut count = 0;
+    let mut messages = Vec::new();
+
+    for obj in objects {
+        if obj.is_container() && obj.trapped {
+            count += 1;
+            if known {
+                messages.push(format!("{} is trapped!", obj.display_name()));
+            }
+        }
+    }
+
+    (count, messages)
+}
+
+/// Check if there is a trapped chest among objects (trapped_chest_at from detect.c:1460).
+pub fn trapped_chest_at(objects: &[Object]) -> bool {
+    objects.iter().any(|obj| obj.is_container() && obj.trapped)
+}
+
+// ============================================================================
+// Terrain reveal (detect.c:1080)
+// ============================================================================
+
+/// Reveal terrain around the player (reveal_terrain from detect.c:1080).
+///
+/// Shows the map without monsters or objects — just terrain features.
+/// Used by the #terrain extended command and some scrolls.
+pub fn reveal_terrain(
+    level: &mut Level,
+    full: bool,
+) -> DetectResult {
+    let mut count = 0;
+
+    for x in 1..COLNO as i8 {
+        for y in 0..ROWNO as i8 {
+            if !level.is_valid_pos(x, y) {
+                continue;
+            }
+
+            let cell = &level.cells[x as usize][y as usize];
+            let is_interesting = !matches!(cell.typ, CellType::Stone);
+
+            if full || is_interesting {
+                level.cells[x as usize][y as usize].explored = true;
+                count += 1;
+            }
+        }
+    }
+
+    if count > 0 {
+        DetectResult::found("The terrain is revealed.", count)
+    } else {
+        DetectResult::nothing("You don't learn anything new about the terrain.")
+    }
+}
+
+/// Identify the type of a detected trap (sense_trap from detect.c:1510).
+///
+/// When a trap is detected by searching, return its type description.
+pub fn sense_trap(trap_type: TrapType) -> &'static str {
+    match trap_type {
+        TrapType::Arrow => "an arrow trap",
+        TrapType::Dart => "a dart trap",
+        TrapType::RockFall => "a falling rock trap",
+        TrapType::Squeaky => "a squeaky board",
+        TrapType::BearTrap => "a bear trap",
+        TrapType::LandMine => "a land mine",
+        TrapType::RollingBoulder => "a rolling boulder trap",
+        TrapType::SleepingGas => "a sleeping gas trap",
+        TrapType::RustTrap => "a rust trap",
+        TrapType::FireTrap => "a fire trap",
+        TrapType::Pit => "a pit",
+        TrapType::SpikedPit => "a spiked pit",
+        TrapType::Hole => "a hole",
+        TrapType::TrapDoor => "a trap door",
+        TrapType::Teleport => "a teleportation trap",
+        TrapType::LevelTeleport => "a level teleporter",
+        TrapType::MagicPortal => "a magic portal",
+        TrapType::Web => "a web",
+        TrapType::Statue => "a statue trap",
+        TrapType::MagicTrap => "a magic trap",
+        TrapType::AntiMagic => "an anti-magic field",
+        TrapType::Polymorph => "a polymorph trap",
+    }
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 

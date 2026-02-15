@@ -734,6 +734,34 @@ impl PerMonst {
     pub const fn is_very_small(&self) -> bool {
         matches!(self.size, MonsterSize::Tiny)
     }
+
+    /// Check if any of the monster's attacks deal the specified damage type (dmgtype from mondata.c)
+    pub fn dmgtype(&self, dt: crate::combat::DamageType) -> bool {
+        self.attacks.iter().any(|atk| {
+            atk.damage_type == dt
+                && atk.attack_type != crate::combat::AttackType::None
+        })
+    }
+
+    /// Check if touching/eating this monster's flesh causes petrification (flesh_petrifies from mondata.h)
+    pub fn flesh_petrifies(&self) -> bool {
+        self.name == "cockatrice" || self.name == "chickatrice"
+    }
+
+    /// Check if this monster's corpse doesn't rot (nonrotting_corpse from eat.c)
+    pub fn nonrotting_corpse(&self) -> bool {
+        // Lizards, lichens, and Riders don't rot
+        self.symbol == ':' // lizard class
+            || self.name == "lichen"
+            || self.name == "Death"
+            || self.name == "Pestilence"
+            || self.name == "Famine"
+    }
+
+    /// Check if the monster is telepathic
+    pub fn is_telepathic(&self) -> bool {
+        self.name == "floating eye" || self.name == "mind flayer" || self.name == "master mind flayer"
+    }
 }
 
 // ============================================================================

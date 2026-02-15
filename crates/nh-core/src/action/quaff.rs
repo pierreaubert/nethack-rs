@@ -64,7 +64,7 @@ pub fn h2_opotion_dip(state: &mut GameState, obj: &mut Object, potion: &Object) 
     state.message("You dip the object into the potion.");
 
     // Check for holy/unholy water effects
-    if potion.object_type == POTION_WATER as i16 {
+    if potion.object_type == crate::magic::potion::PotionType::Water as i16 {
         match potion.buc {
             BucStatus::Blessed => {
                 // Holy water - bless the object
@@ -124,7 +124,7 @@ pub fn dodip(state: &mut GameState, obj_letter: char, potion_letter: char) -> Ac
     // Handle dipping based on what we're dipping
     if obj.class == ObjectClass::Potion {
         // Mixing potions
-        let mix_result = mixtype(&obj, &potion);
+        let mix_result = mixtype(&obj, &potion, &mut state.rng);
         if mix_result != 0 {
             state.message("The potions mix together!");
             // In full implementation, would create new potion
@@ -135,7 +135,7 @@ pub fn dodip(state: &mut GameState, obj_letter: char, potion_letter: char) -> Ac
         // Dipping non-potion object - inline the dip logic to avoid borrow issues
         state.message("You dip the object into the potion.");
 
-        if potion.object_type == POTION_WATER as i16 {
+        if potion.object_type == crate::magic::potion::PotionType::Water as i16 {
             // Get the object mutably and apply water effects
             // Capture the message to send after the borrow is released
             let effect_msg = if let Some(obj_mut) = state.get_inventory_item_mut(obj_letter) {
@@ -277,82 +277,123 @@ pub fn drinksink(state: &mut GameState) {
     }
 }
 
-// Potion subtypes for mixing
-const POTION_WATER: u16 = 0;
-const POTION_HEALING: u16 = 1;
-const POTION_EXTRA_HEALING: u16 = 2;
-const POTION_FULL_HEALING: u16 = 3;
-const POTION_GAIN_LEVEL: u16 = 4;
-const POTION_GAIN_ENERGY: u16 = 5;
-const POTION_SPEED: u16 = 6;
-const POTION_SICKNESS: u16 = 7;
-const POTION_HALLUCINATION: u16 = 8;
-const POTION_BLINDNESS: u16 = 9;
-const POTION_CONFUSION: u16 = 10;
-const POTION_BOOZE: u16 = 11;
-const POTION_FRUIT_JUICE: u16 = 12;
-const POTION_GAIN_ABILITY: u16 = 13;
+/// Determine what mixing two potions produces (potion.c:1789 mixtype)
+/// Returns the resulting potion object_type or 0 for no reaction.
+/// Port of C's mixtype() with the canonical swap normalization.
+pub fn mixtype(obj1: &Object, obj2: &Object, rng: &mut crate::rng::GameRng) -> i16 {
+    use crate::magic::potion::PotionType;
 
-/// Determine what mixing two objects produces (returns potion object_type or 0)
-pub fn mixtype(obj1: &Object, obj2: &Object) -> i32 {
-    let o1typ = obj1.object_type as u16;
-    let o2typ = obj2.object_type as u16;
+    let mut o1typ = obj1.object_type;
+    let mut o2typ = obj2.object_type;
 
-    // Healing + Speed = Extra Healing
-    if o1typ == POTION_HEALING && o2typ == POTION_SPEED {
-        return POTION_EXTRA_HEALING as i32;
-    }
-    if o2typ == POTION_HEALING && o1typ == POTION_SPEED {
-        return POTION_EXTRA_HEALING as i32;
+    // C normalization: swap so that the "catalyst" potions are always o2
+    if obj1.class == ObjectClass::Potion {
+        match PotionType::from_object_type(o2typ) {
+            Some(
+                PotionType::GainLevel
+                | PotionType::GainEnergy
+                | PotionType::Healing
+                | PotionType::ExtraHealing
+                | PotionType::FullHealing
+                | PotionType::Enlightenment
+                | PotionType::FruitJuice,
+            ) => {
+                std::mem::swap(&mut o1typ, &mut o2typ);
+            }
+            _ => {}
+        }
     }
 
-    // Healing + Gain Level/Energy = Extra Healing
-    if o1typ == POTION_HEALING && (o2typ == POTION_GAIN_LEVEL || o2typ == POTION_GAIN_ENERGY) {
-        return POTION_EXTRA_HEALING as i32;
-    }
-    if o2typ == POTION_HEALING && (o1typ == POTION_GAIN_LEVEL || o1typ == POTION_GAIN_ENERGY) {
-        return POTION_EXTRA_HEALING as i32;
+    let p1 = PotionType::from_object_type(o1typ);
+    let p2 = PotionType::from_object_type(o2typ);
+
+    match p1 {
+        Some(PotionType::Healing) => {
+            if p2 == Some(PotionType::Speed) {
+                return PotionType::ExtraHealing as i16;
+            }
+            // Fall through to healing chain
+            match p2 {
+                Some(PotionType::GainLevel | PotionType::GainEnergy) => {
+                    return PotionType::ExtraHealing as i16;
+                }
+                Some(PotionType::Sickness) => return PotionType::FruitJuice as i16,
+                Some(PotionType::Hallucination | PotionType::Blindness | PotionType::Confusion) => {
+                    return PotionType::Water as i16;
+                }
+                _ => {}
+            }
+        }
+        Some(PotionType::ExtraHealing) => {
+            match p2 {
+                Some(PotionType::GainLevel | PotionType::GainEnergy) => {
+                    return PotionType::FullHealing as i16;
+                }
+                Some(PotionType::Sickness) => return PotionType::FruitJuice as i16,
+                Some(PotionType::Hallucination | PotionType::Blindness | PotionType::Confusion) => {
+                    return PotionType::Water as i16;
+                }
+                _ => {}
+            }
+        }
+        Some(PotionType::FullHealing) => {
+            match p2 {
+                Some(PotionType::GainLevel | PotionType::GainEnergy) => {
+                    return PotionType::GainAbility as i16;
+                }
+                Some(PotionType::Sickness) => return PotionType::FruitJuice as i16,
+                Some(PotionType::Hallucination | PotionType::Blindness | PotionType::Confusion) => {
+                    return PotionType::Water as i16;
+                }
+                _ => {}
+            }
+        }
+        Some(PotionType::GainLevel | PotionType::GainEnergy) => {
+            match p2 {
+                Some(PotionType::Confusion) => {
+                    // 2/3 chance booze, 1/3 enlightenment
+                    return if rng.rn2(3) != 0 {
+                        PotionType::Booze as i16
+                    } else {
+                        PotionType::Enlightenment as i16
+                    };
+                }
+                Some(PotionType::Healing) => return PotionType::ExtraHealing as i16,
+                Some(PotionType::ExtraHealing) => return PotionType::FullHealing as i16,
+                Some(PotionType::FullHealing) => return PotionType::GainAbility as i16,
+                Some(PotionType::FruitJuice) => return PotionType::SeeInvisible as i16,
+                Some(PotionType::Booze) => return PotionType::Hallucination as i16,
+                _ => {}
+            }
+        }
+        Some(PotionType::FruitJuice) => {
+            match p2 {
+                Some(PotionType::Sickness) => return PotionType::Sickness as i16,
+                Some(PotionType::Enlightenment | PotionType::Speed) => {
+                    return PotionType::Booze as i16;
+                }
+                Some(PotionType::GainLevel | PotionType::GainEnergy) => {
+                    return PotionType::SeeInvisible as i16;
+                }
+                _ => {}
+            }
+        }
+        Some(PotionType::Enlightenment) => {
+            match p2 {
+                Some(PotionType::Levitation) => {
+                    if rng.rn2(3) != 0 {
+                        return PotionType::GainLevel as i16;
+                    }
+                }
+                Some(PotionType::FruitJuice) => return PotionType::Booze as i16,
+                Some(PotionType::Booze) => return PotionType::Confusion as i16,
+                _ => {}
+            }
+        }
+        _ => {}
     }
 
-    // Extra Healing + Gain Level/Energy = Full Healing
-    if o1typ == POTION_EXTRA_HEALING && (o2typ == POTION_GAIN_LEVEL || o2typ == POTION_GAIN_ENERGY)
-    {
-        return POTION_FULL_HEALING as i32;
-    }
-    if o2typ == POTION_EXTRA_HEALING && (o1typ == POTION_GAIN_LEVEL || o1typ == POTION_GAIN_ENERGY)
-    {
-        return POTION_FULL_HEALING as i32;
-    }
-
-    // Full Healing + Gain Level/Energy = Gain Ability
-    if o1typ == POTION_FULL_HEALING && (o2typ == POTION_GAIN_LEVEL || o2typ == POTION_GAIN_ENERGY) {
-        return POTION_GAIN_ABILITY as i32;
-    }
-    if o2typ == POTION_FULL_HEALING && (o1typ == POTION_GAIN_LEVEL || o1typ == POTION_GAIN_ENERGY) {
-        return POTION_GAIN_ABILITY as i32;
-    }
-
-    // Sickness neutralized = Fruit Juice
-    if (o1typ == POTION_SICKNESS && o2typ == POTION_FRUIT_JUICE)
-        || (o2typ == POTION_SICKNESS && o1typ == POTION_FRUIT_JUICE)
-    {
-        return POTION_FRUIT_JUICE as i32;
-    }
-
-    // Hallucination/Blindness/Confusion diluted = Water
-    if (o1typ == POTION_HALLUCINATION || o1typ == POTION_BLINDNESS || o1typ == POTION_CONFUSION)
-        && o2typ == POTION_WATER
-    {
-        return POTION_WATER as i32;
-    }
-    if (o2typ == POTION_HALLUCINATION || o2typ == POTION_BLINDNESS || o2typ == POTION_CONFUSION)
-        && o1typ == POTION_WATER
-    {
-        return POTION_WATER as i32;
-    }
-
-    // No special mixture
-    0
+    0 // No special mixture
 }
 
 pub fn ghost_from_bottle(state: &mut GameState) {

@@ -20,6 +20,7 @@ pub enum Property {
     MagicBreathing = 5,
     PassesWalls = 6,
     Jumping = 7,
+    WaterWalking = 8,
 
     // Resistances
     FireResistance = 10,

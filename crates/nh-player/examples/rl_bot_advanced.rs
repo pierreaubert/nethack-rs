@@ -10,9 +10,9 @@
 //! - Multi-threaded parallel training
 
 use nh_core::{GameLoop, GameRng, GameState};
-use nh_test::c_interface::CGameEngine;
-use nh_test::state::common::{GameAction, UnifiedGameState};
-use nh_test::state::rust_extractor::RustGameEngine;
+use nh_player::ffi::CGameEngine;
+use nh_player::state::common::{GameAction, UnifiedGameState};
+use nh_player::state::rust_extractor::RustGameEngine;
 
 use rand::{Rng, SeedableRng};
 use std::collections::{HashMap, VecDeque};

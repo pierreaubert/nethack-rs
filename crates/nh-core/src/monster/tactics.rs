@@ -164,17 +164,18 @@ pub fn should_use_ranged(
     // Intelligence affects decision
     let intelligence = monster_intelligence(monster.monster_type);
 
-    // Phase 18: Personality modifier
-    // Aggressive monsters prefer ranged less (want melee)
-    // Defensive/Tactical monsters prefer ranged more
+    // Extensions: Personality modifier
+    #[cfg(feature = "extensions")]
     let personality_bonus: i32 = match monster.personality {
-        super::Personality::Aggressive => -15,
-        super::Personality::Defensive => 15,
-        super::Personality::Tactical => 20,
-        super::Personality::Coward => 25, // Prefers distance
-        super::Personality::Berserker => -20,
-        super::Personality::Cautious => 10,
+        super::personality::Personality::Aggressive => -15,
+        super::personality::Personality::Defensive => 15,
+        super::personality::Personality::Tactical => 20,
+        super::personality::Personality::Coward => 25,
+        super::personality::Personality::Berserker => -20,
+        super::personality::Personality::Cautious => 10,
     };
+    #[cfg(not(feature = "extensions"))]
+    let personality_bonus: i32 = 0;
 
     let mut use_chance: i32 = match intelligence {
         Intelligence::Mindless => 0,
@@ -193,24 +194,24 @@ pub fn should_use_ranged(
 
 /// Determine if monster should retreat
 pub fn should_retreat(monster: &Monster, _rng: &mut GameRng) -> bool {
-    // Phase 18: Use morale system if available
     let intelligence = monster_intelligence(monster.monster_type);
 
-    // Calculate morale-based retreat if personality is assigned
-    // This uses the enhanced morale system from Phase 18
-    let mut morale_calc = monster.morale.clone();
-    morale_calc.calculate(monster.personality, monster.hp, monster.hp_max);
-
-    if let Some(_reason) = morale_calc.should_retreat(
-        intelligence,
-        monster.personality,
-        monster.hp,
-        monster.hp_max,
-    ) {
-        return true;
+    // Extensions: Use morale system if available
+    #[cfg(feature = "extensions")]
+    {
+        let mut morale_calc = monster.morale.clone();
+        morale_calc.calculate(monster.personality, monster.hp, monster.hp_max);
+        if let Some(_reason) = morale_calc.should_retreat(
+            intelligence,
+            monster.personality,
+            monster.hp,
+            monster.hp_max,
+        ) {
+            return true;
+        }
     }
 
-    // Fallback to basic HP-based retreat for backward compatibility
+    // Basic HP-based retreat
     if monster.hp <= 0 || monster.hp_max <= 0 {
         return false;
     }
@@ -268,13 +269,16 @@ pub fn should_call_for_help(monster: &Monster, level: &Level, rng: &mut GameRng)
         _ => 0,
     };
 
-    // Phase 18: Personality modifier
-    // High ally-loyalty personalities are more likely to call for help
-    let profile = super::personality::PersonalityProfile::for_personality(monster.personality);
-    if profile.ally_loyalty > 50 {
-        call_chance += 20; // Loyal monsters call earlier
-    } else if profile.ally_loyalty < -50 {
-        call_chance = (call_chance / 2).max(5); // Disloyal monsters rarely call
+    // Extensions: Personality modifier
+    #[cfg(feature = "extensions")]
+    {
+        let profile =
+            super::personality::PersonalityProfile::for_personality(monster.personality);
+        if profile.ally_loyalty > 50 {
+            call_chance += 20;
+        } else if profile.ally_loyalty < -50 {
+            call_chance = (call_chance / 2).max(5);
+        }
     }
 
     // More likely to call when hurt
@@ -342,48 +346,53 @@ pub fn determine_tactics(
         return TacticalAction::Retreat;
     }
 
-    // Phase 18: Personality-driven tactical preferences
-    let profile = super::personality::PersonalityProfile::for_personality(monster.personality);
+    // Extensions: Personality-driven tactical preferences
+    #[cfg(feature = "extensions")]
+    {
+        let profile =
+            super::personality::PersonalityProfile::for_personality(monster.personality);
 
-    // Aggressive monsters prefer melee, less likely to use ranged
-    // Defensive/Coward monsters prefer ranged, higher chance to stay back
-    match monster.personality {
-        super::Personality::Berserker => {
-            // Berserkers charge - never use ranged, go for melee
-            return TacticalAction::None;
-        }
-        super::Personality::Aggressive => {
-            // Aggressive monsters only use ranged as last resort
-            if rng.percent(20) && should_use_ranged(monster, player, level, rng) {
-                return TacticalAction::RangedAttack {
-                    target_x: player.pos.x,
-                    target_y: player.pos.y,
-                };
+        match monster.personality {
+            super::personality::Personality::Berserker => {
+                return TacticalAction::None;
             }
-            return TacticalAction::None;
+            super::personality::Personality::Aggressive => {
+                if rng.percent(20) && should_use_ranged(monster, player, level, rng) {
+                    return TacticalAction::RangedAttack {
+                        target_x: player.pos.x,
+                        target_y: player.pos.y,
+                    };
+                }
+                return TacticalAction::None;
+            }
+            _ => {}
         }
-        _ => {}
+
+        if should_use_ranged(monster, player, level, rng) {
+            return TacticalAction::RangedAttack {
+                target_x: player.pos.x,
+                target_y: player.pos.y,
+            };
+        }
+
+        if profile.ally_loyalty > 40 {
+            if should_call_for_help(monster, level, rng) {
+                return TacticalAction::CallForHelp;
+            }
+        }
+
+        if monster.personality == super::personality::Personality::Coward && rng.percent(30) {
+            return TacticalAction::Hide;
+        }
     }
 
-    // Check ranged attack (default logic for other personalities)
+    // Without extensions: basic ranged check
+    #[cfg(not(feature = "extensions"))]
     if should_use_ranged(monster, player, level, rng) {
         return TacticalAction::RangedAttack {
             target_x: player.pos.x,
             target_y: player.pos.y,
         };
-    }
-
-    // Phase 18: Personality-driven ally support
-    // High ally-loyalty monsters are more likely to call for help
-    if profile.ally_loyalty > 40 {
-        if should_call_for_help(monster, level, rng) {
-            return TacticalAction::CallForHelp;
-        }
-    }
-
-    // Coward monsters try to hide or run
-    if monster.personality == super::Personality::Coward && rng.percent(30) {
-        return TacticalAction::Hide;
     }
 
     // Default: no special tactic, use basic movement

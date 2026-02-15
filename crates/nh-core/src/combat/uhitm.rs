@@ -1990,16 +1990,60 @@ pub fn weapon_skill_type(weapon: &Object) -> crate::player::SkillType {
     }
 }
 
-/// Get skill bonus for weapon use
-pub fn skill_hit_bonus(player: &You, weapon: Option<&Object>) -> i32 {
-    let skill_type = match weapon {
+/// Get skill to-hit bonus for weapon use (weapon.c:weapon_hit_bonus)
+///
+/// Handles three cases per C source:
+/// - Normal weapon: -4 (unskilled) to +3 (expert)
+/// - Two-weapon combat: uses min of weapon skill and two-weapon skill, -9 to -3
+/// - Bare-handed: scales with martial arts (monks get double bonus)
+pub fn skill_hit_bonus(player: &You, weapon: Option<&Object>, is_twoweap: bool) -> i32 {
+    use crate::player::SkillLevel;
+
+    let wep_type = match weapon {
         Some(w) => weapon_skill_type(w),
         None => crate::player::SkillType::BareHanded,
     };
 
-    let skill_level = player.skills.get(skill_type).level;
+    if wep_type == crate::player::SkillType::BareHanded {
+        // Bare-handed/martial arts (weapon.c:1452-1465)
+        //   b.h. m.a.
+        //   unskl: +1  n/a
+        //   basic: +1   +3
+        //   skild: +2   +4
+        //   exprt: +2   +5
+        //   mastr: +3   +6
+        //   grand: +3   +7
+        let raw = player.skills.get(wep_type).level.as_int();
+        let raw = raw.max(1) - 1; // unskilled => 0
+        let is_martial = martial_bonus(player);
+        return ((raw + 2) * if is_martial { 2 } else { 1 }) / 2;
+    }
 
-    use crate::player::SkillLevel;
+    if is_twoweap {
+        // Two-weapon combat (weapon.c:1431-1451)
+        // Use minimum of weapon skill and two-weapon skill
+        let tw_level = player
+            .skills
+            .get(crate::player::SkillType::TwoWeapon)
+            .level;
+        let wep_level = player.skills.get(wep_type).level;
+        let effective = if wep_level.as_int() < tw_level.as_int() {
+            wep_level
+        } else {
+            tw_level
+        };
+        return match effective {
+            SkillLevel::Restricted | SkillLevel::Unskilled => -9,
+            SkillLevel::Basic => -7,
+            SkillLevel::Skilled => -5,
+            SkillLevel::Expert => -3,
+            SkillLevel::Master => -2,
+            SkillLevel::GrandMaster => -1,
+        };
+    }
+
+    // Normal weapon skill (weapon.c:1413-1430)
+    let skill_level = player.skills.get(wep_type).level;
     match skill_level {
         SkillLevel::Restricted | SkillLevel::Unskilled => -4,
         SkillLevel::Basic => 0,
@@ -2010,18 +2054,61 @@ pub fn skill_hit_bonus(player: &You, weapon: Option<&Object>) -> i32 {
     }
 }
 
-/// Get skill damage bonus for weapon use
-pub fn skill_dam_bonus(player: &You, weapon: Option<&Object>) -> i32 {
-    let skill_type = match weapon {
+/// Get skill damage bonus for weapon use (weapon.c:weapon_dam_bonus)
+///
+/// Handles three cases per C source:
+/// - Normal weapon: -2 (unskilled) to +2 (expert)
+/// - Two-weapon combat: uses min of weapon skill and two-weapon skill, -3 to +1
+/// - Bare-handed: scales with martial arts (monks get triple bonus)
+pub fn skill_dam_bonus(player: &You, weapon: Option<&Object>, is_twoweap: bool) -> i32 {
+    use crate::player::SkillLevel;
+
+    let wep_type = match weapon {
         Some(w) => weapon_skill_type(w),
         None => crate::player::SkillType::BareHanded,
     };
 
-    let skill_level = player.skills.get(skill_type).level;
+    if wep_type == crate::player::SkillType::BareHanded {
+        // Bare-handed/martial arts (weapon.c:1546-1558)
+        //   b.h. m.a.
+        //   unskl:  0   n/a
+        //   basic: +1   +3
+        //   skild: +1   +4
+        //   exprt: +2   +6
+        //   mastr: +2   +7
+        //   grand: +3   +9
+        let raw = player.skills.get(wep_type).level.as_int();
+        let raw = raw.max(1) - 1; // unskilled => 0
+        let is_martial = martial_bonus(player);
+        return ((raw + 1) * if is_martial { 3 } else { 1 }) / 2;
+    }
 
-    use crate::player::SkillLevel;
+    if is_twoweap {
+        // Two-weapon combat (weapon.c:1526-1545)
+        let tw_level = player
+            .skills
+            .get(crate::player::SkillType::TwoWeapon)
+            .level;
+        let wep_level = player.skills.get(wep_type).level;
+        let effective = if wep_level.as_int() < tw_level.as_int() {
+            wep_level
+        } else {
+            tw_level
+        };
+        return match effective {
+            SkillLevel::Restricted | SkillLevel::Unskilled => -3,
+            SkillLevel::Basic => -1,
+            SkillLevel::Skilled => 0,
+            SkillLevel::Expert => 1,
+            SkillLevel::Master => 2,
+            SkillLevel::GrandMaster => 3,
+        };
+    }
+
+    // Normal weapon skill (weapon.c:1506-1525)
+    let skill_level = player.skills.get(wep_type).level;
     match skill_level {
-        SkillLevel::Restricted | SkillLevel::Unskilled => 0,
+        SkillLevel::Restricted | SkillLevel::Unskilled => -2,
         SkillLevel::Basic => 0,
         SkillLevel::Skilled => 1,
         SkillLevel::Expert => 2,
@@ -2029,6 +2116,15 @@ pub fn skill_dam_bonus(player: &You, weapon: Option<&Object>) -> i32 {
         SkillLevel::GrandMaster => 4,
     }
 }
+
+/// Check if player gets martial arts bonus (monks in human form)
+///
+/// Port of C's martial_bonus() macro.
+pub fn martial_bonus(player: &You) -> bool {
+    player.role == crate::player::Role::Monk
+}
+
+// Skill practice tracking is in player/skills.rs via use_skill()
 
 // ============================================================================
 // Pre-attack validation and main attack function
@@ -5128,5 +5224,102 @@ mod tests {
             !is_friendly_target(&target, &player),
             "Peaceful without co-alignment should not be friendly"
         );
+    }
+
+    #[test]
+    fn test_skill_hit_bonus_normal_weapon() {
+        use crate::player::SkillLevel;
+        let mut player = test_player();
+        let weapon = test_weapon();
+
+        // Default skill level is Restricted => -4
+        assert_eq!(skill_hit_bonus(&player, Some(&weapon), false), -4);
+
+        // Set to Expert
+        let skill_type = weapon_skill_type(&weapon);
+        player.skills.get_mut(skill_type).level = SkillLevel::Expert;
+        assert_eq!(skill_hit_bonus(&player, Some(&weapon), false), 3);
+    }
+
+    #[test]
+    fn test_skill_hit_bonus_two_weapon() {
+        use crate::player::SkillLevel;
+        let mut player = test_player();
+        let weapon = test_weapon();
+
+        // Two-weapon unskilled => -9
+        assert_eq!(skill_hit_bonus(&player, Some(&weapon), true), -9);
+
+        // Set two-weapon skill to Expert but weapon still Restricted
+        // Uses min of the two, so still Restricted (-9)
+        player
+            .skills
+            .get_mut(crate::player::SkillType::TwoWeapon)
+            .level = SkillLevel::Expert;
+        assert_eq!(skill_hit_bonus(&player, Some(&weapon), true), -9);
+
+        // Now set weapon skill to Expert too
+        let skill_type = weapon_skill_type(&weapon);
+        player.skills.get_mut(skill_type).level = SkillLevel::Expert;
+        assert_eq!(skill_hit_bonus(&player, Some(&weapon), true), -3);
+    }
+
+    #[test]
+    fn test_skill_hit_bonus_bare_handed() {
+        use crate::player::SkillLevel;
+        let mut player = test_player();
+
+        // Non-monk, unskilled bare-handed: (max(1,1)-1 + 2) * 1 / 2 = 1
+        assert_eq!(skill_hit_bonus(&player, None, false), 1);
+
+        // Monk at Expert: (max(4,1)-1 + 2) * 2 / 2 = 5
+        player.role = crate::player::Role::Monk;
+        player
+            .skills
+            .get_mut(crate::player::SkillType::BareHanded)
+            .level = SkillLevel::Expert;
+        assert_eq!(skill_hit_bonus(&player, None, false), 5);
+    }
+
+    #[test]
+    fn test_skill_dam_bonus_normal_weapon() {
+        use crate::player::SkillLevel;
+        let mut player = test_player();
+        let weapon = test_weapon();
+
+        // Default Restricted => -2
+        assert_eq!(skill_dam_bonus(&player, Some(&weapon), false), -2);
+
+        // Expert => +2
+        let skill_type = weapon_skill_type(&weapon);
+        player.skills.get_mut(skill_type).level = SkillLevel::Expert;
+        assert_eq!(skill_dam_bonus(&player, Some(&weapon), false), 2);
+    }
+
+    #[test]
+    fn test_skill_dam_bonus_two_weapon() {
+        use crate::player::SkillLevel;
+        let mut player = test_player();
+        let weapon = test_weapon();
+
+        // Two-weapon unskilled => -3
+        assert_eq!(skill_dam_bonus(&player, Some(&weapon), true), -3);
+
+        // Both at Expert => +1
+        player
+            .skills
+            .get_mut(crate::player::SkillType::TwoWeapon)
+            .level = SkillLevel::Expert;
+        let skill_type = weapon_skill_type(&weapon);
+        player.skills.get_mut(skill_type).level = SkillLevel::Expert;
+        assert_eq!(skill_dam_bonus(&player, Some(&weapon), true), 1);
+    }
+
+    #[test]
+    fn test_martial_bonus() {
+        let mut player = test_player();
+        assert!(!martial_bonus(&player)); // Default Valkyrie
+        player.role = crate::player::Role::Monk;
+        assert!(martial_bonus(&player));
     }
 }

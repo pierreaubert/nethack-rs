@@ -367,13 +367,13 @@ fn test_scroll_teleportation() {
 fn test_scroll_food() {
     let mut rng = GameRng::new(42);
     let mut player = test_player();
-    let initial_nutrition = player.nutrition;
     let mut level = test_level(&mut rng);
     let scroll = make_scroll(ScrollType::Food, BucStatus::Uncursed);
-    read_scroll(&scroll, &mut player, &mut level, &mut rng);
+    let result = read_scroll(&scroll, &mut player, &mut level, &mut rng);
+    // C behavior: food detection scroll detects food on the level, not creates it
     assert!(
-        player.nutrition > initial_nutrition,
-        "Food scroll should increase nutrition"
+        !result.messages.is_empty(),
+        "Food detection scroll should produce a message"
     );
 }
 
@@ -381,13 +381,13 @@ fn test_scroll_food() {
 fn test_scroll_gold() {
     let mut rng = GameRng::new(42);
     let mut player = test_player();
-    let initial_gold = player.gold;
     let mut level = test_level(&mut rng);
     let scroll = make_scroll(ScrollType::Gold, BucStatus::Uncursed);
-    read_scroll(&scroll, &mut player, &mut level, &mut rng);
+    let result = read_scroll(&scroll, &mut player, &mut level, &mut rng);
+    // C behavior: gold detection scroll detects gold on the level, not creates it
     assert!(
-        player.gold > initial_gold,
-        "Gold scroll should increase gold"
+        !result.messages.is_empty(),
+        "Gold detection scroll should produce a message"
     );
 }
 

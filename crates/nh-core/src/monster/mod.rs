@@ -3,22 +3,37 @@
 //! Contains monster templates (permonst) and instances (monst).
 
 pub mod ai;
+pub mod casting;
+pub mod lifecycle;
 pub mod makemon;
 pub mod item_usage;
 mod monst;
 mod permonst;
 pub mod tactics;
+pub mod throw;
+pub mod worm;
 
-// Phase 18: Combat AI & Monster Tactics modules
+// Extensions: Combat AI & Monster Tactics (Rust-only, no C equivalent)
+#[cfg(feature = "extensions")]
 pub mod attack_selection;
+#[cfg(feature = "extensions")]
 pub mod combat_hooks;
+#[cfg(feature = "extensions")]
 pub mod morale;
+#[cfg(feature = "extensions")]
 pub mod personality;
+#[cfg(feature = "extensions")]
 pub mod tactical_ai;
 
 pub use crate::combat::CombatResources;
 pub use ai::{AiAction, process_monster_ai};
+#[cfg(feature = "extensions")]
 pub use attack_selection::{AbilityType, AttackOption, CombatMemory, Precondition, ResourceCost};
+pub use casting::{
+    CastResult, CasterSnapshot, ClericSpell, MageSpell, buzzmu, castmu,
+    choose_clerical_spell, choose_magic_spell, cleric_spell_would_be_useless,
+    is_undirected_cleric_spell, is_undirected_mage_spell, mage_spell_would_be_useless,
+};
 pub use item_usage::{HornEffect, monster_zap_wand, mplayhorn, mzapwand};
 pub use monst::{
     MinliquidResult,
@@ -73,12 +88,14 @@ pub use monst::{
     wants_to_attack,
     you_aggravate,
 };
+#[cfg(feature = "extensions")]
 pub use morale::{MoraleEvent, MoraleTracker, RetreatReason};
 pub use permonst::{
     MonsterClass, MonsterFlags, MonsterResistances, MonsterSize, MonsterSound, PerMonst,
     big_little_match, big_to_little, def_char_to_monclass, genus, green_mon, is_home_elemental,
     little_to_big, name_to_mon, name_to_monclass, propagate, same_race, validspecmon, validvamp,
 };
+#[cfg(feature = "extensions")]
 pub use personality::{Personality, PersonalityProfile, assign_personality};
 pub use tactics::{
     Intelligence, SpecialAbility, TacticalAction, WeaponCheck, determine_tactics, getmattk,

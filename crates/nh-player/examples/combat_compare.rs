@@ -7,10 +7,10 @@
 //! - Combat message comparison
 
 use nh_core::{GameLoop, GameRng, GameState};
-use nh_test::c_interface::CGameEngine;
-use nh_test::state::c_extractor::CGameWrapper;
-use nh_test::state::common::{GameAction, UnifiedGameState};
-use nh_test::state::rust_extractor::RustGameEngine;
+use nh_player::ffi::CGameEngine;
+use nh_player::state::c_extractor::CGameWrapper;
+use nh_player::state::common::{GameAction, UnifiedGameState};
+use nh_player::state::rust_extractor::RustGameEngine;
 
 /// Find a monster adjacent to the player and attack it
 fn find_and_attack(state: &UnifiedGameState) -> Option<GameAction> {

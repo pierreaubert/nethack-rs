@@ -376,6 +376,12 @@ const RANDOM_MONSTER_NAMES: &[&str] = &[
     "hobgoblin",
 ];
 
+/// Get a monster name based on monster type index (pub(crate) wrapper for use in gameloop.rs)
+pub(crate) fn random_monster_name_for_type(monster_type: i16) -> &'static str {
+    let idx = (monster_type as usize) % RANDOM_MONSTER_NAMES.len();
+    RANDOM_MONSTER_NAMES[idx]
+}
+
 /// Get a random monster name based on monster type index
 fn random_monster_name(monster_type: i16, _rng: &mut GameRng) -> &'static str {
     let idx = (monster_type as usize) % RANDOM_MONSTER_NAMES.len();

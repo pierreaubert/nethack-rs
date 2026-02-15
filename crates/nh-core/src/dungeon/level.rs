@@ -281,10 +281,12 @@ pub struct Level {
     /// Next monster ID to assign
     next_monster_id: u32,
 
-    /// Phase 19: Terrain modifications tracker
+    /// Extensions: Terrain modifications tracker
+    #[cfg(feature = "extensions")]
     pub terrain_modifications: crate::magic::terrain_modification::TerrainModificationTracker,
 
-    /// Phase 19: Persistent spell effects tracker
+    /// Extensions: Persistent spell effects tracker
+    #[cfg(feature = "extensions")]
     pub persistent_effects: crate::magic::spell_persistence::PersistentEffectTracker,
 
     /// Message buffer for AI/monster actions (pline equivalent)
@@ -320,10 +322,36 @@ impl Level {
             visible: default_visible(),
             next_object_id: 1,
             next_monster_id: 1,
+            #[cfg(feature = "extensions")]
             terrain_modifications:
                 crate::magic::terrain_modification::TerrainModificationTracker::new(),
+            #[cfg(feature = "extensions")]
             persistent_effects: crate::magic::spell_persistence::PersistentEffectTracker::new(),
             pending_messages: Vec::new(),
+        }
+    }
+
+    /// Rebuild spatial index grids from objects/monsters vectors after deserialization.
+    /// The object_grid, monster_grid, and visible grids are #[serde(skip)] so they
+    /// deserialize as empty defaults. This must be called after any deserialization.
+    pub fn rebuild_grids(&mut self) {
+        self.object_grid = default_object_grid();
+        self.monster_grid = default_monster_grid();
+
+        for obj in &self.objects {
+            let x = obj.x as usize;
+            let y = obj.y as usize;
+            if x < COLNO && y < ROWNO {
+                self.object_grid[x][y].push(obj.id);
+            }
+        }
+
+        for monster in &self.monsters {
+            let x = monster.x as usize;
+            let y = monster.y as usize;
+            if x < COLNO && y < ROWNO {
+                self.monster_grid[x][y] = Some(monster.id);
+            }
         }
     }
 
@@ -411,16 +439,15 @@ impl Level {
         self.next_monster_id += 1;
         monster.id = id;
 
-        // Phase 18: Initialize personality and combat systems on monster spawn
-        {
-            use crate::monster::{assign_personality, combat_hooks, monster_intelligence};
+        // Initialize combat resources based on level
+        monster.resources.initialize(monster.level);
 
-            // Assign personality based on intelligence
+        // Extensions: Initialize personality and combat systems on monster spawn
+        #[cfg(feature = "extensions")]
+        {
+            use crate::monster::{assign_personality, monster_intelligence};
             let intelligence = monster_intelligence(monster.monster_type);
             monster.personality = assign_personality(intelligence, id.0);
-
-            // Initialize combat resources based on level
-            monster.resources.initialize(monster.level);
         }
 
         let x = monster.x as usize;
@@ -435,26 +462,22 @@ impl Level {
         let idx = self.monsters.iter().position(|m| m.id == id)?;
         let monster = self.monsters.remove(idx);
 
-        // Phase 18: Notify nearby monsters of ally death for morale tracking
+        // Extensions: Notify nearby monsters of ally death for morale tracking
+        #[cfg(feature = "extensions")]
         {
-            use crate::monster::combat_hooks;
             let dead_x = monster.x;
             let dead_y = monster.y;
 
-            // Find all nearby witnesses and trigger morale events
             for other in self.monsters.iter_mut() {
                 let dist_sq =
                     ((other.x - dead_x) as i32).pow(2) + ((other.y - dead_y) as i32).pow(2);
-                // Notify if within ~10 squares (100 distance squared)
                 if dist_sq <= 100 {
-                    // Same type allies feel more impact
                     if other.monster_type == monster.monster_type {
                         use crate::monster::morale::MoraleEvent;
                         other.morale.add_event(MoraleEvent::AlliedDeath);
                         other.morale.ally_deaths_witnessed =
                             other.morale.ally_deaths_witnessed.saturating_add(1);
                     } else if dist_sq <= 25 {
-                        // Nearby death of any creature still affects morale
                         use crate::monster::morale::MoraleEvent;
                         other.morale.add_event(MoraleEvent::AlliedDeath);
                         other.morale.ally_deaths_witnessed =

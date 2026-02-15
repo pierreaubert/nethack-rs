@@ -4,8 +4,11 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
 use super::{MonsterFlags, MonsterResistances};
+#[cfg(feature = "extensions")]
 use super::attack_selection::CombatMemory;
+#[cfg(feature = "extensions")]
 use super::morale::MoraleTracker;
+#[cfg(feature = "extensions")]
 use super::personality::Personality;
 use crate::combat::{AttackSet, CombatResources, StatusEffectTracker};
 use crate::object::{Object, ObjectId};
@@ -278,18 +281,21 @@ pub struct Monster {
     /// Status effects tracker (Phase 13)
     pub status_effects: StatusEffectTracker,
 
-    /// Combat AI fields (Phase 18)
+    /// Combat AI fields (extensions)
 
     /// Monster personality type
+    #[cfg(feature = "extensions")]
     pub personality: Personality,
 
     /// Morale tracking system
+    #[cfg(feature = "extensions")]
     pub morale: MoraleTracker,
 
     /// Combat resource management (mana, cooldowns, charges)
     pub resources: CombatResources,
 
     /// Combat memory (attack history, observed resistances)
+    #[cfg(feature = "extensions")]
     pub combat_memory: CombatMemory,
 
     /// Current threat level assessment
@@ -388,9 +394,12 @@ impl Monster {
             confused_timeout: 0,
             sleep_timeout: 0,
             status_effects: StatusEffectTracker::new(),
+            #[cfg(feature = "extensions")]
             personality: Personality::default(),
+            #[cfg(feature = "extensions")]
             morale: MoraleTracker::new(),
             resources: CombatResources::new(),
+            #[cfg(feature = "extensions")]
             combat_memory: CombatMemory::new(),
             threat_level: ThreatLevel::default(),
             inventory: Vec::new(),

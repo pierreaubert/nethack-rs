@@ -95,14 +95,12 @@ pub struct SaveFile {
 pub fn save_game(state: &GameState, path: impl AsRef<Path>) -> Result<(), SaveError> {
     use crate::special::priest;
 
-    // Prepare state for saving - clear priests from current level
     let mut save_state = state.clone();
     priest::clear_priests_for_save(&mut save_state.current_level);
 
-    let json = serde_json::to_string_pretty(&save_state)?;
     let save_file = SaveFile {
         header: SaveHeader::new(&save_state),
-        state: serde_json::from_str(&json)?,
+        state: save_state,
     };
 
     let file = File::create(path)?;
@@ -115,14 +113,12 @@ pub fn save_game(state: &GameState, path: impl AsRef<Path>) -> Result<(), SaveEr
 pub fn save_game_compact(state: &GameState, path: impl AsRef<Path>) -> Result<(), SaveError> {
     use crate::special::priest;
 
-    // Prepare state for saving - clear priests from current level
     let mut save_state = state.clone();
     priest::clear_priests_for_save(&mut save_state.current_level);
 
-    let json = serde_json::to_string(&save_state)?;
     let save_file = SaveFile {
         header: SaveHeader::new(&save_state),
-        state: serde_json::from_str(&json)?,
+        state: save_state,
     };
 
     let file = File::create(path)?;
@@ -152,6 +148,12 @@ pub fn load_game(path: impl AsRef<Path>) -> Result<GameState, SaveError> {
         if monster.is_priest {
             priest::restore_priest_after_load(monster, shrine_level_id, false);
         }
+    }
+
+    // Rebuild spatial index grids (skipped during serialization)
+    state.current_level.rebuild_grids();
+    for level in state.levels.values_mut() {
+        level.rebuild_grids();
     }
 
     Ok(state)
@@ -312,6 +314,96 @@ mod tests {
         assert_eq!(loaded.turns, state.turns);
 
         // Cleanup
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_rebuild_grids() {
+        use crate::dungeon::{DLevel, Level};
+        use crate::monster::{Monster, MonsterId};
+        use crate::object::Object;
+
+        let mut level = Level::new(DLevel::default());
+
+        // Place a walkable cell so add_object/add_monster can work
+        let obj = Object::default();
+        let obj_id = level.add_object(obj, 5, 5);
+
+        let monster = Monster::new(MonsterId(0), 0, 10, 10);
+        let mon_id = level.add_monster(monster);
+
+        // Verify grids work before serialization
+        assert!(!level.objects_at(5, 5).is_empty());
+        assert!(level.monster_at(10, 10).is_some());
+
+        // Serialize and deserialize (grids will be empty after deser)
+        let json = serde_json::to_string(&level).unwrap();
+        let mut restored: Level = serde_json::from_str(&json).unwrap();
+
+        // Grids are empty after deserialization
+        assert!(restored.objects_at(5, 5).is_empty());
+        assert!(restored.monster_at(10, 10).is_none());
+
+        // Rebuild grids
+        restored.rebuild_grids();
+
+        // Grids restored
+        let objs = restored.objects_at(5, 5);
+        assert_eq!(objs.len(), 1);
+        assert_eq!(objs[0].id, obj_id);
+
+        let mon = restored.monster_at(10, 10);
+        assert!(mon.is_some());
+        assert_eq!(mon.unwrap().id, mon_id);
+    }
+
+    #[test]
+    fn test_save_load_preserves_levels_map() {
+        use crate::dungeon::{DLevel, Level};
+
+        let path = std::env::temp_dir().join("nethack_test_levels_map.json");
+
+        let mut state = GameState::default();
+
+        // Insert a visited level into the levels HashMap
+        let other_dlevel = DLevel {
+            dungeon_num: 0,
+            level_num: 2,
+        };
+        let other_level = Level::new(other_dlevel);
+        state.levels.insert(other_dlevel, other_level);
+
+        save_game(&state, &path).unwrap();
+        let loaded = load_game(&path).unwrap();
+
+        assert!(
+            loaded.levels.contains_key(&other_dlevel),
+            "levels HashMap should be preserved across save/load"
+        );
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_save_load_roundtrip_with_monsters() {
+        use crate::monster::{Monster, MonsterId};
+
+        let path = std::env::temp_dir().join("nethack_test_roundtrip_monsters.json");
+
+        let mut state = GameState::default();
+
+        // Add a monster to the current level
+        let monster = Monster::new(MonsterId(0), 0, 15, 15);
+        let mon_id = state.current_level.add_monster(monster);
+
+        save_game(&state, &path).unwrap();
+        let loaded = load_game(&path).unwrap();
+
+        // After load, monster_at should work (grids rebuilt)
+        let mon = loaded.current_level.monster_at(15, 15);
+        assert!(mon.is_some(), "monster_at should work after load");
+        assert_eq!(mon.unwrap().id, mon_id);
+
         std::fs::remove_file(&path).ok();
     }
 

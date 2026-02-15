@@ -3924,6 +3924,7 @@ version = "0.1.11"
 dependencies = [
  "nh-core",
  "nh-test",
+ "serde_json",
 ]
 
 [[package]]

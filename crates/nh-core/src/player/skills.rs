@@ -78,6 +78,11 @@ impl SkillLevel {
         }
     }
 
+    /// Get numeric value for comparison (Restricted=0, ..., GrandMaster=6)
+    pub const fn as_int(&self) -> i32 {
+        *self as i32
+    }
+
     /// Advance to next level
     pub fn advance(&self) -> Option<Self> {
         match self {

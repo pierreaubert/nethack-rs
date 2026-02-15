@@ -654,100 +654,213 @@ fn apply_blindfold(
 /// Based on C use_unicorn_horn().
 /// Blessed: cures multiple ailments. Cursed: causes random bad effect.
 /// Uncursed: cures 1-2 ailments.
+/// Apply a unicorn horn.
+///
+/// Port of C use_unicorn_horn() from apply.c lines 1910-2094.
+/// Cursed: random bad effect (sickness, blind, confuse, stun, stat loss, halluc, deaf).
+/// Blessed/uncursed: builds a shuffled trouble list of all current ailments and
+/// attribute losses, then randomly fixes some of them.
 fn apply_unicorn_horn(state: &mut GameState, obj: &Object) -> ActionResult {
+    const A_MAX: usize = 6; // STR, INT, WIS, DEX, CON, CHA
+
     if obj.buc == BucStatus::Cursed {
-        // Cursed: random bad effect
-        match state.rng.rn2(7) {
+        // Cursed: random bad effect. C uses rn2(13)/2 making case 6 half as likely.
+        let lcount = (state.rng.rnd(90) + 10) as u16;
+        match state.rng.rn2(13) / 2 {
             0 => {
-                state.message("You feel sick!");
-                state.player.hp -= state.rng.rnd(8) as i32;
+                // Sickness
+                let con = state.player.attr_current.get(Attribute::Constitution) as u32;
+                let duration = state.rng.rnd(con.max(1)) + 20;
+                state.message("You feel deathly sick!");
+                state.player.hp -= duration as i32 / 4;
             }
             1 => {
                 state.message("You go blind!");
-                state.player.blinded_timeout += state.rng.rnd(90) as u16 + 10;
+                state.player.blinded_timeout += lcount;
             }
             2 => {
-                state.message("You feel confused.");
-                state.player.confused_timeout += state.rng.rnd(90) as u16 + 10;
+                if state.player.confused_timeout == 0 {
+                    if state.player.hallucinating_timeout > 0 {
+                        state.message("You suddenly feel trippy.");
+                    } else {
+                        state.message("You suddenly feel confused.");
+                    }
+                }
+                state.player.confused_timeout += lcount;
             }
             3 => {
                 state.message("You feel stunned.");
-                state.player.stunned_timeout += state.rng.rnd(90) as u16 + 10;
+                state.player.stunned_timeout += lcount;
             }
             4 => {
-                state.message("You feel weaker.");
-                let cur = state.player.attr_current.get(Attribute::Strength);
-                state.player.attr_current.set(Attribute::Strength, cur.saturating_sub(1).max(3));
+                // Random attribute loss
+                let attr_idx = state.rng.rn2(A_MAX as u32) as usize;
+                let attr = ALL_ATTRIBUTES[attr_idx];
+                let cur = state.player.attr_current.get(attr);
+                if cur > 3 {
+                    state.player.attr_current.set(attr, cur - 1);
+                }
+                state.message("You feel a bit worse.");
             }
             5 => {
                 state.message("You feel disoriented.");
-                state.player.hallucinating_timeout += state.rng.rnd(90) as u16 + 10;
+                state.player.hallucinating_timeout += lcount;
             }
             _ => {
+                // Case 6 (half probability)
                 state.message("You feel deaf!");
-                // Deafness timeout (simplified)
+                // Deaf timeout would go here
             }
         }
         return ActionResult::Success;
     }
 
-    // Number of troubles to fix
-    let fixes = if obj.buc == BucStatus::Blessed {
-        state.rng.dice(2, 4) as i32 // Blessed: avg 5
+    // Build trouble list: property troubles + attribute troubles
+    // Property troubles are encoded as A_MAX + trouble_index
+    // Attribute troubles are encoded as attribute_index (0..5)
+    const PROP_SICK: usize = 0;
+    const PROP_BLIND: usize = 1;
+    const PROP_HALLUC: usize = 2;
+    const PROP_CONFUSE: usize = 4;
+    const PROP_STUN: usize = 5;
+    const PROP_DEAF: usize = 6;
+
+    let mut trouble_list: Vec<usize> = Vec::new();
+
+    // Collect property troubles (timed only)
+    if state.player.hp < state.player.hp_max / 3 {
+        // Sickness approximation
+        trouble_list.push(A_MAX + PROP_SICK);
+    }
+    if state.player.blinded_timeout > 0 {
+        trouble_list.push(A_MAX + PROP_BLIND);
+    }
+    if state.player.hallucinating_timeout > 0 {
+        trouble_list.push(A_MAX + PROP_HALLUC);
+    }
+    if state.player.confused_timeout > 0 {
+        trouble_list.push(A_MAX + PROP_CONFUSE);
+    }
+    if state.player.stunned_timeout > 0 {
+        trouble_list.push(A_MAX + PROP_STUN);
+    }
+    // Deaf timeout not tracked yet, but slot reserved
+
+    // Collect attribute troubles: up to 3 points per attribute
+    for idx in 0..A_MAX {
+        let attr = ALL_ATTRIBUTES[idx];
+        let base = state.player.attr_current.get(attr);
+        let max_val = state.player.attr_max.get(attr);
+        if base >= max_val {
+            continue;
+        }
+        // Don't recover more than 3 points per attribute
+        let limit = max_val.min(base + 3);
+        for _ in base..limit {
+            trouble_list.push(idx); // attr index directly
+        }
+    }
+
+    if trouble_list.is_empty() {
+        state.message("Nothing seems to happen.");
+        return ActionResult::Success;
+    }
+
+    // Shuffle the trouble list (Fisher-Yates)
+    let len = trouble_list.len();
+    for i in (1..len).rev() {
+        let j = state.rng.rn2(i as u32 + 1) as usize;
+        trouble_list.swap(i, j);
+    }
+
+    // Determine number of troubles to fix: rn2(d(2, blessed?4:2))
+    let dice_val = if obj.buc == BucStatus::Blessed {
+        state.rng.dice(2, 4)
     } else {
-        state.rng.dice(2, 2) as i32 // Uncursed: avg 3
+        state.rng.dice(2, 2)
     };
-
-    let mut cured = 0;
-
-    // Fix troubles in priority order
-    if cured < fixes && state.player.confused_timeout > 0 {
-        state.player.confused_timeout = 0;
-        state.message("Your head clears.");
-        cured += 1;
-    }
-    if cured < fixes && state.player.stunned_timeout > 0 {
-        state.player.stunned_timeout = 0;
-        state.message("You feel steadier.");
-        cured += 1;
-    }
-    if cured < fixes && state.player.blinded_timeout > 0 {
-        state.player.blinded_timeout = 0;
-        state.message("Your vision clears.");
-        cured += 1;
-    }
-    if cured < fixes && state.player.hallucinating_timeout > 0 {
-        state.player.hallucinating_timeout = 0;
-        state.message("Everything looks normal again.");
-        cured += 1;
+    let mut val_limit = state.rng.rn2(dice_val) as usize;
+    if val_limit > len {
+        val_limit = len;
     }
 
-    // Restore attributes if still have fixes left
-    if cured < fixes {
-        let cur = state.player.attr_current.get(Attribute::Strength);
-        let max = state.player.attr_max.get(Attribute::Strength);
-        if cur < max {
-            state.player.attr_current.set(Attribute::Strength, (cur + 1).min(max));
-            state.message("You feel stronger.");
-            cured += 1;
+    let mut did_prop = 0;
+    let mut did_attr = 0;
+
+    // Fix troubles
+    for val in 0..val_limit {
+        let idx = trouble_list[val];
+
+        if idx >= A_MAX {
+            // Property trouble
+            match idx - A_MAX {
+                PROP_SICK => {
+                    // Cure sickness
+                    state.message("You no longer feel sick.");
+                    did_prop += 1;
+                }
+                PROP_BLIND => {
+                    state.player.blinded_timeout = 0;
+                    state.message("Your vision clears.");
+                    did_prop += 1;
+                }
+                PROP_HALLUC => {
+                    state.player.hallucinating_timeout = 0;
+                    state.message("Everything looks normal again.");
+                    did_prop += 1;
+                }
+                PROP_CONFUSE => {
+                    state.player.confused_timeout = 0;
+                    state.message("Your head clears.");
+                    did_prop += 1;
+                }
+                PROP_STUN => {
+                    state.player.stunned_timeout = 0;
+                    state.message("You feel steadier.");
+                    did_prop += 1;
+                }
+                PROP_DEAF => {
+                    state.message("You can hear again.");
+                    did_prop += 1;
+                }
+                _ => {}
+            }
+        } else {
+            // Attribute trouble: restore 1 point
+            let attr = ALL_ATTRIBUTES[idx];
+            let cur = state.player.attr_current.get(attr);
+            let max_val = state.player.attr_max.get(attr);
+            if cur < max_val {
+                state.player.attr_current.set(attr, cur + 1);
+                did_attr += 1;
+            }
         }
     }
-    if cured < fixes {
-        let cur = state.player.attr_current.get(Attribute::Dexterity);
-        let max = state.player.attr_max.get(Attribute::Dexterity);
-        if cur < max {
-            state.player.attr_current.set(Attribute::Dexterity, (cur + 1).min(max));
-            state.message("You feel more agile.");
-            cured += 1;
-        }
-    }
 
-    if cured == 0 {
-        state.message("You feel healthy.");
+    if did_attr > 0 {
+        let total_fixed = did_prop + did_attr;
+        let total_troubles = len;
+        if total_fixed >= total_troubles {
+            state.message("This makes you feel great!");
+        } else {
+            state.message("This makes you feel better!");
+        }
+    } else if did_prop == 0 {
+        state.message("Nothing seems to happen.");
     }
 
     ActionResult::Success
 }
+
+/// All six attributes in C order: STR, INT, WIS, DEX, CON, CHA
+const ALL_ATTRIBUTES: [Attribute; 6] = [
+    Attribute::Strength,
+    Attribute::Intelligence,
+    Attribute::Wisdom,
+    Attribute::Dexterity,
+    Attribute::Constitution,
+    Attribute::Charisma,
+];
 
 // ============================================================================
 // Leash
@@ -982,6 +1095,15 @@ fn apply_candelabrum(
 ///
 /// Based on C use_figurine(). Transforms the figurine into the
 /// corresponding monster type. Requires a valid placement position.
+/// Apply a figurine to create a monster.
+///
+/// Port of C use_figurine() from apply.c lines 2250-2287 and
+/// make_familiar() from dog.c lines 70-149.
+///
+/// BUC determines taming probability:
+/// - Blessed: 80% tame, 10% peaceful, 10% hostile
+/// - Uncursed: 10% tame, 80% peaceful, 10% hostile
+/// - Cursed: 10% tame, 10% peaceful, 80% hostile
 fn apply_figurine(
     state: &mut GameState,
     obj_letter: char,
@@ -995,6 +1117,7 @@ fn apply_figurine(
     let py = state.player.pos.y;
 
     // Find an adjacent empty spot
+    let mut target_pos = None;
     for dy in -1i8..=1 {
         for dx in -1i8..=1 {
             if dx == 0 && dy == 0 {
@@ -1007,28 +1130,93 @@ fn apply_figurine(
                 && state.current_level.is_walkable(nx, ny)
                 && state.current_level.monster_at(nx, ny).is_none()
             {
-                // Create the monster from the figurine
-                let monster_type = obj.object_type; // Figurine stores monster type
-                let mut monster = crate::monster::Monster::new(
-                    MonsterId(state.current_level.monsters.len() as u32 + 1),
-                    monster_type,
-                    nx,
-                    ny,
-                );
-                monster.name = "figurine creature".to_string();
-                monster.hp = state.rng.dice(3, 8) as i32;
-                monster.hp_max = monster.hp;
-
-                state.current_level.add_monster(monster);
-                state.remove_from_inventory(obj_letter);
-                state.message("The figurine comes to life!");
-                return ActionResult::Success;
+                target_pos = Some((nx, ny));
+                break;
             }
+        }
+        if target_pos.is_some() {
+            break;
         }
     }
 
-    state.message("There's no room for the figurine to come alive.");
-    ActionResult::NoTime
+    let (nx, ny) = match target_pos {
+        Some(pos) => pos,
+        None => {
+            state.message("There's no room for the figurine to come alive.");
+            return ActionResult::NoTime;
+        }
+    };
+
+    // Create the monster from the figurine
+    let monster_type = obj.object_type; // Figurine stores monster type
+    let monster_name = crate::data::get_monster(monster_type)
+        .map(|m| m.name.to_string())
+        .unwrap_or_else(|| "creature".to_string());
+
+    let mut monster = crate::monster::Monster::new(
+        MonsterId(state.current_level.monsters.len() as u32 + 1),
+        monster_type,
+        nx,
+        ny,
+    );
+
+    // Set HP from monster template (level field = hit dice in C)
+    if let Some(template) = crate::data::get_monster(monster_type) {
+        let hp = state.rng.dice(template.level.max(1) as u32, 8) as i32;
+        monster.hp = hp;
+        monster.hp_max = hp;
+    }
+
+    // BUC determines taming/peaceful/hostile (from make_familiar in dog.c)
+    // Blessed: 80/10/10, Uncursed: 10/80/10, Cursed: 10/10/80
+    let roll = state.rng.rn2(10);
+    match obj.buc {
+        BucStatus::Blessed => {
+            if roll < 8 {
+                monster.state.tame = true;
+            } else if roll < 9 {
+                monster.state.peaceful = true;
+            }
+            // else hostile
+        }
+        BucStatus::Uncursed => {
+            if roll < 1 {
+                monster.state.tame = true;
+            } else if roll < 9 {
+                monster.state.peaceful = true;
+            }
+            // else hostile
+        }
+        BucStatus::Cursed => {
+            if roll < 1 {
+                monster.state.tame = true;
+            } else if roll < 2 {
+                monster.state.peaceful = true;
+            }
+            // else hostile
+        }
+    }
+
+    // Copy figurine name to monster if it had one
+    if let Some(ref fig_name) = obj.name {
+        if !fig_name.is_empty() {
+            monster.name = fig_name.clone();
+        }
+    }
+
+    state.message(format!("You set the figurine beside you and it transforms."));
+
+    if monster.state.tame {
+        state.message(format!("The {} looks tame.", monster_name));
+    } else if monster.state.peaceful {
+        state.message(format!("The {} looks peaceful.", monster_name));
+    } else {
+        state.message(format!("The {} looks hostile!", monster_name));
+    }
+
+    state.current_level.add_monster(monster);
+    state.remove_from_inventory(obj_letter);
+    ActionResult::Success
 }
 
 // ============================================================================
@@ -1037,8 +1225,9 @@ fn apply_figurine(
 
 /// Apply a can of grease to an item.
 ///
-/// Based on C use_grease(). Makes an item slippery/greased,
-/// protecting it from erosion. Cursed: makes hands glib.
+/// Port of C use_grease() from apply.c lines 2292-2344.
+/// Consumes a charge. Cursed: 50% chance makes hands glib.
+/// Otherwise greases a target inventory item, protecting it from erosion.
 fn apply_grease(
     state: &mut GameState,
     obj_letter: char,
@@ -1060,11 +1249,26 @@ fn apply_grease(
 
     if is_cursed && state.rng.rn2(2) == 0 {
         state.message("The grease slips from the can and makes your hands glib!");
+        state.player.make_glib(state.rng.rnd(15) as u16 + 10, true);
         return ActionResult::Success;
     }
 
-    // In full implementation: select target item from inventory
-    state.message("You grease an item, protecting it from erosion.");
+    // In C, this prompts for a target item. For now, grease the first
+    // non-greased worn item found.
+    let target_letter = state.inventory.iter()
+        .find(|item| item.worn_mask != 0 && !item.greased)
+        .map(|item| item.inv_letter);
+
+    if let Some(letter) = target_letter {
+        if let Some(target) = state.get_inventory_item_mut(letter) {
+            let name = target.display_name();
+            target.greased = true;
+            state.message(format!("You grease the {}, protecting it from erosion.", name));
+        }
+    } else {
+        // No valid worn target, grease ourselves (fingers)
+        state.message("You grease your fingers.");
+    }
 
     ActionResult::Success
 }
@@ -1211,6 +1415,12 @@ pub fn set_trap(
 ///
 /// Based on C use_tinning_kit(). Converts a corpse into a tin.
 /// Requires a corpse at feet or in inventory.
+/// Apply a tinning kit to preserve a corpse.
+///
+/// Port of C use_tinning_kit() from apply.c lines 1838-1907.
+/// Finds a corpse at the player's feet, consumes a charge, removes the corpse,
+/// and creates a tin in inventory. The tin stores the monster type from the corpse
+/// (corpsenm) for later consumption.
 fn apply_tinning_kit(
     state: &mut GameState,
     obj_letter: char,
@@ -1235,21 +1445,47 @@ fn apply_tinning_kit(
         .position(|o| o.class == ObjectClass::Food && o.x == px && o.y == py);
 
     if let Some(idx) = corpse_idx {
+        let corpse = state.current_level.objects.remove(idx);
+
+        // Get monster name for the tin
+        let monster_name = crate::data::get_monster(corpse.object_type)
+            .map(|m| m.name)
+            .unwrap_or("unknown");
+
+        // Check for special cases
+        let is_petrifying = crate::data::get_monster(corpse.object_type)
+            .map(|m| m.flesh_petrifies())
+            .unwrap_or(false);
+
+        if is_petrifying {
+            state.message("You attempt to tin the cockatrice corpse...");
+            // In C, tinning a cockatrice without gloves = stoning
+            // Simplified: just warn
+            if !state.player.properties.has(crate::player::Property::StoneResistance) {
+                state.message("You turn to stone while handling the corpse!");
+                state.player.hp = 0;
+                return ActionResult::Success;
+            }
+        }
+
         // Consume a charge
         if let Some(kit) = state.get_inventory_item_mut(obj_letter) {
             kit.enchantment -= 1;
         }
 
-        // Remove corpse, create tin
-        let corpse = state.current_level.objects.remove(idx);
-        let tin = Object::new(
+        // Create tin with corpse's monster type stored
+        let mut tin = Object::new(
             ObjectId(state.rng.rnd(10000)),
-            corpse.object_type,
+            corpse.object_type, // Preserves monster type (corpsenm)
             ObjectClass::Food,
         );
+        tin.name = Some(format!("tin of {} meat", monster_name));
+
+        // Tinning takes multiple turns in C (occupation system)
+        // For now: instant completion
         state.add_to_inventory(tin);
 
-        state.message("You tin the corpse.");
+        state.message(format!("You tin the {} corpse.", monster_name));
         ActionResult::Success
     } else {
         state.message("There's no corpse here to tin.");
@@ -1436,22 +1672,69 @@ fn apply_mirror(state: &mut GameState) -> ActionResult {
     ActionResult::Success
 }
 
-/// Apply a mirror in a direction -- can scare monsters.
+/// Apply a mirror in a direction — can scare monsters.
+///
+/// Port of C use_mirror() from apply.c lines 838-1009.
+/// Medusa: killed instantly by her own reflection (turned to stone).
+/// Vampires: not affected (no reflection).
+/// Nymphs: mesmerized, may steal the mirror.
+/// Others: 1/3 chance to flee.
 pub fn apply_mirror_at(state: &mut GameState, x: i8, y: i8) -> ActionResult {
-    if let Some(monster) = state.current_level.monster_at_mut(x, y) {
-        let monster_name = monster.name.clone();
-        if state.rng.one_in(3) {
-            monster.state.fleeing = true;
-            monster.flee_timeout = state.rng.dice(2, 6) as u16;
-            state.message(format!(
-                "The {} is frightened by its reflection!",
-                monster_name
-            ));
-        } else {
-            state.message(format!("The {} ignores the mirror.", monster_name));
+    // Phase 1: Read monster info without holding mutable borrow
+    let monster_info = state.current_level.monster_at(x, y).map(|monster| {
+        let mtype = monster.monster_type;
+        let mname = monster.name.clone();
+        let template_name = crate::data::get_monster(mtype)
+            .map(|m| m.name)
+            .unwrap_or("");
+        (mname, template_name.to_string())
+    });
+
+    let (monster_name, template_name) = match monster_info {
+        Some((name, tmpl)) => (name, tmpl),
+        None => {
+            state.message("You reflect the empty space.");
+            return ActionResult::Success;
         }
+    };
+
+    // Determine effect type and RNG values before mutating
+    let is_medusa = template_name == "Medusa";
+    let is_vampire = template_name.contains("vampire");
+    let is_nymph = template_name.contains("nymph");
+    let flee_roll = state.rng.one_in(3);
+    let flee_duration = state.rng.dice(2, 6) as u16;
+
+    // Phase 2: Apply effect
+    if is_medusa {
+        state.message("Medusa sees her own reflection and turns to stone!");
+        if let Some(monster) = state.current_level.monster_at_mut(x, y) {
+            monster.hp = 0;
+        }
+    } else if is_vampire {
+        state.message(format!(
+            "The {} doesn't have a reflection!",
+            monster_name
+        ));
+    } else if is_nymph {
+        state.message(format!(
+            "The {} is mesmerized by her reflection.",
+            monster_name
+        ));
+        if let Some(monster) = state.current_level.monster_at_mut(x, y) {
+            monster.state.paralyzed = true;
+        }
+    } else if flee_roll {
+        if let Some(monster) = state.current_level.monster_at_mut(x, y) {
+            monster.state.fleeing = true;
+            monster.flee_timeout = flee_duration;
+        }
+        state.message(format!(
+            "The {} is frightened by its reflection!",
+            monster_name
+        ));
     } else {
-        state.message("You reflect the empty space.");
+        state.message(format!("The {} ignores the mirror.", monster_name));
     }
 
     ActionResult::Success
@@ -1521,8 +1804,118 @@ pub fn use_cream_pie(state: &mut GameState) -> ActionResult {
     ActionResult::Success
 }
 
+/// Apply a crystal ball.
+///
+/// Port of C use_crystal_ball() from detect.c lines 1095-1235.
+/// Failure based on INT check or cursed status. Failures can cause
+/// confusion, blindness, hallucination, or explosion.
+/// Success reveals map information.
+pub fn apply_crystal_ball(state: &mut GameState, obj: &Object) -> ActionResult {
+    if state.player.blinded_timeout > 0 {
+        state.message("Too bad you can't see the crystal ball.");
+        return ActionResult::NoTime;
+    }
+
+    let charges = obj.enchantment; // spe = charges
+    let intelligence = state.player.attr_current.get(Attribute::Intelligence);
+
+    // Failure check: rnd(20) > INT or cursed
+    let oops = state.rng.rnd(20) > intelligence as u32 || obj.buc == BucStatus::Cursed;
+
+    if oops && charges > 0 {
+        // Negative effect on failure with charges remaining
+        match state.rng.rnd(5) {
+            1 => {
+                state.message("The crystal ball is too much to comprehend!");
+            }
+            2 => {
+                state.message("The crystal ball confuses you!");
+                state.player.confused_timeout += state.rng.rnd(100) as u16;
+            }
+            3 => {
+                if !state.player.properties.has(crate::player::Property::SleepResistance) {
+                    state.message("The crystal ball damages your vision!");
+                    state.player.blinded_timeout += state.rng.rnd(100) as u16;
+                } else {
+                    state.message("The crystal ball assaults your vision.");
+                    state.message("You are unaffected!");
+                }
+            }
+            4 => {
+                state.message("The crystal ball zaps your mind!");
+                state.player.hallucinating_timeout += state.rng.rnd(100) as u16;
+            }
+            _ => {
+                // Explosion — destroys the ball and deals damage
+                state.message("The crystal ball explodes!");
+                let damage = state.rng.rnd(30) as i32;
+                state.player.hp -= damage;
+                // Ball is consumed (caller should remove from inventory)
+                return ActionResult::Success;
+            }
+        }
+        // Consume a charge on failure
+        return ActionResult::Success;
+    }
+
+    if state.player.hallucinating_timeout > 0 {
+        // Hallucinating: fun messages, no real detection
+        if charges <= 0 {
+            state.message("All you see is funky colored haze.");
+        } else {
+            match state.rng.rnd(6) {
+                1 => state.message("You grok some groovy globs of incandescent lava."),
+                2 => state.message("Whoa! Psychedelic colors!"),
+                3 => state.message("The crystal pulses with sinister light!"),
+                4 => state.message("You see goldfish swimming above fluorescent rocks."),
+                5 => state.message("You see tiny snowflakes spinning around a miniature farmhouse."),
+                _ => state.message("Oh wow... like a kaleidoscope!"),
+            }
+            // Consume a charge
+        }
+        return ActionResult::Success;
+    }
+
+    // Actual scrying
+    state.message("You peer into the crystal ball...");
+
+    if charges <= 0 {
+        state.message("The vision is unclear.");
+    } else {
+        // Reveal map features around the player
+        let px = state.player.pos.x;
+        let py = state.player.pos.y;
+        let radius = 8i8;
+        let mut revealed = 0;
+
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
+                let nx = px + dx;
+                let ny = py + dy;
+                if state.current_level.is_valid_pos(nx, ny) {
+                    state.current_level.set_explored(nx, ny);
+                    revealed += 1;
+                }
+            }
+        }
+
+        if revealed > 0 {
+            state.message("You see visions of your surroundings!");
+        }
+
+        // 1% chance of Wizard of Yendor message
+        if state.rng.rn2(100) == 0 {
+            state.message("You see the Wizard of Yendor gazing out at you.");
+        }
+    }
+
+    ActionResult::Success
+}
+
 pub fn use_crystal_ball(state: &mut GameState) -> ActionResult {
-    state.message("You gaze into the crystal ball.");
+    // Simplified version for dispatch without object context
+    state.message("You gaze into the crystal ball...");
+    // Would need object to do full scrying
     ActionResult::Success
 }
 
@@ -1656,34 +2049,13 @@ pub fn use_trap(state: &mut GameState) -> ActionResult {
 }
 
 pub fn use_unicorn_horn(state: &mut GameState) -> ActionResult {
-    let mut cured = false;
-
-    if state.player.confused_timeout > 0 {
-        state.player.confused_timeout = 0;
-        state.message("Your head clears.");
-        cured = true;
-    }
-    if state.player.stunned_timeout > 0 {
-        state.player.stunned_timeout = 0;
-        state.message("You feel steadier.");
-        cured = true;
-    }
-    if state.player.blinded_timeout > 0 {
-        state.player.blinded_timeout = 0;
-        state.message("Your vision clears.");
-        cured = true;
-    }
-    if state.player.hallucinating_timeout > 0 {
-        state.player.hallucinating_timeout = 0;
-        state.message("Everything looks normal again.");
-        cured = true;
-    }
-
-    if !cured {
-        state.message("You feel healthy.");
-    }
-
-    ActionResult::Success
+    // Default to uncursed horn when called without object context
+    let obj = Object::new(
+        ObjectId(0),
+        0,
+        ObjectClass::Tool,
+    );
+    apply_unicorn_horn(state, &obj)
 }
 
 pub fn use_whip(state: &mut GameState) -> ActionResult {
@@ -2540,51 +2912,109 @@ mod tests {
     // ---- Unicorn horn tests ----
 
     #[test]
-    fn test_unicorn_horn_cures_confusion() {
-        let mut state = GameState::new(GameRng::new(42));
-        state.player.confused_timeout = 10;
-        let horn = Object::new(ObjectId(1), 213, ObjectClass::Tool);
-
-        apply_unicorn_horn(&mut state, &horn);
-        assert_eq!(state.player.confused_timeout, 0);
+    fn test_unicorn_horn_cures_confusion_probabilistic() {
+        // New C-accurate algorithm uses shuffled trouble list + random fix count.
+        // Run multiple seeds and verify that confusion is cured at least sometimes.
+        let mut cured_count = 0;
+        for seed in 0..50u64 {
+            let mut state = GameState::new(GameRng::new(seed));
+            state.player.confused_timeout = 10;
+            let horn = Object::new(ObjectId(1), 213, ObjectClass::Tool);
+            apply_unicorn_horn(&mut state, &horn);
+            if state.player.confused_timeout == 0 {
+                cured_count += 1;
+            }
+        }
+        // Uncursed: d(2,2) = 2-4, rn2 of that => 0-3 fixes.
+        // With 1 trouble, chance of fixing = P(rn2(dice) >= 1) ≈ 65-75%
+        assert!(cured_count > 10, "Horn should cure confusion at least sometimes, got {cured_count}/50");
     }
 
     #[test]
     fn test_unicorn_horn_blessed_cures_more() {
-        let mut state = GameState::new(GameRng::new(42));
-        state.player.confused_timeout = 10;
-        state.player.stunned_timeout = 10;
-        state.player.blinded_timeout = 10;
-        state.player.hallucinating_timeout = 10;
+        // Blessed: d(2,4) = 2-8, rn2 of that => 0-7 fixes.
+        // With 4 troubles, much higher chance of curing all.
+        let mut all_cured_count = 0;
+        for seed in 0..50u64 {
+            let mut state = GameState::new(GameRng::new(seed));
+            state.player.confused_timeout = 10;
+            state.player.stunned_timeout = 10;
+            state.player.blinded_timeout = 10;
+            state.player.hallucinating_timeout = 10;
 
-        let mut horn = Object::new(ObjectId(1), 213, ObjectClass::Tool);
-        horn.buc = BucStatus::Blessed;
+            let mut horn = Object::new(ObjectId(1), 213, ObjectClass::Tool);
+            horn.buc = BucStatus::Blessed;
 
-        apply_unicorn_horn(&mut state, &horn);
-        // Blessed should cure multiple ailments
-        let total_remaining = state.player.confused_timeout as i32
-            + state.player.stunned_timeout as i32
-            + state.player.blinded_timeout as i32
-            + state.player.hallucinating_timeout as i32;
-        assert_eq!(total_remaining, 0);
+            apply_unicorn_horn(&mut state, &horn);
+            let total_remaining = state.player.confused_timeout as i32
+                + state.player.stunned_timeout as i32
+                + state.player.blinded_timeout as i32
+                + state.player.hallucinating_timeout as i32;
+            if total_remaining == 0 {
+                all_cured_count += 1;
+            }
+        }
+        assert!(all_cured_count > 5, "Blessed horn should cure all 4 troubles often, got {all_cured_count}/50");
     }
 
     #[test]
     fn test_unicorn_horn_cursed_causes_harm() {
+        // Cursed horn always triggers an effect, but some effects (deaf, attr loss
+        // when already at min) aren't tracked by our timeout fields.
+        let mut had_effect_count = 0;
+        for seed in 0..50u64 {
+            let mut state = GameState::new(GameRng::new(seed));
+            // Set attrs above min so attr loss is detectable
+            for &attr in &ALL_ATTRIBUTES {
+                state.player.attr_current.set(attr, 10);
+            }
+            let starting_hp = state.player.hp;
+
+            let mut horn = Object::new(ObjectId(1), 213, ObjectClass::Tool);
+            horn.buc = BucStatus::Cursed;
+
+            apply_unicorn_horn(&mut state, &horn);
+            let had_observable_effect = state.player.hp < starting_hp
+                || state.player.confused_timeout > 0
+                || state.player.stunned_timeout > 0
+                || state.player.blinded_timeout > 0
+                || state.player.hallucinating_timeout > 0
+                || state.messages.iter().any(|m| m.contains("deaf") || m.contains("worse"));
+            if had_observable_effect {
+                had_effect_count += 1;
+            }
+        }
+        // Most should cause an observable effect
+        assert!(had_effect_count > 40, "Cursed horn should usually cause observable harm, got {had_effect_count}/50");
+    }
+
+    #[test]
+    fn test_unicorn_horn_no_troubles_nothing_happens() {
         let mut state = GameState::new(GameRng::new(42));
-        let starting_hp = state.player.hp;
-
-        let mut horn = Object::new(ObjectId(1), 213, ObjectClass::Tool);
-        horn.buc = BucStatus::Cursed;
-
+        // No ailments, no attribute loss
+        state.player.attr_current.set(Attribute::Strength, 18);
+        state.player.attr_max.set(Attribute::Strength, 18);
+        let horn = Object::new(ObjectId(1), 213, ObjectClass::Tool);
         apply_unicorn_horn(&mut state, &horn);
-        // Should cause some bad effect (hp loss or timeout increase)
-        let had_effect = state.player.hp < starting_hp
-            || state.player.confused_timeout > 0
-            || state.player.stunned_timeout > 0
-            || state.player.blinded_timeout > 0
-            || state.player.hallucinating_timeout > 0;
-        assert!(had_effect);
+        assert!(state.messages.iter().any(|m| m.contains("Nothing seems to happen")));
+    }
+
+    #[test]
+    fn test_unicorn_horn_restores_attributes() {
+        // With only attribute trouble (no property trouble), horn should restore stats
+        let mut restored_count = 0;
+        for seed in 0..50u64 {
+            let mut state = GameState::new(GameRng::new(seed));
+            state.player.attr_current.set(Attribute::Strength, 10);
+            state.player.attr_max.set(Attribute::Strength, 18);
+            let horn = Object::new(ObjectId(1), 213, ObjectClass::Tool);
+            let str_before = state.player.attr_current.get(Attribute::Strength);
+            apply_unicorn_horn(&mut state, &horn);
+            if state.player.attr_current.get(Attribute::Strength) > str_before {
+                restored_count += 1;
+            }
+        }
+        assert!(restored_count > 10, "Horn should restore attributes sometimes, got {restored_count}/50");
     }
 
     // ---- Dig tests ----
@@ -2951,5 +3381,116 @@ mod tests {
         unleash_all(&mut state);
 
         assert_eq!(number_leashed(&state), 0);
+    }
+
+    // ---- Crystal Ball tests ----
+
+    #[test]
+    fn test_crystal_ball_blind_player_fails() {
+        let mut state = GameState::new(GameRng::new(42));
+        state.player.blinded_timeout = 10;
+        let ball = Object::new(ObjectId(1), 0, ObjectClass::Tool);
+        let result = apply_crystal_ball(&mut state, &ball);
+        assert!(matches!(result, ActionResult::NoTime));
+    }
+
+    #[test]
+    fn test_crystal_ball_cursed_bad_effects() {
+        // Cursed ball always fails (oops = true)
+        let mut had_effect_count = 0;
+        for seed in 0..20u64 {
+            let mut state = GameState::new(GameRng::new(seed));
+            state.player.attr_current.set(Attribute::Intelligence, 18);
+            let mut ball = Object::new(ObjectId(1), 0, ObjectClass::Tool);
+            ball.buc = BucStatus::Cursed;
+            ball.enchantment = 5; // Has charges
+            apply_crystal_ball(&mut state, &ball);
+            let had_effect = state.player.confused_timeout > 0
+                || state.player.blinded_timeout > 0
+                || state.player.hallucinating_timeout > 0
+                || state.player.hp < state.player.hp_max
+                || state.messages.iter().any(|m| m.contains("too much to comprehend"));
+            if had_effect {
+                had_effect_count += 1;
+            }
+        }
+        assert_eq!(had_effect_count, 20, "Cursed ball should always cause bad effect");
+    }
+
+    #[test]
+    fn test_crystal_ball_high_int_succeeds() {
+        // With INT 20, rnd(20) > 20 is never true, so oops only if cursed
+        let mut state = GameState::new(GameRng::new(42));
+        state.player.attr_current.set(Attribute::Intelligence, 25);
+        let mut ball = Object::new(ObjectId(1), 0, ObjectClass::Tool);
+        ball.enchantment = 5;
+        apply_crystal_ball(&mut state, &ball);
+        // Should see visions or peer messages, not failure
+        assert!(state.messages.iter().any(|m| m.contains("peer") || m.contains("visions")));
+    }
+
+    // ---- Figurine tests ----
+
+    #[test]
+    fn test_figurine_blessed_tames() {
+        let mut tame_count = 0;
+        for seed in 0..50u64 {
+            let mut state = GameState::new(GameRng::new(seed));
+            state.current_level.monsters.clear();
+
+            let mut fig = Object::new(ObjectId(1), 0, ObjectClass::Tool);
+            fig.buc = BucStatus::Blessed;
+            fig.inv_letter = 'f';
+            state.inventory.push(fig);
+
+            apply_figurine(&mut state, 'f');
+            if state.current_level.monsters.iter().any(|m| m.state.tame) {
+                tame_count += 1;
+            }
+        }
+        // Blessed = 80% tame
+        assert!(tame_count > 25, "Blessed figurine should tame ~80% of the time, got {tame_count}/50");
+    }
+
+    #[test]
+    fn test_figurine_cursed_hostile() {
+        let mut hostile_count = 0;
+        for seed in 0..50u64 {
+            let mut state = GameState::new(GameRng::new(seed));
+            state.current_level.monsters.clear();
+
+            let mut fig = Object::new(ObjectId(1), 0, ObjectClass::Tool);
+            fig.buc = BucStatus::Cursed;
+            fig.inv_letter = 'f';
+            state.inventory.push(fig);
+
+            apply_figurine(&mut state, 'f');
+            if state.current_level.monsters.iter().any(|m| !m.state.tame && !m.state.peaceful) {
+                hostile_count += 1;
+            }
+        }
+        // Cursed = 80% hostile
+        assert!(hostile_count > 25, "Cursed figurine should be hostile ~80% of the time, got {hostile_count}/50");
+    }
+
+    // ---- Mirror tests ----
+
+    #[test]
+    fn test_mirror_scares_monster() {
+        let mut scared_count = 0;
+        for seed in 0..30u64 {
+            let mut state = GameState::new(GameRng::new(seed));
+            state.current_level.monsters.clear();
+            let mut monster = Monster::new(MonsterId(1), 11, 10, 11);
+            monster.name = "kobold".to_string();
+            state.current_level.add_monster(monster);
+
+            apply_mirror_at(&mut state, 10, 11);
+            if state.current_level.monsters.iter().any(|m| m.state.fleeing) {
+                scared_count += 1;
+            }
+        }
+        // 1/3 chance to flee
+        assert!(scared_count > 3, "Mirror should scare ~33% of the time, got {scared_count}/30");
     }
 }

@@ -18,9 +18,10 @@ use crate::player::You;
 use crate::rng::GameRng;
 
 use super::{
-    Monster, MonsterId, Strategy, mon_adjust_speed, mon_has_amulet, mon_set_minvis, newcham,
-    seemimic,
+    Monster, MonsterId, MonsterFlags, Strategy, mon_adjust_speed, mon_has_amulet, mon_set_minvis,
+    newcham, seemimic,
 };
+use super::item_usage::mzapwand;
 
 // ============================================================================
 // ITEM USAGE CONSTANTS (from muse.h)
@@ -423,16 +424,27 @@ pub fn dochug(
     }
 
     // Line 1987-1990: Attempt offensive item usage (mon.c:1987-1990)
-    // TODO: Check if monster should use offensive items
-    // TODO: if use_offensive_items(monster_id, level, player, rng): return result
+    if in_range {
+        if let Some(usage) = find_offensive(monster_id, level, player) {
+            let result = use_offensive(monster_id, level, &usage, rng);
+            if result != AiAction::Waited {
+                return result;
+            }
+        }
+    }
 
     // Line 1992-1995: Attempt miscellaneous item usage (mon.c:1992-1995)
-    // TODO: Check if monster should use miscellaneous items
-    // TODO: if use_misc_items(monster_id, level, player, rng): return result
+    if let Some(usage) = find_misc(monster_id, level, player) {
+        let result = use_misc(monster_id, level, &usage, rng);
+        if result != AiAction::Waited {
+            return result;
+        }
+    }
 
     // ========== SECTION B.5: TACTICAL AI SYSTEM (Phase 18) ==========
 
-    // Update monster tactical state (morale, resources, threat assessment)
+    // Extensions: Update monster tactical state (morale, resources, threat assessment)
+    #[cfg(feature = "extensions")]
     {
         use crate::monster::combat_hooks;
         combat_hooks::update_monster_combat_readiness(monster_id, level, player);
@@ -440,12 +452,17 @@ pub fn dochug(
 
     // Check for intelligent retreat based on morale and personality
     let should_retreat = {
-        if let Some(monster) = level.monster(monster_id) {
-            use crate::monster::tactical_ai;
-            tactical_ai::should_retreat_tactical(monster, player).is_some()
-        } else {
-            false
+        #[cfg(feature = "extensions")]
+        {
+            if let Some(monster) = level.monster(monster_id) {
+                use crate::monster::tactical_ai;
+                tactical_ai::should_retreat_tactical(monster, player).is_some()
+            } else {
+                false
+            }
         }
+        #[cfg(not(feature = "extensions"))]
+        false
     };
 
     if should_retreat {
@@ -1214,6 +1231,67 @@ pub fn determine_strategy(monster_id: MonsterId, level: &Level) -> u32 {
     Strategy::PLAYER
 }
 
+// ============================================================================
+// Monster item consumption helpers (muse.c m_useup / mzapwand)
+// ============================================================================
+
+/// Remove an item from a monster's inventory (C: m_useup).
+/// The item at `item_idx` is consumed and removed.
+fn m_useup(level: &mut Level, monster_id: MonsterId, item_idx: usize) {
+    if let Some(m) = level.monster_mut(monster_id) {
+        if item_idx < m.inventory.len() {
+            m.inventory.remove(item_idx);
+        }
+    }
+}
+
+/// Zap a wand from a monster's inventory, handling the borrow issue by
+/// temporarily removing the item. Returns true if wand still exists after zap.
+fn monster_zap_wand_at_idx(
+    level: &mut Level,
+    monster_id: MonsterId,
+    item_idx: usize,
+    rng: &mut GameRng,
+) -> bool {
+    // Temporarily remove the wand from inventory
+    let wand = {
+        let Some(m) = level.monster_mut(monster_id) else {
+            return false;
+        };
+        if item_idx >= m.inventory.len() {
+            return false;
+        }
+        m.inventory.remove(item_idx)
+    };
+
+    // Zap it
+    let mut wand = wand;
+    let survived = {
+        let Some(m) = level.monster_mut(monster_id) else {
+            return false;
+        };
+        mzapwand(m, &mut wand, rng)
+    };
+
+    // Put it back if it survived
+    if survived {
+        if let Some(m) = level.monster_mut(monster_id) {
+            // Insert back at original index (or end if inventory shrunk)
+            let idx = item_idx.min(m.inventory.len());
+            m.inventory.insert(idx, wand);
+        }
+    }
+
+    survived
+}
+
+/// Display a monster quaffing a potion message.
+#[allow(dead_code)]
+fn monster_quaff_msg(level: &Level, monster_id: MonsterId) -> Option<String> {
+    let m = level.monster(monster_id)?;
+    Some(format!("{} drinks a potion.", m.name))
+}
+
 /// Find and select a defensive item for monster use (find_defensive from muse.c:328-622)
 ///
 /// Full 100% logic translation of muse.c find_defensive()
@@ -1255,8 +1333,7 @@ pub fn find_defensive(monster_id: MonsterId, level: &Level, player: &You) -> Opt
     if monster.state.confused || monster.state.stunned || monster.state.blinded {
         // Non-unicorns look for unicorn horn in inventory
         // Skip unicorn-type monsters (they're already confused-immune)
-        // TODO: Check if monster.data.is_unicorn() to skip self-horn
-        let is_self_unicorn = false; // Default to allowing horn use
+        let is_self_unicorn = monster.name.contains("unicorn");
 
         if !is_self_unicorn {
             for (idx, obj) in monster.inventory.iter().enumerate() {
@@ -1293,9 +1370,10 @@ pub fn find_defensive(monster_id: MonsterId, level: &Level, player: &You) -> Opt
         }
         // Use lizard tin if monster can open it
         if let Some(idx) = lizard_tin {
-            // TODO: Check monster_can_open_tin()
-            // For now, simplified: assume yes if not too confused
-            if !monster.state.confused || monster.confused_timeout < 10 {
+            // Monster needs hands to open a tin, and must not be too confused
+            if !monster.flags.contains(MonsterFlags::NOHANDS)
+                && (!monster.state.confused || monster.confused_timeout < 10)
+            {
                 usage.defensive = Some(idx);
                 usage.has_defense = MUSE_LIZARD_CORPSE;
                 return Some(usage);
@@ -1352,9 +1430,8 @@ pub fn find_defensive(monster_id: MonsterId, level: &Level, player: &You) -> Opt
 
     for (idx, obj) in monster.inventory.iter().enumerate() {
         // Wand of teleportation (spe > 0)
-        if obj.object_type == 30 && obj.enchantment > 0 {
-            // WAN_TELEPORTATION - check if teleport is useful here
-            // TODO: Check level.flags.noteleport
+        if obj.object_type == 30 && obj.enchantment > 0 && !level.flags.no_teleport {
+            // WAN_TELEPORTATION - check if teleport is allowed on this level
             usage.defensive = Some(idx);
             // Check if monster has amulet (if so, use WAN_TELEPORTATION else SELF)
             usage.has_defense = MUSE_WAN_TELEPORTATION_SELF;
@@ -1370,9 +1447,15 @@ pub fn find_defensive(monster_id: MonsterId, level: &Level, player: &You) -> Opt
         }
 
         // Wand of digging (spe > 0, various checks)
-        if obj.object_type == 31 && obj.enchantment > 0 {
-            // WAN_DIGGING - check various conditions
-            // TODO: Check !stuck, !trap, !shopkeeper, !guard, !priest, !floater, !sokoban, !non-diggable, !bottom_level, !endgame, !pool/lava/ice
+        if obj.object_type == 31
+            && obj.enchantment > 0
+            && !monster.is_shopkeeper
+            && !monster.is_guard
+            && !monster.is_priest
+            && monster.flags.contains(MonsterFlags::TUNNEL)
+        {
+            // WAN_DIGGING - monster must not be an NPC and must be tunnel-capable
+            // TODO: Also check !stuck, !trap, !floater, !sokoban, !non-diggable, !bottom_level, !endgame, !pool/lava/ice
             usage.defensive = Some(idx);
             usage.has_defense = MUSE_WAN_DIGGING;
             return Some(usage);
@@ -1432,24 +1515,13 @@ pub fn find_offensive(monster_id: MonsterId, level: &Level, player: &You) -> Opt
         return None; // Peaceful monsters don't attack
     }
 
-    // TODO: Check monster.data.is_animal() && !is_capable_of_tool_use
-    // TODO: Check monster.data.is_mindless()
-    // TODO: Check monster.data.nohands()
-
-    // Can't use if player is swallowed (line 1095)
-    // Line 1095: Check if player is swallowed (safe in belly = no offensive use)
-    // TODO: Check player.swallowed_by for valid monster ID
-    // For now, allow offensive use (conservative)
-
-    // Can't use in sanctuary (line 1097)
-    // Line 1097: Check if in sanctuary where monsters can't attack
-    // TODO: Check level.cells[monster.x][monster.y].is_sanctuary()
-    // For now, allow offensive use (conservative)
-
-    // Healing monsters with no armor don't need offensive items (line 1099-1102)
-    // Line 1099-1102: Healing monsters are passive
-    // TODO: Check if monster.data.dmgtype == HEAL (non-attacking)
-    // TODO: Check if no armor on self (not defensive enough)
+    // Animals, mindless creatures, and those without hands can't use items
+    if monster.flags.contains(MonsterFlags::ANIMAL)
+        || monster.flags.contains(MonsterFlags::MINDLESS)
+        || monster.flags.contains(MonsterFlags::NOHANDS)
+    {
+        return None;
+    }
 
     // All offensive items require orthogonal or diagonal targeting (line 1104)
     // Line 1104: Must be lined up with player for offensive items
@@ -1517,15 +1589,20 @@ pub fn find_offensive(monster_id: MonsterId, level: &Level, player: &You) -> Opt
         // Check horns (TOOL class with special object types)
         if obj.class == crate::object::ObjectClass::Tool && obj.enchantment > 0 {
             // MUSE_FIRE_HORN (line 1127-1130) - object type 152
-            if usage.has_offense != MUSE_FIRE_HORN && obj.object_type == 152 {
-                // TODO: Check can_blow(mtmp)
+            // can_blow: monster needs hands to blow a horn
+            if usage.has_offense != MUSE_FIRE_HORN
+                && obj.object_type == 152
+                && !monster.flags.contains(MonsterFlags::NOHANDS)
+            {
                 usage.offensive = Some(idx);
                 usage.has_offense = MUSE_FIRE_HORN;
             }
 
             // MUSE_FROST_HORN (line 1137-1140) - object type 153
-            if usage.has_offense != MUSE_FROST_HORN && obj.object_type == 153 {
-                // TODO: Check can_blow(mtmp)
+            if usage.has_offense != MUSE_FROST_HORN
+                && obj.object_type == 153
+                && !monster.flags.contains(MonsterFlags::NOHANDS)
+            {
                 usage.offensive = Some(idx);
                 usage.has_offense = MUSE_FROST_HORN;
             }
@@ -1571,10 +1648,12 @@ pub fn find_offensive(monster_id: MonsterId, level: &Level, player: &You) -> Opt
             // MUSE_SCR_EARTH (line 1205-1216) - object type 37
             // Complex conditions: within 2 squares AND (metallic helmet OR confused OR amorphous/etc)
             if usage.has_offense != MUSE_SCR_EARTH && obj.object_type == 37 && dist_sq <= 4 {
-                let can_use_earth = monster.state.confused;
-                // TODO: Check metallic helmet (which_armor), amorphous, passes_walls, noncorporeal, unsolid
-                // TODO: Check !rn2(10) for 10% fallback (line 1209)
-                // TODO: Check monster.state.can_see && haseyes(mtmp->data)
+                let can_use_earth = monster.state.confused
+                    || monster.flags.contains(MonsterFlags::AMORPHOUS)
+                    || monster.flags.contains(MonsterFlags::WALLWALK)
+                    || monster.flags.contains(MonsterFlags::UNSOLID)
+                    // TODO: Check metallic helmet (which_armor)
+                    || !monster.flags.contains(MonsterFlags::NOEYES); // has eyes = can see boulders
 
                 if can_use_earth {
                     usage.offensive = Some(idx);
@@ -1598,14 +1677,10 @@ pub fn find_offensive(monster_id: MonsterId, level: &Level, player: &You) -> Opt
 /// - AiAction::Died if monster died during action (return value 1 from C)
 ///
 /// Full 100% logic translation handles all MUSE_* offensive cases
-pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage) -> AiAction {
+pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage, rng: &mut GameRng) -> AiAction {
     let Some(monster) = level.monster(monster_id) else {
         return AiAction::Waited;
     };
-
-    // Offensive potions are thrown, not drunk (line 1413-1415)
-    // Non-potion items require precheck validation
-    // TODO: Implement precheck() for item validation
 
     match usage.has_offense {
         // ==== CASE: Wand-based attacks (lines 1419-1433) ====
@@ -1615,29 +1690,24 @@ pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
         | MUSE_WAN_COLD
         | MUSE_WAN_LIGHTNING
         | MUSE_WAN_MAGIC_MISSILE => {
-            // Consume wand charges via mzapwand() (line 1425)
-            // TODO: Call mzapwand(mtmp, otmp, FALSE) - requires mutable access to item
+            // Consume wand charges via mzapwand()
+            if let Some(idx) = usage.offensive {
+                monster_zap_wand_at_idx(level, monster_id, idx, rng);
+            }
 
-            // If visible, identify the item (line 1426-1427)
-            // TODO: if (oseen) makeknown(otmp->otyp)
-
-            // Set m_using = TRUE for context (line 1428)
-            // Calculate range based on wand type (line 1429-1431)
-            // MAGIC_MISSILE range = 2, others = 6
-            let range = if usage.has_offense == MUSE_WAN_MAGIC_MISSILE {
+            // Calculate range based on wand type (MAGIC_MISSILE = 2, others = 6)
+            let _range = if usage.has_offense == MUSE_WAN_MAGIC_MISSILE {
                 2
             } else {
                 6
             };
 
-            // Call buzz() to fire the wand bolt
-            // buzz((int)(-30 - (otmp->otyp - WAN_MAGIC_MISSILE)), range, ...)
-            // TODO: Map wand type to ZapType and call zap_direction()
-            // TODO: Handle ray tracing from monster toward player
-            // TODO: Apply damage and effects to target
+            // TODO: Map wand type to ZapType and call buzz() for ray tracing
 
-            // Return 1 if monster died, 2 if survived (line 1433)
-            if !monster.is_dead() {
+            let Some(m) = level.monster(monster_id) else {
+                return AiAction::Died;
+            };
+            if !m.is_dead() {
                 AiAction::Waited
             } else {
                 AiAction::Died
@@ -1646,20 +1716,21 @@ pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
 
         // ==== CASE: Horn attacks (lines 1434-1442) ====
         MUSE_FIRE_HORN | MUSE_FROST_HORN => {
-            // Play horn via mplayhorn() (line 1436)
-            // TODO: Call mplayhorn(mtmp, otmp, FALSE) - requires mutable access to item
+            // Play horn (consume charges) via extract-modify-put-back pattern
+            if let Some(idx) = usage.offensive {
+                // Same pattern as wand: temporarily extract, play, put back
+                monster_zap_wand_at_idx(level, monster_id, idx, rng);
+            }
 
-            // Set m_using = TRUE for context
-            // Calculate random range: rn1(6, 6) = 1d6+6 (line 1439)
-            // For now, use fixed range; TODO: add RNG for proper randomness
-            let range = 12i32; // Simplified: no RNG, use fixed value
+            // Range: rn1(6, 6) = 1d6+6
+            let _range = rng.rnd(6) as i32 + 6;
 
-            // Call buzz() with AD_COLD or AD_FIRE damage (line 1438)
-            // TODO: Map horn type (FIRE_HORN vs FROST_HORN) to ZapType
-            // TODO: Call zap_direction() with appropriate type
-            // TODO: Handle ray tracing and collision
+            // TODO: Call buzz() with AD_FIRE or AD_COLD for ray tracing
 
-            if monster.state.alive {
+            let Some(m) = level.monster(monster_id) else {
+                return AiAction::Died;
+            };
+            if m.state.alive {
                 AiAction::Waited
             } else {
                 AiAction::Died
@@ -1668,67 +1739,46 @@ pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
 
         // ==== CASE: Wand of teleportation and striking (lines 1443-1450) ====
         MUSE_WAN_TELEPORTATION | MUSE_WAN_STRIKING => {
-            // Set zap_oseen global for mbhitm callback (line 1445)
-            // TODO: Set global zap_oseen flag
+            // Consume wand charges
+            if let Some(idx) = usage.offensive {
+                monster_zap_wand_at_idx(level, monster_id, idx, rng);
+            }
 
-            // Consume wand charges via mzapwand() (line 1446)
-            // TODO: Call mzapwand(mtmp, otmp, FALSE) - requires mutable access to item
-
-            // Set m_using = TRUE for context
-            // Call mbhit() with generic handler (line 1448)
             // Range = rn1(8, 6) = 1d8+6
-            // For now, use fixed range; TODO: add RNG for proper randomness
-            let range = 14i32; // Simplified: no RNG, use fixed value
+            let _range = rng.rnd(8) as i32 + 6;
 
-            // TODO: Call bhit() with ray tracing
-            // TODO: Handle collision and effects (teleport or strike damage)
-            // TODO: Apply effects to each creature in path
+            // TODO: Call mbhit() for ray tracing and effects
 
             AiAction::Waited
         }
 
         // ==== CASE: Scroll of earth - area effect (lines 1451-1495) ====
         MUSE_SCR_EARTH => {
-            let monster_confused = monster.state.confused;
+            let _monster_confused = monster.state.confused;
             let monster_x = monster.x;
             let monster_y = monster.y;
 
-            // Display message (line 1462-1473)
-            // TODO: Display ceiling rumble message
-
-            // Loop through 3x3 area around monster (line 1476-1487)
+            // Drop boulders in 3x3 area around monster
             for dx in -1i32..=1i32 {
                 for dy in -1i32..=1i32 {
-                    let x = monster_x as i32 + dx;
-                    let y = monster_y as i32 + dy;
-
-                    // Check if position is valid (line 1479-1483)
-                    // Conditions:
-                    // - Within bounds (isok)
-                    if x < 0 || x >= crate::COLNO as i32 || y < 0 || y >= crate::ROWNO as i32 {
+                    let bx = monster_x as i32 + dx;
+                    let by = monster_y as i32 + dy;
+                    if bx < 0 || bx >= crate::COLNO as i32 || by < 0 || by >= crate::ROWNO as i32 {
                         continue;
                     }
-
-                    let (x, y) = (x as i8, y as i8);
-                    let is_center = dx == 0 && dy == 0;
-
-                    // TODO: Check actual terrain - skip rock, wall, closed door
-                    // TODO: Center square: not blessed
-                    // TODO: Other squares: not cursed
-
-                    // Drop boulder on the square (line 1484)
-                    // TODO: drop_boulder_on_target(x, y, level, monster_confused)
+                    // TODO: Check terrain, drop boulders via drop_boulder_on_target()
                 }
             }
 
-            // Consume the scroll (line 1488)
-            // TODO: m_useup(mtmp, otmp)
+            // Consume the scroll
+            if let Some(idx) = usage.offensive {
+                m_useup(level, monster_id, idx);
+            }
 
-            // Attack player if adjacent (line 1490-1492)
-            // TODO: if (distmin(mmx, mmy, u.ux, u.uy) == 1 && !is_cursed)
-            // TODO: drop_boulder_on_player(confused, !is_cursed, FALSE, TRUE)
-
-            if monster.state.alive {
+            let Some(m) = level.monster(monster_id) else {
+                return AiAction::Died;
+            };
+            if m.state.alive {
                 AiAction::Waited
             } else {
                 AiAction::Died
@@ -1790,7 +1840,11 @@ pub fn find_misc(monster_id: MonsterId, level: &Level, player: &You) -> Option<I
     let mut usage = ItemUsage::default();
 
     // Check animal/mindless monsters (line 1644-1645)
-    // TODO: Check is_animal(mdat), mindless(mdat)
+    if monster.flags.contains(MonsterFlags::ANIMAL)
+        || monster.flags.contains(MonsterFlags::MINDLESS)
+    {
+        return None;
+    }
 
     // Check if swallowed and stuck (line 1646-1647)
     // TODO: Check u.uswallow && stuck
@@ -1809,7 +1863,9 @@ pub fn find_misc(monster_id: MonsterId, level: &Level, player: &You) -> Option<I
     // TODO: If found, set trapx/trapy globals and return MUSE_POLY_TRAP
 
     // Check if no hands (line 1679-1680)
-    // TODO: Check nohands(mdat)
+    if monster.flags.contains(MonsterFlags::NOHANDS) {
+        return None;
+    }
 
     // Iterate through monster inventory (line 1689)
     for (idx, obj) in monster.inventory.iter().enumerate() {
@@ -1831,10 +1887,17 @@ pub fn find_misc(monster_id: MonsterId, level: &Level, player: &You) -> Option<I
             // POT_INVISIBILITY (line 1723-1729) - object type 98
             if usage.has_misc != MUSE_POT_INVISIBILITY && obj.object_type == 98 {
                 if !monster.state.invisible && !monster.state.invis_blocked {
-                    if monster.state.peaceful {
-                        // TODO: Check See_invisible
-                    } else {
-                        // TODO: Check !attacktype(mtmp->data, AT_GAZE) || mtmp->mcan
+                    // Hostile: go invisible unless has uncancelled gaze attack
+                    // (cancelled gaze = useless, so might as well go invisible)
+                    if !monster.state.peaceful && monster.state.cancelled {
+                        // Cancelled monsters can always go invisible
+                        usage.misc = Some(idx);
+                        usage.has_misc = MUSE_POT_INVISIBILITY;
+                    } else if !monster.state.peaceful
+                        && !monster.flags.contains(MonsterFlags::NOEYES)
+                    {
+                        // Non-gaze monsters benefit from invisibility
+                        // TODO: Full attacktype(AT_GAZE) check needs attack table
                         usage.misc = Some(idx);
                         usage.has_misc = MUSE_POT_INVISIBILITY;
                     }
@@ -1862,10 +1925,13 @@ pub fn find_misc(monster_id: MonsterId, level: &Level, player: &You) -> Option<I
             // WAN_MAKE_INVISIBLE (line 1716-1722) - object type 130
             if usage.has_misc != MUSE_WAN_MAKE_INVISIBLE && obj.object_type == 130 {
                 if !monster.state.invisible && !monster.state.invis_blocked {
-                    if monster.state.peaceful {
-                        // TODO: Check See_invisible
-                    } else {
-                        // TODO: Check !attacktype(mtmp->data, AT_GAZE) || mtmp->mcan
+                    if !monster.state.peaceful && monster.state.cancelled {
+                        usage.misc = Some(idx);
+                        usage.has_misc = MUSE_WAN_MAKE_INVISIBLE;
+                    } else if !monster.state.peaceful
+                        && !monster.flags.contains(MonsterFlags::NOEYES)
+                    {
+                        // TODO: Full attacktype(AT_GAZE) check needs attack table
                         usage.misc = Some(idx);
                         usage.has_misc = MUSE_WAN_MAKE_INVISIBLE;
                     }
@@ -1920,7 +1986,7 @@ pub fn find_misc(monster_id: MonsterId, level: &Level, player: &You) -> Option<I
 /// - AiAction::Attacked if monster used up its action (return value 2 from C)
 ///
 /// Full 100% logic translation handles all MUSE_* cases
-pub fn use_defensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage) -> AiAction {
+pub fn use_defensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage, rng: &mut GameRng) -> AiAction {
     match usage.has_defense {
         // ==== CASE: MUSE_UNICORN_HORN (lines 652-667) ====
         MUSE_UNICORN_HORN => {
@@ -1939,7 +2005,24 @@ pub fn use_defensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
         // ==== CASE: MUSE_BUGLE (lines 668-674) ====
         MUSE_BUGLE => {
             // Bugle summons nearby mercenaries (simplest case - just mark action taken)
-            // TODO: Implement awaken_soldiers() from monmove.c
+            // Bugle wakes nearby soldiers
+            let pos = level.monster(monster_id).map(|m| (m.x, m.y));
+            if let Some((mx, my)) = pos {
+                let soldiers: Vec<MonsterId> = level.monsters.iter()
+                    .filter(|other| {
+                        other.id != monster_id
+                            && other.is_soldier()
+                            && (other.x as i32 - mx as i32).abs() <= 10
+                            && (other.y as i32 - my as i32).abs() <= 10
+                    })
+                    .map(|m| m.id)
+                    .collect();
+                for sid in soldiers {
+                    if let Some(s) = level.monster_mut(sid) {
+                        s.state.sleeping = false;
+                    }
+                }
+            }
             AiAction::Waited // Monster used action
         }
 
@@ -1986,8 +2069,6 @@ pub fn use_defensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
             // Digging wand - creates hole downward for escape
             // Checks: not furniture, not drawbridge, can dig down, not Sokoban, etc.
             if let Some(m) = level.monster_mut(monster_id) {
-                let mx = m.x;
-                let my = m.y;
                 // TODO: Check terrain - can only dig in open floor (not rock/wall)
                 // TODO: Create HOLE trap at current location with create_trap()
                 // TODO: Migrate monster down with migrate_monster_to_level()
@@ -2006,10 +2087,9 @@ pub fn use_defensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
 
                 // Try to find an adjacent empty position
                 // TODO: Implement full enexto() search for better position
-                if let Some((new_x, new_y)) = enexto(mx, my, level) {
+                if let Some((_new_x, _new_y)) = enexto(mx, my, level) {
                     // TODO: Call makemon() to create random monster
                     // TODO: Handle aquatic bias: Giant Eel if player in water, else Crocodile
-                    // Placeholder: monsters would be created here
                 }
             }
             AiAction::Waited
@@ -2028,13 +2108,18 @@ pub fn use_defensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
                 let my = m.y;
                 let monster_confused = m.state.confused;
 
-                // Calculate count (simplified without RNG)
-                // TODO: Use RNG to calculate: 1 + (rn1(4, 1) if rn2(73) == 0) + (12 if confused)
-                let count = if monster_confused { 13 } else { 1 };
+                // Calculate count: 1 + (1d4 with 1/73 chance) + (12 if confused)
+                let mut count: u32 = 1;
+                if rng.rn2(73) == 0 {
+                    count += rng.rnd(4);
+                }
+                if monster_confused {
+                    count += 12;
+                }
 
                 // Create monsters at adjacent positions
                 for _ in 0..count {
-                    if let Some((new_x, new_y)) = enexto(mx, my, level) {
+                    if let Some((_new_x, _new_y)) = enexto(mx, my, level) {
                         // TODO: Call makemon() to create creature
                         // TODO: Handle fish bias toward water creatures if not confused
                     }
@@ -2118,7 +2203,7 @@ pub fn use_defensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
 /// - AiAction::Died if monster died during action (return value 1 from C)
 ///
 /// Full 100% logic translation handles all MUSE_* misc cases
-pub fn use_misc(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage) -> AiAction {
+pub fn use_misc(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage, rng: &mut GameRng) -> AiAction {
     let Some(_monster) = level.monster(monster_id) else {
         return AiAction::Waited;
     };
@@ -2129,40 +2214,17 @@ pub fn use_misc(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage) -> 
     match usage.has_misc {
         // ==== CASE: MUSE_POT_GAIN_LEVEL (lines 1791-1833) ====
         MUSE_POT_GAIN_LEVEL => {
-            // Display quaff message (line 1792)
-            // TODO: mquaffmsg(mtmp, otmp)
-
             if let Some(m) = level.monster_mut(monster_id) {
-                // Check if cursed (inverted effect)
-                // TODO: Check actual item cursestate - for now, assume uncursed
-                let is_cursed = false;
+                // Increase experience/level (uncursed effect)
+                m.level = (m.level + 1).min(30);
+                m.hp_max = m.hp_max.saturating_add(2);
+                m.hp = m.hp.saturating_add(2);
+                // TODO: Call grow_up() for abilities/AC update
+            }
 
-                if is_cursed {
-                    // TODO: if cursed (lines 1793-1814):
-                    // - Check Can_rise_up() - can monster go to upper level?
-                    // - Get upper level depth (line 1795-1796)
-                    // - Check not already on that level (line 1800)
-                    // - If vismon, display rising message (line 1803-1804)
-                    // - Consume potion (line 1809)
-                    // - Migrate to level (line 1810-1811)
-                    // - Return 2
-                    m.strategy = Strategy::new(m.strategy.bits() | Strategy::WAIT); // Simplified
-                } else {
-                    // Not cursed (lines 1815-1833):
-                    // Display "seems more experienced" message (line 1826)
-                    // TODO: Display message
-
-                    // Increase experience/level
-                    m.level = (m.level + 1).min(30); // Cap at reasonable level
-                    m.hp_max = m.hp_max.saturating_add(2);
-                    m.hp = m.hp.saturating_add(2);
-
-                    // TODO: Call grow_up() - update abilities/AC/etc
-                    // TODO: Return 1 if died, 2 if survived (line 1830-1833)
-                }
-
-                // TODO: Consume potion (line 1829/1809)
-                // m_useup(mtmp, otmp)
+            // Consume the potion
+            if let Some(idx) = usage.misc {
+                m_useup(level, monster_id, idx);
             }
 
             AiAction::Waited
@@ -2170,30 +2232,25 @@ pub fn use_misc(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage) -> 
 
         // ==== CASE: Invisibility (wand and potion) (lines 1834-1861) ====
         MUSE_WAN_MAKE_INVISIBLE | MUSE_POT_INVISIBILITY => {
+            let is_wand = usage.has_misc == MUSE_WAN_MAKE_INVISIBLE;
+
+            // Wand: consume charges
+            if is_wand {
+                if let Some(idx) = usage.misc {
+                    monster_zap_wand_at_idx(level, monster_id, idx, rng);
+                }
+            }
+
+            // Set monster invisible
             if let Some(m) = level.monster_mut(monster_id) {
-                // If wand: consume charges (line 1836-1837)
-                // TODO: mzapwand(mtmp, otmp, TRUE) - requires mutable item access
-
-                // If potion: display quaff message (line 1838-1839)
-                // TODO: mquaffmsg(mtmp, otmp)
-
-                // Format monster name before visibility change (line 1841)
-                // TODO: Strcpy(nambuf, mon_nam(mtmp)) - for message display
-
-                // Set monster invisible (line 1842)
                 mon_set_minvis(m);
+            }
 
-                // Display visibility change message (line 1843-1855)
-                // TODO: if (vismon && mtmp->minvis)
-                // TODO: if (canspotmon) show transparency message
-                // TODO: else show "cannot see" message
-
-                // If potion and cursed: aggravate player (line 1856-1858)
-                // TODO: if (otmp->otyp == POT_INVISIBILITY && otmp->cursed)
-                // TODO: you_aggravate(mtmp)
-
-                // Consume potion (line 1859)
-                // TODO: m_useup(mtmp, otmp)
+            // Potion: consume after use
+            if !is_wand {
+                if let Some(idx) = usage.misc {
+                    m_useup(level, monster_id, idx);
+                }
             }
 
             AiAction::Waited
@@ -2201,11 +2258,13 @@ pub fn use_misc(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage) -> 
 
         // ==== CASE: MUSE_WAN_SPEED_MONSTER (lines 1862-1865) ====
         MUSE_WAN_SPEED_MONSTER => {
-            if let Some(m) = level.monster_mut(monster_id) {
-                // Consume wand charges (line 1863)
-                // TODO: mzapwand(mtmp, otmp, TRUE) - requires mutable item access
+            // Consume wand charges
+            if let Some(idx) = usage.misc {
+                monster_zap_wand_at_idx(level, monster_id, idx, rng);
+            }
 
-                // Increase speed (line 1864)
+            // Increase speed
+            if let Some(m) = level.monster_mut(monster_id) {
                 mon_adjust_speed(m, 1, None);
             }
 
@@ -2214,15 +2273,14 @@ pub fn use_misc(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage) -> 
 
         // ==== CASE: MUSE_POT_SPEED (lines 1866-1874) ====
         MUSE_POT_SPEED => {
+            // Increase speed permanently
             if let Some(m) = level.monster_mut(monster_id) {
-                // Display quaff message (line 1867)
-                // TODO: mquaffmsg(mtmp, otmp)
-
-                // Increase speed permanently (line 1872)
                 mon_adjust_speed(m, 1, None);
+            }
 
-                // Consume potion (line 1873)
-                // TODO: m_useup(mtmp, otmp)
+            // Consume potion
+            if let Some(idx) = usage.misc {
+                m_useup(level, monster_id, idx);
             }
 
             AiAction::Waited
@@ -2230,16 +2288,14 @@ pub fn use_misc(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage) -> 
 
         // ==== CASE: MUSE_WAN_POLYMORPH (lines 1875-1880) ====
         MUSE_WAN_POLYMORPH => {
+            // Consume wand charges
+            if let Some(idx) = usage.misc {
+                monster_zap_wand_at_idx(level, monster_id, idx, rng);
+            }
+
+            // Polymorph monster
             if let Some(m) = level.monster_mut(monster_id) {
-                // Consume wand charges (line 1876)
-                // TODO: mzapwand(mtmp, otmp, TRUE) - requires mutable item access
-
-                // Polymorph monster (line 1877)
-                // TODO: muse_newcham_mon(mtmp) - select appropriate new form
                 newcham(m, None);
-
-                // If visible, identify (line 1878-1879)
-                // TODO: if (oseen) makeknown(WAN_POLYMORPH)
             }
 
             AiAction::Waited
@@ -2247,22 +2303,14 @@ pub fn use_misc(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage) -> 
 
         // ==== CASE: MUSE_POT_POLYMORPH (lines 1881-1889) ====
         MUSE_POT_POLYMORPH => {
+            // Polymorph monster
             if let Some(m) = level.monster_mut(monster_id) {
-                // Display quaff message (line 1882)
-                // TODO: mquaffmsg(mtmp, otmp)
-
-                // Display mutation message if visible (line 1883-1884)
-                // TODO: if (vismon) pline("%s suddenly mutates!", Monnam(mtmp))
-
-                // Polymorph monster (line 1885)
-                // TODO: muse_newcham_mon(mtmp) - select appropriate new form
                 newcham(m, None);
+            }
 
-                // If visible, identify (line 1886-1887)
-                // TODO: if (oseen) makeknown(POT_POLYMORPH)
-
-                // Consume potion (line 1888)
-                // TODO: m_useup(mtmp, otmp)
+            // Consume potion
+            if let Some(idx) = usage.misc {
+                m_useup(level, monster_id, idx);
             }
 
             AiAction::Waited
@@ -2452,11 +2500,15 @@ pub fn peace_minded(monster_id: MonsterId, level: &Level, player: &You) -> bool 
         None => return true, // Assume peaceful for unknown
     };
 
-    // TODO: Check always_peaceful flag (M2_PEACEFUL)
-    // if monster.data.flags.always_peaceful: return true
+    // Check always_peaceful flag (M2_PEACEFUL)
+    if monster.flags.contains(MonsterFlags::PEACEFUL) {
+        return true;
+    }
 
-    // TODO: Check always_hostile flag (M2_HOSTILE)
-    // if monster.data.flags.always_hostile: return false
+    // Check always_hostile flag (M2_HOSTILE)
+    if monster.flags.contains(MonsterFlags::HOSTILE) {
+        return false;
+    }
 
     // Line 2018-2024: Check monster sound type
     // Leaders and Guardians are peaceful (alignment determines hostility later)
@@ -2514,27 +2566,24 @@ pub fn reset_hostility(monster_id: MonsterId, level: &mut Level, player: &You) {
     };
 
     // Line 683-684: Only process minions
-    // TODO: Check if monster.flags.minion == true
-    // if !minion: return
-
-    // Line 685-688: Only process Aligned Priests or Angels
-    // TODO: Check if monster.data == PM_ALIGNED_PRIEST || monster.data == PM_ANGEL
-    // if not priest/angel: return
-
-    // Line 690-692: Check minion alignment vs player alignment
-    // TODO: Get minion's original alignment from EMIN(roamer)->min_align
-    // if minion_align != player.ualign.type:
-    let _should_make_hostile = false; // TODO: align check
-
-    if _should_make_hostile {
-        // Make both non-peaceful and untamed
-        // TODO: monster.mpeaceful = false
-        // TODO: monster.mtame = false
-        // TODO: set_malign(monster) to recalculate alignment effects
+    if !monster.flags.contains(MonsterFlags::MINION) {
+        return;
     }
 
-    // Line 694: Refresh display
-    // TODO: newsym(monster.mx, monster.my) to update screen
+    // Line 685-688: Only process Aligned Priests or Angels
+    if !monster.is_priest && !monster.name.contains("angel") {
+        return;
+    }
+
+    // Line 690-692: Check minion alignment vs player alignment
+    let should_make_hostile = monster.alignment != player.alignment.typ.value();
+
+    if should_make_hostile {
+        // Make both non-peaceful and untamed
+        monster.state.peaceful = false;
+        monster.state.tame = false;
+        super::set_malign(monster, player.alignment.typ.value());
+    }
 }
 
 // ============================================================================
@@ -2569,7 +2618,8 @@ pub fn wakeup(monster_id: MonsterId, level: &mut Level, via_attack: bool) {
 
     // Line 3035-3036: Make angry if awakened via attack
     if via_attack {
-        // TODO: setmangry(mtmp, TRUE)
+        monster.state.peaceful = false;
+        monster.state.tame = false;
     }
 }
 
@@ -2604,7 +2654,10 @@ pub fn wake_nearto(x: i32, y: i32, distance: i32, level: &mut Level) {
             continue;
         };
 
-        // TODO: Line 3060: Skip dead monsters (DEADMONSTER check)
+        // Line 3060: Skip dead monsters (DEADMONSTER check)
+        if monster.hp <= 0 {
+            continue;
+        }
 
         // Line 3061: Check distance - wake if within range or distance == 0 (wake all)
         if distance > 0 {
@@ -2822,83 +2875,88 @@ pub fn dig_up_grave(_x: i32, _y: i32, level: &mut Level) {
 ///
 /// C Source: dig.c:763-897, dighole()
 /// Returns: true if hole was created, false if blocked
-pub fn dighole(_x: i32, _y: i32, pit_only: bool, level: &mut Level) -> bool {
-    // Line 763-782: Parameter handling and bounds checking (dig.c:763-782)
-    let x = _x as usize;
-    let y = _y as usize;
+pub fn dighole(dig_x: i32, dig_y: i32, pit_only: bool, level: &mut Level) -> bool {
+    use crate::dungeon::CellType;
 
-    // TODO: if !isok(_x, _y): return false  // Out of bounds check
+    // Line 763-782: Bounds checking
+    if dig_x < 0 || dig_y < 0 || dig_x >= crate::COLNO as i32 || dig_y >= crate::ROWNO as i32 {
+        return false;
+    }
+    let x = dig_x as usize;
+    let y = dig_y as usize;
 
-    // Line 784-791: Terrain checks (dig.c:784-791)
-    // TODO: Get trap at location (t_at)
-    let cell_typ = &level.cells[x][y].typ;
+    // Line 784-791: Terrain checks
+    let cell_typ = level.cells[x][y].typ;
 
-    // Line 788-802: Non-diggable terrain rejection (dig.c:788-802)
-    // Magic portals, vibrating squares, and some other terrains can't be dug
-    // TODO: if matches!(cell_typ, CellType::Portal | CellType::VibSquare):
-    // TODO:   pline("You can't dig here!")
-    // TODO:   return false
+    // Non-diggable terrain rejection
+    match cell_typ {
+        // Already passable — no hole to dig
+        CellType::Room | CellType::Corridor => return false,
 
-    // TODO: if matches!(cell_typ, CellType::Rock):
-    // TODO:   if rock.is_non_diggable():  // Certain undiggable walls
-    // TODO:     pline("This rock is too hard to dig!")
-    // TODO:     return false
+        // Liquid terrain — can't dig in water/lava
+        CellType::Pool | CellType::Moat | CellType::Lava | CellType::Water => {
+            wake_nearto(dig_x, dig_y, 200, level);
+            return false;
+        }
 
-    // Line 795-798: Liquid terrain handling (dig.c:795-798)
-    // Digging in water/lava creates splashing and waking nearby
-    // TODO: if matches!(cell_typ, CellType::Pool | CellType::Lava):
-    // TODO:   water_splash(_x, _y)
-    // TODO:   wake_nearto(_x, _y, 200, level)  // Wake monsters in ~15 square radius
-    // TODO:   return false
+        // Drawbridge — too sturdy for pits
+        CellType::DrawbridgeUp | CellType::DrawbridgeDown | CellType::DBWall => {
+            if pit_only {
+                return false;
+            }
+            // TODO: destroy_drawbridge for full dig-through
+            return false;
+        }
 
-    // Line 800-814: Drawbridge destruction (dig.c:800-814)
-    // Drawbridges can be destroyed or have special effects
-    // TODO: if matches!(cell_typ, CellType::DrawBridge):
-    // TODO:   if pit_only:
-    // TODO:     pline("The drawbridge is too sturdy!")
-    // TODO:     return false
-    // TODO:   else:
-    // TODO:     destroy_drawbridge(_x, _y, level)
-    // TODO:     return true
+        // Air/Cloud — can't dig in air
+        CellType::Air | CellType::Cloud => return false,
 
-    // Line 816-831: Boulder collision handling (dig.c:816-831)
-    // Boulders in holes fall and potentially crush things below
-    // TODO: if let Some(boulder) = object_at(_x, _y, ObjectClass::Rock):
-    // TODO:   if boulder.buc.is_cursed():
-    // TODO:     pline("KADOOM!")  // Explosive
-    // TODO:     level.cells[x][y].typ = CellType::Pit
-    // TODO:     destroy_objects_at(_x, _y)
-    // TODO:   else:
-    // TODO:     level.cells[x][y].typ = CellType::Room  // Fills hole
-    // TODO:   return true
+        // Grave — dig up with penalties
+        CellType::Grave => {
+            level.cells[x][y].typ = CellType::Room;
+            // TODO: dig_up_grave spawns undead and drops corpse
+            return true;
+        }
 
-    // Line 833-836: Grave case (dig.c:833-836)
-    // Desecrating graves spawns undead and has penalties
-    // TODO: if matches!(cell_typ, CellType::Grave):
-    // TODO:   digactualhole(_x, _y, pit_only, level)
-    // TODO:   dig_up_grave(_x, _y, level)
-    // TODO:   return true
+        // Tree — chop down
+        CellType::Tree => {
+            level.cells[x][y].typ = CellType::Room;
+            return true;
+        }
 
-    // Line 837+: Normal terrain conversion (dig.c:837+)
-    // Most terrains become rooms or pits (if pit_only)
-    // TODO: match cell_typ {
-    // TODO:   CellType::Room | CellType::Corridor => false,  // Already passable
-    // TODO:   CellType::Tree | CellType::Forest => {
-    // TODO:     level.cells[x][y].typ = CellType::Room
-    // TODO:     return true
-    // TODO:   }
-    // TODO:   CellType::SecretDoor => {
-    // TODO:     level.cells[x][y].typ = CellType::Door(false)  // Reveal door
-    // TODO:     return true
-    // TODO:   }
-    // TODO:   _ if !pit_only => {
-    // TODO:     level.cells[x][y].typ = CellType::Room
-    // TODO:     return true
-    // TODO:   }
-    // TODO:   _ => false
-    // TODO: }
+        // Secret door — reveal it
+        CellType::SecretDoor => {
+            level.cells[x][y].typ = CellType::Door;
+            return true;
+        }
 
-    false // Default: no hole created
+        // Secret corridor — reveal it
+        CellType::SecretCorridor => {
+            level.cells[x][y].typ = CellType::Corridor;
+            return true;
+        }
+
+        // Walls and stone — dig through if not pit_only
+        CellType::Stone | CellType::Wall | CellType::VWall | CellType::HWall
+        | CellType::TLCorner | CellType::TRCorner | CellType::BLCorner
+        | CellType::BRCorner | CellType::CrossWall | CellType::TUWall
+        | CellType::TDWall | CellType::TLWall | CellType::TRWall => {
+            if pit_only {
+                return false; // Can't dig a pit in a wall
+            }
+            level.cells[x][y].typ = CellType::Room;
+            return true;
+        }
+
+        // Everything else (furniture, stairs, etc.) — convert to room
+        _ => {
+            if !pit_only {
+                level.cells[x][y].typ = CellType::Room;
+                return true;
+            }
+            false
+        }
+    }
 }
 
 /// Find diggable boundaries of level (mkmaze.c:1246-1340)
@@ -2909,63 +2967,14 @@ pub fn dighole(_x: i32, _y: i32, pit_only: bool, level: &mut Level) -> bool {
 ///
 /// C Source: mkmaze.c:1246-1340, bound_digging()
 /// Returns: nothing (sets level boundaries)
-pub fn bound_digging(level: &Level) {
-    // Line 1254-1255: Check if earth level (mkmaze.c:1254-1255)
-    // Earth levels have no digging boundaries (all diggable)
-    // TODO: if is_earth_level(current_level): return
-
-    // Line 1257-1304: Find xmin - leftmost diggable boundary (mkmaze.c:1257-1304)
-    // Scan from left to right to find first non-stone, non-wall
-    // TODO: let mut xmin = 0
-    // TODO: let mut found_nonwall = false
-    // TODO: for x in 0..level.width:
-    // TODO:   for y in 0..level.height:
-    // TODO:     if !is_wall(&level.cells[x][y].typ):
-    // TODO:       found_nonwall = true
-    // TODO:       break
-    // TODO:   if found_nonwall: break
-    // TODO: xmin -= if found_nonwall || !is_maze_level() { 2 } else { 1 }
-    // TODO: xmin = xmin.max(0)  // Clamp to valid range
-
-    // Line 1306-1351: Find xmax - rightmost diggable boundary (mkmaze.c:1306-1351)
-    // Scan from right to left to find first non-stone, non-wall
-    // TODO: let mut xmax = level.width - 1
-    // TODO: found_nonwall = false
-    // TODO: for x in (0..level.width).rev():
-    // TODO:   for y in 0..level.height:
-    // TODO:     if !is_wall(&level.cells[x][y].typ):
-    // TODO:       found_nonwall = true
-    // TODO:       break
-    // TODO:   if found_nonwall: break
-    // TODO: xmax += if found_nonwall || !is_maze_level() { 2 } else { 1 }
-    // TODO: xmax = xmax.min(level.width - 1)  // Clamp to valid range
-
-    // Line 1353-1398: Find ymin and ymax (similar logic) (mkmaze.c:1353-1398)
-    // Scan rows for ymin (top to bottom) and ymax (bottom to top)
-    // TODO: let mut ymin = 0
-    // TODO: found_nonwall = false
-    // TODO: for y in 0..level.height:
-    // TODO:   for x in 0..level.width:
-    // TODO:     if !is_wall(&level.cells[x][y].typ):
-    // TODO:       found_nonwall = true
-    // TODO:       break
-    // TODO:   if found_nonwall: break
-    // TODO: ymin -= if found_nonwall || !is_maze_level() { 2 } else { 1 }
-    // TODO: ymin = ymin.max(0)
-
-    // TODO: let mut ymax = level.height - 1
-    // TODO: found_nonwall = false
-    // TODO: for y in (0..level.height).rev():
-    // TODO:   for x in 0..level.width:
-    // TODO:     if !is_wall(&level.cells[x][y].typ):
-    // TODO:       found_nonwall = true
-    // TODO:       break
-    // TODO:   if found_nonwall: break
-    // TODO: ymax += if found_nonwall || !is_maze_level() { 2 } else { 1 }
-    // TODO: ymax = ymax.min(level.height - 1)
-
-    // Store boundaries in level struct for validation during digging
-    // TODO: level.digging_bounds = (xmin, xmax, ymin, ymax)
+pub fn bound_digging(_level: &Level) {
+    // Digging boundaries are computed by scanning from each edge inward
+    // to find the first non-stone/non-wall terrain, then padding by 2.
+    // This prevents digging outside the playable area.
+    //
+    // Currently a no-op: digging bounds are not stored on Level yet.
+    // TODO: Add digging_bounds field to Level struct and populate it here.
+    // The scanning logic is straightforward but needs the storage field first.
 }
 
 /// Monitor digging activity by town guards (dig.c:1214-1256)
@@ -3040,16 +3049,22 @@ pub fn can_tunnel(monster_id: MonsterId, level: &Level) -> bool {
         return false;
     };
 
-    // Check if monster has tunneling ability (line 736-737)
-    // TODO: Check if monster.data.flags has M2_TUNNEL capability
-    // In C: tunnels(mtmp->data) checks M2_TUNNEL flag
+    // Check if monster has tunneling ability (M1_TUNNEL flag)
+    if !monster.flags.contains(MonsterFlags::TUNNEL) {
+        return false;
+    }
 
-    // Check if monster has required digging tool (line 737-738)
-    // For now, assume monsters with tunnel ability have the tool
-    // TODO: Verify monster has pick or axe in inventory
+    // NEEDPICK monsters need a digging tool in inventory
+    if monster.flags.contains(MonsterFlags::NEEDPICK) {
+        // Check if monster has a pick-axe or dwarvish mattock
+        let has_pick = monster.inventory.iter().any(|obj| {
+            obj.class == crate::object::ObjectClass::Weapon
+                && (obj.object_type == 89 || obj.object_type == 90) // PICK_AXE, DWARVISH_MATTOCK
+        });
+        return has_pick;
+    }
 
-    // Default to false until flags are properly defined
-    false
+    true
 }
 
 // ============================================================================
@@ -3187,11 +3202,9 @@ pub fn movemon(level: &mut Level, player: &You, rng: &mut GameRng) -> bool {
             let Some(monster) = level.monster(monster_id) else {
                 continue;
             };
-            let name_lower = monster.name.to_lowercase();
-            // Piercers, trappers, lurkers can hide
-            name_lower.contains("piercer")
-                || name_lower.contains("trapper")
-                || name_lower.contains("lurker")
+            // M1_HIDE or M1_CONCEAL flag indicates hiding capability
+            monster.flags.contains(MonsterFlags::HIDE)
+                || monster.flags.contains(MonsterFlags::CONCEAL)
         };
 
         if should_try_hide {
@@ -3451,7 +3464,7 @@ pub fn score_targ(monster_id: MonsterId, target_id: MonsterId, level: &Level) ->
     // Line 793-794: Major penalty for fighting way stronger monsters
     // Penalty = (target_level - monster_level) * 20 if difference > 4
     if target.level as i64 > monster_lev as i64 + 4 {
-        score -= ((target.level as i64 - monster_lev as i64) * 20);
+        score -= (target.level as i64 - monster_lev as i64) * 20;
     }
 
     // Bonus: Beefier monsters (line 798)
@@ -4562,7 +4575,7 @@ mod phase1_tests {
             has_misc: 0,
         };
 
-        let action = use_defensive(MonsterId(1), &mut level, &usage);
+        let action = use_defensive(MonsterId(1), &mut level, &usage, &mut GameRng::new(42));
 
         // Check that monster was healed to full HP
         let monster = level.monster(MonsterId(1)).unwrap();
@@ -5811,7 +5824,7 @@ mod phase6_tests {
 
         let result = mfndpos(MonsterId(1), &level, &player, &mut rng);
         // Should only find the one open space
-        assert!(result.len() >= 0, "mfndpos should work with limited spaces");
+        assert!(!result.is_empty(), "mfndpos should find at least one open space");
     }
 
     /// Test mfndpos handles monster occupancy
@@ -5836,7 +5849,7 @@ mod phase6_tests {
 
         let result = mfndpos(MonsterId(1), &level, &player, &mut rng);
         // Should return positions but exclude occupied ones
-        assert!(result.len() >= 0, "mfndpos should handle occupied spaces");
+        assert!(result.len() <= 25, "mfndpos should return valid positions");
     }
 
     /// Test strategy returns STRAT_HEAL when HP is low
@@ -7129,7 +7142,7 @@ mod phase9_tests {
         let mut usage = ItemUsage::default();
         usage.has_defense = MUSE_UNICORN_HORN;
 
-        let result = use_defensive(MonsterId(1), &mut level, &usage);
+        let result = use_defensive(MonsterId(1), &mut level, &usage, &mut GameRng::new(42));
         assert_eq!(
             result,
             AiAction::Waited,
@@ -7156,7 +7169,7 @@ mod phase9_tests {
         let mut usage = ItemUsage::default();
         usage.has_defense = MUSE_POT_FULL_HEALING;
 
-        let result = use_defensive(MonsterId(1), &mut level, &usage);
+        let result = use_defensive(MonsterId(1), &mut level, &usage, &mut GameRng::new(42));
         assert_eq!(
             result,
             AiAction::Waited,
@@ -7182,7 +7195,7 @@ mod phase9_tests {
         let mut usage = ItemUsage::default();
         usage.has_offense = 0; // No offense type
 
-        let result = use_offensive(MonsterId(1), &mut level, &usage);
+        let result = use_offensive(MonsterId(1), &mut level, &usage, &mut GameRng::new(42));
         // Should handle gracefully even without offense
         assert_eq!(
             result,
@@ -7201,7 +7214,7 @@ mod phase9_tests {
         let mut usage = ItemUsage::default();
         usage.has_misc = 0; // No misc type
 
-        let result = use_misc(MonsterId(1), &mut level, &usage);
+        let result = use_misc(MonsterId(1), &mut level, &usage, &mut GameRng::new(42));
         assert_eq!(result, AiAction::Waited, "use_misc should complete action");
     }
 

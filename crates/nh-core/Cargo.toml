@@ -6,6 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "Core game logic for NetHack clone"
 
+[features]
+extensions = []
+
 [dependencies]
 bitflags.workspace = true
 thiserror.workspace = true

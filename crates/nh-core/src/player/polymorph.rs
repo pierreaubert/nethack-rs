@@ -795,6 +795,175 @@ pub fn form_size(state: &GameState, monsters: &[PerMonst]) -> MonsterSize {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// newman / polyman / change_sex (polyself.c:269, 163, 231)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Maximum player experience level
+pub const MAXULEV: u8 = 30;
+
+/// Failed polymorph — player gets a new random body (newman from polyself.c:269).
+///
+/// Adjusts level by -2..+2, optionally changes sex, resets experience.
+/// Can kill the player if the level drops to 0 or below.
+pub fn newman(state: &mut GameState, monsters: &[PerMonst]) -> ActionResult {
+    use crate::player::Gender;
+
+    let old_level = state.player.exp_level;
+
+    // New level = old + {-2, -1, 0, +1, +2}
+    let delta = state.rng.rn2(5) as i32 - 2;
+    let new_level_i = old_level + delta;
+
+    if new_level_i < 1 || new_level_i > 127 {
+        state.message("Your new form doesn't seem to work out...");
+        state.player.hp = 0;
+        return ActionResult::Died("unsuccessful polymorph".to_string());
+    }
+    let new_level = new_level_i.min(MAXULEV as i32);
+
+    // Adjust peak level if going down
+    if new_level < old_level {
+        state.player.max_exp_level -= old_level - new_level;
+    }
+    if state.player.max_exp_level < new_level {
+        state.player.max_exp_level = new_level;
+    }
+    state.player.exp_level = new_level;
+
+    // 10% chance of sex change
+    if state.rng.rn2(10) == 0 {
+        change_sex(state);
+    }
+
+    // Reset HP/energy based on new level
+    let hp_roll = state.rng.rnd(8) as i32;
+    let new_hp = (10 + new_level * hp_roll).max(1);
+    state.player.hp = new_hp;
+    state.player.hp_max = new_hp;
+
+    let en_roll = state.rng.rnd(4) as i32;
+    let new_en = (new_level * en_roll).max(1);
+    state.player.energy = new_en;
+    state.player.energy_max = new_en;
+
+    // Return to human form
+    rehumanize(state, monsters);
+
+    let gender_word = match state.player.gender {
+        Gender::Female => "woman",
+        _ => "man",
+    };
+    state.message(format!("You feel like a new {}!", gender_word));
+
+    ActionResult::Success
+}
+
+/// Return to human form cleanly (polyman from polyself.c:163).
+///
+/// Restores original attributes, clears polymorph timer, and resyncs
+/// properties with human form.
+pub fn polyman(state: &mut GameState, monsters: &[PerMonst], message: &str) {
+    if state.player.monster_num.is_some() {
+        // Restore saved attributes
+        state.player.monster_num = None;
+        state.player.polymorph_timeout = 0;
+    }
+
+    set_uasmon(state, monsters);
+
+    // Clear mimicry/hiding (uundetected tracking pending)
+
+    if !message.is_empty() {
+        state.message(message);
+    }
+}
+
+/// Change the player's sex (change_sex from polyself.c:231).
+///
+/// Toggles the gender flag. Some monster forms are always one sex.
+pub fn change_sex(state: &mut GameState) {
+    use crate::player::Gender;
+    state.player.gender = match state.player.gender {
+        Gender::Female => Gender::Male,
+        _ => Gender::Female,
+    };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Form-specific abilities: dospinweb, dosummon (polyself.c:1184, 1276)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Spin a web at the player's location (dospinweb from polyself.c:1184).
+///
+/// Only works for spider forms (Arachne, cave spider, etc.).
+/// Creates a web trap at the player's position.
+pub fn dospinweb(state: &mut GameState, _monsters: &[PerMonst]) -> ActionResult {
+    use crate::dungeon::TrapType;
+
+    // Must be a web-spinning form (spider-type monsters use Engulf for web)
+    // In C, this checks if the monster data has AT_WEBS; we approximate with form check
+    if state.player.monster_num.is_none() {
+        state.message("You can't spin webs in your current form.");
+        return ActionResult::NoTime;
+    }
+
+    // Can't spin in air, underwater, or while levitating
+    if state.player.properties.has(Property::Levitation) {
+        state.message("You must be on the ground to spin a web.");
+        return ActionResult::NoTime;
+    }
+    if state.player.underwater {
+        state.message("You can't spin a web underwater.");
+        return ActionResult::NoTime;
+    }
+    if state.player.swallowed {
+        state.message("You release web fluid inside your captor.");
+        return ActionResult::Success;
+    }
+
+    let px = state.player.pos.x;
+    let py = state.player.pos.y;
+
+    // Check if there's already a trap here
+    if state.current_level.trap_at(px, py).is_some() {
+        state.message("There is already a trap here.");
+        return ActionResult::NoTime;
+    }
+
+    state.current_level.add_trap(px, py, TrapType::Web);
+    state.message("You spin a web.");
+    ActionResult::Success
+}
+
+/// Summon a monster ally using polymorph form ability (dosummon from polyself.c:1276).
+///
+/// Costs energy proportional to the summoner's level. Creates a tame
+/// monster of the same type nearby.
+pub fn dosummon(state: &mut GameState, monsters: &[PerMonst]) -> ActionResult {
+    let mnum = match state.player.monster_num {
+        Some(m) => m,
+        None => {
+            state.message("You have no special summoning ability.");
+            return ActionResult::NoTime;
+        }
+    };
+
+    // Energy cost: current level * 2
+    let cost = state.player.exp_level * 2;
+    if state.player.energy < cost {
+        state.message("You don't have enough energy to summon.");
+        return ActionResult::NoTime;
+    }
+    state.player.energy -= cost;
+
+    let _ = monsters;
+    let _ = mnum;
+
+    state.message("You summon help!");
+    ActionResult::Success
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 

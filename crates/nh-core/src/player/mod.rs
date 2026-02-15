@@ -5,7 +5,9 @@
 mod alignment;
 mod attributes;
 mod conduct;
+pub mod death;
 mod hunger;
+pub mod init;
 pub mod polymorph;
 mod properties;
 mod role;

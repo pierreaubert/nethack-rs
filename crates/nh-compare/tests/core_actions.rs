@@ -12,6 +12,7 @@ use nh_core::action::eat::{
     apply_corpse_effects, calculate_nutrition, corpse_effects, gethungry, is_edible, is_rotten,
     lesshungry, newuhs, CorpseEffect,
 };
+use nh_core::player::Race;
 use nh_core::action::pickup::{
     do_autopickup, do_drop, do_pickup, gold_weight, matches_autopickup_type,
     parse_autopickup_types, should_autopickup, within_pickup_burden, PickupBurden,
@@ -151,45 +152,45 @@ fn test_is_edible() {
 
 #[test]
 fn test_is_rotten_timing() {
+    use nh_core::action::eat::otyp;
+
     let mut corpse = Object::default();
     corpse.class = ObjectClass::Food;
+    corpse.object_type = otyp::CORPSE;
+    corpse.corpse_type = 0; // generic monster type
     corpse.buc = BucStatus::Uncursed;
     corpse.age = 0;
 
     // Fresh corpse at turn 100
     assert!(!is_rotten(&corpse, 100));
-    // Rotten corpse at turn 300
+    // Rotten corpse at turn 300 (threshold 150 for uncursed)
     assert!(is_rotten(&corpse, 300));
-    // Blessed lasts longer
+    // Blessed lasts longer (threshold 300)
     corpse.buc = BucStatus::Blessed;
-    assert!(!is_rotten(&corpse, 300));
+    assert!(!is_rotten(&corpse, 200));
     assert!(is_rotten(&corpse, 400));
-    // Cursed rots faster
+    // Cursed rots faster (threshold 50)
     corpse.buc = BucStatus::Cursed;
     assert!(is_rotten(&corpse, 200));
 }
 
 #[test]
-fn test_nutrition_buc_modifier() {
+fn test_nutrition_race_modifier() {
+    use nh_core::action::eat::otyp;
+
     let mut food = Object::default();
-    food.object_type = 50; // Generic food
+    food.object_type = otyp::LEMBAS_WAFER;
+    food.nutrition = 800;
 
-    food.buc = BucStatus::Uncursed;
-    let base = calculate_nutrition(&food);
+    // C-faithful: race affects nutrition for lembas/cram, not BUC
+    let human = calculate_nutrition(&food, Race::Human);
+    assert_eq!(human, 800, "Human gets base nutrition");
 
-    food.buc = BucStatus::Blessed;
-    let blessed = calculate_nutrition(&food);
-    assert!(
-        blessed > base,
-        "Blessed food should give more nutrition than uncursed"
-    );
+    let elf = calculate_nutrition(&food, Race::Elf);
+    assert!(elf > human, "Elf gets bonus from lembas");
 
-    food.buc = BucStatus::Cursed;
-    let cursed = calculate_nutrition(&food);
-    assert!(
-        cursed < base,
-        "Cursed food should give less nutrition than uncursed"
-    );
+    let orc = calculate_nutrition(&food, Race::Orc);
+    assert!(orc < human, "Orc gets penalty from lembas");
 }
 
 /// Corpse effects table: verify key monster types produce expected effects.
@@ -988,48 +989,73 @@ fn test_apply_lamp_toggles_lit() {
 
 #[test]
 fn test_apply_unicorn_horn_cures_confusion() {
-    let mut state = test_state(42);
-    state.player.confused_timeout = 30;
-    let tool = make_tool('a', 213); // Unicorn horn
-    state.inventory.push(tool);
+    // C-accurate algorithm: shuffled trouble list + random fix count (probabilistic).
+    // Run multiple seeds; horn should cure confusion at least sometimes.
+    let mut cured_count = 0;
+    for seed in 0..50u64 {
+        let mut state = test_state(seed);
+        state.player.confused_timeout = 30;
+        let tool = make_tool('a', 213); // Unicorn horn
+        state.inventory.push(tool);
 
-    nh_core::action::apply::do_apply(&mut state, 'a');
-    assert_eq!(
-        state.player.confused_timeout, 0,
-        "Unicorn horn should cure confusion"
+        nh_core::action::apply::do_apply(&mut state, 'a');
+        if state.player.confused_timeout == 0 {
+            cured_count += 1;
+        }
+    }
+    assert!(
+        cured_count > 10,
+        "Unicorn horn should cure confusion at least sometimes, got {cured_count}/50"
     );
 }
 
 #[test]
 fn test_apply_unicorn_horn_cures_blindness() {
-    let mut state = test_state(42);
-    state.player.blinded_timeout = 50;
-    let tool = make_tool('a', 213); // Unicorn horn
-    state.inventory.push(tool);
+    let mut cured_count = 0;
+    for seed in 0..50u64 {
+        let mut state = test_state(seed);
+        state.player.blinded_timeout = 50;
+        let tool = make_tool('a', 213); // Unicorn horn
+        state.inventory.push(tool);
 
-    nh_core::action::apply::do_apply(&mut state, 'a');
-    assert_eq!(
-        state.player.blinded_timeout, 0,
-        "Unicorn horn should cure blindness"
+        nh_core::action::apply::do_apply(&mut state, 'a');
+        if state.player.blinded_timeout == 0 {
+            cured_count += 1;
+        }
+    }
+    assert!(
+        cured_count > 10,
+        "Unicorn horn should cure blindness at least sometimes, got {cured_count}/50"
     );
 }
 
 #[test]
 fn test_apply_unicorn_horn_cures_all_ailments() {
-    let mut state = test_state(42);
-    state.player.confused_timeout = 20;
-    state.player.stunned_timeout = 15;
-    state.player.blinded_timeout = 30;
-    state.player.hallucinating_timeout = 100;
-    let mut tool = make_tool('a', 213);
-    tool.buc = nh_core::object::BucStatus::Blessed; // Blessed cures more ailments
-    state.inventory.push(tool);
+    // Blessed horn with d(2,4) = 2-8 fixes should cure all 4 ailments often.
+    let mut all_cured_count = 0;
+    for seed in 0..50u64 {
+        let mut state = test_state(seed);
+        state.player.confused_timeout = 20;
+        state.player.stunned_timeout = 15;
+        state.player.blinded_timeout = 30;
+        state.player.hallucinating_timeout = 100;
+        let mut tool = make_tool('a', 213);
+        tool.buc = nh_core::object::BucStatus::Blessed;
+        state.inventory.push(tool);
 
-    nh_core::action::apply::do_apply(&mut state, 'a');
-    assert_eq!(state.player.confused_timeout, 0);
-    assert_eq!(state.player.stunned_timeout, 0);
-    assert_eq!(state.player.blinded_timeout, 0);
-    assert_eq!(state.player.hallucinating_timeout, 0);
+        nh_core::action::apply::do_apply(&mut state, 'a');
+        let remaining = state.player.confused_timeout as i32
+            + state.player.stunned_timeout as i32
+            + state.player.blinded_timeout as i32
+            + state.player.hallucinating_timeout as i32;
+        if remaining == 0 {
+            all_cured_count += 1;
+        }
+    }
+    assert!(
+        all_cured_count > 5,
+        "Blessed horn should cure all 4 ailments often, got {all_cured_count}/50"
+    );
 }
 
 #[test]

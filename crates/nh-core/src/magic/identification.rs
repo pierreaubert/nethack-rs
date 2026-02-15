@@ -253,6 +253,44 @@ pub fn get_identification_progress(knowledge: &IdentificationKnowledge, object_t
     }
 }
 
+/// Fully identify an object (invent.c:fully_identify_obj)
+///
+/// Sets the object's known flag and all sub-flags, and updates
+/// the player's type knowledge database.
+pub fn fully_identify_obj(obj: &mut crate::object::Object, knowledge: &mut IdentificationKnowledge) {
+    obj.known = true;
+    obj.buc_known = true;
+    knowledge.identify_item(obj.object_type);
+    let k = knowledge.get_or_create(obj.object_type);
+    k.identification_level = IdentificationLevel::FullyMapped;
+}
+
+/// Identify up to `num_to_identify` unidentified items from inventory (invent.c:identify_pack)
+///
+/// Returns the number of items actually identified.
+pub fn identify_pack(
+    inventory: &mut [crate::object::Object],
+    knowledge: &mut IdentificationKnowledge,
+    num_to_identify: usize,
+) -> usize {
+    let mut identified = 0;
+    for obj in inventory.iter_mut() {
+        if identified >= num_to_identify {
+            break;
+        }
+        if !obj.known {
+            fully_identify_obj(obj, knowledge);
+            identified += 1;
+        }
+    }
+    identified
+}
+
+/// Count unidentified items in inventory (invent.c:count_unidentified)
+pub fn count_unidentified(inventory: &[crate::object::Object]) -> usize {
+    inventory.iter().filter(|obj| !obj.known).count()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
