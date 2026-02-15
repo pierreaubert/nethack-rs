@@ -12,3 +12,14 @@ fn test_tile_representations() {
     let kobold_tile = Tile::Monster("kobold".to_string());
     assert_eq!(kobold_tile.to_ascii(), 'k');
 }
+
+#[test]
+fn test_tile_registry() {
+    use nh_core::data::tile::get_tile_for_monster;
+    use nh_core::data::monsters::find_monster;
+
+    let (_, monster) = find_monster("kobold").expect("Kobold should exist");
+    println!("Monster name: {}", monster.name);
+    let tile = get_tile_for_monster(&monster);
+    assert_eq!(tile.to_ascii(), 'k');
+}

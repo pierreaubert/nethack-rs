@@ -1,4 +1,5 @@
 use serde::{Serialize, Deserialize};
+use crate::monster::PerMonst;
 
 /// A unique identifier for a graphical tile in frontends like Bevy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -65,4 +66,9 @@ impl Tile {
             Tile::Object(_) => TileId(200),
         }
     }
+}
+
+/// Returns the Tile representation for a given monster definition.
+pub fn get_tile_for_monster(monster: &PerMonst) -> Tile {
+    Tile::Monster(monster.name.to_string())
 }
