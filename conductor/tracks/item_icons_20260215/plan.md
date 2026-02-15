@@ -1,6 +1,6 @@
 # Implementation Plan - Per-Item Icon System
 
-## Phase 1: `nh-assets` Infrastructure & Core Logic
+## Phase 1: `nh-assets` Infrastructure & Core Logic [checkpoint: 386747c]
 - [x] Task: Scaffold the `nh-assets` crate (08d53a8)
     - [ ] Create `crates/nh-assets` with basic `Cargo.toml` and `src/lib.rs`
     - [ ] Add `nh-assets` to the workspace `members` in the root `Cargo.toml`
@@ -10,7 +10,7 @@
 - [x] Task: Implement the Lookup Registry (4b3a7e9)
     - [ ] Write tests for the lookup registry (base type, state, and material-based matching)
     - [ ] Implement the `AssetRegistry` with support for loading from a configuration file (YAML/JSON)
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: nh-assets Infrastructure & Core Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: nh-assets Infrastructure & Core Logic' (Protocol in workflow.md) (386747c)
 
 ## Phase 2: Asset Generation & Initial Mapping
 - [ ] Task: Setup Asset Generation Pipeline
