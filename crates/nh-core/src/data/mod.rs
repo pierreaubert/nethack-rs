@@ -7,6 +7,7 @@ pub mod colors;
 pub mod monsters;
 pub mod objects;
 pub mod roles;
+pub mod tile;
 
 pub use artifacts::{
     ARTIFACTS, Alignment, Artifact, ArtifactFlags, InvokeProperty, get_artifact,
