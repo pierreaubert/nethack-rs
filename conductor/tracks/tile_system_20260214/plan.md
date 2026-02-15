@@ -10,7 +10,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Core Definitions' (Protocol in workflow.md) (79ba00f)
 
 ## Phase 2: Frontend Integration
-- [~] Task: Integrate with nh-tui
+- [x] Task: Integrate with nh-tui (ad86cd0)
     - [ ] Write tests for TUI tile-to-character conversion
     - [ ] Update nh-tui to use the shared tile system for rendering
 - [ ] Task: Integrate with nh-bevy
