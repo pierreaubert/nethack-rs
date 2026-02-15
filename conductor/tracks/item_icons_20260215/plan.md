@@ -30,14 +30,14 @@
     - [ ] Update `nh-tui` inventory menus to display item-specific icons/symbols
 - [x] Task: Conductor - User Manual Verification 'Phase 3: TUI Integration' (Protocol in workflow.md) (aa43056)
 
-## Phase 4: Bevy & UI Integration
-- [~] Task: Implement Bevy Asset Loading System
+## Phase 4: Bevy & UI Integration [checkpoint: 07f41ea]
+- [x] Task: Implement Bevy Asset Loading System (07f41ea)
     - [ ] Write tests for Bevy texture atlas/sprite loading from the mapping registry
     - [ ] Implement a Bevy system to load and manage item textures based on `nh-assets`
-- [ ] Task: Update Bevy Map and UI Rendering
+- [x] Task: Update Bevy Map and UI Rendering (07f41ea)
     - [ ] Update Bevy item entities to use the correct sprites in the dungeon view
     - [ ] Integrate item icons into the Bevy inventory and equipment UI panels
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Bevy & UI Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Bevy & UI Integration' (Protocol in workflow.md) (07f41ea)
 
 ## Phase 5: Validation & Coverage
 - [ ] Task: Implement Strict Coverage Validation
