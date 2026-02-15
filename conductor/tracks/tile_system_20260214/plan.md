@@ -13,7 +13,7 @@
 - [x] Task: Integrate with nh-tui (ad86cd0)
     - [ ] Write tests for TUI tile-to-character conversion
     - [ ] Update nh-tui to use the shared tile system for rendering
-- [~] Task: Integrate with nh-bevy
+- [x] Task: Integrate with nh-bevy (e6412d7)
     - [ ] Write tests for Bevy tile-to-asset-handle conversion
     - [ ] Implement a basic tile-renderer in nh-bevy using the shared system
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Frontend Integration' (Protocol in workflow.md)
