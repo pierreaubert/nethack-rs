@@ -426,7 +426,7 @@ pub fn dochug(
     // Line 1987-1990: Attempt offensive item usage (mon.c:1987-1990)
     if in_range {
         if let Some(usage) = find_offensive(monster_id, level, player) {
-            let result = use_offensive(monster_id, level, &usage, rng);
+            let result = use_offensive(monster_id, level, player, &usage, rng);
             if result != AiAction::Waited {
                 return result;
             }
@@ -1127,7 +1127,7 @@ pub fn should_flee(monster: &super::Monster) -> bool {
 pub fn process_fleeing_ai(
     monster_id: MonsterId,
     level: &mut Level,
-    player: &You,
+    player: &mut You,
     rng: &mut GameRng,
 ) -> AiAction {
     // Decrement flee timeout
@@ -1677,7 +1677,7 @@ pub fn find_offensive(monster_id: MonsterId, level: &Level, player: &You) -> Opt
 /// - AiAction::Died if monster died during action (return value 1 from C)
 ///
 /// Full 100% logic translation handles all MUSE_* offensive cases
-pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage, rng: &mut GameRng) -> AiAction {
+pub fn use_offensive(monster_id: MonsterId, level: &mut Level, player: &mut You, usage: &ItemUsage, rng: &mut GameRng) -> AiAction {
     let Some(monster) = level.monster(monster_id) else {
         return AiAction::Waited;
     };
@@ -1696,13 +1696,23 @@ pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
             }
 
             // Calculate range based on wand type (MAGIC_MISSILE = 2, others = 6)
-            let _range = if usage.has_offense == MUSE_WAN_MAGIC_MISSILE {
+            let range = if usage.has_offense == MUSE_WAN_MAGIC_MISSILE {
                 2
             } else {
                 6
             };
 
-            // TODO: Map wand type to ZapType and call buzz() for ray tracing
+            // Get monster position for ray origin
+            let Some(m) = level.monster(monster_id) else {
+                return AiAction::Died;
+            };
+            let mx = m.x;
+            let my = m.y;
+
+            // Fire the ray using buzz() via item_usage bridge
+            let _buzz_result = super::item_usage::monster_fire_wand_ray(
+                mx, my, usage.has_offense, range, player, level, rng,
+            );
 
             let Some(m) = level.monster(monster_id) else {
                 return AiAction::Died;
@@ -1718,14 +1728,23 @@ pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
         MUSE_FIRE_HORN | MUSE_FROST_HORN => {
             // Play horn (consume charges) via extract-modify-put-back pattern
             if let Some(idx) = usage.offensive {
-                // Same pattern as wand: temporarily extract, play, put back
                 monster_zap_wand_at_idx(level, monster_id, idx, rng);
             }
 
             // Range: rn1(6, 6) = 1d6+6
-            let _range = rng.rnd(6) as i32 + 6;
+            let range = rng.rnd(6) as i32 + 6;
 
-            // TODO: Call buzz() with AD_FIRE or AD_COLD for ray tracing
+            // Get monster position for ray origin
+            let Some(m) = level.monster(monster_id) else {
+                return AiAction::Died;
+            };
+            let mx = m.x;
+            let my = m.y;
+
+            // Fire the horn ray using buzz() via item_usage bridge
+            let _buzz_result = super::item_usage::monster_fire_horn_ray(
+                mx, my, usage.has_offense, range, player, level, rng,
+            );
 
             let Some(m) = level.monster(monster_id) else {
                 return AiAction::Died;
@@ -1745,9 +1764,26 @@ pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
             }
 
             // Range = rn1(8, 6) = 1d8+6
-            let _range = rng.rnd(8) as i32 + 6;
+            let range = rng.rnd(8) as i32 + 6;
 
-            // TODO: Call mbhit() for ray tracing and effects
+            // Get monster position
+            let Some(m) = level.monster(monster_id) else {
+                return AiAction::Died;
+            };
+            let mx = m.x;
+            let my = m.y;
+
+            // Map wand type to mbhit effect
+            let effect = if usage.has_offense == MUSE_WAN_TELEPORTATION {
+                crate::magic::zap::MbhitEffect::Teleport
+            } else {
+                crate::magic::zap::MbhitEffect::Striking
+            };
+
+            // Fire special beam using mbhit_effect() via item_usage bridge
+            let _buzz_result = super::item_usage::monster_fire_special_beam(
+                mx, my, effect, range, player, level, rng,
+            );
 
             AiAction::Waited
         }
@@ -1766,7 +1802,8 @@ pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
                     if bx < 0 || bx >= crate::COLNO as i32 || by < 0 || by >= crate::ROWNO as i32 {
                         continue;
                     }
-                    // TODO: Check terrain, drop boulders via drop_boulder_on_target()
+                    // Boulder dropping - use drop_boulder_on_target
+                    crate::monster::drop_boulder_on_target(bx as i8, by as i8, level, _monster_confused);
                 }
             }
 
@@ -1788,18 +1825,28 @@ pub fn use_offensive(monster_id: MonsterId, level: &mut Level, usage: &ItemUsage
         // ==== CASE: Potion attacks - thrown (lines 1544-1561) ====
         MUSE_POT_PARALYSIS | MUSE_POT_BLINDNESS | MUSE_POT_CONFUSION | MUSE_POT_SLEEPING
         | MUSE_POT_ACID => {
-            // Set dknown flag if visible (line 1554-1555)
-            // TODO: if (cansee(mtmp->mx, mtmp->my)) otmp->dknown = 1
+            let monster_x = monster.x;
+            let monster_y = monster.y;
 
-            // Throw potion at player (line 1558-1560)
-            // Direction: sgn(mux - mx), sgn(muy - my)
-            // Distance: distmin(mx, my, mux, muy)
-            // TODO: m_throw(mtmp, mx, my, dx_sign, dy_sign, distance, otmp)
-            // This would handle:
-            // - Calculating direction toward player
-            // - Determining throw distance
-            // - Calling throwing mechanics
-            // - Handling potion effects on impact
+            // Get potion type from inventory
+            let potion_type = if let Some(idx) = usage.offensive {
+                level.monster(monster_id)
+                    .and_then(|m| m.inventory.get(idx))
+                    .map(|obj| obj.object_type)
+                    .unwrap_or(0)
+            } else {
+                0
+            };
+
+            // Throw potion at player using item_usage bridge
+            let (_damage, _messages) = super::item_usage::monster_throw_potion(
+                monster_x, monster_y, potion_type, player, level, rng,
+            );
+
+            // Consume the potion
+            if let Some(idx) = usage.offensive {
+                m_useup(level, monster_id, idx);
+            }
 
             AiAction::Waited
         }
@@ -3097,7 +3144,7 @@ pub fn can_tunnel(monster_id: MonsterId, level: &Level) -> bool {
 ///
 /// C Source: mon.c:720-858, movemon()
 /// Returns: true if any monster can still move
-pub fn movemon(level: &mut Level, player: &You, rng: &mut GameRng) -> bool {
+pub fn movemon(level: &mut Level, player: &mut You, rng: &mut GameRng) -> bool {
     // Line 720-735: Initialize (mon.c:720-735)
     let mut somebody_can_move = false;
 
@@ -5514,7 +5561,7 @@ mod tests {
         player.pos = Position { x: 7, y: 7 };
 
         // Monster should move towards player
-        let action = process_monster_ai(MonsterId(1), &mut level, &player, &mut rng);
+        let action = process_monster_ai(MonsterId(1), &mut level, &mut player, &mut rng);
 
         match action {
             AiAction::Moved(x, y) => {
@@ -5549,7 +5596,7 @@ mod tests {
         let mut player = You::default();
         player.pos = Position { x: 6, y: 6 };
 
-        let action = process_monster_ai(MonsterId(1), &mut level, &player, &mut rng);
+        let action = process_monster_ai(MonsterId(1), &mut level, &mut player, &mut rng);
 
         assert_eq!(action, AiAction::AttackedPlayer);
     }
@@ -5573,7 +5620,7 @@ mod tests {
         // Place player far enough away that disturb() rejects waking (dist_sq > 100)
         player.pos = Position { x: 19, y: 19 };
 
-        let action = process_monster_ai(MonsterId(1), &mut level, &player, &mut rng);
+        let action = process_monster_ai(MonsterId(1), &mut level, &mut player, &mut rng);
 
         // Sleeping monster far from player should wait
         assert_eq!(action, AiAction::Waited);
@@ -6139,7 +6186,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = dochug(MonsterId(1), &mut level, &player, &mut rng);
+        let result = dochug(MonsterId(1), &mut level, &mut player, &mut rng);
         // Should execute without panicking
         assert_ne!(result, AiAction::None);
     }
@@ -6158,7 +6205,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = dochug(MonsterId(1), &mut level, &player, &mut rng);
+        let result = dochug(MonsterId(1), &mut level, &mut player, &mut rng);
         // Should handle sleep check and potentially wake up
         assert!(true, "dochug should handle sleeping monsters");
     }
@@ -6177,7 +6224,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = dochug(MonsterId(1), &mut level, &player, &mut rng);
+        let result = dochug(MonsterId(1), &mut level, &mut player, &mut rng);
         // Should return Waited for paralyzed monster
         assert_eq!(result, AiAction::Waited);
     }
@@ -6196,7 +6243,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = dochugw(MonsterId(1), &mut level, &player, &mut rng);
+        let result = dochugw(MonsterId(1), &mut level, &mut player, &mut rng);
         // Should execute for peaceful monsters too
         assert_ne!(result, AiAction::None);
     }
@@ -6216,7 +6263,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = dochugw(MonsterId(1), &mut level, &player, &mut rng);
+        let result = dochugw(MonsterId(1), &mut level, &mut player, &mut rng);
         // Adjacent aggressive monster should be handled
         assert_ne!(result, AiAction::None);
     }
@@ -6240,7 +6287,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = movemon(&mut level, &player, &mut rng);
+        let result = movemon(&mut level, &mut player, &mut rng);
         // Should complete without panicking
         assert!(true, "movemon should handle single monster");
     }
@@ -6266,7 +6313,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = movemon(&mut level, &player, &mut rng);
+        let result = movemon(&mut level, &mut player, &mut rng);
         // Should process all monsters
         assert!(true, "movemon should handle multiple monsters");
     }
@@ -6285,7 +6332,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = movemon(&mut level, &player, &mut rng);
+        let result = movemon(&mut level, &mut player, &mut rng);
         // Should skip dead monsters
         assert!(true, "movemon should skip dead monsters");
     }
@@ -6388,7 +6435,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = process_monster_ai(MonsterId(1), &mut level, &player, &mut rng);
+        let result = process_monster_ai(MonsterId(1), &mut level, &mut player, &mut rng);
         // Should execute through dochugw wrapper
         assert_ne!(result, AiAction::None);
     }
@@ -6407,7 +6454,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = dochug(MonsterId(1), &mut level, &player, &mut rng);
+        let result = dochug(MonsterId(1), &mut level, &mut player, &mut rng);
         // Should handle confused monsters
         assert_ne!(result, AiAction::None);
     }
@@ -6427,7 +6474,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = dochug(MonsterId(1), &mut level, &player, &mut rng);
+        let result = dochug(MonsterId(1), &mut level, &mut player, &mut rng);
         // Should handle fleeing monsters
         assert_ne!(result, AiAction::None);
     }
@@ -6447,7 +6494,7 @@ mod phase7_tests {
 
         let mut rng = GameRng::new(12345);
 
-        let result = dochug(MonsterId(1), &mut level, &player, &mut rng);
+        let result = dochug(MonsterId(1), &mut level, &mut player, &mut rng);
         // Should consider healing options for low HP
         assert_ne!(result, AiAction::None);
     }
@@ -7195,7 +7242,8 @@ mod phase9_tests {
         let mut usage = ItemUsage::default();
         usage.has_offense = 0; // No offense type
 
-        let result = use_offensive(MonsterId(1), &mut level, &usage, &mut GameRng::new(42));
+        let mut player = You::default();
+        let result = use_offensive(MonsterId(1), &mut level, &mut player, &usage, &mut GameRng::new(42));
         // Should handle gracefully even without offense
         assert_eq!(
             result,

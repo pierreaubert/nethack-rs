@@ -142,10 +142,10 @@ fn test_monster_ai_moves_toward_player() {
     let mid = level.add_monster(monster);
 
     // Create player position
-    let player = nh_core::player::You::default();
+    let mut player = nh_core::player::You::default();
 
     // Run one AI tick
-    let _action = process_monster_ai(mid, &mut level, &player, &mut rng);
+    let _action = process_monster_ai(mid, &mut level, &mut player, &mut rng);
 
     // Monster should have moved (or at least tried to)
     // This is a basic smoke test - the AI may not always move closer
@@ -164,12 +164,12 @@ fn test_sleeping_monster_doesnt_move() {
     monster.state.sleeping = true;
     let mid = level.add_monster(monster);
 
-    let player = nh_core::player::You::default();
+    let mut player = nh_core::player::You::default();
 
     let initial_x = level.monster(mid).map(|m| m.x).unwrap_or(0);
     let initial_y = level.monster(mid).map(|m| m.y).unwrap_or(0);
 
-    let _action = process_monster_ai(mid, &mut level, &player, &mut rng);
+    let _action = process_monster_ai(mid, &mut level, &mut player, &mut rng);
 
     let final_x = level.monster(mid).map(|m| m.x).unwrap_or(0);
     let final_y = level.monster(mid).map(|m| m.y).unwrap_or(0);

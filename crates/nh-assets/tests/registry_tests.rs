@@ -88,3 +88,46 @@ fn test_registry_specificity_priority() {
     // Should prefer object_type (specificity 10) over class (specificity 1)
     assert_eq!(icon.tui_char, '(');
 }
+
+#[test]
+fn test_registry_identified_matching() {
+    let mapping = AssetMapping {
+        mappings: vec![
+            AssetMappingEntry {
+                identifier: ItemIdentifier {
+                    class: Some(ObjectClass::Potion),
+                    is_identified: Some(false),
+                    ..Default::default()
+                },
+                icon: ItemIconDefinition {
+                    tui_char: '!',
+                    tui_color: "gray".to_string(),
+                    bevy_sprite: "potion_unid.png".to_string(),
+                },
+            },
+            AssetMappingEntry {
+                identifier: ItemIdentifier {
+                    class: Some(ObjectClass::Potion),
+                    is_identified: Some(true),
+                    ..Default::default()
+                },
+                icon: ItemIconDefinition {
+                    tui_char: '!',
+                    tui_color: "red".to_string(),
+                    bevy_sprite: "potion_id.png".to_string(),
+                },
+            }
+        ],
+    };
+    
+    let registry = AssetRegistry::new(mapping);
+    let mut obj = Object::new(ObjectId(1), 200, ObjectClass::Potion);
+    
+    obj.known = false;
+    let icon = registry.get_icon(&obj).unwrap();
+    assert_eq!(icon.tui_color, "gray");
+    
+    obj.known = true;
+    let icon = registry.get_icon(&obj).unwrap();
+    assert_eq!(icon.tui_color, "red");
+}

@@ -13,7 +13,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: nh-assets Infrastructure & Core Logic' (Protocol in workflow.md) (386747c)
 
 ## Phase 2: Asset Generation & Initial Mapping
-- [ ] Task: Setup Asset Generation Pipeline
+- [~] Task: Setup Asset Generation Pipeline
     - [ ] Create a script or documentation for the "banana" icon generation workflow
     - [ ] Define the aesthetic parameters (palette, size, style) in a shared configuration
 - [ ] Task: Populate Initial Core Assets

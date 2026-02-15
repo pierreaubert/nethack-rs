@@ -1702,7 +1702,7 @@ impl GameLoop {
                     let action = crate::monster::process_monster_ai(
                         id,
                         &mut state.current_level,
-                        &state.player,
+                        &mut state.player,
                         &mut state.rng,
                     );
 

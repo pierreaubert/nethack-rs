@@ -1,0 +1,54 @@
+{
+  "mappings": [
+    {
+      "identifier": {
+        "class": "Weapon"
+      },
+      "icon": {
+        "tui_char": ")",
+        "tui_color": "gray",
+        "bevy_sprite": "items/weapon_generic.png"
+      }
+    },
+    {
+      "identifier": {
+        "class": "Armor"
+      },
+      "icon": {
+        "tui_char": "[",
+        "tui_color": "brown",
+        "bevy_sprite": "items/armor_generic.png"
+      }
+    },
+    {
+      "identifier": {
+        "class": "Potion"
+      },
+      "icon": {
+        "tui_char": "!",
+        "tui_color": "blue",
+        "bevy_sprite": "items/potion_generic.png"
+      }
+    },
+    {
+      "identifier": {
+        "class": "Food"
+      },
+      "icon": {
+        "tui_char": "%",
+        "tui_color": "orange",
+        "bevy_sprite": "items/food_generic.png"
+      }
+    },
+    {
+      "identifier": {
+        "class": "Coin"
+      },
+      "icon": {
+        "tui_char": "$",
+        "tui_color": "yellow",
+        "bevy_sprite": "items/gold.png"
+      }
+    }
+  ]
+}
