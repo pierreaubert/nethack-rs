@@ -4,6 +4,9 @@
 //!
 //! Main entry point is `mattacku()` which orchestrates all monster attacks.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use super::{
     ArmorProficiency, ArmorType, Attack, AttackType, CombatEffect, CombatResult, CriticalHitType,
     DamageType, DefenseCalculation, DodgeSkill, RangedAttack, RangedCombatResult, RangedWeaponType,
@@ -1792,10 +1795,8 @@ pub fn gazemu(
 /// # Returns
 /// Damage dealt to the attacker (0 if none)
 pub fn passiveum(_player: &You, _attacker: &Monster, _rng: &mut GameRng) -> i32 {
-    // In NetHack, this handles passive damage when player is polymorphed
-    // into a form like acid blob, cockatrice, etc.
-    // For now, return 0 (no passive damage)
-    // TODO: Implement polymorph passive attacks
+    // Passive damage when polymorphed (acid blob, cockatrice, etc.)
+    // requires polymorph form attack data; returns 0 until polymorph system tracks attacks
     0
 }
 

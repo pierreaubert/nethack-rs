@@ -5,7 +5,7 @@
 
 use crate::magic::spell::SpellType;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Custom modifications to a spell
 #[derive(Debug, Clone, Serialize, Deserialize)]

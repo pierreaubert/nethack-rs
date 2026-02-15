@@ -1,3 +1,6 @@
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Serialize, Deserialize};
 use crate::monster::PerMonst;
 use crate::dungeon::CellType;

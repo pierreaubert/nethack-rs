@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn test_pick_harassment_all_types() {
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = hashbrown::HashSet::new();
         for seed in 0..100 {
             let mut rng = GameRng::new(seed);
             let action = pick_harassment(15, &mut rng);

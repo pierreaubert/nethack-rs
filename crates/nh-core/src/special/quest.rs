@@ -3,6 +3,9 @@
 //! Implements the role-specific quest system where players must
 //! retrieve an artifact from a nemesis to complete their quest.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::gameloop::GameState;
 use crate::player::Role;
 
@@ -715,7 +718,7 @@ mod tests {
             Role::Wizard,
         ];
 
-        let mut seen_artifacts = std::collections::HashSet::new();
+        let mut seen_artifacts = hashbrown::HashSet::new();
         for role in &roles {
             let info = get_quest_info(*role);
             // Each role should have unique artifact

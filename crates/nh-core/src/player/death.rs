@@ -3,6 +3,9 @@
 //! Handles life saving, death processing, score calculation,
 //! end-game disclosure, and vanquished creatures listing.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::makemon::MonsterVitals;
 use crate::monster::PerMonst;
 use crate::player::{Attribute, HungerState, You};

@@ -3,6 +3,9 @@
 //! Manages enchanted rings and amulets with passive effects, wearing mechanics,
 //! and power drain/feedback effects.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::Object;
 use crate::player::{Attribute, Property, You};
 use crate::rng::GameRng;

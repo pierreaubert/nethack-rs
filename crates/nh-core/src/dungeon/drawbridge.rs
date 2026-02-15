@@ -4,6 +4,9 @@
 //! Drawbridges can be opened, closed, or destroyed, affecting entities
 //! (players and monsters) standing on them.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::Monster;
 use crate::rng::GameRng;
 use crate::{COLNO, ROWNO};

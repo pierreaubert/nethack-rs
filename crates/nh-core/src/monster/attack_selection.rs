@@ -4,7 +4,7 @@
 //! tactical situation, and personality-driven preferences.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use crate::combat::{AttackType, DamageType};
 
@@ -218,8 +218,8 @@ pub struct TargetCandidate {
 pub fn select_best_attack(
     monster_id: u32,
     available_attacks: &[AttackOption],
-    personality_preference: &std::collections::HashMap<AttackType, i8>,
-    success_rates: &std::collections::HashMap<AttackType, f32>,
+    personality_preference: &hashbrown::HashMap<AttackType, i8>,
+    success_rates: &hashbrown::HashMap<AttackType, f32>,
     intelligence: crate::monster::Intelligence,
     player_hp_percent: f32,
     monster_hp_percent: f32,

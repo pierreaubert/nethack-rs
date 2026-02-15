@@ -5,7 +5,7 @@
 
 use crate::magic::spell::SpellType;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Types of spell mutations
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -2,6 +2,9 @@
 //!
 //! Functions for creating and initializing objects.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::{BucStatus, ObjClassDef, Object, ObjectClass, ObjectId, ObjectLocation};
 use crate::rng::GameRng;
 use crate::world::{TimedEvent, TimedEventType, TimeoutManager};

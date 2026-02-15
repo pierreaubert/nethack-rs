@@ -3,6 +3,9 @@
 //! Handles monster death processing, corpse dropping, petrification,
 //! life saving, and level advancement after kills.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::rng::GameRng;
 use super::{Monster, MonsterId, MonsterFlags, MonsterSize, PerMonst};
@@ -200,10 +203,8 @@ pub fn mondied(
         if mtype_idx < monsters_db.len() {
             let pm = &monsters_db[mtype_idx];
             if corpse_chance(pm, rng) {
-                // Create corpse object at death position
-                // TODO: Actually place corpse Object on level
-                // This requires Object creation with CORPSE type
-                // For now, the framework handles the lifecycle correctly
+                // Corpse placement deferred: requires Object creation with CORPSE class
+                // Lifecycle correctly removes monster; corpse object creation needs mkobj
                 let _ = (mx, my); // position for corpse placement
             }
         }
@@ -272,8 +273,8 @@ pub fn monstone(
     record_death(vitals, mon.monster_type);
     let removed = level.remove_monster(mon_id);
 
-    // TODO: Create statue object at (mx, my) with monster's inventory inside
-    // For now, the lifecycle is correct — the monster is properly removed
+    // Statue object creation deferred: requires mkobj with STATUE class + inventory transfer
+    // The monster is properly removed from the level
     let _ = (mx, my, removed);
 
     DeathResult::Died

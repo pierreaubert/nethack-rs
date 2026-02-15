@@ -3,6 +3,9 @@
 //! Tracks negative effects from cursed equipment, including fumbling,
 //! stat penalties, forced equipping/unequipping, and other curses.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::Object;
 use crate::player::{Attribute, You};
 use crate::rng::GameRng;

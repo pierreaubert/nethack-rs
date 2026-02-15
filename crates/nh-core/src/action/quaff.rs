@@ -1,5 +1,8 @@
 //! Quaffing potions (potion.c)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::gameloop::GameState;
 use crate::magic::potion::quaff_potion;
@@ -298,7 +301,7 @@ pub fn mixtype(obj1: &Object, obj2: &Object, rng: &mut crate::rng::GameRng) -> i
                 | PotionType::Enlightenment
                 | PotionType::FruitJuice,
             ) => {
-                std::mem::swap(&mut o1typ, &mut o2typ);
+                core::mem::swap(&mut o1typ, &mut o2typ);
             }
             _ => {}
         }

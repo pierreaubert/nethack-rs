@@ -2,6 +2,9 @@
 //!
 //! Handles reading scrolls and their effects.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::data::objects::OBJECTS;
 use crate::dungeon::{DLevel, Level};
 use crate::object::{Object, ObjectClass, DirectionType};

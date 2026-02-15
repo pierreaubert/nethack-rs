@@ -6,6 +6,9 @@
 //! 3. Ensure all rooms are reachable from room 0
 //! 4. Add random extra corridors for variety
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::rng::GameRng;
 use crate::{COLNO, ROWNO};
 

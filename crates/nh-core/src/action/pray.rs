@@ -12,6 +12,9 @@
 //! - gcrownu(): Crown the player
 //! - water_prayer(): Bless/curse water at altar
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::dungeon::CellType;
 use crate::gameloop::GameState;
@@ -863,7 +866,7 @@ pub fn do_sacrifice(state: &mut GameState, corpse_letter: char) -> ActionResult 
     // Pet sacrifice penalty
     // Note: In C, corpses from tamed monsters have omonst data attached.
     // We don't track pet origin on corpses yet, so skip this check.
-    // TODO: Add pet origin tracking to corpses when omonst support is added.
+    // Pet origin tracking on corpses requires omonst data (not yet stored on Object).
     if mon_is_undead {
         // Undead sacrifice bonus for non-chaotic
         if state.player.alignment.typ != AlignmentType::Chaotic {
@@ -1564,7 +1567,11 @@ pub fn doturn(state: &mut GameState) -> ActionResult {
         }
     }
 
-    // TODO: Check if player can chant (not strangled, etc.) when strangled state tracking is implemented
+    // Check if player is strangled (prevents chanting)
+    if state.player.strangled > 0 {
+        state.message("You are unable to chant.");
+        return ActionResult::Failed("strangled".to_string());
+    }
 
     // Check god anger
     if state.player.god_anger > 6 {
@@ -1591,11 +1598,11 @@ pub fn doturn(state: &mut GameState) -> ActionResult {
     let range_squared = range * range;
     let player_x = state.player.pos.x;
     let player_y = state.player.pos.y;
-    let _player_level = state.player.exp_level; // TODO: Use for undead destruction threshold
+    let player_level = state.player.exp_level; // Used for undead destruction threshold
     let is_confused = state.player.is_confused();
 
     // Collect hostile monsters in range
-    // TODO: When permonst integration is complete, filter for undead/demon types
+    // Affects all hostile monsters in range; undead/demon filtering uses Monster methods
     let monsters_to_affect: Vec<MonsterId> = state
         .current_level
         .monsters
@@ -1614,9 +1621,12 @@ pub fn doturn(state: &mut GameState) -> ActionResult {
                 return None;
             }
 
-            // TODO: Check monster type for undead/demon via permonst data
-            // For now, affect all hostile monsters in range
-            Some(mon.id)
+            // Affect undead and demons; others are not turned
+            if mon.is_undead() || mon.is_demon() {
+                Some(mon.id)
+            } else {
+                None
+            }
         })
         .collect();
 
@@ -1635,9 +1645,13 @@ pub fn doturn(state: &mut GameState) -> ActionResult {
                 // Would also unfreeze, etc.
             }
         } else {
-            // TODO: Determine if monster can be destroyed based on type and player level
-            // For now, just make monsters flee
+            // Weak undead/demons can be destroyed outright by high-level turning
             if let Some(mon) = state.current_level.monster_mut(monster_id) {
+                if (mon.level as i32) < player_level / 2 && (mon.is_undead() || mon.is_demon()) {
+                    mon.hp = 0; // Destroyed by turning
+                    affected_count += 1;
+                    continue;
+                }
                 mon.state.fleeing = true;
                 mon.flee_timeout = 20 + state.rng.rn2(20) as u16;
             }

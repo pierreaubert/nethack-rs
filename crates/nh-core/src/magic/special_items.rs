@@ -3,6 +3,9 @@
 //! Implements unique item behaviors like loadstones that can't be dropped,
 //! luckstones that affect luck, poisoned weapons, and greased items.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::Object;
 use crate::player::You;
 use crate::rng::GameRng;

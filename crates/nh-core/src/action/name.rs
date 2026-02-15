@@ -3,6 +3,9 @@
 //! Handles naming individual objects, naming monsters, and
 //! calling (naming) types of objects.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::Monster;
 use crate::object::Object;
 
@@ -58,8 +61,7 @@ pub fn oname(obj: &mut Object, new_name: &str) -> NamingResult {
     let name = truncated.to_string();
     obj.name = Some(name.clone());
 
-    // TODO: Check if naming creates an artifact (e.g., naming a sword "Sting")
-    // artifact_exists(obj, name, true);
+    // Artifact creation by naming (e.g., naming a sword "Sting") deferred to artifact system
 
     NamingResult::Named(name)
 }
@@ -222,7 +224,7 @@ pub fn is_callable_class(class: crate::object::ObjectClass) -> bool {
 #[derive(Debug, Clone, Default)]
 pub struct CalledNames {
     /// Map from object_type ID to user-assigned name
-    names: std::collections::HashMap<i16, String>,
+    names: hashbrown::HashMap<i16, String>,
 }
 
 impl CalledNames {

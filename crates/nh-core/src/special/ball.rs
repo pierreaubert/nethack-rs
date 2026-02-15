@@ -2,6 +2,9 @@
 //!
 //! Handles iron ball movement, chain drag, and punishment mechanics.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::magic::scroll::PunishmentState;
 

@@ -2,6 +2,9 @@
 //!
 //! Functions for generating object names from ObjClassDef data.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use super::{ObjClassDef, Object, ObjectClass};
 
 /// Discovery state for a type of object

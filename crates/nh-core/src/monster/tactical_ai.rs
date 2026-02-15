@@ -90,10 +90,10 @@ pub fn execute_retreat(
 /// Get personality-based attack preference modifiers
 pub fn get_personality_attack_preferences(
     personality: Personality,
-) -> std::collections::HashMap<crate::combat::AttackType, i8> {
+) -> hashbrown::HashMap<crate::combat::AttackType, i8> {
     use super::personality::PersonalityProfile;
     use crate::combat::AttackType;
-    use std::collections::HashMap;
+    use hashbrown::HashMap;
 
     let profile = PersonalityProfile::for_personality(personality);
     let mut prefs = HashMap::new();

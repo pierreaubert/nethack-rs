@@ -3,6 +3,9 @@
 //! These are derived from include/config.h, include/global.h, and other headers.
 
 /// Map dimensions
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 pub const COLNO: usize = 80;
 pub const ROWNO: usize = 21;
 

@@ -7,6 +7,9 @@
 //! Functions accept `&[PerMonst]` for the monster database since nh-core
 //! cannot depend on nh-data (the dependency runs the other way).
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 
@@ -513,17 +516,13 @@ fn ensure_vitals(vitals: &mut Vec<MonsterVitals>, index: usize) {
 /// Full object creation requires the Objects database (nh-data), so this
 /// is a framework for future expansion.
 fn m_initweap(_mon: &mut Monster, _pm: &PerMonst, _rng: &mut GameRng) {
-    // TODO: Full weapon assignment requires Object creation from nh-data.
-    // The framework is in place — callers should provide an object factory
-    // callback or use a higher-level wrapper that has access to OBJECTS.
+    // Weapon assignment requires Object creation from nh-data OBJECTS table.
+    // The framework is in place; callers should provide an object factory
+    // callback or use a higher-level wrapper with access to OBJECTS.
     //
-    // Giant → boulder
-    // Mercenary (MERC) → long sword, small shield, chain mail
-    // Orc → orcish weapons
-    // Elf → elven weapons
-    // Dwarf → dwarvish weapons
-    // Angel → saber or long sword
-    // Demon class → trident or broadsword
+    // Expected mapping: Giant→boulder, Mercenary→long sword/shield/mail,
+    // Orc→orcish weapons, Elf→elven weapons, Dwarf→dwarvish weapons,
+    // Angel→saber/long sword, Demon→trident/broadsword
 }
 
 /// Give a monster its initial inventory.
@@ -536,7 +535,8 @@ fn m_initweap(_mon: &mut Monster, _pm: &PerMonst, _rng: &mut GameRng) {
 ///
 /// Full object creation requires the Objects database (nh-data).
 fn m_initinv(_mon: &mut Monster, _pm: &PerMonst, _rng: &mut GameRng) {
-    // TODO: Same as m_initweap — requires Object creation from nh-data.
+    // Inventory assignment requires Object creation from nh-data OBJECTS table.
+    // Shopkeepers→keys/gold, Nymphs→mirrors, Leprechauns→gold, Mercenaries→rations.
 }
 
 // ============================================================================
@@ -583,7 +583,7 @@ fn m_initgrp(
 /// Matches C `wrong_elem_type()` in makemon.c. Fire-resistant monsters
 /// don't appear on the Water Plane, etc.
 pub fn wrong_elem_type(_pm: &PerMonst, _depth: i32) -> bool {
-    // TODO: Implement elemental plane restrictions when planes are added.
+    // Elemental plane restrictions not yet applicable: planes not implemented
     false
 }
 

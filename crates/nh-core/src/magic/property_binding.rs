@@ -4,6 +4,9 @@
 //! artifacts, rings, and amulets. Integrates the property system with
 //! equipment and magical items.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::Object;
 use crate::player::{Property, You};
 use serde::{Deserialize, Serialize};
@@ -12,7 +15,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PropertyBinding {
     /// Object ID → set of properties it grants
-    pub item_properties: std::collections::HashMap<u32, Vec<Property>>,
+    pub item_properties: hashbrown::HashMap<u32, Vec<Property>>,
 }
 
 impl Default for PropertyBinding {
@@ -24,7 +27,7 @@ impl Default for PropertyBinding {
 impl PropertyBinding {
     pub fn new() -> Self {
         Self {
-            item_properties: std::collections::HashMap::new(),
+            item_properties: hashbrown::HashMap::new(),
         }
     }
 

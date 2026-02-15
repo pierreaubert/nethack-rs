@@ -4,6 +4,9 @@
 //! When a room is placed, the containing rectangle is split into smaller
 //! rectangles representing the remaining free space.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::rng::GameRng;
 
 /// Maximum number of rectangles to track

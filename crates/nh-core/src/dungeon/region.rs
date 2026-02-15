@@ -3,6 +3,9 @@
 //! Regions are persistent area effects on the level — gas clouds,
 //! stinking clouds, areas of silence, etc.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 /// Maximum number of active regions per level

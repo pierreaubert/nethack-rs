@@ -5,7 +5,7 @@
 
 use crate::magic::spell::{SpellMastery, SpellType};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Mastery advancement milestone
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

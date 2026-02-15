@@ -4,6 +4,9 @@
 //! multishot, boomerangs, potion shattering, gem/unicorn interactions,
 //! object breakage, cockatrice eggs, monster throwing, and wand breaking.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::kick::{hurtle, hurtle_step, mhurtle, mhurtle_step};
 use crate::action::{ActionResult, Direction};
 use crate::combat::CombatEffect;

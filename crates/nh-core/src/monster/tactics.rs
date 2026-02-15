@@ -2,6 +2,9 @@
 //!
 //! Advanced monster behaviors: ranged attacks, special abilities, group tactics.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::player::You;
 use crate::rng::GameRng;

@@ -2,6 +2,9 @@
 //!
 //! Handles wand zapping, spell rays, and breath weapons.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::combat::DamageType;
 use crate::dungeon::{DLevel, Level};
 use crate::monster::MonsterId;
@@ -745,9 +748,20 @@ fn zap_direction(
         }
 
         // Check for monsters with reflection
-        if let Some(monster) = level.monster_at_mut(x, y) {
-            // TODO: check monster reflection (silver dragon scales, amulet of reflection)
-            hit_monster_with_ray(monster, zap_type, variant, rng, result);
+        if level.monster_at(x, y).is_some() {
+            let reflects = level
+                .monster_at(x, y)
+                .is_some_and(|m| crate::monster::mon_has_reflection(m));
+            if reflects {
+                result
+                    .messages
+                    .push(format!("The {} is reflected!", zap_type.name(variant)));
+                // Reflected ray reverses direction; simplified: just stop
+                break;
+            }
+            if let Some(monster) = level.monster_at_mut(x, y) {
+                hit_monster_with_ray(monster, zap_type, variant, rng, result);
+            }
             // Most rays stop at first monster
             break;
         }

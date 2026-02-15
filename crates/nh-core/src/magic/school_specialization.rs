@@ -5,7 +5,7 @@
 
 use crate::magic::spell::SpellSchool;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Specialization level in a school
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

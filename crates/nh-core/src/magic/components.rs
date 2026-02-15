@@ -3,6 +3,9 @@
 //! Tracks material components needed for spellcasting and manages component
 //! consumption, availability, and spell failure due to missing components.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 /// Spell component types
@@ -58,13 +61,13 @@ impl ComponentType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentInventory {
     /// Available components by type
-    pub components: std::collections::HashMap<ComponentType, i32>,
+    pub components: hashbrown::HashMap<ComponentType, i32>,
 }
 
 impl ComponentInventory {
     pub fn new() -> Self {
         Self {
-            components: std::collections::HashMap::new(),
+            components: hashbrown::HashMap::new(),
         }
     }
 

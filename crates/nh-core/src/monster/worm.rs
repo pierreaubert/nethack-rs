@@ -3,6 +3,9 @@
 //! Long worms are special monsters that occupy multiple tiles.
 //! Each segment has its own position and can be attacked independently.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::MonsterId;
 
 /// Maximum worm length (matches C: WORMNO 32 segments)

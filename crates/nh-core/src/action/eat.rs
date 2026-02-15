@@ -4,6 +4,9 @@
 //! corpse intrinsic grants via mconveys, food pre/post effects, rot handling,
 //! hunger state management.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::combat::DamageType;
 use crate::data::get_monster;

@@ -9,6 +9,9 @@
 //! - Pet tracking and management (keepdogs, losedogs)
 //! - Pet behavior and abuse (abuse_dog, mon_catchup_elapsed_time)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::monster::{Monster, MonsterId, MonsterState};
 use crate::object::{Object, ObjectClass, ObjectId};

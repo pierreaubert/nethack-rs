@@ -3,6 +3,9 @@
 //! Properties are abilities/resistances that can be intrinsic (permanent)
 //! or extrinsic (from worn items).
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
@@ -353,9 +356,21 @@ impl PropertySet {
         self.has(Property::MagicResistance)
     }
 
-    /// Check if has reflection
+    /// Check if has reflection (intrinsic or from equipment)
     pub fn has_reflection(&self) -> bool {
         self.has(Property::Reflection)
+    }
+
+    /// Check reflection source (C: ureflects(), returns description of source)
+    /// Returns None if player has no reflection, or Some(source_description).
+    pub fn ureflects(&self) -> Option<&'static str> {
+        if !self.has(Property::Reflection) {
+            return None;
+        }
+        // The Property system tracks the source; intrinsic reflection comes from
+        // silver dragon scale mail, shield of reflection, or amulet of reflection.
+        // Return a generic source description.
+        Some("Your reflection deflects it!")
     }
 
     /// Check if has free action

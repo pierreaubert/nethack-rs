@@ -1,5 +1,8 @@
 //! Player attributes (STR, INT, WIS, DEX, CON, CHA)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::consts::NUM_ATTRS;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};

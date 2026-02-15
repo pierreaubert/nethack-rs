@@ -1,5 +1,8 @@
 //! Jumping mechanics (apply.c)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::dungeon::CellType;
 use crate::gameloop::GameState;
@@ -58,7 +61,11 @@ pub fn jump(state: &mut GameState, magic: i32) -> ActionResult {
         }
     }
 
-    // TODO: Check for being stuck/held when held state tracking is implemented
+    // Check for being held by a monster
+    if state.player.grabbed_by.is_some() {
+        state.message("You are being held!");
+        return ActionResult::Failed("held".to_string());
+    }
 
     // Check for being burdened (Stressed or worse prevents jumping)
     use crate::player::Encumbrance;

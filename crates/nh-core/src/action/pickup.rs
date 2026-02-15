@@ -1,5 +1,8 @@
 //! Picking up and dropping items (pickup.c)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::gameloop::GameState;
 use crate::object::{Object, ObjectClass};

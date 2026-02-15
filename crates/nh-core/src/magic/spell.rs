@@ -2,6 +2,9 @@
 //!
 //! Handles learning and casting spells.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use super::advanced;
 use crate::dungeon::{DLevel, Level};
 use crate::monster::MonsterId;
@@ -973,8 +976,7 @@ fn cast_magic_mapping(level: &mut Level, result: &mut SpellResult) {
 }
 
 fn cast_identify(_player: &mut You, result: &mut SpellResult) {
-    // TODO: Identify the player's current wielded weapon or first item in inventory
-    // This requires access to inventory which is stored elsewhere
+    // Full identify requires inventory access (stored on GameState, not passed here)
     result
         .messages
         .push("You feel a surge of knowledge.".to_string());

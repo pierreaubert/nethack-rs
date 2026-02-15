@@ -3,6 +3,9 @@
 //! Implements spell interruption, failure conditions, spell resistance,
 //! and other complex spell interactions.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::player::{Attribute, You};
 use crate::rng::GameRng;
 use serde::{Deserialize, Serialize};

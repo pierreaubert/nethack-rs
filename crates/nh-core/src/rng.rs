@@ -2,6 +2,9 @@
 //!
 //! Uses a seeded ChaCha RNG for reproducibility (save/restore).
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};

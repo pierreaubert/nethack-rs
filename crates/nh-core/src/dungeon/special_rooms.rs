@@ -3,6 +3,9 @@
 //! Implements monster and item spawning for special room types.
 //! Each room type has specific monster selection and feature placement logic.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::{Monster, MonsterId, MonsterState};
 use crate::object::{Object, ObjectClass, ObjectId};
 use crate::rng::GameRng;

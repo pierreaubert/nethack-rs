@@ -8,6 +8,9 @@
 //! The mail daemon is a special monster that appears to deliver
 //! a "scroll of mail" to the player, then disappears.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::monster::{Monster, MonsterId, MonsterState};
 use crate::object::{Object, ObjectClass, ObjectId};

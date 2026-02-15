@@ -1,6 +1,9 @@
 //! Common message templates for action modules
 
 /// Get a "nothing happens" message variant
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 pub fn nothing_happens() -> &'static str {
     "Nothing happens."
 }

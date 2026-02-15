@@ -7,6 +7,9 @@
 //! This module covers the execution side of monster item usage. Item *selection*
 //! (find_offensive, find_defensive, find_misc) lives in `monster/ai.rs`.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::magic::zap::{
     BuzzResult, MbhitEffect, ZapResult, ZapType, ZapVariant, buzz, check_wand_breakage,
@@ -531,7 +534,7 @@ fn apply_thrown_potion_effect(
         }
     };
 
-    (damage, std::mem::take(messages))
+    (damage, core::mem::take(messages))
 }
 
 // ============================================================================

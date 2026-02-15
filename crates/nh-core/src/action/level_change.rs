@@ -3,7 +3,10 @@
 //! Handles stair usage, level transitions, falling through traps,
 //! and floor effects when objects land.
 
-use crate::dungeon::{CellType, DLevel, Level};
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
+use crate::dungeon::{CellType, DLevel, Level, TrapType};
 use crate::player::{Property, You};
 use crate::rng::GameRng;
 use crate::{COLNO, ROWNO};
@@ -80,9 +83,18 @@ pub fn dodown(
 
     if let Some(stair) = stair {
         LevelChangeResult::Changed(stair.destination)
+    } else if let Some(trap) = level.trap_at(px, py) {
+        // Trap door or hole allows descent
+        match trap.trap_type {
+            TrapType::TrapDoor | TrapType::Hole => {
+                LevelChangeResult::Changed(DLevel {
+                    dungeon_num: level.dlevel.dungeon_num,
+                    level_num: level.dlevel.level_num + 1,
+                })
+            }
+            _ => LevelChangeResult::Blocked("You can't go down here.".to_string()),
+        }
     } else {
-        // Check for trap door or hole at current position
-        // TODO: Check trap types at position
         LevelChangeResult::Blocked("You can't go down here.".to_string())
     }
 }
@@ -317,8 +329,14 @@ pub fn flooreffects(
         return FloorEffect::FillsMoat;
     }
 
-    // Falls into pit or hole (check traps at position)
-    // TODO: Check trap type at position for holes/pits
+    // Falls into pit or hole
+    if let Some(trap) = level.trap_at(x, y) {
+        match trap.trap_type {
+            TrapType::Pit | TrapType::SpikedPit => return FloorEffect::FallsIntoPit,
+            TrapType::Hole | TrapType::TrapDoor => return FloorEffect::FallsThroughHole,
+            _ => {}
+        }
+    }
 
     // Sinks in lava
     if cell.typ == CellType::Lava {

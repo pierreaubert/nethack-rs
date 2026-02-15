@@ -2,6 +2,9 @@
 //!
 //! Implements role-specific quests with nemesis monsters and quest artifacts.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 use crate::player::Role;

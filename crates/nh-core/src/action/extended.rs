@@ -7,6 +7,9 @@
 //! - Random command selection
 //! - Key-to-command mapping
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use super::{Command, Direction};
 use crate::rng::GameRng;
 
@@ -658,7 +661,7 @@ impl InteractiveMode {
 
     /// Push a new mode on the stack
     pub fn push_mode(&mut self, new_mode: GameMode) {
-        let current = std::mem::replace(self, Self::new(new_mode));
+        let current = core::mem::replace(self, Self::new(new_mode));
         self.previous_mode = Some(Box::new(current));
     }
 

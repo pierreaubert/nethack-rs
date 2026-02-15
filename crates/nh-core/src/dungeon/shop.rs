@@ -2,6 +2,9 @@
 //!
 //! Implements shop room creation with shopkeepers and inventory.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::{Monster, MonsterId, MonsterState};
 use crate::object::{Object, ObjectClass, ObjectId};
 use crate::rng::GameRng;

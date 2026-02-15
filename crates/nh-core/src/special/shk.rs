@@ -8,6 +8,9 @@
 //! - Movement and behavior AI
 //! - Customer interaction and dialogue
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::dungeon::Level;
 use crate::gameloop::GameState;

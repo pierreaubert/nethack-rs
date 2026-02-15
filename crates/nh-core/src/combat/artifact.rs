@@ -6,6 +6,9 @@
 //! The static ARTIFACTS data lives in nh-data; this module provides the
 //! runtime logic that operates on it.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 use super::{Attack, CombatEffect, DamageType};

@@ -6,6 +6,9 @@
 //! When the `extensions` feature is disabled, all functions are no-ops
 //! returning neutral values (1.0 multiplier, 0 reduction, etc.).
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::magic::spell::{SpellMastery, SpellSchool, SpellType};
 use crate::player::You;
 

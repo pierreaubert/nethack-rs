@@ -2,6 +2,9 @@
 //!
 //! Functions for managing player inventory.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::{BucStatus, Object, ObjectClass, ObjectId};
 
 /// Maximum number of inventory slots (a-z, A-Z)

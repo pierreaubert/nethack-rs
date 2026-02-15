@@ -2,8 +2,12 @@
 //!
 //! Handles user preferences, keybindings, and configuration file loading.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use hashbrown::HashMap;
+#[cfg(feature = "std")]
 use std::path::Path;
 
 /// User-configurable game options
@@ -115,6 +119,7 @@ impl Default for GameOptions {
 }
 
 impl GameOptions {
+    #[cfg(feature = "std")]
     /// Load options from a file
     pub fn load_from_file(path: &Path) -> Result<Self, OptionsError> {
         let contents =
@@ -287,6 +292,7 @@ impl GameOptions {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     /// Save options to a file
     pub fn save_to_file(&self, path: &Path) -> Result<(), OptionsError> {
         let contents = self.to_config_string();
@@ -466,8 +472,8 @@ pub enum OptionsError {
     MissingValue(String),
 }
 
-impl std::fmt::Display for OptionsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for OptionsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             OptionsError::IoError(e) => write!(f, "IO error: {}", e),
             OptionsError::ParseError(e) => write!(f, "Parse error: {}", e),
@@ -480,7 +486,7 @@ impl std::fmt::Display for OptionsError {
     }
 }
 
-impl std::error::Error for OptionsError {}
+impl core::error::Error for OptionsError {}
 
 #[cfg(test)]
 mod tests {

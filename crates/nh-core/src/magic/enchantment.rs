@@ -3,6 +3,9 @@
 //! Handles enchanting/disenchanting items, recharging wands, and tracking
 //! enchantment level effects on combat and protection.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::{BucStatus, Object, ObjectClass};
 use crate::player::You;
 use crate::rng::GameRng;

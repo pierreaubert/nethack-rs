@@ -3,6 +3,9 @@
 //! Playing instruments — wooden flute, magic flute, tooled horn,
 //! fire/frost/bugle horn, harp, drum of earthquake, etc.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::gameloop::GameState;
 use crate::rng::GameRng;

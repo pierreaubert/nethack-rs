@@ -7,23 +7,44 @@ rust-version.workspace = true
 description = "Core game logic for NetHack clone"
 
 [features]
+default = ["std"]
+std = [
+    "chrono",
+    "flate2",
+    "atty",
+    "dirs",
+    "serde_json",
+    "serde/std",
+    "thiserror/std",
+    "rand/std",
+    "rand/std_rng",
+    "strum/std",
+]
 extensions = []
+polkadot = ["parity-scale-codec", "parity-scale-codec/derive"]
 
 [dependencies]
 bitflags.workspace = true
-thiserror.workspace = true
-strum.workspace = true
-rand.workspace = true
+thiserror = { workspace = true, default-features = false }
+strum = { workspace = true, default-features = false }
+rand = { workspace = true, default-features = false }
 rand_chacha.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-chrono.workspace = true
-flate2.workspace = true
-atty.workspace = true
-dirs.workspace = true
+serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
+hashbrown = { version = "0.15", features = ["serde"] }
+
+# Optional std-only dependencies
+chrono = { workspace = true, optional = true }
+flate2 = { workspace = true, optional = true }
+atty = { workspace = true, optional = true }
+dirs = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+# Optional polkadot dependencies
+parity-scale-codec = { version = "3", default-features = false, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 proptest.workspace = true
+serde_json.workspace = true

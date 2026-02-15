@@ -2,6 +2,9 @@
 //!
 //! Functions for trap creation, triggering, and effects.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::level::{Trap, TrapType};
 use crate::player::Property;
 use crate::rng::GameRng;

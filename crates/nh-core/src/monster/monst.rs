@@ -1,5 +1,8 @@
 //! Monster instances (monst.h)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
@@ -862,9 +865,28 @@ impl Monster {
 
     /// Check if monster has reflection (from equipment or intrinsic)
     pub fn has_reflection(&self) -> bool {
-        // Check for reflection amulet or shield of reflection
-        // In full implementation, would check worn equipment
-        // For now, return false (reflection is rare)
+        // Check worn equipment for reflection sources
+        for obj in &self.inventory {
+            let obj_name = obj.name.as_deref().unwrap_or("");
+            // Shield of reflection
+            if obj.worn_mask & crate::action::wear::worn_mask::W_ARMS != 0
+                && obj_name.to_lowercase().contains("reflection")
+            {
+                return true;
+            }
+            // Amulet of reflection
+            if obj.worn_mask & crate::action::wear::worn_mask::W_AMUL != 0
+                && obj_name.to_lowercase().contains("reflection")
+            {
+                return true;
+            }
+            // Silver dragon scale mail
+            if obj.worn_mask & crate::action::wear::worn_mask::W_ARM != 0
+                && obj_name.to_lowercase().contains("silver dragon")
+            {
+                return true;
+            }
+        }
         false
     }
 
@@ -2154,10 +2176,10 @@ pub fn mcalcdistress(level: &mut crate::dungeon::Level, current_turn: i64) {
             }
 
             // Line 708-712: Shapeshifter transformation
-            // TODO: decide_to_shapeshift(monster)
+            // Shapeshifting deferred: requires newcham() with full type selection
 
             // Line 714-717: Werewolf transformation
-            // TODO: were_change(monster)
+            // Were-creature change deferred: requires were_change() with form tracking
         }
     }
 }

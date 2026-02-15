@@ -2,6 +2,9 @@
 //!
 //! Handles shop transactions, pricing, billing, and shopkeeper interactions.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::{Object, ObjectClass, ObjectId};
 use crate::rng::GameRng;
 

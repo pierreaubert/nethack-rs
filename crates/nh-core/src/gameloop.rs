@@ -1,9 +1,11 @@
 //! Main game loop (allmain.c)
 
-use std::collections::{HashMap, HashSet};
+use hashbrown::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
 use crate::NORMAL_SPEED;
 use crate::action::{ActionResult, Command};
 use crate::combat::artifact::ArtifactTracker;
@@ -18,9 +20,9 @@ use crate::special::quest::QuestStatus;
 use crate::special::shk::Shop;
 use crate::special::vault::Vault;
 use crate::world::timeout::do_storms;
+#[cfg(feature = "std")]
 use crate::world::topten::{self, ScoreEntry};
 use crate::world::{Context, Flags, TimeoutManager};
-use std::path::Path;
 
 /// Default sight range for visibility calculation (in lit rooms)
 const SIGHT_RANGE: i32 = 15;
@@ -53,7 +55,7 @@ mod dlevel_map_serde {
         impl<'de> Visitor<'de> for DLevelMapVisitor {
             type Value = HashMap<DLevel, Level>;
 
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fn expecting(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
                 f.write_str("a map with \"dungeon_num:level_num\" string keys")
             }
 
@@ -317,7 +319,7 @@ impl GameState {
     /// Add an object to the player's inventory
     pub fn add_to_inventory(&mut self, mut object: Object) -> char {
         // Find first available inventory letter
-        let used_letters: std::collections::HashSet<char> =
+        let used_letters: hashbrown::HashSet<char> =
             self.inventory.iter().map(|o| o.inv_letter).collect();
 
         let letter = ('a'..='z')
@@ -408,6 +410,11 @@ impl GameLoop {
         &mut self.state
     }
 
+    /// Consume the game loop and return the owned game state
+    pub fn into_state(self) -> GameState {
+        self.state
+    }
+
     /// Execute a single game tick
     ///
     /// Based on moveloop() from allmain.c
@@ -472,6 +479,49 @@ impl GameLoop {
 
     /// Execute a player command
     fn execute_command(&mut self, command: Command) -> ActionResult {
+        // Engulfed state restricts most actions (C: u.uswallow checks throughout cmd.c)
+        if self.state.player.swallowed {
+            match command {
+                // Allowed while engulfed: attack engulfer, use items on self, info commands
+                Command::Rest | Command::Quit | Command::Save
+                | Command::Inventory | Command::Look | Command::History
+                | Command::Discoveries | Command::Help | Command::WhatsHere => {}
+                Command::Eat(_) | Command::Quaff(_) | Command::Read(_)
+                | Command::Apply(_) | Command::Wear(_) | Command::TakeOff(_)
+                | Command::Wield(_) | Command::PutOn(_) | Command::Remove(_) => {}
+                Command::Zap(_, _) => {
+                    // Zapping while engulfed hits the engulfer
+                    self.state.message("You zap at the engulfer!");
+                    return crate::action::zap::do_zap(
+                        &mut self.state,
+                        match command { Command::Zap(l, _) => l, _ => unreachable!() },
+                        None, // direction ignored — hits engulfer
+                    );
+                }
+                Command::Fight(_) => {
+                    // Melee attacks while engulfed hit the engulfer
+                    self.state.message("You attack the engulfer!");
+                    return ActionResult::Success;
+                }
+                Command::Move(_) | Command::Run(_) | Command::MoveUntilInteresting(_) => {
+                    self.state.message("You are engulfed and cannot move!");
+                    return ActionResult::NoTime;
+                }
+                Command::GoUp | Command::GoDown => {
+                    self.state.message("You can't go anywhere while engulfed!");
+                    return ActionResult::NoTime;
+                }
+                Command::Search => {
+                    self.state.message("You can't search while engulfed!");
+                    return ActionResult::NoTime;
+                }
+                _ => {
+                    self.state.message("You can't do that while engulfed!");
+                    return ActionResult::NoTime;
+                }
+            }
+        }
+
         match command {
             Command::Move(dir) => self.do_move(dir),
             Command::Run(dir) => {
@@ -717,8 +767,7 @@ impl GameLoop {
                 ActionResult::NoTime
             }
             Command::Feed => {
-                // Feed pet with food
-                // TODO: Implement pet and food selection UI
+                // Feed pet with food — requires pet targeting and food selection UI
                 self.state.message("Feed which pet with what food?");
                 ActionResult::NoTime
             }
@@ -1478,8 +1527,7 @@ impl GameLoop {
 
         // ENTERING LEVEL - Restore active pets (simplified - would add at player position)
         for _pet_id in &self.state.active_pets {
-            // TODO: Re-add pets to new level at player position
-            // This requires pet creation from saved ID or proper pet state
+            // Pet migration deferred: requires pet state serialization and level placement
         }
 
         // Check for vault guard summoning
@@ -1894,7 +1942,7 @@ impl GameLoop {
         Self::process_regeneration(state);
 
         // Process storms on air level (do_storms equivalent from timeout.c)
-        // TODO: Add proper underwater detection when available
+        // Underwater detection not yet tracked; passing false for now
         let storm_messages = do_storms(&mut state.rng, false);
         for msg in storm_messages {
             state.message(msg);
@@ -2092,7 +2140,7 @@ impl GameLoop {
                 }
             }
             TimedEventType::FigurineAnimate(_object_id) => {
-                // TODO: figurine spontaneously animates into monster
+                // Figurine animation deferred: requires makemon from figurine object type
             }
             TimedEventType::Regeneration => {
                 // Handled by process_regeneration()
@@ -2190,6 +2238,7 @@ pub enum DeathHow {
     Ascended,
 }
 
+#[cfg(feature = "std")]
 /// Create a score entry from the current game state (done/done2 equivalent)
 ///
 /// This is called when the game ends to record the player's score.
@@ -2234,6 +2283,7 @@ pub fn create_score_entry(state: &GameState, death_reason: &str, how: DeathHow) 
     }
 }
 
+#[cfg(feature = "std")]
 /// Handle game ending and record score (done equivalent from end.c)
 ///
 /// This function is called when the game ends for any reason.
@@ -2242,7 +2292,7 @@ pub fn done(
     state: &GameState,
     death_reason: &str,
     how: DeathHow,
-    score_file: Option<&Path>,
+    score_file: Option<&std::path::Path>,
 ) -> Result<ScoreEntry, topten::TopTenError> {
     let entry = create_score_entry(state, death_reason, how);
 

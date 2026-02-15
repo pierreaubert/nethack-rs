@@ -6,6 +6,9 @@
 //!
 //! Corresponds to NetHack's mapseen structure in dungeon.h
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 use super::DLevel;

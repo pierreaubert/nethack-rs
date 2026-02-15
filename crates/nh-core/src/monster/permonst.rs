@@ -1,5 +1,8 @@
 //! Monster templates (permonst.h)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
@@ -1308,7 +1311,7 @@ pub fn name_to_monclass(name: &str) -> Option<MonsterClass> {
 /// This is used for cannibalism checks, polymorph restrictions, etc.
 pub fn same_race(pm1: &PerMonst, pm2: &PerMonst) -> bool {
     // Same monster type
-    if std::ptr::eq(pm1, pm2) {
+    if core::ptr::eq(pm1, pm2) {
         return true;
     }
 

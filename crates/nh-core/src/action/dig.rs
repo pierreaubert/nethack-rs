@@ -3,6 +3,9 @@
 //! Handles pickaxe digging (multi-turn), wand of digging beams,
 //! hole/pit creation, and grave excavation.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::{CellType, DLevel, Level, TrapType};
 use crate::player::{Attribute, You};
 use crate::rng::GameRng;
@@ -38,9 +41,15 @@ pub fn dig_target(level: &Level, x: i8, y: i8, has_pick: bool) -> DigTarget {
 
     let cell = &level.cells[x as usize][y as usize];
 
-    // Check for boulders at the location
-    // TODO: Check object grid for boulders → DigTarget::Boulder
-    // TODO: Check object grid for statues → DigTarget::Statue
+    // Check for boulders and statues at the location
+    for obj in level.objects_at(x, y) {
+        if obj.is_boulder() {
+            return DigTarget::Boulder;
+        }
+        if obj.is_statue() {
+            return DigTarget::Statue;
+        }
+    }
 
     if cell.typ.is_door() {
         return DigTarget::Door;

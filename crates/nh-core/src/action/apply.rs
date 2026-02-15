@@ -3,6 +3,9 @@
 //! Handles the 'a' (apply) command for using tools, instruments,
 //! containers, digging implements, lock-picks, and other special items.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::dungeon::{LightSource, LightSourceType};
 use crate::gameloop::GameState;
@@ -2496,7 +2499,7 @@ pub fn maybe_write_ls(state: &GameState, _write: bool) -> usize {
 /// Get statistics about light sources (for wizard mode)
 pub fn light_stats(state: &GameState) -> (usize, usize) {
     let count = state.current_level.light_sources.len();
-    let size = count * std::mem::size_of::<LightSource>();
+    let size = count * core::mem::size_of::<LightSource>();
     (count, size)
 }
 

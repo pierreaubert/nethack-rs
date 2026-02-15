@@ -3,6 +3,9 @@
 //! Manages potion potency levels, effect stacking, interaction detection,
 //! and duration/magnitude scaling for quaffed potions.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::player::{Attribute, Property, You};
 use crate::rng::GameRng;
 use serde::{Deserialize, Serialize};

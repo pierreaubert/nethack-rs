@@ -1,5 +1,8 @@
 //! Main player structure (struct you from you.h)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -1513,7 +1516,7 @@ impl You {
             return None;
         }
 
-        use std::cmp::Ordering;
+        use core::cmp::Ordering;
         match new_enc.cmp(&old_encumbrance) {
             Ordering::Greater => {
                 // More encumbered

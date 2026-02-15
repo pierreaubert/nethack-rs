@@ -3,6 +3,9 @@
 //! Implements predefined special levels like Mines End, Sokoban, Oracle, etc.
 //! Instead of parsing .des files, we define levels programmatically in Rust.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::rng::GameRng;
 
 use super::DLevel;
@@ -590,7 +593,7 @@ fn create_surrounding_rooms(
     let num_rooms = 4 + rng.rn2(5) as usize;
 
     for i in 0..num_rooms {
-        let angle = (i as f32) * std::f32::consts::TAU / (num_rooms as f32);
+        let angle = (i as f32) * core::f32::consts::TAU / (num_rooms as f32);
         let dist = (main_w.max(main_h) as f32) * 1.5;
 
         let rx = (cx as f32 + angle.cos() * dist) as usize;

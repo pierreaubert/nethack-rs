@@ -1,5 +1,8 @@
 //! Zapping wands (zap.c)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::{ActionResult, Direction};
 use crate::gameloop::GameState;
 use crate::magic::zap::{ZapDirection, zap_wand};

@@ -5,6 +5,9 @@
 //!
 //! Adapted from NetHack 3.6.7: minion.c, wizard.c, polyself.c
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::{Monster, MonsterId};
 use crate::player::You;
 use crate::rng::GameRng;

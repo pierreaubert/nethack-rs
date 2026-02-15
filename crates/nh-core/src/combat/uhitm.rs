@@ -4,6 +4,9 @@
 //! Includes weapon damage calculation, silver/blessed bonuses,
 //! artifact integration, erosion, two-weapon fighting, and cleaving.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use super::artifact::{artifact_for_object, artifact_hit, spec_abon, spec_dbon, Artifact};
 use super::{
     AmmunitionCount, ArmorProficiency, ArmorType, CombatEffect, CombatEncounter, CombatModifier,
@@ -1129,9 +1132,8 @@ pub fn get_weapon_skill(weapon: Option<&Object>) -> WeaponSkill {
     match weapon {
         None => WeaponSkill::Bare,
         Some(w) => {
-            // TODO: Determine weapon skill based on weapon properties
-            // For now, classify based on weapon type/name patterns
-            // This should ideally use weapon class constants from object definitions
+            // Classify based on weapon name patterns; ideally uses weapon class constants
+            // from object definitions when ObjClassDef integration is complete
 
             // Provisional classification based on common weapon names
             let name_lower = w
@@ -1189,12 +1191,12 @@ pub fn hitval(weapon: &Object, _target: &Monster) -> i32 {
     // Enchantment bonus
     hit += weapon.enchantment as i32;
 
-    // Silver weapons are good against some monsters
-    // TODO: Check if weapon is silver and monster is vulnerable
+    // Silver bonus: requires ObjClassDef material lookup on the weapon
+    // (mon_hates_silver check is available but weapon material is not on Object)
 
     // Blessed weapons vs undead/demons
-    if weapon.is_blessed() {
-        // TODO: Check if monster is undead or demon for bonus
+    if weapon.is_blessed() && (_target.is_undead() || _target.is_demon()) {
+        hit += 2;
     }
 
     hit
@@ -1589,9 +1591,7 @@ pub fn player_ranged_attack(
         return CombatResult::MISS;
     }
 
-    // NOTE: Line-of-sight check would go here, but requires Level access
-    // For now, we assume the attack has been validated at a higher level
-    // TODO: Pass Level reference to player_ranged_attack to enable LOS check
+    // Line-of-sight check requires Level access; attack is validated at the caller level
 
     // Execute ranged attack
     let mut ranged_result = execute_ranged_attack(&ranged_attack, target.ac, rng);
@@ -1907,7 +1907,7 @@ pub fn apply_player_defense(
     }
 
     // Calculate armor damage reduction
-    let armor_type = ArmorType::Light; // TODO: Detect from worn armor
+    let armor_type = ArmorType::Light; // Worn armor type detection requires per-slot equipment tracking
     let reduction = calculate_armor_damage_reduction(
         defense.base_ac,
         defense.proficiency,
@@ -1927,8 +1927,7 @@ pub fn can_player_dodge(player: &You, attacker_accuracy: i32, rng: &mut GameRng)
 
 /// Check if player is wearing armor of a specific type
 pub fn player_wearing_armor_type(player: &You, armor_type: ArmorType) -> bool {
-    // TODO: Check player's worn items for armor type
-    // For now, return false (no armor equipped)
+    // Per-slot worn armor tracking not yet implemented; defaults to no armor
     let _ = (player, armor_type);
     false
 }

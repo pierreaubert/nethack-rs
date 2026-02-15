@@ -2,6 +2,9 @@
 //!
 //! Implements player commands and actions.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 pub mod apply;
 pub mod commands;
 pub mod dig;

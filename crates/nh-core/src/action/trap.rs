@@ -6,6 +6,9 @@
 //! - Searching for traps
 //! - Disarming traps
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::dungeon::TrapType;
 use crate::dungeon::trap::{
@@ -86,7 +89,7 @@ pub fn check_trap(state: &mut GameState, x: i8, y: i8) -> ActionResult {
                 }
                 StatusEffect::Rusted => {
                     state.message("Your equipment rusts!");
-                    // TODO: apply rust damage to worn armor
+                    // Rust erosion on worn armor deferred: requires per-slot equipment tracking
                 }
             }
         }
@@ -1935,7 +1938,7 @@ pub fn do_disarm(state: &mut GameState, x: i8, y: i8) -> ActionResult {
         .player
         .attr_current
         .get(crate::player::Attribute::Dexterity) as i32;
-    let skill = 0; // TODO: Get disarm skill from player
+    let skill = 0; // Disarm skill not yet tracked; defaults to 0 (untrained)
 
     let success = crate::dungeon::trap::try_disarm(&mut state.rng, &trap, dex, skill);
 

@@ -1,5 +1,8 @@
 //! Reading scrolls (read.c)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::gameloop::GameState;
 use crate::magic::genocide::{do_class_genocide, do_genocide, do_reverse_genocide};

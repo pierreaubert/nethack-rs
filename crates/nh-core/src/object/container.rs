@@ -2,6 +2,9 @@
 //!
 //! Functions for manipulating containers: looting, stashing, etc.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use super::{MkObjContext, Object, ObjectId};
 
 /// Result of a container operation

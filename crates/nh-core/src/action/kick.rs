@@ -6,6 +6,9 @@
 //! If kicking boots: dmg += 5
 //! Final damage: rnd(dmg) + martial bonus
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::{ActionResult, Direction};
 use crate::dungeon::{CellType, DoorState};
 use crate::gameloop::GameState;

@@ -1,5 +1,8 @@
 //! Object class definitions (objclass.h)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
@@ -366,7 +369,7 @@ impl DiscoveredType {
 pub struct DiscoveryState {
     /// Discovered objects by type index
     /// Key: object_type, Value: DiscoveredType
-    pub discovered: std::collections::HashMap<i16, DiscoveredType>,
+    pub discovered: hashbrown::HashMap<i16, DiscoveredType>,
     /// Count of discovered types
     pub disco_count: usize,
 }
@@ -374,7 +377,7 @@ pub struct DiscoveryState {
 impl Default for DiscoveryState {
     fn default() -> Self {
         Self {
-            discovered: std::collections::HashMap::new(),
+            discovered: hashbrown::HashMap::new(),
             disco_count: 0,
         }
     }

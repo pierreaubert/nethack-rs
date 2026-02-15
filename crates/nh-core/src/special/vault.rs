@@ -9,6 +9,9 @@
 //! - Guard AI and movement
 //! - Guard interaction and warning system
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::gameloop::GameState;
 use crate::monster::{Monster, MonsterId, MonsterState};

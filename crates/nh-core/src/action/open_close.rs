@@ -9,6 +9,9 @@
 //! - D_TRAPPED = 0x10 (trapped door)
 //! - D_SECRET = 0x20 (secret door)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::{ActionResult, Direction};
 use crate::dungeon::{CellType, DoorState};
 use crate::gameloop::GameState;
@@ -509,8 +512,8 @@ fn picklock_door(state: &mut GameState, ctx: &mut LockContext, x: i8, y: i8) -> 
 
 /// Lock picking on a container — one turn of the occupation.
 fn picklock_container(state: &mut GameState, ctx: &mut LockContext, _obj_index: usize) -> u32 {
-    // TODO: Full container lock picking with object lookup
-    // For now, simplified: just use chance-based success like door
+    // Simplified container lock picking: chance-based like doors
+    // Full implementation requires container object lookup and lock type
     ctx.used_time += 1;
 
     if ctx.used_time >= 50 {

@@ -1,5 +1,8 @@
 //! Player role, race, and gender definitions
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 

@@ -1,5 +1,8 @@
 //! Fountain interactions (fountain.c)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::dungeon::CellType;
 use crate::gameloop::GameState;

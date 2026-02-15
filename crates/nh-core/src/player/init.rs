@@ -3,6 +3,9 @@
 //! Sets up the player's starting inventory, skills, and attributes
 //! based on their role and race. Called at character creation.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::{BucStatus, Object, ObjectClass};
 use crate::player::{Role, SkillLevel, SkillSet, SkillType};
 use crate::rng::GameRng;

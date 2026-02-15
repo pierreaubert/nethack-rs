@@ -6,6 +6,9 @@
 //! - Save preferences
 //! - Discovery/explore mode activation
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use super::Command;
 
 /// Game play modes

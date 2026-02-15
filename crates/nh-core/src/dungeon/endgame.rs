@@ -2,6 +2,9 @@
 //!
 //! Implements the final levels of the game after escaping Gehennom.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::rng::GameRng;
 
 use super::DLevel;

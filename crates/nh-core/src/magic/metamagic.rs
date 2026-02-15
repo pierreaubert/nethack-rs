@@ -4,7 +4,7 @@
 //! Metamagic effects include quickening, empowering, maximizing, and various other modifications.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Types of metamagic modifications
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -5,6 +5,9 @@
 
 use crate::magic::spell::{SpellSchool, SpellType};
 use serde::{Deserialize, Serialize};
+#[cfg(not(feature = "std"))]
+use alloc::collections::VecDeque;
+#[cfg(feature = "std")]
 use std::collections::VecDeque;
 
 /// Spell combo effect when multiple spells interact

@@ -10,6 +10,9 @@
 //! - Body part system for form-specific descriptions
 //! - Special monster attacks: breath, spit, gaze, mindblast, hide
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::combat::{Attack, AttackType, DamageType};
 use crate::gameloop::GameState;
 use crate::monster::{MonsterFlags, MonsterSize, PerMonst};
@@ -351,6 +354,14 @@ pub fn polymon(state: &mut GameState, monster_type: i16, monsters: &[PerMonst]) 
     state.player.movement_points = mptr.move_speed as i16;
 
     state.message(format!("You turn into {}!", article_a(mptr.name)));
+
+    // C: polyself.c — if engulfed and new form is too large, escape engulfer
+    if state.player.swallowed {
+        if matches!(mptr.size, crate::monster::MonsterSize::Huge | crate::monster::MonsterSize::Gigantic) {
+            state.player.swallowed = false;
+            state.message("You break free of the engulfer!");
+        }
+    }
 
     true
 }

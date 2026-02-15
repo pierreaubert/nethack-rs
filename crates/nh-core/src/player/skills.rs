@@ -1,5 +1,8 @@
 //! Player weapon and spell skills
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 

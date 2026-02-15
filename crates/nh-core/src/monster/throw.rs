@@ -2,6 +2,9 @@
 //!
 //! Handles monsters throwing objects and using ranged weapons against the player.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::Monster;
 use crate::object::Object;
 use crate::rng::GameRng;

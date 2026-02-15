@@ -2,6 +2,9 @@
 //!
 //! Handles drinking potions and their effects.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::Monster;
 use crate::monster::MonsterResistances;
 use crate::object::{BucStatus, Object};

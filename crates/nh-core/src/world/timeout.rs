@@ -3,8 +3,11 @@
 //! Handles scheduled events like monster actions, delayed effects, and timeouts.
 //! Includes intrinsic timeout management and multi-turn occupations.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use crate::monster::MonsterId;
 use crate::object::ObjectId;
@@ -377,7 +380,7 @@ impl IntrinsicTimeouts {
     pub fn validate(val: u64) -> u64 {
         // Constrain timeout to reasonable bounds (0 to ~10000 turns = ~100 real days)
         const MAX_TIMEOUT: u64 = 10000;
-        std::cmp::min(val, MAX_TIMEOUT)
+        core::cmp::min(val, MAX_TIMEOUT)
     }
 
     /// Increment a timeout value and validate the result.
@@ -482,7 +485,7 @@ impl OccupationTimer {
     ///
     /// Equivalent to `timed_occupation()` - sets up a multi-turn activity.
     pub fn start(&mut self, turns: i32, activity: impl Into<String>) {
-        self.remaining_turns = std::cmp::max(0, turns);
+        self.remaining_turns = core::cmp::max(0, turns);
         self.activity = Some(activity.into());
     }
 

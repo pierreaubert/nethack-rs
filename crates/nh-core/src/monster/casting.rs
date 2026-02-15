@@ -3,6 +3,9 @@
 //! Handles monster wizard and cleric spell selection and casting effects.
 //! Port of NetHack C mcastu.c (868 lines).
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::combat::{Attack, DamageType};
 use crate::gameloop::GameState;
 use crate::monster::{Monster, SpeedState, aggravate, mon_adjust_speed, mon_set_minvis};
@@ -208,8 +211,8 @@ pub fn mage_spell_would_be_useless(
     if caster.hp == caster.hp_max && spell == MageSpell::CureSelf {
         return true;
     }
-    // Clone wizard: always useless for non-Wizard monsters (no iswiz field yet)
-    // TODO: Check for Wizard of Yendor when iswiz field is added
+    // Clone wizard: always useless for non-Wizard monsters
+    // Wizard of Yendor identification deferred until unique monster tracking is added
     if spell == MageSpell::CloneWiz {
         return true;
     }
@@ -545,8 +548,7 @@ fn cast_wizard_spell(state: &mut GameState, monster_idx: usize, dmg: i32, spell:
             }
         }
         MageSpell::CloneWiz => {
-            // Requires Wizard of Yendor — currently stubbed
-            // TODO: Implement when iswiz field is added to Monster
+            // Requires Wizard of Yendor unique monster tracking; currently a no-op message
             state.message("Double Trouble...");
         }
         MageSpell::SummonMons => {
@@ -573,7 +575,7 @@ fn cast_wizard_spell(state: &mut GameState, monster_idx: usize, dmg: i32, spell:
                 state.message("A field of force surrounds you!");
             } else {
                 state.message("Your skin itches.");
-                // TODO: Full destroy_arm implementation
+                // Armor destruction deferred: requires per-slot worn armor tracking
             }
         }
         MageSpell::WeakenYou => {
@@ -729,7 +731,7 @@ fn cast_cleric_spell(state: &mut GameState, monster_idx: usize, dmg: i32, spell:
                 quan = 3;
             }
             state.message(format!("{} summons insects!", monster_name));
-            // TODO: Actually spawn insect monsters (requires makemon integration)
+            // Insect spawning deferred: requires makemon integration with insect type selection
             let _ = quan;
         }
         ClericSpell::BlindYou => {
@@ -867,9 +869,7 @@ fn rndcurse_inventory(state: &mut GameState) {
 /// Summon nasty monsters near the player.
 /// Returns the count of monsters summoned.
 fn summon_nasty(state: &mut GameState) -> i32 {
-    // Simplified: create 1-3 hostile monsters
-    // TODO: Full nasty() implementation with appropriate monster selection
-    // Would need makemon integration to actually spawn
+    // Simplified: returns 1-3 as count; actual monster spawning requires makemon integration
     state.rng.rnd(3) as i32
 }
 
@@ -890,7 +890,7 @@ pub fn buzzmu(
         cursetxt(state, &name, false);
         return CastResult::Failed;
     }
-    // TODO: Full beam/ray implementation with lined_up check and buzz()
+    // Beam/ray casting deferred: requires lined_up check and buzz() ray system
     CastResult::Failed
 }
 

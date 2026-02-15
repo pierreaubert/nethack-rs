@@ -16,6 +16,9 @@
 //! - W_RINGR = 0x00040000 (Right ring)
 //! - W_TOOL = 0x00080000 (Worn tool like blindfold)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::data::objects::OBJECTS;
 use crate::gameloop::GameState;

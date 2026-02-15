@@ -7,8 +7,11 @@
 //! - Direction key display
 //! - Special key handling (Shift, Alt, etc.)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use super::extended::ExtendedCommand;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Custom key binding configuration
 #[derive(Debug, Clone, Default)]

@@ -2,6 +2,9 @@
 //!
 //! Handles monster vocalizations, growls, and speech.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::{Monster, MonsterSound};
 use crate::rng::GameRng;
 

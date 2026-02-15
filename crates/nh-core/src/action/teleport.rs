@@ -9,6 +9,9 @@
 //! - Scroll/trap/wand-triggered teleportation
 //! - Shop/vault/priest room confinement rules
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::dungeon::TrapType;
 use crate::dungeon::Level;
@@ -743,7 +746,7 @@ pub fn u_teleport_mon(
     // Riders (Death/Famine/Pestilence) resist 12/13 of the time but get
     // displaced near player. We identify riders as unique monsters whose type
     // index is in the rider range. For now, approximate: monster types 318-320
-    // (the three horsemen in C). TODO: proper rider identification.
+    // (the three horsemen in C). Proper rider identification pending unique monster flags.
     let is_rider = level.monster(monster_id).is_some_and(|m| {
         // Riders are unique special monsters — check original_type range
         // In NetHack 3.6.7, Death=318, Pestilence=319, Famine=320

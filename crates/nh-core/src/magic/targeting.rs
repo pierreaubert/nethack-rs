@@ -3,6 +3,9 @@
 //! Helper functions for smart targeting of spells and wands,
 //! including nearest monster detection, line-of-fire checks, and distance calculations.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::monster::{Monster, MonsterId};
 use crate::player::You;

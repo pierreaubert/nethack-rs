@@ -1,5 +1,8 @@
 //! Searching for hidden things (detect.c)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::dungeon::{CellType, TrapType};
 use crate::gameloop::GameState;
@@ -17,7 +20,9 @@ pub fn dosearch(state: &mut GameState) -> ActionResult {
 /// * `state` - The game state
 /// * `autosearch` - True if this is intrinsic autosearch vs explicit searching
 pub fn dosearch0(state: &mut GameState, autosearch: bool) -> ActionResult {
-    // TODO: Check if engulfed when engulfed state tracking is implemented
+    if state.player.swallowed {
+        return ActionResult::NoTime; // Can't search while engulfed
+    }
 
     // Calculate search bonus from equipment
     let mut search_bonus = 0i32;
@@ -160,7 +165,9 @@ fn trap_name(trap_type: TrapType) -> &'static str {
 /// Uses magical means to find all hidden things within bolt range.
 /// Returns the number of things found.
 pub fn findit(state: &mut GameState) -> i32 {
-    // TODO: Check if engulfed when engulfed state tracking is implemented
+    if state.player.swallowed {
+        return 0; // Can't detect things while engulfed
+    }
 
     let player_x = state.player.pos.x;
     let player_y = state.player.pos.y;
@@ -268,8 +275,11 @@ pub fn openone(state: &mut GameState, x: i8, y: i8) -> i32 {
 
 /// Open things in area (openit equivalent, for knock spell)
 pub fn openit(state: &mut GameState) -> i32 {
-    // TODO: Check if engulfed when engulfed state tracking is implemented
-    // Would expel player from engulfer and return -1
+    if state.player.swallowed {
+        // Knock spell expels player from engulfer
+        state.player.swallowed = false;
+        return -1;
+    }
 
     let player_x = state.player.pos.x;
     let player_y = state.player.pos.y;

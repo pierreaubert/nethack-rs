@@ -7,6 +7,9 @@
 //! In Rust we operate on the Level's explored/visible grids and set
 //! "detected" flags on monsters and traps directly.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::{CellType, Level, TrapType};
 use crate::object::{Object, ObjectClass};
 use crate::player::You;
@@ -231,7 +234,7 @@ pub fn gold_detect(
     for obj in &level.objects {
         let is_gold = if blessed {
             // Blessed detects all gold objects, not just coins
-            // TODO: Add material check when Object has a material field
+            // Object has no material field; approximated by class (Coin=gold, Ring often gold)
             obj.class == ObjectClass::Coin || obj.class == ObjectClass::Ring
         } else {
             obj.class == ObjectClass::Coin

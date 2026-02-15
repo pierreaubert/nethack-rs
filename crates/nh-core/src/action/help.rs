@@ -9,6 +9,9 @@
 
 /// Main help content sections
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 pub enum HelpSection {
     /// Main help/tutorial
     Help,

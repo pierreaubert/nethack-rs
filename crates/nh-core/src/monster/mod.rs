@@ -74,7 +74,7 @@ pub use monst::{
     mon_reflects,
     mon_regen,
     monflee,
-    // Monster utility functions (Phase: monster TODO)
+    // Monster utility functions
     monnear,
     // Scare mechanics
     onscary,
@@ -103,6 +103,9 @@ pub use tactics::{
     select_rwep, setmnotwielded,
 };
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::Object;
 
 /// Reference to a monster instance
@@ -123,7 +126,7 @@ pub type MonsterRef = MonsterId;
 /// This is a simplified placeholder pending full visibility system implementation (Phase TBD)
 pub fn mon_set_minvis(monster: &mut Monster) {
     monster.state.invisible = true;
-    // TODO: Full visibility recalculation, message generation, etc.
+    // Full visibility recalculation and observer notification pending visibility system
 }
 
 /// Placeholder: Adjust monster speed (full implementation pending)
@@ -149,7 +152,7 @@ pub fn mon_adjust_speed(monster: &mut Monster, delta: i8, _item: Option<&Object>
         1 => SpeedState::Normal,
         _ => SpeedState::Fast,
     };
-    // TODO: Full speed system with temporary/permanent effects and tracking
+    // Full speed system with temporary/permanent source tracking pending
 }
 
 /// Placeholder: Polymorph monster into new form (full implementation pending)
@@ -170,8 +173,7 @@ pub fn mon_adjust_speed(monster: &mut Monster, delta: i8, _item: Option<&Object>
 /// # Note
 /// This is a stub implementation. Full polymorph system is Phase TBD priority
 pub fn newcham(monster: &mut Monster, _new_type: Option<&crate::monster::PerMonst>) -> bool {
-    // Conservative: fail until full polymorph system is implemented
-    // TODO: Full polymorph implementation with type selection and stat updates
+    // Conservative: fail until full polymorph system with type selection is implemented
     false
 }
 
@@ -191,5 +193,5 @@ pub fn newcham(monster: &mut Monster, _new_type: Option<&crate::monster::PerMons
 /// # Note
 /// This is a stub implementation pending object system integration (Phase TBD)
 pub fn drop_boulder_on_target(_x: i8, _y: i8, _level: &mut crate::dungeon::Level, _confused: bool) {
-    // TODO: Spawn boulder object, apply damage, handle terrain destruction
+    // Boulder spawning deferred: requires object system integration for ROCK class creation
 }

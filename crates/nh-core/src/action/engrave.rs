@@ -9,6 +9,9 @@
 //! - Epitaphs for gravestones
 //! - Tool-dependent engraving speed and type
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::action::ActionResult;
 use crate::dungeon::{CellType, Engraving, EngravingType};
 use crate::gameloop::GameState;

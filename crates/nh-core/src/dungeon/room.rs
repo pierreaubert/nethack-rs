@@ -4,6 +4,9 @@
 //! - 25 room types from OROOM (0) to CANDLESHOP (25)
 //! - Room struct with type, dimensions, and properties
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::rng::GameRng;
 use serde::{Deserialize, Serialize};
 

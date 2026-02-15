@@ -3,6 +3,9 @@
 //! Functions for managing dungeon levels and dungeon system queries.
 //! These are equivalents of NetHack's C functions for level identification and navigation.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 use super::topology::DungeonSystem;
@@ -75,8 +78,8 @@ impl DLevel {
     }
 }
 
-impl std::fmt::Display for DLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for DLevel {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Dlvl:{}", self.level_num)
     }
 }

@@ -3,6 +3,9 @@
 //! Tracks player knowledge about magical items, identification types,
 //! and manages item name discovery through use and research.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 /// Item identification state
@@ -46,13 +49,13 @@ impl ItemKnowledge {
 /// Player's item identification knowledge base
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct IdentificationKnowledge {
-    pub known_items: std::collections::HashMap<i16, ItemKnowledge>,
+    pub known_items: hashbrown::HashMap<i16, ItemKnowledge>,
 }
 
 impl IdentificationKnowledge {
     pub fn new() -> Self {
         Self {
-            known_items: std::collections::HashMap::new(),
+            known_items: hashbrown::HashMap::new(),
         }
     }
 

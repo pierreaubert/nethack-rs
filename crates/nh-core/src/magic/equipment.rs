@@ -3,6 +3,9 @@
 //! Handles equip/unequip effects, cursed item effects, artifact effects,
 //! special item mechanics, and property binding during each game turn.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::magic::{
     ArtifactEffects, CursedConsequence, CursedEffect, Luckstone, apply_all_equipment_properties,
     apply_artifact_effects, apply_cursed_effect, calculate_curse_magnitude, check_fumble,

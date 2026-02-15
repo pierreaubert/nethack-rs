@@ -166,7 +166,7 @@ impl ElementalReaction {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ElementalReactionTracker {
     /// Recent elements by position: (x, y) -> (element, turn_number)
-    pub recent_elements: std::collections::HashMap<(i8, i8), Vec<(ElementType, u32)>>,
+    pub recent_elements: hashbrown::HashMap<(i8, i8), Vec<(ElementType, u32)>>,
     /// Current turn number for aging effects
     pub current_turn: u32,
 }

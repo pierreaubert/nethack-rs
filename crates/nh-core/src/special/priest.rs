@@ -9,13 +9,16 @@
 //! - Priest interactions (priest_talk, priestname)
 //! - Temple management (intemple, has_shrine, temple_occupied)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::gameloop::GameState;
 use crate::monster::{Monster, MonsterId, MonsterState};
 use crate::object::Object;
 use crate::player::{AlignmentType, You};
 use crate::rng::GameRng;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Priest type index (simplified - in real NetHack uses PM_* constants)
 const PM_PRIEST: i16 = 100;

@@ -9,6 +9,9 @@ mod mhitm;
 mod mhitu;
 mod uhitm;
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::Monster;
 
 pub use attack_type::AttackType;
@@ -41,6 +44,7 @@ pub use mhitm::{
 };
 pub use mhitu::{
     MonsterAttackResult, SeduceResult, apply_grab_damage, could_seduce, damage_effect_message,
+    expels, gazemu, gulpmu,
     hit_message, mattacku, miss_message, monster_attack_player, resistance_message,
     try_escape_grab, wild_miss_message,
 };
@@ -2184,10 +2188,10 @@ pub struct CombatResources {
     pub spell_cooldown: u16,
 
     /// Ability-specific cooldowns (turns remaining)
-    pub ability_cooldowns: std::collections::HashMap<String, u16>,
+    pub ability_cooldowns: hashbrown::HashMap<String, u16>,
 
     /// Limited-use ability charges (uses remaining)
-    pub ability_charges: std::collections::HashMap<String, u8>,
+    pub ability_charges: hashbrown::HashMap<String, u8>,
 }
 
 impl Default for CombatResources {
@@ -2204,8 +2208,8 @@ impl CombatResources {
             mana_max: 0,
             breath_cooldown: 0,
             spell_cooldown: 0,
-            ability_cooldowns: std::collections::HashMap::new(),
-            ability_charges: std::collections::HashMap::new(),
+            ability_cooldowns: hashbrown::HashMap::new(),
+            ability_charges: hashbrown::HashMap::new(),
         }
     }
 
@@ -3866,7 +3870,7 @@ pub fn award_loot_to_player(player: &mut crate::player::You, loot: &[LootDrop]) 
         player.gold += drop.total_value();
         total_value += drop.total_value();
 
-        // TODO: Add item to player inventory when inventory system ready
+        // Item-to-inventory transfer deferred: requires full inventory add_object integration
     }
 
     total_value

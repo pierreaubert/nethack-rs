@@ -3,6 +3,9 @@
 //! Integrates artifact data with player properties, combat effects, and
 //! special behaviors. Maps artifact flags to gameplay mechanics.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::Object;
 use crate::player::{Property, You};
 use crate::rng::GameRng;
@@ -364,92 +367,100 @@ pub fn artifact_provides_protection(artifact_id: u8, damage_type: &str) -> bool 
 
 // =============================================================================
 // Artifact Existence Tracking (from artifact.c)
+// Requires std for Mutex-based global statics. In no_std contexts (e.g.,
+// PolkaVM contracts), artifact tracking is part of the serialized GameState.
 // =============================================================================
 
-use std::sync::Mutex;
+#[cfg(feature = "std")]
+mod artifact_tracking {
+    use std::sync::Mutex;
 
-/// Maximum number of artifacts (must match ARTIFACTS.len())
-const MAX_ARTIFACTS: usize = 40;
+    /// Maximum number of artifacts (must match ARTIFACTS.len())
+    const MAX_ARTIFACTS: usize = 40;
 
-/// Tracks which artifacts have been created in the current game
-static ARTIFACT_EXIST: Mutex<[bool; MAX_ARTIFACTS]> = Mutex::new([false; MAX_ARTIFACTS]);
+    /// Tracks which artifacts have been created in the current game
+    static ARTIFACT_EXIST: Mutex<[bool; MAX_ARTIFACTS]> = Mutex::new([false; MAX_ARTIFACTS]);
 
-/// Tracks discovered artifacts (for identification)
-static ARTIFACT_DISCO: Mutex<[u8; MAX_ARTIFACTS]> = Mutex::new([0; MAX_ARTIFACTS]);
+    /// Tracks discovered artifacts (for identification)
+    static ARTIFACT_DISCO: Mutex<[u8; MAX_ARTIFACTS]> = Mutex::new([0; MAX_ARTIFACTS]);
 
-/// Initialize artifact tracking for a new game (init_artifacts equivalent)
-pub fn init_artifacts() {
-    if let Ok(mut exist) = ARTIFACT_EXIST.lock() {
-        *exist = [false; MAX_ARTIFACTS];
-    }
-    if let Ok(mut disco) = ARTIFACT_DISCO.lock() {
-        *disco = [0; MAX_ARTIFACTS];
-    }
-    // hack_artifacts() would be called here with player info
-}
-
-/// Adjust artifact properties based on player role (hack_artifacts equivalent)
-/// This would be called after character creation
-pub fn hack_artifacts(_role: i16, _alignment: i8) {
-    // In NetHack C, this adjusts artifact alignments based on player's role
-    // and makes Excalibur available to non-knights if they're lawful.
-    // For now, this is a stub - the data is static in Rust.
-}
-
-/// Count how many artifacts exist in the current game (nartifact_exist equivalent)
-pub fn nartifact_exist() -> usize {
-    if let Ok(exist) = ARTIFACT_EXIST.lock() {
-        exist.iter().filter(|&&e| e).count()
-    } else {
-        0
-    }
-}
-
-/// Mark an artifact as existing or not existing
-pub fn set_artifact_exists(artifact_index: usize, exists: bool) {
-    if artifact_index > 0 && artifact_index < MAX_ARTIFACTS {
+    /// Initialize artifact tracking for a new game (init_artifacts equivalent)
+    pub fn init_artifacts() {
         if let Ok(mut exist) = ARTIFACT_EXIST.lock() {
-            exist[artifact_index] = exists;
+            *exist = [false; MAX_ARTIFACTS];
         }
+        if let Ok(mut disco) = ARTIFACT_DISCO.lock() {
+            *disco = [0; MAX_ARTIFACTS];
+        }
+        // hack_artifacts() would be called here with player info
     }
-}
 
-/// Check if a specific artifact exists
-pub fn artifact_exists(artifact_index: usize) -> bool {
-    if artifact_index > 0 && artifact_index < MAX_ARTIFACTS {
+    /// Adjust artifact properties based on player role (hack_artifacts equivalent)
+    /// This would be called after character creation
+    pub fn hack_artifacts(_role: i16, _alignment: i8) {
+        // In NetHack C, this adjusts artifact alignments based on player's role
+        // and makes Excalibur available to non-knights if they're lawful.
+        // For now, this is a stub - the data is static in Rust.
+    }
+
+    /// Count how many artifacts exist in the current game (nartifact_exist equivalent)
+    pub fn nartifact_exist() -> usize {
         if let Ok(exist) = ARTIFACT_EXIST.lock() {
-            return exist[artifact_index];
+            exist.iter().filter(|&&e| e).count()
+        } else {
+            0
         }
     }
-    false
+
+    /// Mark an artifact as existing or not existing
+    pub fn set_artifact_exists(artifact_index: usize, exists: bool) {
+        if artifact_index > 0 && artifact_index < MAX_ARTIFACTS {
+            if let Ok(mut exist) = ARTIFACT_EXIST.lock() {
+                exist[artifact_index] = exists;
+            }
+        }
+    }
+
+    /// Check if a specific artifact exists
+    pub fn artifact_exists(artifact_index: usize) -> bool {
+        if artifact_index > 0 && artifact_index < MAX_ARTIFACTS {
+            if let Ok(exist) = ARTIFACT_EXIST.lock() {
+                return exist[artifact_index];
+            }
+        }
+        false
+    }
+
+    /// Add artifact to discoveries list (discover_artifact equivalent)
+    pub fn discover_artifact(artifact_index: u8) {
+        if let Ok(mut disco) = ARTIFACT_DISCO.lock() {
+            for i in 0..MAX_ARTIFACTS {
+                if disco[i] == 0 || disco[i] == artifact_index {
+                    disco[i] = artifact_index;
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Check if artifact has been discovered
+    pub fn artifact_discovered(artifact_index: u8) -> bool {
+        if let Ok(disco) = ARTIFACT_DISCO.lock() {
+            for i in 0..MAX_ARTIFACTS {
+                if disco[i] == artifact_index {
+                    return true;
+                }
+                if disco[i] == 0 {
+                    break;
+                }
+            }
+        }
+        false
+    }
 }
 
-/// Add artifact to discoveries list (discover_artifact equivalent)
-pub fn discover_artifact(artifact_index: u8) {
-    if let Ok(mut disco) = ARTIFACT_DISCO.lock() {
-        for i in 0..MAX_ARTIFACTS {
-            if disco[i] == 0 || disco[i] == artifact_index {
-                disco[i] = artifact_index;
-                return;
-            }
-        }
-    }
-}
-
-/// Check if artifact has been discovered
-pub fn artifact_discovered(artifact_index: u8) -> bool {
-    if let Ok(disco) = ARTIFACT_DISCO.lock() {
-        for i in 0..MAX_ARTIFACTS {
-            if disco[i] == artifact_index {
-                return true;
-            }
-            if disco[i] == 0 {
-                break;
-            }
-        }
-    }
-    false
-}
+#[cfg(feature = "std")]
+pub use artifact_tracking::*;
 
 // =============================================================================
 // Artifact Special Abilities (spec_ability, spec_applies, etc.)

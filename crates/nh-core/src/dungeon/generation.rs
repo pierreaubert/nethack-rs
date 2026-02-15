@@ -3,6 +3,9 @@
 //! Generates dungeon levels with rooms and corridors.
 //! Uses the rectangle system (rect.c) for efficient room placement.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::{Monster, MonsterId};
 use crate::rng::GameRng;
 use crate::{COLNO, ROWNO};
@@ -1819,7 +1822,7 @@ mod tests {
     #[test]
     fn test_select_shop_type_distribution() {
         let mut rng = GameRng::new(42);
-        let mut counts = std::collections::HashMap::new();
+        let mut counts = hashbrown::HashMap::new();
 
         // Generate many shop types to verify distribution
         for _ in 0..1000 {

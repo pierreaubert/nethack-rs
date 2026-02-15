@@ -3,6 +3,9 @@
 //! Implements boulder pushing, sink interactions, movement validation,
 //! and terrain effects from the C source's domove_core/moverock/dosinkfall.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::consts::BOULDER;
 use crate::dungeon::{CellType, Level, TrapType};
 use crate::gameloop::GameState;

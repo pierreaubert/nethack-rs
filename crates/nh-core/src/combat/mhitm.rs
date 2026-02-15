@@ -4,6 +4,9 @@
 
 #![allow(dead_code)] // Functions are part of public API, used by other crates
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use super::{
     ArmorProficiency, ArmorType, Attack, AttackType, CombatEffect, CombatResult, CriticalHitType,
     DamageType, DefenseCalculation, DodgeSkill, RangedAttack, RangedWeaponType, SkillLevel,

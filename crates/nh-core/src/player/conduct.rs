@@ -2,6 +2,9 @@
 //!
 //! Tracks various challenge conducts (vegetarian, pacifist, etc.)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 /// Player conduct record

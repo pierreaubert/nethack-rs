@@ -1,5 +1,8 @@
 //! Level structure (dlevel_t from rm.h)
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use serde::{Deserialize, Serialize};
 
 use super::{Cell, CellType, DLevel};
@@ -363,7 +366,7 @@ impl Level {
 
     /// Take all pending messages, clearing the buffer
     pub fn take_pending_messages(&mut self) -> Vec<String> {
-        std::mem::take(&mut self.pending_messages)
+        core::mem::take(&mut self.pending_messages)
     }
 
     /// Create a new level with generated content
@@ -1444,7 +1447,7 @@ pub fn rloc_monster(monster_id: MonsterId, level: &mut Level, rng: &mut crate::G
 ///
 /// # Note
 /// This is currently a stub that removes the monster. Full inter-level coordination
-/// requires dungeon-wide level management (TODO for future phases)
+/// requires dungeon-wide level management (not yet implemented)
 pub fn migrate_monster_to_level(monster_id: MonsterId, level: &mut Level) -> Option<Monster> {
     // Remove the monster from current level
     // The caller is responsible for placing it on the target level

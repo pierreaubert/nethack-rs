@@ -3,6 +3,9 @@
 //! Provides functions for retrieving and formatting version information,
 //! including build details and git commit info when available.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 /// Get the major version number
 const VERSION_MAJOR: u32 = 3;
 
@@ -38,6 +41,7 @@ pub fn getversionstring() -> String {
 
 /// Display version information to the screen
 /// Returns the version string that should be displayed
+#[cfg(feature = "std")]
 pub fn doversion() -> String {
     format!(
         "NetHack version {}\nRust implementation\n{}",
@@ -47,6 +51,7 @@ pub fn doversion() -> String {
 }
 
 /// Display extended version information with build details
+#[cfg(feature = "std")]
 pub fn doextversion() -> String {
     let mut info = format!("NetHack {} extended version\n", version_string());
     info.push_str(&format!("Build type: {}\n", BUILD_TYPE));
@@ -72,6 +77,7 @@ pub fn doextversion() -> String {
 
 /// Check if running at console (for version display purposes)
 /// Returns true if output can be displayed interactively
+#[cfg(feature = "std")]
 pub fn atconsole() -> bool {
     // Check if stdout is a TTY
     atty::is(atty::Stream::Stdout)

@@ -2,6 +2,9 @@
 //!
 //! Handles mounting, dismounting, and riding behavior.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::monster::Monster;
 use crate::player::You;
 

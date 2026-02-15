@@ -3,6 +3,9 @@
 //! Implements maze-type level generation for Gehennom and special levels.
 //! Uses a recursive backtracking algorithm similar to NetHack's C implementation.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::rng::GameRng;
 use crate::{COLNO, ROWNO};
 

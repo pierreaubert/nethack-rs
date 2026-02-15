@@ -3,6 +3,9 @@
 //! Handles monsters stealing items/gold from the player,
 //! and related inventory transfer mechanics.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::object::Object;
 use crate::rng::GameRng;
 

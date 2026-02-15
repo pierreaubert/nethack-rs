@@ -3,10 +3,13 @@
 //! Handles genocide of monster species. When a player uses a scroll of genocide,
 //! a single monster species can be eliminated from the game.
 
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
+
 use crate::dungeon::Level;
 use crate::gameloop::GameState;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Flags for genocide status of a monster type
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
