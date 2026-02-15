@@ -7,6 +7,7 @@ members = [
     "crates/nh-compare",
     "crates/nh-bevy",
     "crates/nh-player",
+    "crates/nh-assets",
 ]
 
 [workspace.package]
@@ -22,6 +23,7 @@ nh-tui = { path = "crates/nh-tui" }
 nh-test = { path = "crates/nh-test" }
 nh-compare = { path = "crates/nh-compare" }
 nh-player = { path = "crates/nh-player" }
+nh-assets = { path = "crates/nh-assets" }
 
 # UI
 ratatui = "0.29"
