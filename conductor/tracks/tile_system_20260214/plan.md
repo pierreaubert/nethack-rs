@@ -9,14 +9,14 @@
     - [ ] Implement a static or configuration-based mapping for core NetHack entities
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Core Definitions' (Protocol in workflow.md) (79ba00f)
 
-## Phase 2: Frontend Integration
+## Phase 2: Frontend Integration [checkpoint: dafdb3f]
 - [x] Task: Integrate with nh-tui (ad86cd0)
     - [ ] Write tests for TUI tile-to-character conversion
     - [ ] Update nh-tui to use the shared tile system for rendering
 - [x] Task: Integrate with nh-bevy (e6412d7)
     - [ ] Write tests for Bevy tile-to-asset-handle conversion
     - [ ] Implement a basic tile-renderer in nh-bevy using the shared system
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Frontend Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Frontend Integration' (Protocol in workflow.md) (dafdb3f)
 
 ## Phase 3: Validation & WASM
 - [ ] Task: Verify WASM Compatibility
