@@ -76,4 +76,31 @@ impl AssetRegistry {
         }
         true
     }
+
+    /// Helper to convert a color string to a ratatui color.
+    pub fn parse_color(color_name: &str) -> Option<ratatui::style::Color> {
+        use ratatui::style::Color;
+        match color_name.to_lowercase().as_str() {
+            "black" => Some(Color::Black),
+            "red" => Some(Color::Red),
+            "green" => Some(Color::Green),
+            "yellow" => Some(Color::Yellow),
+            "blue" => Some(Color::Blue),
+            "magenta" => Some(Color::Magenta),
+            "cyan" => Some(Color::Cyan),
+            "gray" => Some(Color::Gray),
+            "darkgray" | "dark_gray" => Some(Color::DarkGray),
+            "lightred" | "light_red" => Some(Color::LightRed),
+            "lightgreen" | "light_green" => Some(Color::LightGreen),
+            "lightyellow" | "light_yellow" => Some(Color::LightYellow),
+            "lightblue" | "light_blue" => Some(Color::LightBlue),
+            "lightmagenta" | "light_magenta" => Some(Color::LightMagenta),
+            "lightcyan" | "light_cyan" => Some(Color::LightCyan),
+            "white" => Some(Color::White),
+            _ => {
+                // Potential hex color parsing could go here
+                None
+            }
+        }
+    }
 }

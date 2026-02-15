@@ -3901,6 +3901,7 @@ name = "nh-assets"
 version = "0.1.0"
 dependencies = [
  "nh-core",
+ "ratatui",
  "serde",
  "serde_json",
  "strum",
@@ -4002,6 +4003,7 @@ version = "0.1.11"
 dependencies = [
  "clap",
  "crossterm",
+ "nh-assets",
  "nh-core",
  "ratatui",
  "strum",

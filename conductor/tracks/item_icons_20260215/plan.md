@@ -22,7 +22,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Asset Generation & Initial Mapping' (Protocol in workflow.md) (e68f6ed)
 
 ## Phase 3: TUI Integration
-- [ ] Task: Update `nh-tui` Map Rendering
+- [~] Task: Update `nh-tui` Map Rendering
     - [ ] Write tests for TUI icon-to-cell conversion
     - [ ] Update the map rendering loop in `nh-tui` to use `nh-assets` for item symbols and colors
 - [ ] Task: Integrate Icons into TUI Inventory

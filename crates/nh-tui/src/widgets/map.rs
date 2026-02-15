@@ -3,6 +3,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Widget};
 
+use nh_assets::registry::AssetRegistry;
 use nh_core::data::tile::{DungeonTile, Tile};
 use nh_core::dungeon::{CellType, Level};
 use nh_core::player::You;
@@ -12,11 +13,16 @@ use nh_core::{COLNO, ROWNO};
 pub struct MapWidget<'a> {
     level: &'a Level,
     player: &'a You,
+    assets: &'a AssetRegistry,
 }
 
 impl<'a> MapWidget<'a> {
-    pub fn new(level: &'a Level, player: &'a You) -> Self {
-        Self { level, player }
+    pub fn new(level: &'a Level, player: &'a You, assets: &'a AssetRegistry) -> Self {
+        Self {
+            level,
+            player,
+            assets,
+        }
     }
 
     fn cell_display(&self, x: usize, y: usize) -> (char, Style) {
@@ -54,6 +60,13 @@ impl<'a> MapWidget<'a> {
             // Objects at position - show top object's class symbol
             let objects = self.level.objects_at(xi, yi);
             if let Some(obj) = objects.first() {
+                // Use the shared asset registry for item icons
+                if let Ok(icon) = self.assets.get_icon(obj) {
+                    let color = AssetRegistry::parse_color(&icon.tui_color).unwrap_or(Color::Yellow);
+                    return (icon.tui_char, Style::default().fg(color));
+                }
+
+                // Fallback to core tile system if registry lookup fails
                 let tile = nh_core::data::tile::get_tile_for_object(obj);
                 let symbol = tile.to_ascii();
                 let color = match obj.class {

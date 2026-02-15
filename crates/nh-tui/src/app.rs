@@ -7,6 +7,7 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 
+use nh_assets::registry::AssetRegistry;
 use nh_core::action::{Command, Direction as GameDirection};
 use nh_core::object::ObjectClass;
 use nh_core::player::{AlignmentType, Gender, Race, Role};
@@ -127,17 +128,21 @@ pub struct App {
 
     /// Selection menu for item picking
     selection_cursor: usize,
+
+    /// Asset registry for icons
+    assets: AssetRegistry,
 }
 
 impl App {
     /// Create a new application with a new game
-    pub fn new(state: GameState) -> Self {
+    pub fn new(state: GameState, assets: AssetRegistry) -> Self {
         Self {
             game_loop: GameLoop::new(state),
             should_quit: false,
             num_pad: false,
             mode: UiMode::Normal,
             selection_cursor: 0,
+            assets,
         }
     }
 
@@ -600,7 +605,7 @@ impl App {
             .split(frame.area());
 
         // Render map
-        let map_widget = MapWidget::new(&state.current_level, &state.player);
+        let map_widget = MapWidget::new(&state.current_level, &state.player, &self.assets);
         frame.render_widget(map_widget, chunks[0]);
 
         // Render status
@@ -636,7 +641,7 @@ impl App {
         let area = centered_rect(60, 80, frame.area());
         frame.render_widget(Clear, area);
 
-        let inventory_widget = InventoryWidget::new(&self.game_loop.state().inventory);
+        let inventory_widget = InventoryWidget::new(&self.game_loop.state().inventory, &self.assets);
         frame.render_widget(inventory_widget, area);
     }
 
@@ -668,12 +673,8 @@ impl App {
             let list_items: Vec<ListItem> = items
                 .iter()
                 .map(|obj| {
-                    let name = obj.name.as_deref().unwrap_or("item");
-                    let text = format!("{} - {}", obj.inv_letter, name);
-                    ListItem::new(Line::from(Span::styled(
-                        text,
-                        Style::default().fg(Color::White),
-                    )))
+                    let line = InventoryWidget::format_item(obj, &self.assets);
+                    ListItem::new(line)
                 })
                 .collect();
 

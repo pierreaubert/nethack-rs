@@ -126,8 +126,15 @@ fn main() -> io::Result<()> {
         run_character_creation(&mut terminal, &args)?
     };
 
+    // Load asset mapping
+    let assets_path = "crates/nh-assets/initial_mapping.json";
+    let assets = nh_assets::registry::AssetRegistry::load_from_file(assets_path)
+        .unwrap_or_else(|_| {
+            nh_assets::registry::AssetRegistry::new(nh_assets::mapping::AssetMapping::default())
+        });
+
     // Create app
-    let mut app = App::new(state);
+    let mut app = App::new(state, assets);
 
     // Main loop
     loop {
@@ -210,7 +217,8 @@ fn run_character_creation(
 
     // Create a temporary game state for the character creation UI
     let temp_state = GameState::new(GameRng::from_entropy());
-    let mut app = App::new(temp_state);
+    let assets = nh_assets::registry::AssetRegistry::new(nh_assets::mapping::AssetMapping::default());
+    let mut app = App::new(temp_state, assets);
 
     // Start character creation - with name if provided via CLI
     if let Some(ref name) = args.name {

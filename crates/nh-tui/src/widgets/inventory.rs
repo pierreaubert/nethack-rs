@@ -3,6 +3,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 
+use nh_assets::registry::AssetRegistry;
 use nh_core::data::objects::OBJECTS;
 use nh_core::object::{Object, ObjectClass};
 
@@ -11,14 +12,16 @@ pub struct InventoryWidget<'a> {
     items: &'a [Object],
     title: &'a str,
     selected: Option<usize>,
+    assets: &'a AssetRegistry,
 }
 
 impl<'a> InventoryWidget<'a> {
-    pub fn new(items: &'a [Object]) -> Self {
+    pub fn new(items: &'a [Object], assets: &'a AssetRegistry) -> Self {
         Self {
             items,
             title: "Inventory",
             selected: None,
+            assets,
         }
     }
 
@@ -50,7 +53,7 @@ impl<'a> InventoryWidget<'a> {
     }
 
     /// Format an object for display (like NetHack's doname)
-    fn format_item(obj: &Object) -> String {
+    pub fn format_item(obj: &Object, assets: &AssetRegistry) -> Line<'static> {
         let mut parts: Vec<String> = Vec::new();
 
         // Quantity prefix (for stackable items)
@@ -184,13 +187,24 @@ impl<'a> InventoryWidget<'a> {
             String::new()
         };
 
-        format!(
-            "{} - {}{}{}",
-            obj.inv_letter,
+        let mut spans = vec![
+            Span::raw(format!("{} - ", obj.inv_letter)),
+        ];
+
+        // Add the mapped icon if available
+        if let Ok(icon) = assets.get_icon(obj) {
+            let color = AssetRegistry::parse_color(&icon.tui_color).unwrap_or(Color::Yellow);
+            spans.push(Span::styled(format!("{} ", icon.tui_char), Style::default().fg(color)));
+        }
+
+        spans.push(Span::raw(format!(
+            "{}{}{}",
             parts.join(" "),
             charges_str,
             worn_str
-        )
+        )));
+
+        Line::from(spans)
     }
 
     /// Get the class symbol for grouping
@@ -260,18 +274,16 @@ impl Widget for InventoryWidget<'_> {
 
             // Add items in this class
             for item in items {
-                let style = if item.is_cursed() && item.buc_known {
-                    Style::default().fg(Color::Red)
+                let mut line = Self::format_item(item, self.assets);
+                
+                // Override style for BUC if known
+                if item.is_cursed() && item.buc_known {
+                    line = line.style(Style::default().fg(Color::Red));
                 } else if item.is_blessed() && item.buc_known {
-                    Style::default().fg(Color::Cyan)
-                } else {
-                    Style::default().fg(Color::White)
-                };
+                    line = line.style(Style::default().fg(Color::Cyan));
+                }
 
-                list_items.push(ListItem::new(Line::from(Span::styled(
-                    format!("  {}", Self::format_item(item)),
-                    style,
-                ))));
+                list_items.push(ListItem::new(line));
             }
         }
 
