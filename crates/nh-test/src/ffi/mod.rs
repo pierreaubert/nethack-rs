@@ -5,6 +5,8 @@
 
 pub mod game_engine;
 pub mod isaac64;
+pub mod subprocess;
 
 pub use game_engine::CGameEngine;
 pub use isaac64::CIsaac64;
+pub use subprocess::CGameEngineSubprocess;
