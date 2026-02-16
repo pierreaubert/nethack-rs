@@ -17,10 +17,10 @@ This plan focuses on achieving functional parity between the Rust and C engines 
     - [x] Identify SIGABRT root cause (global state corruption in NetHack)
     - [x] Create `CGameEngineSubprocess` to handle FFI in a separate process 1048e60
     - [x] Update `nh-compare` to use subprocess-backed engine 7e2779d
-- [~] Task: Port `mklev.c` core room placement logic
+- [x] Task: Port `mklev.c` core room placement logic
     - [x] Add Map/Room JSON export to FFI
     - [x] Write failing test in `nh-compare` (seed 42)
-    - [ ] Port room selection and placement algorithm to `nh-core::dungeon::generation`
+    - [x] Port room selection and placement algorithm to `nh-core::dungeon::generation` 6014048
 - [ ] Task: Port `mkmaze.c` and special level logic
     - [ ] Implement parity for maze-style level generation
 - [ ] Task: Port Door and Secret Passage placement
