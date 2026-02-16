@@ -16,7 +16,7 @@ This plan focuses on achieving functional parity between the Rust and C engines 
 - [~] Task: Implement C engine process isolation (worker subprocess)
     - [x] Identify SIGABRT root cause (global state corruption in NetHack)
     - [x] Create `CGameEngineSubprocess` to handle FFI in a separate process 1048e60
-    - [ ] Update `nh-compare` to use subprocess-backed engine
+    - [x] Update `nh-compare` to use subprocess-backed engine 7e2779d
 - [~] Task: Port `mklev.c` core room placement logic
     - [x] Add Map/Room JSON export to FFI
     - [x] Write failing test in `nh-compare` (seed 42)
