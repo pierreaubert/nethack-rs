@@ -68,6 +68,7 @@ unsafe extern "C" {
     ) -> c_int;
     pub fn nh_ffi_free();
     pub fn nh_ffi_reset(seed: c_ulong) -> c_int;
+    pub fn nh_ffi_generate_level() -> c_int;
 
     // Command Execution
     pub fn nh_ffi_exec_cmd(cmd: c_char) -> c_int;
@@ -179,6 +180,19 @@ impl CGameEngine {
         let result = unsafe { nh_ffi_reset(seed as c_ulong) };
         if result < 0 {
             return Err("Failed to reset game".to_string());
+        }
+
+        Ok(())
+    }
+
+    pub fn generate_level(&self) -> Result<(), String> {
+        if !self.initialized {
+            return Err("Game not initialized".to_string());
+        }
+
+        let result = unsafe { nh_ffi_generate_level() };
+        if result < 0 {
+            return Err("Failed to generate level".to_string());
         }
 
         Ok(())

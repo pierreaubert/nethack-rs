@@ -6,6 +6,7 @@ use nh_test::ffi::CGameEngine;
 enum Command {
     Init { role: String, race: String, gender: i32, align: i32 },
     Reset { seed: u64 },
+    GenerateLevel,
     GetHp,
     GetMaxHp,
     GetEnergy,
@@ -16,6 +17,32 @@ enum Command {
     GetMapJson,
     ExecCmd { cmd: char },
     ExecCmdDir { cmd: char, dx: i32, dy: i32 },
+    SetState { hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64 },
+    GetArmorClass,
+    GetGold,
+    GetExperienceLevel,
+    GetCurrentLevel,
+    GetDungeonDepth,
+    IsDead,
+    GetLastMessage,
+    GetInventoryCount,
+    GetInventoryJson,
+    GetObjectTableJson,
+    GetMonstersJson,
+    SetWizardMode { enable: bool },
+    AddItemToInv { item_id: i32, weight: i32 },
+    GetCarryingWeight,
+    GetMonsterCount,
+    GetRole,
+    GetRace,
+    GetGenderString,
+    GetAlignmentString,
+    GetResultMessage,
+    RngRn2 { limit: i32 },
+    CalcBaseDamage { weapon_id: i32, small_monster: bool },
+    GetAc,
+    TestSetupStatus { hp: i32, max_hp: i32, level: i32, ac: i32 },
+    WearItem { item_id: i32 },
     Exit,
 }
 
@@ -26,6 +53,7 @@ enum Response {
     Pos(i32, i32),
     Long(u64),
     String(String),
+    Bool(bool),
     Error(String),
 }
 
@@ -40,11 +68,13 @@ fn main() {
             Err(_) => break,
         };
 
+        if line.trim().is_empty() { continue; }
+
         let cmd: Command = match serde_json::from_str(&line) {
             Ok(c) => c,
             Err(e) => {
                 let resp = Response::Error(format!("Invalid command: {}", e));
-                println!("{}", serde_json::to_string(&resp).unwrap());
+                println!("JSON:{}", serde_json::to_string(&resp).unwrap());
                 continue;
             }
         };
@@ -58,6 +88,12 @@ fn main() {
             }
             Command::Reset { seed } => {
                 match engine.reset(seed) {
+                    Ok(_) => Response::Ok,
+                    Err(e) => Response::Error(format!("{}", e)),
+                }
+            }
+            Command::GenerateLevel => {
+                match engine.generate_level() {
                     Ok(_) => Response::Ok,
                     Err(e) => Response::Error(format!("{}", e)),
                 }
@@ -85,10 +121,55 @@ fn main() {
                     Err(e) => Response::Error(format!("{}", e)),
                 }
             }
+            Command::SetState { hp, hpmax, x, y, ac, moves } => {
+                engine.set_state(hp, hpmax, x, y, ac, moves);
+                Response::Ok
+            }
+            Command::GetArmorClass => Response::Int(engine.armor_class()),
+            Command::GetGold => Response::Int(engine.gold()),
+            Command::GetExperienceLevel => Response::Int(engine.experience_level()),
+            Command::GetCurrentLevel => Response::Int(engine.current_level()),
+            Command::GetDungeonDepth => Response::Int(engine.dungeon_depth()),
+            Command::IsDead => Response::Bool(engine.is_dead()),
+            Command::GetLastMessage => Response::String(engine.last_message()),
+            Command::GetInventoryCount => Response::Int(engine.inventory_count()),
+            Command::GetInventoryJson => Response::String(engine.inventory_json()),
+            Command::GetObjectTableJson => Response::String(engine.object_table_json()),
+            Command::GetMonstersJson => Response::String(engine.monsters_json()),
+            Command::SetWizardMode { enable } => {
+                engine.set_wizard_mode(enable);
+                Response::Ok
+            }
+            Command::AddItemToInv { item_id, weight } => {
+                match engine.add_item_to_inv(item_id, weight) {
+                    Ok(_) => Response::Ok,
+                    Err(e) => Response::Error(format!("{}", e)),
+                }
+            }
+            Command::GetCarryingWeight => Response::Int(engine.carrying_weight()),
+            Command::GetMonsterCount => Response::Int(engine.monster_count()),
+            Command::GetRole => Response::String(engine.role()),
+            Command::GetRace => Response::String(engine.race()),
+            Command::GetGenderString => Response::String(engine.gender_string()),
+            Command::GetAlignmentString => Response::String(engine.alignment_string()),
+            Command::GetResultMessage => Response::String(engine.result_message()),
+            Command::RngRn2 { limit } => Response::Int(engine.rng_rn2(limit)),
+            Command::CalcBaseDamage { weapon_id, small_monster } => Response::Int(engine.calc_base_damage(weapon_id, small_monster)),
+            Command::GetAc => Response::Int(engine.ac()),
+            Command::TestSetupStatus { hp, max_hp, level, ac } => {
+                engine.test_setup_status(hp, max_hp, level, ac);
+                Response::Ok
+            }
+            Command::WearItem { item_id } => {
+                match engine.wear_item(item_id) {
+                    Ok(_) => Response::Ok,
+                    Err(e) => Response::Error(format!("{}", e)),
+                }
+            }
             Command::Exit => break,
         };
 
-        println!("{}", serde_json::to_string(&resp).unwrap());
+        println!("JSON:{}", serde_json::to_string(&resp).unwrap());
         let _ = stdout.flush();
     }
 }

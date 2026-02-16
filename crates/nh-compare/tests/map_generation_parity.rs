@@ -18,6 +18,7 @@ fn run_map_parity_test(seed: u64) {
     // 1. Initialize C Engine
     let mut c_engine = CGameEngine::new();
     c_engine.init("Valkyrie", "Human", 0, 0).expect("C engine init failed");
+    c_engine.generate_level().expect("C level generation failed");
     
     let c_map_str = c_engine.map_json();
     let c_map: Value = serde_json::from_str(&c_map_str).unwrap();
@@ -26,11 +27,23 @@ fn run_map_parity_test(seed: u64) {
     println!("C generated {} rooms", c_rooms.len());
 
     // 2. Initialize Rust Engine
-    let rust_rng = GameRng::new(seed);
-    let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender);
-    let rs_rooms = &rust_state.levels[&nh_core::dungeon::DLevel::new(1, 1)].rooms;
+    // RE-SEED and RE-GENERATE to match C's mklev reseed(42) behavior
+    let mut fresh_rng = GameRng::new(seed);
+    let monster_vitals = nh_core::magic::genocide::MonsterVitals::new();
+    let mut fresh_level = nh_core::dungeon::Level::new(nh_core::dungeon::DLevel::new(0, 1));
+    nh_core::dungeon::generate_rooms_and_corridors(&mut fresh_level, &mut fresh_rng, &monster_vitals);
+    
+    let rs_rooms = &fresh_level.rooms;
 
+    println!("C generated {} rooms", c_rooms.len());
+    for (i, r) in c_rooms.iter().enumerate() {
+        println!("  C Room {}: ({},{}) {}x{}", i, r["lx"], r["ly"], r["hx"].as_i64().unwrap() - r["lx"].as_i64().unwrap() + 1, r["hy"].as_i64().unwrap() - r["ly"].as_i64().unwrap() + 1);
+    }
+    
     println!("Rust generated {} rooms", rs_rooms.len());
+    for (i, r) in rs_rooms.iter().enumerate() {
+        println!("  Rust Room {}: ({},{}) {}x{}", i, r.x, r.y, r.width, r.height);
+    }
 
     // 3. Compare Room Count and Layout
     // NOTE: This is EXPECTED TO FAIL initially until mklev.c is ported.

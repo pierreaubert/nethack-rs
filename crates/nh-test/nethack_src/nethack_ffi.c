@@ -46,8 +46,10 @@ void sethanguphandler(void (*fn)(int)) {
     (void)fn;
 }
 
+static unsigned long g_seed = 42;
+
 unsigned long sys_random_seed(void) {
-    return 42; /* Constant for testing */
+    return g_seed;
 }
 
 /* Dummy window procs to avoid segfaults in u_init */
@@ -304,7 +306,8 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
         }
 
         /* Set RNG seed */
-        set_random_generator_seed(42);
+        init_isaac64(42, rn2);
+        init_isaac64(42, rn2_on_display_rng);
 
         /* NetHack 3.6.7 initialization sequence */
         strncpy(plname, "Hero", sizeof(plname)-1);
@@ -314,12 +317,22 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
         
         dlb_init();
         init_objects();
+        init_dungeons();
+        monst_init();
+        vision_init();
         
         global_initialized = TRUE;
     } 
     
     /* ALWAYS zero core structures before u_init() to avoid double-free/SIGABRT */
     nh_ffi_cleanup_globals();
+
+    /* Set default dungeon level */
+    u.uz.dnum = 0;
+    u.uz.dlevel = 1;
+    
+    /* Setup dummy window system if not already done */
+    windowprocs = dummy_procs;
 
     /* Reset core engine globals for a fresh game */
     int role_idx = str2role(role ? role : "Tourist");
@@ -402,7 +415,9 @@ int nh_ffi_reset(unsigned long seed) {
 #ifdef REAL_NETHACK
     /* For reset, we should ideally re-init everything, but for now simple re-init suffices */
     /* Set RNG seed before initialization to ensure deterministic rolls */
-    set_random_generator_seed(seed);
+    g_seed = seed;
+    init_isaac64(seed, rn2);
+    init_isaac64(seed, rn2_on_display_rng);
     return nh_ffi_init(g_last_role, g_last_race, g_last_gender, g_last_alignment);
 #else
     (void)seed;
@@ -423,6 +438,23 @@ int nh_ffi_reset(unsigned long seed) {
     
     return 0;
 #endif
+}
+
+/* Generate a new level */
+int nh_ffi_generate_level(void) {
+#ifdef REAL_NETHACK
+    /* Reseed to match mklev expectation of fresh RNG if needed, 
+       but mklev already does reseed_random(rn2) */
+    mklev();
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+/* Stub for getbones to avoid non-deterministic RNG consumption */
+int getbones(void) {
+    return 0;
 }
 
 /* Setup status for testing */
@@ -465,9 +497,9 @@ const char* nh_ffi_get_map_json(void) {
             (rooms[i+1].hx >= 0 && i+1 < MAXNROFROOMS) ? "," : "");
     }
     p += sprintf(p, "]}");
-    return g_json_buffer;
+    return strdup(g_json_buffer);
 #else
-    return "{}";
+    return strdup("{}");
 #endif
 }
 

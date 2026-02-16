@@ -8,6 +8,7 @@
 use crate::compat::*;
 
 use crate::rng::GameRng;
+use super::room::Room;
 
 /// Maximum number of rectangles to track
 pub const MAXRECT: usize = 50;
@@ -85,11 +86,11 @@ impl NhRect {
     }
 
     /// Check if rectangle is large enough for a room
-    /// Minimum size is (2*XLIM + 1 + 4) × (2*YLIM + 1 + 4) for margins
+    /// Matches NetHack's is_room_size() exactly.
     pub fn is_room_size(&self) -> bool {
-        let min_w = 2 * XLIM + 5; // Room needs margins
-        let min_h = 2 * YLIM + 5;
-        self.width() >= min_w && self.height() >= min_h
+        // C: return (r->hx - r->lx >= XLIM + 2 && r->hy - r->ly >= YLIM + 2);
+        (self.hx as i16 - self.lx as i16) >= (XLIM + 2) as i16
+            && (self.hy as i16 - self.ly as i16) >= (YLIM + 2) as i16
     }
 }
 
@@ -111,38 +112,29 @@ impl RectManager {
     }
 
     /// Initialize with a single rectangle covering the entire level
-    /// with margins for borders
     pub fn init(&mut self, width: u8, height: u8) {
         self.rects.clear();
-        // Leave margin for level borders
-        let rect = NhRect::new(
-            XLIM,
-            YLIM,
-            width.saturating_sub(XLIM + 1),
-            height.saturating_sub(YLIM + 1),
-        );
+        let rect = NhRect::new(0, 0, width.saturating_sub(1), height.saturating_sub(1));
         if rect.is_valid() {
             self.rects.push(rect);
         }
     }
 
     /// Get a random free rectangle that's large enough for a room
+    /// Matches NetHack's rnd_rect() exactly.
     pub fn rnd_rect(&self, rng: &mut GameRng) -> Option<NhRect> {
-        // Find all rectangles large enough for a room
-        let valid: Vec<_> = self
-            .rects
-            .iter()
-            .filter(|r| r.is_room_size())
-            .copied()
-            .collect();
-
-        if valid.is_empty() {
+        if self.rects.is_empty() {
             return None;
         }
 
-        // Return a random one
-        let idx = rng.rn2(valid.len() as u32) as usize;
-        Some(valid[idx])
+        let idx = rng.rn2(self.rects.len() as u32) as usize;
+        let rect = self.rects[idx];
+
+        if rect.is_room_size() {
+            Some(rect)
+        } else {
+            None
+        }
     }
 
     /// Find a free rectangle that can contain the given rectangle
@@ -158,7 +150,10 @@ impl RectManager {
     /// Add a rectangle to the free list
     pub fn add_rect(&mut self, r: NhRect) {
         if self.rects.len() < MAXRECT && r.is_valid() {
-            self.rects.push(r);
+            // Check that this NhRect is not included in another one
+            if self.get_rect(&r).is_none() {
+                self.rects.push(r);
+            }
         }
     }
 
@@ -252,6 +247,107 @@ impl RectManager {
     /// Get all free rectangles (for debugging/testing)
     pub fn rects(&self) -> &[NhRect] {
         &self.rects
+    }
+
+    /// Port of NetHack's create_room() total random logic
+    pub fn create_room_random(&mut self, rng: &mut GameRng) -> Option<Room> {
+        let mut trycnt = 0;
+        let xlim = XLIM;
+        let ylim = YLIM;
+
+        // Lighting RNG calls to match NetHack (assuming level 1)
+        // In C, these are called BEFORE the retry loop starts
+        let _ = rng.rn2(2);
+        let _ = rng.rn2(77);
+
+        while trycnt < 100 {
+            trycnt += 1;
+            let r1 = self.rnd_rect(rng)?; // Pick a random rectangle
+            
+            let hx = r1.hx;
+            let hy = r1.hy;
+            let lx = r1.lx;
+            let ly = r1.ly;
+
+            let dx = 2 + rng.rn2(if hx - lx > 28 { 12 } else { 8 }) as u8;
+            let mut dy = 2 + rng.rn2(4) as u8;
+            if dx as u16 * dy as u16 > 50 {
+                dy = 50 / dx;
+            }
+
+            let xborder = if lx > 0 && hx < crate::COLNO as u8 - 1 { 2 * xlim } else { xlim + 1 };
+            let yborder = if ly > 0 && hy < crate::ROWNO as u8 - 1 { 2 * ylim } else { ylim + 1 };
+
+            if hx - lx < dx + 3 + xborder || hy - ly < dy + 3 + yborder {
+                continue;
+            }
+
+            let xabs = lx + (if lx > 0 { xlim } else { 3 })
+                + rng.rn2((hx - (if lx > 0 { lx } else { 3 }) - dx - xborder + 1) as u32) as u8;
+            let yabs = ly + (if ly > 0 { ylim } else { 2 })
+                + rng.rn2((hy - (if ly > 0 { ly } else { 2 }) - dy - yborder + 1) as u32) as u8;
+
+            let wtmp = dx + 1;
+            let htmp = dy + 1;
+
+            let r2 = NhRect::new(xabs.saturating_sub(1), yabs.saturating_sub(1), xabs + wtmp, yabs + htmp);
+            
+            // split_rects in C uses r1 (the original rect) and r2 (the room rect)
+            self.split_rects_from_original(r1, &r2);
+
+            return Some(Room::new(xabs as usize, yabs as usize, wtmp as usize, htmp as usize));
+        }
+        None
+    }
+
+    fn split_rects_from_original(&mut self, r1: NhRect, r2: &NhRect) {
+        // Find index of r1
+        if let Some(idx) = get_rect_ind(&self.rects, &r1) {
+            // C logic for split_rects(r1, r2):
+            // 1. remove r1
+            self.rects.swap_remove(idx);
+            
+            // 2. recursively split other rects that intersect r2
+            let mut i = self.rects.len();
+            while i > 0 {
+                i -= 1;
+                if self.rects[i].intersects(r2) {
+                    let intersecting = self.rects.swap_remove(i);
+                    if let Some(intersection) = intersecting.intersection(r2) {
+                        self.split_rects_from_original(intersecting, &intersection);
+                    }
+                }
+            }
+
+            // 3. add new rects around r2 within r1 (old_r)
+            // C logic:
+            /*
+            if (r2->ly - old_r.ly - 1 > (old_r.hy < ROWNO - 1 ? 2 * YLIM : YLIM + 1) + 4) {
+                r = old_r; r.hy = r2->ly - 2; add_rect(&r);
+            }
+            */
+            // I'll match the EXACT C conditions
+            if r2.ly as i16 - r1.ly as i16 - 1 > (if r1.hy < crate::ROWNO as u8 - 1 { 2 * YLIM } else { YLIM + 1 }) as i16 + 4 {
+                let mut r = r1;
+                r.hy = r2.ly.saturating_sub(2);
+                self.add_rect(r);
+            }
+            if r2.lx as i16 - r1.lx as i16 - 1 > (if r1.hx < crate::COLNO as u8 - 1 { 2 * XLIM } else { XLIM + 1 }) as i16 + 4 {
+                let mut r = r1;
+                r.hx = r2.lx.saturating_sub(2);
+                self.add_rect(r);
+            }
+            if r1.hy as i16 - r2.hy as i16 - 1 > (if r1.ly > 0 { 2 * YLIM } else { YLIM + 1 }) as i16 + 4 {
+                let mut r = r1;
+                r.ly = r2.hy.saturating_add(2);
+                self.add_rect(r);
+            }
+            if r1.hx as i16 - r2.hx as i16 - 1 > (if r1.lx > 0 { 2 * XLIM } else { XLIM + 1 }) as i16 + 4 {
+                let mut r = r1;
+                r.lx = r2.hx.saturating_add(2);
+                self.add_rect(r);
+            }
+        }
     }
 
     /// Pick a random position within a free rectangle for a room of given size

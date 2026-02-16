@@ -23,87 +23,51 @@ pub fn generate_rooms_and_corridors(
     rng: &mut GameRng,
     monster_vitals: &crate::magic::MonsterVitals,
 ) {
-    // Try to place 6-9 rooms (rnd returns 1..=n, so rnd(4) + 5 = 6-9)
-    let num_rooms = (rng.rnd(4) + 5) as usize;
-    let mut rooms = Vec::new();
+    init_map(level);
+    
+    // NetHack's makelevel() calls rn2(5) right before makerooms()
+    // for a potential hell/medusa level check.
+    let _ = rng.rn2(5);
 
-    // Try to place rooms
-    for _ in 0..num_rooms * 3 {
-        // Try multiple times
-        let width = (rng.rnd(7) + 2) as usize; // 3-9
-        let height = (rng.rnd(5) + 2) as usize; // 3-7
+    let mut rect_mgr = RectManager::new(COLNO as u8, ROWNO as u8);
 
-        // Leave room for walls
-        let max_x = COLNO.saturating_sub(width + 2);
-        let max_y = ROWNO.saturating_sub(height + 2);
-
-        if max_x < 2 || max_y < 2 {
-            continue;
-        }
-
-        let x = (rng.rn2(max_x.saturating_sub(1) as u32) + 1) as usize;
-        let y = (rng.rn2(max_y.saturating_sub(1) as u32) + 1) as usize;
-
-        let room = Room::new(x, y, width, height);
-
-        // Check if room overlaps with existing rooms
-        if rooms.iter().any(|r: &Room| room.overlaps(r, 1)) {
-            continue;
-        }
-
-        rooms.push(room);
-
-        if rooms.len() >= num_rooms {
+    // make rooms until satisfied (makerooms() in C)
+    while level.rooms.len() < super::mapseen::MAXNROFROOMS && rect_mgr.rnd_rect(rng).is_some() {
+        // C calls rnd_rect() once in while condition, and then create_room() 
+        // calls it again inside its own retry loop.
+        if let Some(room) = rect_mgr.create_room_random(rng) {
+            carve_room(level, &room);
+            level.rooms.push(room);
+        } else {
+            // In C, if create_room fails, makerooms returns
             break;
         }
     }
 
-    // Carve out rooms
-    for room in &rooms {
-        // Create walls around the room
-        for x in room.x.saturating_sub(1)..=(room.x + room.width).min(COLNO - 1) {
-            for y in room.y.saturating_sub(1)..=(room.y + room.height).min(ROWNO - 1) {
-                let is_vertical_edge = x == room.x.saturating_sub(1) || x == room.x + room.width;
-                let is_horizontal_edge = y == room.y.saturating_sub(1) || y == room.y + room.height;
-
-                if is_vertical_edge && !is_horizontal_edge {
-                    level.cells[x][y].typ = CellType::VWall;
-                } else if is_horizontal_edge && !is_vertical_edge {
-                    level.cells[x][y].typ = CellType::HWall;
-                } else if is_vertical_edge && is_horizontal_edge {
-                    // Corner - use HWall for simplicity
-                    level.cells[x][y].typ = CellType::HWall;
-                } else {
-                    level.cells[x][y].typ = CellType::Room;
-                    level.cells[x][y].lit = true;
-                }
-            }
-        }
-    }
-
-    // Connect rooms with 4-phase corridor algorithm
-    generate_corridors(level, &rooms, rng);
+    // Connect rooms with corridors
+    let rooms_clone = level.rooms.clone();
+    generate_corridors(level, &rooms_clone, rng);
 
     // Place doors
-    place_doors(level, &rooms, rng);
+    place_doors(level, &rooms_clone, rng);
 
     // Select and assign special room type based on depth
     let depth = level.dlevel.depth();
     if let Some(special_type) = select_special_room_type(rng, depth, &mut level.flags)
-        && let Some(room_idx) = pick_room_for_special(&rooms, special_type)
+        && let Some(room_idx) = pick_room_for_special(&level.rooms, special_type)
     {
-        rooms[room_idx].room_type = special_type;
+        level.rooms[room_idx].room_type = special_type;
 
         // Set lighting based on room type (morgues and vaults are dark)
-        rooms[room_idx].lit = !matches!(special_type, RoomType::Morgue | RoomType::Vault);
+        level.rooms[room_idx].lit = !matches!(special_type, RoomType::Morgue | RoomType::Vault);
 
         // Update level flags (already done in select_special_room_type for most,
         // but this ensures consistency)
         set_level_flags_for_room(&mut level.flags, special_type);
 
         // Update cell lighting if room is dark
-        if !rooms[room_idx].lit {
-            let room = &rooms[room_idx];
+        if !level.rooms[room_idx].lit {
+            let room = &level.rooms[room_idx];
             for x in room.x..room.x + room.width {
                 for y in room.y..room.y + room.height {
                     level.cells[x][y].lit = false;
@@ -112,34 +76,36 @@ pub fn generate_rooms_and_corridors(
         }
 
         // Populate special room with monsters and features
+        let special_room = level.rooms[room_idx].clone();
         if special_type.is_shop() {
             // Shops get shopkeepers and inventory
-            populate_shop(level, &rooms[room_idx], rng);
+            populate_shop(level, &special_room, rng);
         } else if is_vault(special_type) {
             // Vaults get gold piles (and possibly teleport trap)
-            populate_vault(level, &rooms[room_idx], rng);
+            populate_vault(level, &special_room, rng);
         } else if needs_population(special_type) {
             // Other special rooms get their themed monsters
-            populate_special_room(level, &rooms[room_idx], rng);
+            populate_special_room(level, &special_room, rng);
         }
     }
 
     // Place stairs
-    if !rooms.is_empty() {
-        place_stairs(level, &rooms, rng);
+    let final_rooms = level.rooms.clone();
+    if !final_rooms.is_empty() {
+        place_stairs(level, &final_rooms, rng);
     }
 
     // Place monsters
-    place_monsters(level, &rooms, rng, monster_vitals);
+    place_monsters(level, &final_rooms, rng, monster_vitals);
 
     // Place traps
-    place_traps(level, &rooms, rng);
+    place_traps(level, &final_rooms, rng);
 
     // Place fountains, sinks, and altars
-    place_dungeon_features(level, &rooms, rng);
+    place_dungeon_features(level, &final_rooms, rng);
 
     // Place branch entrances if this level has one
-    place_branch_entrance(level, &rooms, rng);
+    place_branch_entrance(level, &final_rooms, rng);
 }
 
 /// Place doors at room entrances
@@ -1521,6 +1487,43 @@ fn is_floor_like(typ: CellType) -> bool {
 
 /// Fill a room with floor cells (fill_room equivalent)
 ///
+/// Converts the interior of a room to floor cells and adds walls around it.
+pub fn carve_room(level: &mut Level, room: &Room) {
+    let lowx = room.x;
+    let lowy = room.y;
+    let hix = room.x + room.width - 1;
+    let hiy = room.y + room.height - 1;
+
+    // Horizontal walls
+    for x in lowx.saturating_sub(1)..=(hix + 1).min(COLNO - 1) {
+        if lowy > 0 {
+            level.cells[x][lowy - 1].typ = CellType::HWall;
+        }
+        if hiy < ROWNO - 1 {
+            level.cells[x][hiy + 1].typ = CellType::HWall;
+        }
+    }
+
+    // Vertical walls
+    for y in lowy..=hiy {
+        if lowx > 0 {
+            level.cells[lowx - 1][y].typ = CellType::VWall;
+        }
+        if hix < COLNO - 1 {
+            level.cells[hix + 1][y].typ = CellType::VWall;
+        }
+    }
+
+    // Corners
+    if lowx > 0 && lowy > 0 { level.cells[lowx - 1][lowy - 1].typ = CellType::TLCorner; }
+    if hix < COLNO - 1 && lowy > 0 { level.cells[hix + 1][lowy - 1].typ = CellType::TRCorner; }
+    if lowx > 0 && hiy < ROWNO - 1 { level.cells[lowx - 1][hiy + 1].typ = CellType::BLCorner; }
+    if hix < COLNO - 1 && hiy < ROWNO - 1 { level.cells[hix + 1][hiy + 1].typ = CellType::BRCorner; }
+
+    // Floor
+    fill_room(level, room, true);
+}
+
 /// Converts the interior of a room to floor cells.
 pub fn fill_room(level: &mut Level, room: &Room, lit: bool) {
     for x in room.x..(room.x + room.width) {
