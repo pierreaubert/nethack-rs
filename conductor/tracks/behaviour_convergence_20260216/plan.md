@@ -2,7 +2,7 @@
 
 This plan focuses on achieving functional parity between the Rust and C engines using the `synchronized_comparison` suite as the primary validation tool.
 
-## Phase 1: Character Generation & Initial State Alignment [checkpoint: P1-INIT]
+## Phase 1: Character Generation & Initial State Alignment [checkpoint: 7414a9e]
 - [x] Task: Alignment of Constitution-based HP bonuses df8525c
     - [x] Write failing test in `nh-compare` for roles with high/low CON df8525c
     - [x] Implement CON-based HP rolling in `nh-core::player::init` df8525c
@@ -10,7 +10,7 @@ This plan focuses on achieving functional parity between the Rust and C engines 
 - [x] Task: Initial Inventory count and property parity df8525c
     - [x] Write failing test comparing starting inventory counts and BUC/enchantment df8525c
     - [x] Refine `u_init` starting item generation to match C distribution df8525c
-- [~] Task: Conductor - User Manual Verification 'Phase 1: Character Generation & Initial State Alignment' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Character Generation & Initial State Alignment' (Protocol in workflow.md) 7414a9e
 
 ## Phase 2: Map Generation Parity (Core Algorithms) [checkpoint: P2-MAP]
 - [ ] Task: Port `mklev.c` core room placement logic
