@@ -270,6 +270,9 @@ void nh_ffi_cleanup_globals(void) {
     memset(&level, 0, sizeof(level));
     memset(&context, 0, sizeof(context));
     
+    moves = 1L; /* NetHack starts at turn 1 usually, or 0? moves++ happens in many places */
+    multi = 0;
+    
     invent = (struct obj *)0;
     fmon = (struct monst *)0;
     fobj = (struct obj *)0;

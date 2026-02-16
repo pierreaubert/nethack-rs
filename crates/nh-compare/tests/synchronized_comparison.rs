@@ -6,7 +6,7 @@
 use nh_core::action::{Command, Direction};
 use nh_core::player::{Gender, Race, Role};
 use nh_core::{GameLoop, GameRng, GameState};
-use nh_test::ffi::CGameEngine;
+use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use serde_json::Value;
 use serial_test::serial;
 

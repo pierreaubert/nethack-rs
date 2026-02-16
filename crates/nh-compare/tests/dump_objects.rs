@@ -1,4 +1,4 @@
-use nh_test::ffi::CGameEngine;
+use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use serde_json::Value;
 use serial_test::serial;
 

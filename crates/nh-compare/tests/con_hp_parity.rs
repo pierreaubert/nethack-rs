@@ -1,6 +1,6 @@
 use nh_core::player::{Role, Race, Gender};
 use nh_core::GameState;
-use nh_test::ffi::CGameEngine;
+use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use serial_test::serial;
 
 #[test]

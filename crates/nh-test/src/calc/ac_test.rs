@@ -2,7 +2,7 @@
 //!
 //! Verifies AC logic matches C implementation.
 
-use crate::ffi::CGameEngine;
+use crate::ffi::CGameEngineSubprocess as CGameEngine;
 #[cfg(test)]
 use serial_test::serial;
 

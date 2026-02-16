@@ -1,6 +1,6 @@
 //! Combat logic comparison tests
 
-use crate::ffi::CGameEngine;
+use crate::ffi::CGameEngineSubprocess as CGameEngine;
 #[cfg(test)]
 use serial_test::serial;
 
@@ -34,6 +34,6 @@ fn test_ac_access() {
 fn test_rng_access() {
     let mut engine = CGameEngine::new();
     engine.init("Tourist", "Human", 0, 0).unwrap();
-    // Stub rng_rn2 returns 0
-    assert_eq!(engine.rng_rn2(10), 0);
+    let val = engine.rng_rn2(10);
+    assert!(val >= 0 && val < 10, "RNG value {} out of range", val);
 }

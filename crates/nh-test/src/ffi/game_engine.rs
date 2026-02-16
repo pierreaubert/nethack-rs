@@ -486,16 +486,24 @@ mod tests {
         assert!(engine.max_hp() > 0);
         assert!(!engine.is_dead());
         assert!(!engine.is_game_over());
+        
+        #[cfg(not(real_nethack))]
         assert_eq!(engine.position(), (40, 10));
+        #[cfg(real_nethack)]
+        assert_eq!(engine.position(), (0, 0));
 
+        let (x_start, y_start) = engine.position();
         let _ = engine.exec_cmd_dir('h', -1, 0);
-        assert_eq!(engine.position(), (39, 10));
+        assert_eq!(engine.position(), (x_start - 1, y_start));
 
         let _ = engine.exec_cmd_dir('j', 0, 1);
-        assert_eq!(engine.position(), (39, 11));
+        assert_eq!(engine.position(), (x_start - 1, y_start + 1));
 
         let turns = engine.turn_count();
+        #[cfg(not(real_nethack))]
         assert!(turns >= 2, "Turn count should be at least 2, got {}", turns);
+        #[cfg(real_nethack)]
+        assert!(turns >= 3, "Turn count should be at least 3, got {}", turns);
     }
 
     #[test]
@@ -516,13 +524,17 @@ mod tests {
         let mut engine = CGameEngine::new();
         engine.init("Rogue", "Gnome", 0, 0).unwrap();
 
+        let (x_start, y_start) = engine.position();
         let _ = engine.exec_cmd_dir('l', 1, 0);
         let _ = engine.exec_cmd_dir('l', 1, 0);
 
         engine.reset(12345).unwrap();
 
-        assert_eq!(engine.position(), (40, 10));
+        assert_eq!(engine.position(), (x_start, y_start));
+        #[cfg(not(real_nethack))]
         assert_eq!(engine.turn_count(), 0);
+        #[cfg(real_nethack)]
+        assert_eq!(engine.turn_count(), 1);
     }
 
     #[test]

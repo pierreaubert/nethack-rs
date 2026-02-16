@@ -11,6 +11,7 @@ fn main() {
     let real_nethack_src = std::path::PathBuf::from("/Users/pierre/src/games/NetHack-3.6.7/src");
 
     if real_nethack_src.exists() {
+        println!("cargo:rustc-cfg=real_nethack");
         println!("Building with real NetHack 3.6.7 source");
         let nethack_root = real_nethack_src.parent().unwrap();
         let nethack_include = nethack_root.join("include");

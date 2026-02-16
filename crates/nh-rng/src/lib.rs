@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 /// Size of the ISAAC64 state arrays (2^8 = 256)
 const ISAAC64_SZ_LOG: usize = 8;
 const ISAAC64_SZ: usize = 1 << ISAAC64_SZ_LOG;
-const ISAAC64_MASK: u64 = u64::MAX;
 
 /// An RNG call trace entry for debugging divergences.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -274,12 +273,39 @@ impl Isaac64 {
         val
     }
 
+    /// Returns a random value in [0, n)
+    pub fn next_uint(&mut self, n: u64) -> u64 {
+        if n == 0 { return 0; }
+        let raw = self.next_u64();
+        let res = raw % n;
+        if self.tracing {
+            self.trace.push(RngTraceEntry {
+                seq: self.call_count - 1,
+                func: "next_uint",
+                arg: n,
+                result: res,
+                raw,
+            });
+        }
+        res
+    }
+
     /// Returns a random value in [0, x) - matches rn2(x)
     #[inline]
     pub fn rn2(&mut self, x: u32) -> u32 {
         if x == 0 { return 0; }
         let raw = self.next_u64();
-        (raw % x as u64) as u32
+        let res = (raw % x as u64) as u32;
+        if self.tracing {
+            self.trace.push(RngTraceEntry {
+                seq: self.call_count - 1,
+                func: "rn2",
+                arg: x as u64,
+                result: res as u64,
+                raw,
+            });
+        }
+        res
     }
 
     /// Returns a random value in [1, x] - matches rnd(x)
@@ -287,7 +313,17 @@ impl Isaac64 {
     pub fn rnd(&mut self, x: u32) -> u32 {
         if x == 0 { return 0; }
         let raw = self.next_u64();
-        (raw % x as u64) as u32 + 1
+        let res = (raw % x as u64) as u32 + 1;
+        if self.tracing {
+            self.trace.push(RngTraceEntry {
+                seq: self.call_count - 1,
+                func: "rnd",
+                arg: x as u64,
+                result: res as u64,
+                raw,
+            });
+        }
+        res
     }
 
     /// Roll n dice of x sides - matches d(n, x)
@@ -343,14 +379,34 @@ impl Isaac64 {
     }
 
     /// Enable RNG tracing
-    pub fn start_tracing(&mut self) {
+    pub fn enable_tracing(&mut self) {
         self.tracing = true;
         self.trace.clear();
+    }
+
+    /// Disable RNG tracing
+    pub fn disable_tracing(&mut self) {
+        self.tracing = false;
+    }
+
+    /// Enable RNG tracing (alias)
+    pub fn start_tracing(&mut self) {
+        self.enable_tracing();
     }
 
     /// Get current RNG trace
     pub fn get_trace(&self) -> Vec<RngTraceEntry> {
         self.trace.clone()
+    }
+
+    /// Get current RNG trace (alias)
+    pub fn trace(&self) -> Vec<RngTraceEntry> {
+        self.get_trace()
+    }
+
+    /// Total number of raw u64 calls
+    pub fn call_count(&self) -> u64 {
+        self.call_count
     }
 }
 
