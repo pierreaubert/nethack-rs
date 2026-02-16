@@ -13,8 +13,13 @@ This plan focuses on achieving functional parity between the Rust and C engines 
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Character Generation & Initial State Alignment' (Protocol in workflow.md) 7414a9e
 
 ## Phase 2: Map Generation Parity (Core Algorithms) [checkpoint: P2-MAP]
+- [~] Task: Implement C engine process isolation (worker subprocess)
+    - [x] Identify SIGABRT root cause (global state corruption in NetHack)
+    - [ ] Create `CGameEngineSubprocess` to handle FFI in a separate process
+    - [ ] Update `nh-compare` to use subprocess-backed engine
 - [~] Task: Port `mklev.c` core room placement logic
-    - [ ] Write failing test using a fixed seed that produces divergent room layouts
+    - [x] Add Map/Room JSON export to FFI
+    - [x] Write failing test in `nh-compare` (seed 42)
     - [ ] Port room selection and placement algorithm to `nh-core::dungeon::generation`
 - [ ] Task: Port `mkmaze.c` and special level logic
     - [ ] Implement parity for maze-style level generation
