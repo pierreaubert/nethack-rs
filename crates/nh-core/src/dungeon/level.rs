@@ -278,6 +278,10 @@ pub struct Level {
     #[serde(skip, default = "default_visible")]
     pub visible: Vec<Vec<bool>>,
 
+    /// Rooms on this level
+    #[serde(default)]
+    pub rooms: Vec<super::room::Room>,
+
     /// Next object ID to assign
     next_object_id: u32,
 
@@ -323,6 +327,7 @@ impl Level {
             flags: LevelFlags::default(),
             explored: default_explored(),
             visible: default_visible(),
+            rooms: Vec::new(),
             next_object_id: 1,
             next_monster_id: 1,
             #[cfg(feature = "extensions")]

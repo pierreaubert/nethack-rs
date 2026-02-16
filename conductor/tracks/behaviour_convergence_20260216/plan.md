@@ -13,7 +13,7 @@ This plan focuses on achieving functional parity between the Rust and C engines 
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Character Generation & Initial State Alignment' (Protocol in workflow.md) 7414a9e
 
 ## Phase 2: Map Generation Parity (Core Algorithms) [checkpoint: P2-MAP]
-- [ ] Task: Port `mklev.c` core room placement logic
+- [~] Task: Port `mklev.c` core room placement logic
     - [ ] Write failing test using a fixed seed that produces divergent room layouts
     - [ ] Port room selection and placement algorithm to `nh-core::dungeon::generation`
 - [ ] Task: Port `mkmaze.c` and special level logic

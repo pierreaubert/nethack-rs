@@ -506,7 +506,7 @@ fn spawn_map_internal(
                 y: y as i8,
             };
 
-            spawn_tile(commands, cell, map_pos, tile_meshes, tile_materials);
+            spawn_tile(commands, cell, map_pos, tile_meshes, tile_materials, level);
         }
     }
 
@@ -549,6 +549,7 @@ fn spawn_tile(
     map_pos: MapPosition,
     meshes: &TileMeshes,
     materials: &TileMaterials,
+    level: &nh_core::dungeon::Level,
 ) {
     let world_pos = map_pos.to_world();
     let explored = cell.explored;
@@ -590,12 +591,39 @@ fn spawn_tile(
             let door_state = cell.door_state();
             let is_open = door_state.contains(nh_core::dungeon::DoorState::OPEN);
 
-            let base_rotation = Quat::IDENTITY;
-            let open_rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
-            let rotation = if is_open {
-                open_rotation
+            // Determine door orientation from adjacent cells.
+            // The door slab base shape is (0.2, 1.0, 1.0): thin in X, full in Z.
+            //
+            // Door in vertical wall (|+|): passage goes E-W (world X).
+            //   Door must block X → thin in X, fill Z → IDENTITY
+            //   Neighbors: N/S are walls, E/W are walkable.
+            //
+            // Door in horizontal wall (---+---): passage goes N-S (world Z).
+            //   Door must block Z → thin in Z, fill X → PI/2
+            //   Neighbors: E/W are walls, N/S are walkable.
+            let x = map_pos.x as usize;
+            let y = map_pos.y as usize;
+            let ew_walkable = (x > 0 && !level.cell(x - 1, y).blocks_sight())
+                || (x + 1 < nh_core::COLNO && !level.cell(x + 1, y).blocks_sight());
+            let ns_walkable = (y > 0 && !level.cell(x, y - 1).blocks_sight())
+                || (y + 1 < nh_core::ROWNO && !level.cell(x, y + 1).blocks_sight());
+
+            let closed_rotation = if ew_walkable && !ns_walkable {
+                // Vertical wall door: passage goes E-W, thin in X
+                Quat::IDENTITY
+            } else if ns_walkable && !ew_walkable {
+                // Horizontal wall door: passage goes N-S, thin in Z
+                Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)
             } else {
-                base_rotation
+                // Ambiguous — default IDENTITY
+                Quat::IDENTITY
+            };
+
+            let open_offset = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+            let rotation = if is_open {
+                closed_rotation * open_offset
+            } else {
+                closed_rotation
             };
 
             // Floor under door
@@ -616,6 +644,7 @@ fn spawn_tile(
                     x: map_pos.x,
                     y: map_pos.y,
                     is_open,
+                    closed_rotation,
                 },
                 map_pos,
                 Mesh3d(meshes.wall.clone()),
@@ -687,11 +716,13 @@ fn sync_door_states(
 
         if is_now_open != door.is_open {
             // Door state changed - trigger animation
+            // Use the door's stored closed_rotation as base, apply PI/2 offset for open
             let current_rotation = transform.rotation;
+            let open_offset = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
             let target_rotation = if is_now_open {
-                Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)
+                door.closed_rotation * open_offset
             } else {
-                Quat::IDENTITY
+                door.closed_rotation
             };
 
             commands.entity(entity).insert(DoorAnimation {

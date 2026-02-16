@@ -3965,6 +3965,7 @@ dependencies = [
  "nh-core",
  "nh-test",
  "serde_json",
+ "serial_test",
 ]
 
 [[package]]

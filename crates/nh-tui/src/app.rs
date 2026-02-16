@@ -3,7 +3,7 @@
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 
@@ -15,6 +15,7 @@ use nh_core::{GameLoop, GameLoopResult, GameState};
 use strum::IntoEnumIterator;
 
 use crate::input::key_to_command;
+use crate::theme::Theme;
 use crate::widgets::{InventoryWidget, MapWidget, MessagesWidget, StatusWidget};
 
 /// UI mode - what the app is currently displaying/waiting for
@@ -131,11 +132,14 @@ pub struct App {
 
     /// Asset registry for icons
     assets: AssetRegistry,
+
+    /// Color theme (adapts to light/dark terminal background)
+    theme: Theme,
 }
 
 impl App {
     /// Create a new application with a new game
-    pub fn new(state: GameState, assets: AssetRegistry) -> Self {
+    pub fn new(state: GameState, assets: AssetRegistry, theme: Theme) -> Self {
         Self {
             game_loop: GameLoop::new(state),
             should_quit: false,
@@ -143,6 +147,7 @@ impl App {
             mode: UiMode::Normal,
             selection_cursor: 0,
             assets,
+            theme,
         }
     }
 
@@ -605,11 +610,12 @@ impl App {
             .split(frame.area());
 
         // Render map
-        let map_widget = MapWidget::new(&state.current_level, &state.player, &self.assets);
+        let map_widget =
+            MapWidget::new(&state.current_level, &state.player, &self.assets, &self.theme);
         frame.render_widget(map_widget, chunks[0]);
 
         // Render status
-        let status_widget = StatusWidget::new(&state.player);
+        let status_widget = StatusWidget::new(&state.player, &self.theme);
         frame.render_widget(status_widget, chunks[1]);
 
         // Render messages
@@ -641,7 +647,8 @@ impl App {
         let area = centered_rect(60, 80, frame.area());
         frame.render_widget(Clear, area);
 
-        let inventory_widget = InventoryWidget::new(&self.game_loop.state().inventory, &self.assets);
+        let inventory_widget =
+            InventoryWidget::new(&self.game_loop.state().inventory, &self.assets, &self.theme);
         frame.render_widget(inventory_widget, area);
     }
 
@@ -660,14 +667,14 @@ impl App {
         let block = Block::default()
             .title(prompt)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow));
+            .border_style(Style::default().fg(self.theme.border_action));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
         if items.is_empty() {
             let msg = Paragraph::new("You don't have anything suitable.")
-                .style(Style::default().fg(Color::Gray));
+                .style(Style::default().fg(self.theme.text_muted));
             frame.render_widget(msg, inner);
         } else {
             let list_items: Vec<ListItem> = items
@@ -691,7 +698,7 @@ impl App {
         let block = Block::default()
             .title(prompt)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow));
+            .border_style(Style::default().fg(self.theme.border_action));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -703,7 +710,7 @@ impl App {
         };
 
         let paragraph = Paragraph::new(help_text)
-            .style(Style::default().fg(Color::White))
+            .style(Style::default().fg(self.theme.text))
             .alignment(ratatui::layout::Alignment::Center);
         frame.render_widget(paragraph, inner);
     }
@@ -743,11 +750,11 @@ Press ESC or SPACE to close"#;
         let block = Block::default()
             .title("Help")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan));
+            .border_style(Style::default().fg(self.theme.border_accent));
 
         let paragraph = Paragraph::new(help_text)
             .block(block)
-            .style(Style::default().fg(Color::White));
+            .style(Style::default().fg(self.theme.text));
 
         frame.render_widget(paragraph, area);
     }
@@ -1244,7 +1251,7 @@ Press ESC or SPACE to close"#;
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan));
+            .border_style(Style::default().fg(self.theme.border_accent));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -1255,9 +1262,11 @@ Press ESC or SPACE to close"#;
             .enumerate()
             .map(|(i, (key, label))| {
                 let style = if i == cursor {
-                    Style::default().fg(Color::Yellow).bg(Color::DarkGray)
+                    Style::default()
+                        .fg(self.theme.cursor_fg)
+                        .bg(self.theme.cursor_bg)
                 } else {
-                    Style::default().fg(Color::White)
+                    Style::default().fg(self.theme.text)
                 };
                 let prefix = if i == cursor { "> " } else { "  " };
                 let text = if key.is_empty() {
@@ -1280,7 +1289,7 @@ Press ESC or SPACE to close"#;
         frame.render_widget(list, inner_chunks[0]);
 
         let footer_para = Paragraph::new(footer)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(self.theme.text_dim))
             .alignment(ratatui::layout::Alignment::Center);
         frame.render_widget(footer_para, inner_chunks[1]);
     }
@@ -1356,17 +1365,17 @@ Press ESC or SPACE to close"#;
         // Title
         lines.push(Line::from(vec![Span::styled(
             "  R.I.P.  ",
-            Style::default().fg(Color::Red).bold(),
+            Style::default().fg(self.theme.bad).bold(),
         )]));
         lines.push(Line::from(""));
 
         // Player identity
         lines.push(Line::from(vec![
-            Span::styled(&player.name, Style::default().fg(Color::White).bold()),
+            Span::styled(&player.name, Style::default().fg(self.theme.text).bold()),
             Span::raw(" the "),
             Span::styled(
                 format!("{:?}", player.role),
-                Style::default().fg(Color::Yellow),
+                Style::default().fg(self.theme.header),
             ),
         ]));
         lines.push(Line::from(""));
@@ -1374,14 +1383,14 @@ Press ESC or SPACE to close"#;
         // Cause of death
         lines.push(Line::from(vec![
             Span::raw("Killed by: "),
-            Span::styled(cause, Style::default().fg(Color::Red)),
+            Span::styled(cause, Style::default().fg(self.theme.bad)),
         ]));
         lines.push(Line::from(""));
 
         // Basic stats
         lines.push(Line::from(Span::styled(
             "── Statistics ──",
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(self.theme.accent),
         )));
         lines.push(Line::from(format!(
             "  Race: {:?}    Gender: {:?}    Alignment: {:?}",
@@ -1411,7 +1420,7 @@ Press ESC or SPACE to close"#;
         // Attributes
         lines.push(Line::from(Span::styled(
             "── Attributes ──",
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(self.theme.accent),
         )));
         lines.push(Line::from(format!(
             "  Str: {:2}  Dex: {:2}  Con: {:2}  Int: {:2}  Wis: {:2}  Cha: {:2}",
@@ -1427,7 +1436,7 @@ Press ESC or SPACE to close"#;
         // Conducts
         lines.push(Line::from(Span::styled(
             "── Conducts ──",
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(self.theme.accent),
         )));
         let mut conducts_maintained: Vec<&str> = Vec::new();
         let mut conducts_broken: Vec<String> = Vec::new();
@@ -1487,7 +1496,7 @@ Press ESC or SPACE to close"#;
                 Span::raw("  Maintained: "),
                 Span::styled(
                     conducts_maintained.join(", "),
-                    Style::default().fg(Color::Green),
+                    Style::default().fg(self.theme.good),
                 ),
             ]));
         }
@@ -1495,7 +1504,7 @@ Press ESC or SPACE to close"#;
             for broken in &conducts_broken {
                 lines.push(Line::from(vec![
                     Span::raw("  "),
-                    Span::styled(broken, Style::default().fg(Color::DarkGray)),
+                    Span::styled(broken, Style::default().fg(self.theme.text_dim)),
                 ]));
             }
         }
@@ -1508,7 +1517,7 @@ Press ESC or SPACE to close"#;
         // Inventory summary
         lines.push(Line::from(Span::styled(
             "── Inventory ──",
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(self.theme.accent),
         )));
         let inv_count = state.inventory.len();
         if inv_count == 0 {
@@ -1541,13 +1550,13 @@ Press ESC or SPACE to close"#;
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "Press SPACE or ENTER to exit",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(self.theme.text_dim),
         )));
 
         let block = Block::default()
             .title(" Game Over ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Red));
+            .border_style(Style::default().fg(self.theme.border_danger));
 
         let paragraph = Paragraph::new(lines)
             .block(block)

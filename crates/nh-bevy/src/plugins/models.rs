@@ -206,6 +206,7 @@ impl<'a> ModelBuilder<'a> {
                     ..default()
                 })),
                 transform.with_translation(transform.translation + offset),
+                Visibility::Inherited,
             ))
             .id()
     }
@@ -411,6 +412,7 @@ impl<'a> ModelBuilder<'a> {
                 transform
                     .with_translation(transform.translation + offset)
                     .with_scale(scale),
+                Visibility::Inherited,
             ))
             .id()
     }
@@ -459,8 +461,8 @@ impl<'a> ModelBuilder<'a> {
     }
 }
 
-/// Convert NetHack color index to Bevy Color (reused from entities.rs logic)
-fn nethack_color_to_bevy(color: u8) -> Color {
+/// Convert NetHack color index to Bevy Color
+pub(crate) fn nethack_color_to_bevy(color: u8) -> Color {
     match color {
         0 => Color::BLACK,                // CLR_BLACK
         1 => Color::srgb(0.8, 0.0, 0.0),  // CLR_RED

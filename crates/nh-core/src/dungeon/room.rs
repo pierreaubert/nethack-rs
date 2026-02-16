@@ -280,7 +280,7 @@ impl RoomType {
 pub const MAX_SUBROOMS: usize = 24;
 
 /// Rectangle representing a room
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Room {
     /// X coordinate of room interior (left edge)
     pub x: usize,

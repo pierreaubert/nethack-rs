@@ -1,0 +1,7 @@
+mflux
+requests
+pyright
+pytest
+ruff
+ty
+

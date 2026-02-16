@@ -98,10 +98,14 @@ unsafe extern "C" {
 
     // State Serialization
     pub fn nh_ffi_get_state_json() -> *mut c_char;
+    pub fn nh_ffi_get_map_json() -> *mut c_char;
     pub fn nh_ffi_free_string(ptr: *mut c_void);
 
     // Message Log
     pub fn nh_ffi_get_last_message() -> *mut c_char;
+
+    // Objects
+    pub fn nh_ffi_get_object_table_json() -> *mut c_char;
 
     // Inventory
     pub fn nh_ffi_get_inventory_count() -> c_int;
@@ -295,6 +299,16 @@ impl CGameEngine {
         result
     }
 
+    pub fn map_json(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_get_map_json() };
+        if json_ptr.is_null() {
+            return "{}".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
+    }
+
     pub fn last_message(&self) -> String {
         let msg_ptr = unsafe { nh_ffi_get_last_message() };
         if msg_ptr.is_null() {
@@ -311,6 +325,16 @@ impl CGameEngine {
 
     pub fn inventory_json(&self) -> String {
         let json_ptr = unsafe { nh_ffi_get_inventory_json() };
+        if json_ptr.is_null() {
+            return "[]".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
+    }
+
+    pub fn object_table_json(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_get_object_table_json() };
         if json_ptr.is_null() {
             return "[]".to_string();
         }

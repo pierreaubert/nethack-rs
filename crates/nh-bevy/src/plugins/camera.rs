@@ -296,9 +296,9 @@ fn update_camera_position(
 
     // Smooth interpolation (faster when panning/orbiting for responsiveness)
     let speed = if control.is_panning {
-        15.0 * time.delta_secs()
+        (15.0 * time.delta_secs()).clamp(0.0, 1.0)
     } else {
-        settings.follow_speed * time.delta_secs()
+        (settings.follow_speed * time.delta_secs()).clamp(0.0, 1.0)
     };
     camera_transform.translation = camera_transform.translation.lerp(target_pos, speed);
 

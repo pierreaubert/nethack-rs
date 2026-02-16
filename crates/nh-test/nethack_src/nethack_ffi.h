@@ -115,6 +115,7 @@ int nh_ffi_exec_cmd_dir(char cmd, int dx, int dy);
  * ============================================================================ */
 
 char* nh_ffi_get_state_json(void);
+char* nh_ffi_get_map_json(void);
 void nh_ffi_free_string(void* ptr);
 
 /* ============================================================================

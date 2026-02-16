@@ -5,6 +5,8 @@
 pub mod app;
 pub mod display;
 pub mod input;
+pub mod theme;
 pub mod widgets;
 
 pub use app::{App, CharacterChoices, CharacterCreationState, UiMode};
+pub use theme::Theme;

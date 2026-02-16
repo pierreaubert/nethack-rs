@@ -122,7 +122,8 @@ fn handle_animation_events(
     mut commands: Commands,
     mut events: EventReader<AnimationEvent>,
     settings: Res<AnimationSettings>,
-    query: Query<&TextColor>,
+    materials: Res<Assets<StandardMaterial>>,
+    mesh_query: Query<&MeshMaterial3d<StandardMaterial>>,
 ) {
     for event in events.read() {
         match event {
@@ -140,9 +141,14 @@ fn handle_animation_events(
                 damage,
                 position,
             } => {
-                // Add flash to hit entity
+                // Add flash to hit entity (3D mesh)
                 if let Some(mut entity_commands) = commands.get_entity(*entity) {
-                    let original_color = query.get(*entity).map(|tc| tc.0).unwrap_or(Color::WHITE);
+                    let original_color = mesh_query
+                        .get(*entity)
+                        .ok()
+                        .and_then(|mat_handle| materials.get(&mat_handle.0))
+                        .map(|mat| mat.base_color)
+                        .unwrap_or(Color::WHITE);
                     entity_commands.insert(CombatFlash {
                         timer: Timer::from_seconds(settings.flash_duration, TimerMode::Once),
                         original_color,
@@ -250,8 +256,12 @@ fn animate_movement(time: Res<Time>, mut query: Query<(&mut Transform, &mut Move
     }
 }
 
-fn animate_combat_flash(time: Res<Time>, mut query: Query<(&mut TextColor, &mut CombatFlash)>) {
-    for (mut text_color, mut flash) in query.iter_mut() {
+fn animate_combat_flash(
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut query: Query<(&MeshMaterial3d<StandardMaterial>, &mut CombatFlash)>,
+) {
+    for (mat_handle, mut flash) in query.iter_mut() {
         flash.timer.tick(time.delta());
 
         let t = flash.timer.fraction();
@@ -259,11 +269,14 @@ fn animate_combat_flash(time: Res<Time>, mut query: Query<(&mut TextColor, &mut 
         let flash_intensity = (1.0 - t).powi(2);
 
         let original = flash.original_color.to_srgba();
-        text_color.0 = Color::srgb(
+        let new_color = Color::srgb(
             original.red + (1.0 - original.red) * flash_intensity,
             original.green + (1.0 - original.green) * flash_intensity * 0.3,
             original.blue + (1.0 - original.blue) * flash_intensity * 0.3,
         );
+        if let Some(material) = materials.get_mut(&mat_handle.0) {
+            material.base_color = new_color;
+        }
     }
 }
 
@@ -292,28 +305,45 @@ fn animate_floating_text(
 
 fn animate_death(
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut TextColor, &mut DeathAnimation)>,
+    mut text_query: Query<
+        (&mut Transform, &mut TextColor, &mut DeathAnimation),
+        Without<Mesh3d>,
+    >,
+    mut mesh_query: Query<
+        (&mut Transform, &mut DeathAnimation),
+        (With<Mesh3d>, Without<TextColor>),
+    >,
 ) {
-    for (mut transform, mut text_color, mut death) in query.iter_mut() {
+    // Billboard/text entities: fade alpha + shrink
+    for (mut transform, mut text_color, mut death) in text_query.iter_mut() {
         death.timer.tick(time.delta());
 
         let t = death.timer.fraction();
 
-        // Fade out and shrink
         let alpha = 1.0 - t;
         let current = text_color.0.to_srgba();
         text_color.0 = Color::srgba(current.red, current.green, current.blue, alpha);
 
-        // Fall down and shrink
         transform.translation.y -= time.delta_secs() * 2.0;
-        transform.scale *= 1.0 - time.delta_secs() * 2.0;
+        let shrink = (1.0 - time.delta_secs() * 2.0).max(0.01);
+        transform.scale *= shrink;
+    }
+
+    // 3D mesh entities: fall down + shrink
+    for (mut transform, mut death) in mesh_query.iter_mut() {
+        death.timer.tick(time.delta());
+
+        transform.translation.y -= time.delta_secs() * 2.0;
+        let shrink = 1.0 - time.delta_secs() * 3.0;
+        transform.scale *= shrink.max(0.01);
     }
 }
 
 fn cleanup_finished_animations(
     mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     movement_query: Query<(Entity, &MovementAnimation)>,
-    flash_query: Query<(Entity, &CombatFlash)>,
+    flash_query: Query<(Entity, &CombatFlash, Option<&MeshMaterial3d<StandardMaterial>>)>,
     floating_query: Query<(Entity, &FloatingText)>,
     death_query: Query<(Entity, &DeathAnimation)>,
 ) {
@@ -324,13 +354,17 @@ fn cleanup_finished_animations(
         }
     }
 
-    // Remove finished flash effects and restore color
-    for (entity, flash) in flash_query.iter() {
+    // Remove finished flash effects and restore material color
+    for (entity, flash, mat_handle) in flash_query.iter() {
         if flash.timer.finished() {
+            // Restore original material color for 3D mesh entities
+            if let Some(mat_handle) = mat_handle
+                && let Some(material) = materials.get_mut(&mat_handle.0)
+            {
+                material.base_color = flash.original_color;
+            }
             if let Some(mut entity_commands) = commands.get_entity(entity) {
-                entity_commands
-                    .remove::<CombatFlash>()
-                    .insert(TextColor(flash.original_color));
+                entity_commands.remove::<CombatFlash>();
             }
         }
     }
@@ -501,9 +535,13 @@ fn setup_environmental_animations(
     }
 }
 
-/// Animate torch flickering effect
-fn animate_torches(time: Res<Time>, mut query: Query<(&mut TextColor, &mut TorchAnimation)>) {
-    for (mut text_color, mut torch) in query.iter_mut() {
+/// Animate torch flickering effect via emissive glow on 3D tiles
+fn animate_torches(
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut query: Query<(&MeshMaterial3d<StandardMaterial>, &mut TorchAnimation)>,
+) {
+    for (mat_handle, mut torch) in query.iter_mut() {
         torch.phase += time.delta_secs() * torch.flicker_speed;
         if torch.phase > std::f32::consts::TAU {
             torch.phase -= std::f32::consts::TAU;
@@ -516,21 +554,28 @@ fn animate_torches(time: Res<Time>, mut query: Query<(&mut TextColor, &mut Torch
         let flicker = 1.0 + flicker1 + flicker2 + flicker3;
 
         let base = torch.base_color.to_srgba();
-        text_color.0 = Color::srgba(
-            (base.red * flicker).clamp(0.0, 1.0),
-            (base.green * flicker * 0.9).clamp(0.0, 1.0),
-            (base.blue * flicker * 0.7).clamp(0.0, 1.0),
-            base.alpha,
-        );
+        if let Some(material) = materials.get_mut(&mat_handle.0) {
+            material.emissive = LinearRgba::new(
+                (base.red * flicker).clamp(0.0, 1.0),
+                (base.green * flicker * 0.9).clamp(0.0, 1.0),
+                (base.blue * flicker * 0.7).clamp(0.0, 1.0),
+                base.alpha,
+            );
+        }
     }
 }
 
-/// Animate ambient environmental tiles
+/// Animate ambient environmental tiles via 3D material properties
 fn animate_ambient_tiles(
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut TextColor, &mut AmbientTileAnimation)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut query: Query<(
+        &mut Transform,
+        &MeshMaterial3d<StandardMaterial>,
+        &mut AmbientTileAnimation,
+    )>,
 ) {
-    for (mut transform, mut text_color, mut anim) in query.iter_mut() {
+    for (mut transform, mat_handle, mut anim) in query.iter_mut() {
         anim.phase += time.delta_secs();
         if anim.phase > std::f32::consts::TAU * 10.0 {
             anim.phase -= std::f32::consts::TAU * 10.0;
@@ -538,15 +583,17 @@ fn animate_ambient_tiles(
 
         match anim.animation_type {
             AmbientAnimationType::Grass => {
-                // Gentle swaying motion
+                // Gentle swaying motion (Transform-only, no color change)
                 let sway = (anim.phase * 1.5).sin() * 0.02;
                 transform.rotation = Quat::from_rotation_z(sway);
             }
             AmbientAnimationType::Tree => {
                 // Rustling leaves effect - subtle color variation
-                let rustle = (anim.phase * 2.0).sin() * 0.1;
-                let base_green = 0.5 + rustle * 0.1;
-                text_color.0 = Color::srgb(0.1, base_green, 0.1);
+                if let Some(material) = materials.get_mut(&mat_handle.0) {
+                    let rustle = (anim.phase * 2.0).sin() * 0.1;
+                    let base_green = 0.5 + rustle * 0.1;
+                    material.base_color = Color::srgb(0.1, base_green, 0.1);
+                }
 
                 // Very slight sway
                 let sway = (anim.phase * 0.8).sin() * 0.01;
@@ -554,14 +601,20 @@ fn animate_ambient_tiles(
             }
             AmbientAnimationType::Altar => {
                 // Mystical pulsing glow
-                let pulse = (anim.phase * 1.2).sin() * 0.5 + 0.5;
-                let intensity = 0.6 + pulse * 0.4;
-                text_color.0 = Color::srgba(intensity, intensity * 0.8, intensity, 1.0);
+                if let Some(material) = materials.get_mut(&mat_handle.0) {
+                    let pulse = (anim.phase * 1.2).sin() * 0.5 + 0.5;
+                    let intensity = 0.6 + pulse * 0.4;
+                    material.base_color =
+                        Color::srgba(intensity, intensity * 0.8, intensity, 1.0);
+                }
             }
             AmbientAnimationType::Grave => {
                 // Eerie subtle pulse
-                let pulse = (anim.phase * 0.5).sin() * 0.3 + 0.7;
-                text_color.0 = Color::srgba(0.5 * pulse, 0.5 * pulse, 0.6 * pulse, 1.0);
+                if let Some(material) = materials.get_mut(&mat_handle.0) {
+                    let pulse = (anim.phase * 0.5).sin() * 0.3 + 0.7;
+                    material.base_color =
+                        Color::srgba(0.5 * pulse, 0.5 * pulse, 0.6 * pulse, 1.0);
+                }
             }
         }
     }

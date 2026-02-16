@@ -3,14 +3,20 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
+use crate::theme::Theme;
+
 /// Help screen widget showing available commands
 pub struct HelpWidget {
     page: usize,
+    theme: Theme,
 }
 
 impl HelpWidget {
     pub fn new() -> Self {
-        Self { page: 0 }
+        Self {
+            page: 0,
+            theme: Theme::detect(),
+        }
     }
 
     pub fn page(mut self, page: usize) -> Self {
@@ -178,13 +184,13 @@ impl Widget for HelpWidget {
         let block = Block::default()
             .title(format!(" {} - Press SPACE for next, ESC to close ", title))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan));
+            .border_style(Style::default().fg(self.theme.border_accent));
 
         let inner = block.inner(area);
         block.render(area, buf);
 
         let paragraph = Paragraph::new(content)
-            .style(Style::default().fg(Color::White))
+            .style(Style::default().fg(self.theme.text))
             .wrap(Wrap { trim: false });
 
         paragraph.render(inner, buf);
@@ -195,6 +201,7 @@ impl Widget for HelpWidget {
 pub struct OptionsWidget<'a> {
     options: Vec<OptionItem<'a>>,
     cursor: usize,
+    theme: Theme,
 }
 
 /// A single option item
@@ -263,6 +270,7 @@ impl<'a> OptionsWidget<'a> {
         Self {
             options: Vec::new(),
             cursor: 0,
+            theme: Theme::detect(),
         }
     }
 
@@ -318,14 +326,14 @@ impl Widget for &OptionsWidget<'_> {
         let block = Block::default()
             .title(" Options - Enter to toggle, ESC to close ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow));
+            .border_style(Style::default().fg(self.theme.border_action));
 
         let inner = block.inner(area);
         block.render(area, buf);
 
         if self.options.is_empty() {
-            let empty =
-                Paragraph::new("No options available.").style(Style::default().fg(Color::Gray));
+            let empty = Paragraph::new("No options available.")
+                .style(Style::default().fg(self.theme.text_muted));
             empty.render(inner, buf);
             return;
         }
@@ -347,10 +355,10 @@ impl Widget for &OptionsWidget<'_> {
             let is_selected = i == self.cursor;
             let style = if is_selected {
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(self.theme.cursor_fg)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::White)
+                Style::default().fg(self.theme.text)
             };
 
             let cursor = if is_selected { "> " } else { "  " };
@@ -365,7 +373,7 @@ impl Widget for &OptionsWidget<'_> {
                 y += 1;
                 if y < inner.y + inner.height {
                     let desc_style = Style::default()
-                        .fg(Color::Gray)
+                        .fg(self.theme.text_muted)
                         .add_modifier(Modifier::ITALIC);
                     buf.set_string(inner.x + 2, y, opt.description, desc_style);
                 }

@@ -86,7 +86,7 @@ fn handle_direction_input(
         if let Some(DirectionAction::Zap(c)) = dir_state.action {
             monster_picker_state.action = Some(super::monster_picker::TargetAction::Zap(c));
         } else if let Some(DirectionAction::Throw(c)) = dir_state.action {
-            monster_picker_state.action = Some(super::monster_picker::TargetAction::Zap(c));
+            monster_picker_state.action = Some(super::monster_picker::TargetAction::Throw(c));
         }
         dir_state.active = false;
         return;

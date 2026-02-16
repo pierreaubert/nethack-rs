@@ -247,25 +247,24 @@ impl GameState {
         race: Race,
         gender: Gender,
     ) -> Self {
+        // 1. Create player with identity and racial intrinsics
+        let mut player = You::new(name, role, race, gender);
+
+        // 2. Initialize HP, energy, skills, gold, prayer timeout, and INVENTORY
+        // (MATCHES C: u_init handles all character initialization including items)
+        let inventory = crate::player::init::u_init(&mut player, &mut rng);
+
+        // 3. Generate Level (MATCHES C: mklev happens after u_init)
         let monster_vitals = MonsterVitals::new();
         let dlevel = DLevel::main_dungeon_start();
         let current_level = Level::new_generated(dlevel, &mut rng, &monster_vitals);
 
         let (start_x, start_y) = current_level.find_upstairs().unwrap_or((40, 10));
-
-        // Create player with identity and racial intrinsics
-        let mut player = You::new(name, role, race, gender);
         player.pos.x = start_x;
         player.pos.y = start_y;
         player.prev_pos = player.pos;
 
-        // Initialize HP, energy, skills, gold, prayer timeout
-        crate::player::init::u_init(&mut player, &mut rng);
-
-        // Create starting inventory
-        let inventory = crate::player::init::init_inventory(&mut rng, role);
-
-        // Initialize visibility from starting position
+        // 4. Initialize visibility from starting position
         let mut current_level = current_level;
         current_level.update_visibility(start_x, start_y, SIGHT_RANGE);
 

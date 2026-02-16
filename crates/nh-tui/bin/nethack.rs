@@ -18,7 +18,7 @@ use nh_core::dungeon::Level;
 use nh_core::player::{AlignmentType, Gender, Race, Role, You};
 use nh_core::save::{default_save_path, delete_save, load_game, save_game};
 use nh_core::{GameLoopResult, GameRng, GameState};
-use nh_tui::App;
+use nh_tui::{App, Theme};
 
 /// NetHack clone in Rust
 #[derive(Parser, Debug)]
@@ -72,6 +72,10 @@ struct Args {
     /// Verbose output
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
+
+    /// Use light background color theme (auto-detected from COLORFGBG/NH_LIGHT_BG)
+    #[arg(long = "light")]
+    light: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -133,8 +137,15 @@ fn main() -> io::Result<()> {
             nh_assets::registry::AssetRegistry::new(nh_assets::mapping::AssetMapping::default())
         });
 
+    // Detect or override color theme
+    let theme = if args.light {
+        Theme::light()
+    } else {
+        Theme::detect()
+    };
+
     // Create app
-    let mut app = App::new(state, assets);
+    let mut app = App::new(state, assets, theme);
 
     // Main loop
     loop {
@@ -217,8 +228,14 @@ fn run_character_creation(
 
     // Create a temporary game state for the character creation UI
     let temp_state = GameState::new(GameRng::from_entropy());
-    let assets = nh_assets::registry::AssetRegistry::new(nh_assets::mapping::AssetMapping::default());
-    let mut app = App::new(temp_state, assets);
+    let assets =
+        nh_assets::registry::AssetRegistry::new(nh_assets::mapping::AssetMapping::default());
+    let theme = if args.light {
+        Theme::light()
+    } else {
+        Theme::detect()
+    };
+    let mut app = App::new(temp_state, assets, theme);
 
     // Start character creation - with name if provided via CLI
     if let Some(ref name) = args.name {

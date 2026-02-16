@@ -625,7 +625,8 @@ fn sync_floor_objects(
 fn update_monster_indicators(
     game_state: Res<GameStateResource>,
     mut commands: Commands,
-    mut monster_query: Query<(Entity, &MonsterMarker, &MapPosition, &mut TextColor)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    monster_query: Query<(Entity, &MonsterMarker, &MapPosition, &MeshMaterial3d<StandardMaterial>)>,
     health_indicators: Query<Entity, With<HealthIndicator>>,
     status_indicators: Query<Entity, With<StatusIndicator>>,
     allegiance_indicators: Query<Entity, With<AllegianceIndicator>>,
@@ -650,18 +651,20 @@ fn update_monster_indicators(
     }
 
     // Update monster visuals and respawn indicators
-    for (_entity, marker, map_pos, mut text_color) in monster_query.iter_mut() {
+    for (_entity, marker, map_pos, mat_handle) in monster_query.iter() {
         if let Some(monster) = level.monster(marker.monster_id) {
             let permonst = &monsters[monster.monster_type as usize];
             let base_color = nethack_color_to_bevy(permonst.color);
 
-            // Update color based on health
+            // Update material color based on health
             let hp_percent = if monster.hp_max > 0 {
                 (monster.hp as f32 / monster.hp_max as f32).clamp(0.0, 1.0)
             } else {
                 1.0
             };
-            text_color.0 = health_tinted_color(base_color, hp_percent);
+            if let Some(material) = materials.get_mut(&mat_handle.0) {
+                material.base_color = health_tinted_color(base_color, hp_percent);
+            }
 
             let world_pos = map_pos.to_world() + Vec3::Y * 0.5;
 
@@ -683,25 +686,4 @@ fn update_monster_indicators(
     }
 }
 
-/// Convert NetHack color index to Bevy Color
-fn nethack_color_to_bevy(color: u8) -> Color {
-    match color {
-        0 => Color::BLACK,                // CLR_BLACK
-        1 => Color::srgb(0.8, 0.0, 0.0),  // CLR_RED
-        2 => Color::srgb(0.0, 0.6, 0.0),  // CLR_GREEN
-        3 => Color::srgb(0.6, 0.4, 0.2),  // CLR_BROWN
-        4 => Color::srgb(0.0, 0.0, 0.8),  // CLR_BLUE
-        5 => Color::srgb(0.8, 0.0, 0.8),  // CLR_MAGENTA
-        6 => Color::srgb(0.0, 0.8, 0.8),  // CLR_CYAN
-        7 => Color::srgb(0.6, 0.6, 0.6),  // CLR_GRAY
-        8 => Color::srgb(0.3, 0.3, 0.3),  // CLR_NO_COLOR (dark gray)
-        9 => Color::srgb(1.0, 0.5, 0.0),  // CLR_ORANGE
-        10 => Color::srgb(0.0, 1.0, 0.0), // CLR_BRIGHT_GREEN
-        11 => Color::srgb(1.0, 1.0, 0.0), // CLR_YELLOW
-        12 => Color::srgb(0.3, 0.3, 1.0), // CLR_BRIGHT_BLUE
-        13 => Color::srgb(1.0, 0.3, 1.0), // CLR_BRIGHT_MAGENTA
-        14 => Color::srgb(0.3, 1.0, 1.0), // CLR_BRIGHT_CYAN
-        15 => Color::WHITE,               // CLR_WHITE
-        _ => Color::WHITE,
-    }
-}
+use super::models::nethack_color_to_bevy;

@@ -61,12 +61,14 @@ pub enum CameraMode {
     FirstPerson,
 }
 
-/// Marker for door entities with their position
+/// Marker for door entities with their position and base orientation
 #[derive(Component)]
 pub struct DoorMarker {
     pub x: i8,
     pub y: i8,
     pub is_open: bool,
+    /// The rotation when the door is closed (depends on wall orientation)
+    pub closed_rotation: Quat,
 }
 
 /// Animation component for doors

@@ -64,7 +64,7 @@ fn render_help(mut contexts: EguiContexts, mut help_state: ResMut<HelpState>) {
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .min_width(500.0)
+        .min_width(640.0)
         .show(contexts.ctx_mut(), |ui| {
             ui.label(
                 egui::RichText::new("NetHack-RS Help")
@@ -117,158 +117,142 @@ fn render_help(mut contexts: EguiContexts, mut help_state: ResMut<HelpState>) {
         });
 }
 
-/// Render movement help tab
-fn render_movement_help(ui: &mut egui::Ui) {
-    ui.label(egui::RichText::new("Movement Keys").strong());
-    ui.add_space(5.0);
-
-    egui::Grid::new("movement_grid")
-        .num_columns(2)
-        .spacing([40.0, 4.0])
+/// Render a 2-column key reference section
+fn render_two_column_keys(
+    ui: &mut egui::Ui,
+    grid_id: &str,
+    keys: &[(&str, &str)],
+    color: egui::Color32,
+) {
+    egui::Grid::new(grid_id)
+        .num_columns(4)
+        .spacing([10.0, 3.0])
+        .min_col_width(40.0)
         .show(ui, |ui| {
-            // VI keys
-            ui.label(egui::RichText::new("VI Keys:").strong());
-            ui.end_row();
-
-            let vi_keys = [
-                ("y", "Move diagonally up-left"),
-                ("k", "Move up"),
-                ("u", "Move diagonally up-right"),
-                ("h", "Move left"),
-                (".", "Wait (rest)"),
-                ("l", "Move right"),
-                ("b", "Move diagonally down-left"),
-                ("j", "Move down"),
-                ("n", "Move diagonally down-right"),
-            ];
-
-            for (key, desc) in vi_keys {
-                ui.colored_label(egui::Color32::LIGHT_BLUE, key);
+            let half = keys.len().div_ceil(2);
+            for i in 0..half {
+                // Left column
+                let (key, desc) = keys[i];
+                ui.colored_label(color, key);
                 ui.label(desc);
-                ui.end_row();
-            }
-
-            ui.end_row();
-            ui.label(egui::RichText::new("Arrow Keys:").strong());
-            ui.end_row();
-
-            let arrow_keys = [
-                ("Up Arrow", "Move up"),
-                ("Down Arrow", "Move down"),
-                ("Left Arrow", "Move left"),
-                ("Right Arrow", "Move right"),
-            ];
-
-            for (key, desc) in arrow_keys {
-                ui.colored_label(egui::Color32::LIGHT_BLUE, key);
-                ui.label(desc);
-                ui.end_row();
-            }
-
-            ui.end_row();
-            ui.label(egui::RichText::new("Other Movement:").strong());
-            ui.end_row();
-
-            let other_movement = [
-                ("<", "Climb stairs up / use ladder up"),
-                (">", "Climb stairs down / use ladder down"),
-                ("g + direction", "Run in direction"),
-            ];
-
-            for (key, desc) in other_movement {
-                ui.colored_label(egui::Color32::LIGHT_BLUE, key);
-                ui.label(desc);
+                // Right column
+                if let Some((key2, desc2)) = keys.get(half + i) {
+                    ui.colored_label(color, *key2);
+                    ui.label(*desc2);
+                }
                 ui.end_row();
             }
         });
+}
+
+/// Render movement help tab
+fn render_movement_help(ui: &mut egui::Ui) {
+    ui.label(egui::RichText::new("VI Keys").strong());
+    ui.add_space(3.0);
+
+    let vi_keys: &[(&str, &str)] = &[
+        ("y", "Move NW"),
+        ("k", "Move N"),
+        ("u", "Move NE"),
+        ("h", "Move W"),
+        ("l", "Move E"),
+        ("b", "Move SW"),
+        ("j", "Move S"),
+        ("n", "Move SE"),
+    ];
+    render_two_column_keys(ui, "vi_grid", vi_keys, egui::Color32::LIGHT_BLUE);
+
+    ui.add_space(6.0);
+    ui.label(egui::RichText::new("Arrow Keys & Other Movement").strong());
+    ui.add_space(3.0);
+
+    let other_keys: &[(&str, &str)] = &[
+        ("Arrows", "Move in direction"),
+        ("Shift+dir", "Run in direction"),
+        (".", "Wait / rest one turn"),
+        (",", "Pick up items"),
+        ("<", "Go up stairs"),
+        (">", "Go down stairs"),
+        ("s", "Search for hidden things"),
+        ("Click", "Auto-navigate to tile"),
+    ];
+    render_two_column_keys(ui, "other_move_grid", other_keys, egui::Color32::LIGHT_BLUE);
 }
 
 /// Render actions help tab
 fn render_actions_help(ui: &mut egui::Ui) {
-    ui.label(egui::RichText::new("Action Keys").strong());
-    ui.add_space(5.0);
+    ui.label(egui::RichText::new("Item Commands").strong());
+    ui.add_space(3.0);
 
-    egui::Grid::new("actions_grid")
-        .num_columns(2)
-        .spacing([40.0, 4.0])
-        .show(ui, |ui| {
-            let actions = [
-                ("a", "Apply (use) an item"),
-                ("c", "Close a door"),
-                ("d", "Drop an item"),
-                ("e", "Eat something"),
-                ("f", "Fire a projectile"),
-                ("i", "Open inventory"),
-                ("o", "Open a door"),
-                ("p", "Pay shopkeeper"),
-                ("q", "Quaff (drink) a potion"),
-                ("r", "Read a scroll or book"),
-                ("s", "Search for hidden things"),
-                ("t", "Throw an item"),
-                ("w", "Wield a weapon"),
-                ("z", "Zap a wand"),
-                ("D", "Drop multiple items"),
-                ("E", "Engrave on the floor"),
-                ("P", "Put on accessory"),
-                ("Q", "Select ammunition"),
-                ("R", "Remove accessory"),
-                ("T", "Take off armor"),
-                ("W", "Wear armor"),
-                (",", "Pick up items"),
-                (":", "Look at what's here"),
-                (";", "Look at a position"),
-            ];
+    let item_actions: &[(&str, &str)] = &[
+        ("a", "Apply (use) a tool"),
+        ("d", "Drop an item"),
+        ("e", "Eat food"),
+        ("q", "Quaff (drink) potion"),
+        ("r", "Read scroll / spellbook"),
+        ("t", "Throw an item"),
+        ("w", "Wield a weapon"),
+        ("z", "Zap a wand"),
+        ("W", "Wear armor"),
+        ("T", "Take off armor"),
+        ("P", "Put on ring / amulet"),
+        ("R", "Remove ring / amulet"),
+    ];
+    render_two_column_keys(ui, "item_actions_grid", item_actions, egui::Color32::LIGHT_GREEN);
 
-            for (key, desc) in actions {
-                ui.colored_label(egui::Color32::LIGHT_GREEN, key);
-                ui.label(desc);
-                ui.end_row();
-            }
-        });
+    ui.add_space(6.0);
+    ui.label(egui::RichText::new("World Commands").strong());
+    ui.add_space(3.0);
+
+    let world_actions: &[(&str, &str)] = &[
+        ("o", "Open a door"),
+        ("c", "Close a door"),
+        ("Ctrl+D", "Kick"),
+        ("F", "Fight in a direction"),
+        (":", "Look at what's here"),
+        ("i", "Open inventory"),
+    ];
+    render_two_column_keys(ui, "world_actions_grid", world_actions, egui::Color32::LIGHT_GREEN);
 }
 
 /// Render interface help tab
 fn render_interface_help(ui: &mut egui::Ui) {
-    ui.label(egui::RichText::new("Interface Keys").strong());
-    ui.add_space(5.0);
+    ui.label(egui::RichText::new("UI Panels").strong());
+    ui.add_space(3.0);
 
-    egui::Grid::new("interface_grid")
-        .num_columns(2)
-        .spacing([40.0, 4.0])
-        .show(ui, |ui| {
-            let interface_keys = [
-                ("Left Click", "Navigate to clicked tile (auto-path)"),
-                ("Right Drag", "Pan camera"),
-                ("Scroll", "Zoom camera"),
-                ("Escape", "Open pause menu / cancel"),
-                ("i", "Open inventory"),
-                ("C", "Character sheet"),
-                ("@", "Character sheet (alternate)"),
-                ("M", "Toggle minimap"),
-                ("?", "This help screen"),
-                ("F1", "Help (alternate)"),
-                ("F2", "Top-down camera"),
-                ("F3", "Isometric camera"),
-                ("F4", "Third-person camera"),
-                ("F5", "First-person camera"),
-                ("Home", "Reset camera zoom/pan"),
-            ];
+    let panels: &[(&str, &str)] = &[
+        ("i", "Inventory"),
+        ("@", "Character sheet"),
+        ("\\", "Discoveries"),
+        ("#", "Extended commands"),
+        ("M", "Toggle minimap"),
+        ("V", "Message history"),
+        ("?  F1", "This help screen"),
+        ("Esc", "Close panel / pause menu"),
+    ];
+    render_two_column_keys(ui, "panels_grid", panels, egui::Color32::LIGHT_YELLOW);
 
-            for (key, desc) in interface_keys {
-                ui.colored_label(egui::Color32::LIGHT_YELLOW, key);
-                ui.label(desc);
-                ui.end_row();
-            }
-        });
+    ui.add_space(6.0);
+    ui.label(egui::RichText::new("Camera Controls").strong());
+    ui.add_space(3.0);
 
-    ui.add_space(10.0);
+    let camera: &[(&str, &str)] = &[
+        ("F2", "Top-down camera"),
+        ("F3", "Isometric camera"),
+        ("F4", "Third-person camera"),
+        ("F5", "First-person camera"),
+        ("Scroll", "Zoom in / out"),
+        ("L-Drag", "Orbit camera"),
+        ("R-Drag", "Pan camera"),
+        ("Home", "Reset camera"),
+    ];
+    render_two_column_keys(ui, "camera_grid", camera, egui::Color32::LIGHT_YELLOW);
 
+    ui.add_space(6.0);
     ui.label(egui::RichText::new("Tips").strong());
-    ui.add_space(5.0);
+    ui.add_space(3.0);
 
-    ui.label("- Left-click on tiles to auto-navigate using pathfinding");
-    ui.label("- Navigation stops when encountering monsters");
-    ui.label("- The minimap shows explored areas, monsters, and stairs");
-    ui.label("- Red dots are hostile monsters, green are pets, yellow are peaceful");
-    ui.label("- Lower armor class (AC) is better");
+    ui.label("Left-click on tiles to auto-navigate (stops at monsters).");
+    ui.label("Minimap: red = hostile, green = pet, yellow = peaceful.");
+    ui.label("Lower armor class (AC) is better.");
 }

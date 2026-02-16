@@ -9,19 +9,28 @@ use nh_core::dungeon::{CellType, Level};
 use nh_core::player::You;
 use nh_core::{COLNO, ROWNO};
 
+use crate::theme::Theme;
+
 /// Widget for rendering the dungeon map
 pub struct MapWidget<'a> {
     level: &'a Level,
     player: &'a You,
     assets: &'a AssetRegistry,
+    theme: &'a Theme,
 }
 
 impl<'a> MapWidget<'a> {
-    pub fn new(level: &'a Level, player: &'a You, assets: &'a AssetRegistry) -> Self {
+    pub fn new(
+        level: &'a Level,
+        player: &'a You,
+        assets: &'a AssetRegistry,
+        theme: &'a Theme,
+    ) -> Self {
         Self {
             level,
             player,
             assets,
+            theme,
         }
     }
 
@@ -38,7 +47,7 @@ impl<'a> MapWidget<'a> {
 
         // Player position (always visible)
         if xi == self.player.pos.x && yi == self.player.pos.y {
-            return ('@', Style::default().fg(Color::White).bold());
+            return ('@', Style::default().fg(self.theme.map_player).bold());
         }
 
         // Only show monsters and objects if currently visible
@@ -48,11 +57,11 @@ impl<'a> MapWidget<'a> {
                 let tile = nh_core::data::tile::get_tile_for_monster(monster.permonst());
                 let symbol = tile.to_ascii();
                 let color = if monster.is_hostile() {
-                    Color::Red
+                    self.theme.map_hostile
                 } else if monster.is_pet() {
-                    Color::White
+                    self.theme.map_pet
                 } else {
-                    Color::Yellow
+                    self.theme.map_peaceful
                 };
                 return (symbol, Style::default().fg(color));
             }
@@ -62,7 +71,8 @@ impl<'a> MapWidget<'a> {
             if let Some(obj) = objects.first() {
                 // Use the shared asset registry for item icons
                 if let Ok(icon) = self.assets.get_icon(obj) {
-                    let color = AssetRegistry::parse_color(&icon.tui_color).unwrap_or(Color::Yellow);
+                    let color = AssetRegistry::parse_color(&icon.tui_color)
+                        .unwrap_or(self.theme.obj_default);
                     return (icon.tui_char, Style::default().fg(color));
                 }
 
@@ -70,15 +80,15 @@ impl<'a> MapWidget<'a> {
                 let tile = nh_core::data::tile::get_tile_for_object(obj);
                 let symbol = tile.to_ascii();
                 let color = match obj.class {
-                    nh_core::object::ObjectClass::Coin => Color::Yellow,
-                    nh_core::object::ObjectClass::Gem => Color::Cyan,
-                    nh_core::object::ObjectClass::Potion => Color::Magenta,
-                    nh_core::object::ObjectClass::Scroll => Color::White,
-                    nh_core::object::ObjectClass::Wand => Color::LightBlue,
-                    nh_core::object::ObjectClass::Weapon => Color::Gray,
-                    nh_core::object::ObjectClass::Armor => Color::Gray,
-                    nh_core::object::ObjectClass::Food => Color::LightRed,
-                    _ => Color::Yellow,
+                    nh_core::object::ObjectClass::Coin => self.theme.obj_coin,
+                    nh_core::object::ObjectClass::Gem => self.theme.obj_gem,
+                    nh_core::object::ObjectClass::Potion => self.theme.obj_potion,
+                    nh_core::object::ObjectClass::Scroll => self.theme.obj_scroll,
+                    nh_core::object::ObjectClass::Wand => self.theme.obj_wand,
+                    nh_core::object::ObjectClass::Weapon => self.theme.obj_weapon,
+                    nh_core::object::ObjectClass::Armor => self.theme.obj_weapon,
+                    nh_core::object::ObjectClass::Food => self.theme.obj_food,
+                    _ => self.theme.obj_default,
                 };
                 return (symbol, Style::default().fg(color));
             }
@@ -88,13 +98,14 @@ impl<'a> MapWidget<'a> {
         let cell = &self.level.cells[x][y];
         let tile = Tile::Dungeon(DungeonTile::from(cell.typ));
         let symbol = tile.to_ascii();
+        let t = self.theme;
         let base_color = match cell.typ {
-            CellType::Stone => Color::Black,
+            CellType::Stone => t.map_stone,
             CellType::Room | CellType::Corridor => {
                 if cell.lit {
-                    Color::White
+                    t.map_floor_lit
                 } else {
-                    Color::DarkGray
+                    t.map_floor_dark
                 }
             }
             CellType::VWall
@@ -107,23 +118,23 @@ impl<'a> MapWidget<'a> {
             | CellType::TUWall
             | CellType::TDWall
             | CellType::TLWall
-            | CellType::TRWall => Color::Gray,
-            CellType::Door => Color::Yellow,
-            CellType::Stairs | CellType::Ladder => Color::White,
-            CellType::Pool | CellType::Moat | CellType::Water => Color::Blue,
-            CellType::Lava => Color::Red,
-            CellType::Fountain => Color::Cyan,
-            CellType::Altar => Color::Gray,
-            CellType::Throne => Color::Yellow,
-            CellType::Tree => Color::Green,
-            _ => Color::White,
+            | CellType::TRWall => t.map_wall,
+            CellType::Door => t.map_door,
+            CellType::Stairs | CellType::Ladder => t.map_stairs,
+            CellType::Pool | CellType::Moat | CellType::Water => t.map_water,
+            CellType::Lava => t.map_lava,
+            CellType::Fountain => t.map_fountain,
+            CellType::Altar => t.map_altar,
+            CellType::Throne => t.map_throne,
+            CellType::Tree => t.map_tree,
+            _ => t.map_default,
         };
 
         // Dim explored but not visible cells
         let color = if is_visible {
             base_color
         } else {
-            Color::DarkGray
+            t.map_explored
         };
 
         (symbol, Style::default().fg(color))

@@ -1,10 +1,10 @@
 //! Fog of War system
 //!
-//! Implements visibility calculations and fog of war rendering:
-//! - Line-of-sight from player position
-//! - Explored vs visible cell tracking
-//! - Dimming of explored but not visible cells
-//! - Hiding of unexplored cells
+//! Syncs visibility from nh-core's authoritative state (Level::is_visible/is_explored)
+//! and applies fog of war rendering:
+//! - Explored but not visible cells shown dimmed
+//! - Unexplored cells hidden
+//! - Monsters/objects only shown when currently visible
 
 use bevy::prelude::*;
 
@@ -23,7 +23,7 @@ impl Plugin for FogOfWarPlugin {
             .add_systems(
                 Update,
                 (
-                    calculate_visibility,
+                    sync_visibility_from_core,
                     apply_fog_to_tiles,
                     apply_fog_to_entities,
                 )
@@ -36,39 +36,23 @@ impl Plugin for FogOfWarPlugin {
 /// Settings for fog of war
 #[derive(Resource)]
 pub struct FogSettings {
-    /// Base visibility radius in dark areas
-    pub dark_vision_radius: i32,
-    /// Visibility radius in lit areas
-    pub lit_vision_radius: i32,
     /// Whether fog of war is enabled
     pub enabled: bool,
-    /// Brightness multiplier for visible tiles (1.0 = normal)
-    pub visible_brightness: f32,
-    /// Brightness multiplier for explored but not visible tiles
-    pub explored_brightness: f32,
 }
 
 impl Default for FogSettings {
     fn default() -> Self {
-        Self {
-            dark_vision_radius: 1,
-            lit_vision_radius: 15,
-            enabled: true,
-            visible_brightness: 1.0,
-            explored_brightness: 0.3,
-        }
+        Self { enabled: true }
     }
 }
 
-/// Tracks visibility state for each cell
+/// Tracks visibility state for each cell, synced from nh-core
 #[derive(Resource, Default)]
 pub struct VisibilityMap {
-    /// Currently visible cells (calculated each frame)
+    /// Currently visible cells (synced from Level each frame)
     pub visible: Vec<Vec<bool>>,
-    /// Explored cells (monotonically increasing, synced from GameState + fog calculations)
+    /// Explored cells (synced from Level each frame)
     pub explored: Vec<Vec<bool>>,
-    /// Player position for visibility calculations
-    pub player_pos: (i8, i8),
     /// Whether the map has been initialized
     pub initialized: bool,
 }
@@ -104,29 +88,11 @@ impl VisibilityMap {
         self.explored = vec![vec![false; width]; height];
         self.initialized = true;
     }
-
-    /// Clear all visibility
-    pub fn clear(&mut self) {
-        for row in &mut self.visible {
-            for cell in row {
-                *cell = false;
-            }
-        }
-    }
-
-    /// Mark a cell as visible (also marks as explored)
-    pub fn set_visible(&mut self, x: usize, y: usize) {
-        if let Some(cell) = self.visible.get_mut(y).and_then(|row| row.get_mut(x)) {
-            *cell = true;
-        }
-        if let Some(cell) = self.explored.get_mut(y).and_then(|row| row.get_mut(x)) {
-            *cell = true;
-        }
-    }
 }
 
-/// Calculate visibility from player position
-fn calculate_visibility(
+/// Sync visibility directly from nh-core's authoritative Level state.
+/// This matches the TUI behavior exactly — both read from Level::is_visible/is_explored.
+fn sync_visibility_from_core(
     mut visibility: ResMut<VisibilityMap>,
     game_state: Res<GameStateResource>,
     settings: Res<FogSettings>,
@@ -135,182 +101,20 @@ fn calculate_visibility(
         return;
     }
 
-    let state = &game_state.0;
-    let level = &state.current_level;
-    let player_x = state.player.pos.x as usize;
-    let player_y = state.player.pos.y as usize;
+    let level = &game_state.0.current_level;
 
     // Initialize visibility map if needed
     if !visibility.initialized {
         visibility.init(nh_core::COLNO, nh_core::ROWNO);
     }
 
-    // Sync explored state from GameState when it changes (handles level transitions too)
-    if game_state.is_changed() {
-        for y in 0..nh_core::ROWNO {
-            for x in 0..nh_core::COLNO {
-                visibility.explored[y][x] = level.cells[x][y].explored;
-            }
+    // Read visibility and explored state directly from nh-core
+    // This is the same data the TUI reads via level.is_visible()/is_explored()
+    for y in 0..nh_core::ROWNO {
+        for x in 0..nh_core::COLNO {
+            visibility.visible[y][x] = level.is_visible(x as i8, y as i8);
+            visibility.explored[y][x] = level.is_explored(x as i8, y as i8);
         }
-    }
-
-    // Clear previous visibility (explored is persistent, visible is per-frame)
-    visibility.clear();
-    visibility.player_pos = (state.player.pos.x, state.player.pos.y);
-
-    // Player's current cell is always visible
-    visibility.set_visible(player_x, player_y);
-
-    // Check if player is in a lit room
-    let player_cell = level.cell(player_x, player_y);
-    let in_lit_room = player_cell.lit && player_cell.room_number > 0;
-
-    // If in a lit room, the entire room is visible
-    if in_lit_room {
-        let room_num = player_cell.room_number;
-        for y in 0..nh_core::ROWNO {
-            for x in 0..nh_core::COLNO {
-                let cell = level.cell(x, y);
-                if cell.room_number == room_num || is_room_adjacent(level, x, y, room_num) {
-                    visibility.set_visible(x, y);
-                }
-            }
-        }
-    }
-
-    // Calculate line-of-sight visibility
-    let max_radius = if in_lit_room {
-        settings.lit_vision_radius
-    } else {
-        settings.dark_vision_radius
-    };
-
-    // Cast rays in all directions
-    for angle in 0..360 {
-        let rad = (angle as f32).to_radians();
-        let dx = rad.cos();
-        let dy = rad.sin();
-
-        cast_ray(
-            &mut visibility,
-            level,
-            player_x as f32,
-            player_y as f32,
-            dx,
-            dy,
-            max_radius as f32,
-        );
-    }
-
-    // Also check immediate adjacent cells (always visible)
-    for dy in -1..=1 {
-        for dx in -1..=1 {
-            let nx = player_x as i32 + dx;
-            let ny = player_y as i32 + dy;
-            if nx >= 0 && nx < nh_core::COLNO as i32 && ny >= 0 && ny < nh_core::ROWNO as i32 {
-                visibility.set_visible(nx as usize, ny as usize);
-            }
-        }
-    }
-}
-
-/// Check if a cell is adjacent to a specific room
-fn is_room_adjacent(level: &nh_core::dungeon::Level, x: usize, y: usize, room_num: u8) -> bool {
-    for dy in -1..=1i32 {
-        for dx in -1..=1i32 {
-            let nx = x as i32 + dx;
-            let ny = y as i32 + dy;
-            if nx >= 0
-                && nx < nh_core::COLNO as i32
-                && ny >= 0
-                && ny < nh_core::ROWNO as i32
-                && level.cell(nx as usize, ny as usize).room_number == room_num
-            {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// Cast a ray for visibility calculation
-fn cast_ray(
-    visibility: &mut VisibilityMap,
-    level: &nh_core::dungeon::Level,
-    start_x: f32,
-    start_y: f32,
-    dx: f32,
-    dy: f32,
-    max_distance: f32,
-) {
-    let mut x = start_x;
-    let mut y = start_y;
-    let mut distance = 0.0;
-
-    while distance < max_distance {
-        x += dx * 0.5;
-        y += dy * 0.5;
-        distance += 0.5;
-
-        let ix = x.round() as i32;
-        let iy = y.round() as i32;
-
-        if ix < 0 || ix >= nh_core::COLNO as i32 || iy < 0 || iy >= nh_core::ROWNO as i32 {
-            break;
-        }
-
-        let ux = ix as usize;
-        let uy = iy as usize;
-
-        visibility.set_visible(ux, uy);
-
-        // Stop at walls, closed doors, and other vision blockers
-        let cell = level.cell(ux, uy);
-        if blocks_vision(cell) {
-            break;
-        }
-    }
-}
-
-/// Check if a cell blocks line of sight
-fn blocks_vision(cell: &nh_core::dungeon::Cell) -> bool {
-    use nh_core::dungeon::CellType;
-
-    match cell.typ {
-        // Walls always block vision
-        CellType::VWall
-        | CellType::HWall
-        | CellType::TLCorner
-        | CellType::TRCorner
-        | CellType::BLCorner
-        | CellType::BRCorner
-        | CellType::CrossWall
-        | CellType::TUWall
-        | CellType::TDWall
-        | CellType::TLWall
-        | CellType::TRWall
-        | CellType::DBWall => true,
-
-        // Stone blocks vision
-        CellType::Stone => true,
-
-        // Trees block vision
-        CellType::Tree => true,
-
-        // Closed doors block vision
-        CellType::Door => {
-            let door_state = cell.door_state();
-            !door_state.contains(nh_core::dungeon::DoorState::OPEN)
-        }
-
-        // Secret doors look like walls, block vision
-        CellType::SecretDoor | CellType::SecretCorridor => true,
-
-        // Iron bars partially block (let's say they don't fully block)
-        CellType::IronBars => false,
-
-        // Everything else is transparent
-        _ => false,
     }
 }
 
@@ -408,7 +212,7 @@ fn apply_fog_to_entities(
         }
     }
 
-    // Floor objects visible if explored
+    // Floor objects visible if currently visible
     for (pos, mut vis) in object_query.iter_mut() {
         let x = pos.x as usize;
         let y = pos.y as usize;
@@ -419,7 +223,7 @@ fn apply_fog_to_entities(
         }
     }
 
-    // Piles visible if explored
+    // Piles visible if currently visible
     for (pos, mut vis) in pile_query.iter_mut() {
         let x = pos.x as usize;
         let y = pos.y as usize;

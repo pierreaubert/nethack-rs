@@ -6,6 +6,8 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define ISAAC64_SZ_LOG 8
 #define ISAAC64_SZ (1 << ISAAC64_SZ_LOG)
@@ -185,3 +187,84 @@ uint64_t isaac64_next_uint(isaac64_ctx *_ctx, uint64_t _n)
 
     return v;
 }
+
+/* Global context for the standalone RNG */
+static isaac64_ctx g_isaac64_ctx;
+static isaac64_ctx g_disp_rng_ctx;
+
+void set_random_generator_seed(unsigned long seed) {
+    unsigned char seed_bytes[8];
+    for (int i = 0; i < 8; i++) {
+        seed_bytes[i] = (unsigned char)((seed >> (i * 8)) & 0xFF);
+    }
+    isaac64_init(&g_isaac64_ctx, seed_bytes, 8);
+    isaac64_init(&g_disp_rng_ctx, seed_bytes, 8);
+}
+
+/* Core RNG functions from NetHack's rnd.c */
+
+int rn2(int n) {
+    if (n <= 0) return 0;
+    int res = (int)isaac64_next_uint(&g_isaac64_ctx, (uint64_t)n);
+    return res;
+}
+
+int rnd(int n) {
+    if (n <= 0) return 1;
+    return rn2(n) + 1;
+}
+
+int d(int n, int x) {
+    int res = n;
+    if (x <= 0 || n <= 0) return n;
+    while (n--) res += rn2(x);
+    return res;
+}
+
+int rn2_on_display_rng(int x) {
+    if (x <= 0) return 0;
+    return (int)isaac64_next_uint(&g_disp_rng_ctx, (uint64_t)x);
+}
+
+/* Stubs/Simplified versions of other rnd.c functions */
+/* These might need NetHack globals like 'u' and 'Luck' */
+
+#ifdef REAL_NETHACK
+#include "hack.h"
+
+int rnl(int x) {
+    int adjustment = Luck;
+    if (x <= 15) {
+        adjustment = (abs(adjustment) + 1) / 3 * (adjustment < 0 ? -1 : (adjustment > 0 ? 1 : 0));
+    }
+    int i = rn2(x);
+    if (adjustment && rn2(37 + abs(adjustment))) {
+        i -= adjustment;
+        if (i < 0) i = 0;
+        else if (i >= x) i = x - 1;
+    }
+    return i;
+}
+
+int rne(int x) {
+    int utmp = (u.ulevel < 15) ? 5 : u.ulevel / 3;
+    int tmp = 1;
+    while (tmp < utmp && !rn2(x)) tmp++;
+    return tmp;
+}
+
+int rnz(int i) {
+    long x = (long) i;
+    long tmp = 1000L;
+    tmp += rn2(1000);
+    tmp *= rne(4);
+    if (rn2(2)) {
+        x *= tmp;
+        x /= 1000;
+    } else {
+        x *= 1000;
+        x /= tmp;
+    }
+    return (int) x;
+}
+#endif

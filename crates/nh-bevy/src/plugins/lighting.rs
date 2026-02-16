@@ -82,7 +82,8 @@ fn setup_lighting(mut commands: Commands, settings: Res<LightingSettings>) {
         PointLight {
             color: settings.player_light_color,
             intensity: settings.player_light_intensity,
-            radius: settings.player_light_radius,
+            range: settings.player_light_radius,
+            radius: 0.05,
             shadows_enabled: true,
             ..default()
         },
@@ -136,6 +137,14 @@ fn update_ambient_lighting(
         return;
     }
 
+    // Despawn old lights first (from previous level)
+    for entity in lava_lights.iter() {
+        commands.entity(entity).despawn();
+    }
+    for entity in fountain_lights.iter() {
+        commands.entity(entity).despawn();
+    }
+
     let level = &game_state.0.current_level;
 
     // Spawn lights for lava and fountains
@@ -158,7 +167,8 @@ fn update_ambient_lighting(
                         PointLight {
                             color: Color::srgb(1.0, 0.4, 0.1),
                             intensity: settings.lava_glow_intensity,
-                            radius: 3.0,
+                            range: 3.0,
+                            radius: 0.05,
                             shadows_enabled: false,
                             ..default()
                         },
@@ -174,7 +184,8 @@ fn update_ambient_lighting(
                         PointLight {
                             color: Color::srgb(0.4, 0.6, 1.0),
                             intensity: settings.fountain_glow_intensity,
-                            radius: 2.0,
+                            range: 2.0,
+                            radius: 0.05,
                             shadows_enabled: false,
                             ..default()
                         },
@@ -184,14 +195,6 @@ fn update_ambient_lighting(
                 _ => {}
             }
         }
-    }
-
-    // Despawn old lights if level changes (simplified - in practice would track level changes)
-    for entity in lava_lights.iter() {
-        commands.entity(entity).despawn();
-    }
-    for entity in fountain_lights.iter() {
-        commands.entity(entity).despawn();
     }
 
     *initialized = true;

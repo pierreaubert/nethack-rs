@@ -26,6 +26,7 @@ impl Plugin for MonsterPickerPlugin {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TargetAction {
     Zap(char),
+    Throw(char),
     Spell,
 }
 
@@ -33,6 +34,7 @@ impl TargetAction {
     pub fn name(&self) -> &'static str {
         match self {
             TargetAction::Zap(_) => "zap",
+            TargetAction::Throw(_) => "throw at",
             TargetAction::Spell => "cast spell at",
         }
     }
@@ -173,6 +175,7 @@ fn handle_picker_input(
                     // Send the appropriate command
                     let command = match action {
                         TargetAction::Zap(c) => Command::Zap(c, direction),
+                        TargetAction::Throw(c) => Command::Throw(c, direction),
                         TargetAction::Spell => {
                             // Spell targeting would be handled differently
                             // For now, treat like zap

@@ -49,7 +49,7 @@ fn main() {
             let path = entry.path();
             if path.extension().map_or(false, |ext| ext == "o") {
                 let file_name = path.file_name().unwrap().to_str().unwrap();
-                if file_name != "unixmain.o" && file_name != "nethack_ffi.o" {
+                if file_name != "unixmain.o" && file_name != "nethack_ffi.o" && file_name != "rnd.o" {
                     all_objs.push(path);
                 }
             }

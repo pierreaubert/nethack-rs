@@ -169,9 +169,7 @@ fn keyboard_to_command(
         // 'F' - fight (needs direction)
         dir_state.active = true;
         dir_state.action = Some(DirectionAction::Fight);
-    } else if input.just_pressed(KeyCode::Backslash) {
-        // '\' - discoveries
-        commands.send(GameCommand(Command::Discoveries));
+    // '\' - discoveries: handled directly in discoveries.rs
     } else if input.just_pressed(KeyCode::KeyV)
         && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
     {

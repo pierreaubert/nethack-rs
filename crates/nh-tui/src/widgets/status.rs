@@ -5,14 +5,17 @@ use ratatui::widgets::Widget;
 
 use nh_core::player::{Attribute, You};
 
+use crate::theme::Theme;
+
 /// Widget for rendering the status line
 pub struct StatusWidget<'a> {
     player: &'a You,
+    theme: &'a Theme,
 }
 
 impl<'a> StatusWidget<'a> {
-    pub fn new(player: &'a You) -> Self {
-        Self { player }
+    pub fn new(player: &'a You, theme: &'a Theme) -> Self {
+        Self { player, theme }
     }
 }
 
@@ -62,7 +65,7 @@ impl Widget for StatusWidget<'_> {
         }
 
         // Render
-        let style = Style::default().fg(Color::White);
+        let style = Style::default().fg(self.theme.text);
         buf.set_string(area.x, area.y, &line1, style);
         if area.height > 1 {
             buf.set_string(area.x, area.y + 1, &line2, style);

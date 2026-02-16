@@ -7,21 +7,25 @@ use nh_assets::registry::AssetRegistry;
 use nh_core::data::objects::OBJECTS;
 use nh_core::object::{Object, ObjectClass};
 
+use crate::theme::Theme;
+
 /// Inventory display widget
 pub struct InventoryWidget<'a> {
     items: &'a [Object],
     title: &'a str,
     selected: Option<usize>,
     assets: &'a AssetRegistry,
+    theme: &'a Theme,
 }
 
 impl<'a> InventoryWidget<'a> {
-    pub fn new(items: &'a [Object], assets: &'a AssetRegistry) -> Self {
+    pub fn new(items: &'a [Object], assets: &'a AssetRegistry, theme: &'a Theme) -> Self {
         Self {
             items,
             title: "Inventory",
             selected: None,
             assets,
+            theme,
         }
     }
 
@@ -56,10 +60,8 @@ impl<'a> InventoryWidget<'a> {
     pub fn format_item(obj: &Object, assets: &AssetRegistry) -> Line<'static> {
         let mut parts: Vec<String> = Vec::new();
 
-        // Quantity prefix (for stackable items)
-        let quantity_str = if obj.quantity > 1 {
-            format!("{}", obj.quantity)
-        } else if obj.class == ObjectClass::Coin {
+        // Quantity prefix (for stackable items or coins)
+        let quantity_str = if obj.quantity > 1 || obj.class == ObjectClass::Coin {
             format!("{}", obj.quantity)
         } else {
             String::new()
@@ -239,14 +241,14 @@ impl Widget for InventoryWidget<'_> {
         let block = Block::default()
             .title(self.title)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::White));
+            .border_style(Style::default().fg(self.theme.border));
 
         let inner = block.inner(area);
         block.render(area, buf);
 
         if self.items.is_empty() {
-            let empty =
-                Paragraph::new("Not carrying anything.").style(Style::default().fg(Color::Gray));
+            let empty = Paragraph::new("Not carrying anything.")
+                .style(Style::default().fg(self.theme.text_muted));
             empty.render(inner, buf);
             return;
         }
@@ -268,19 +270,19 @@ impl Widget for InventoryWidget<'_> {
             list_items.push(ListItem::new(Line::from(Span::styled(
                 Self::class_header(class),
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(self.theme.header)
                     .add_modifier(Modifier::BOLD),
             ))));
 
             // Add items in this class
             for item in items {
                 let mut line = Self::format_item(item, self.assets);
-                
+
                 // Override style for BUC if known
                 if item.is_cursed() && item.buc_known {
-                    line = line.style(Style::default().fg(Color::Red));
+                    line = line.style(Style::default().fg(self.theme.bad));
                 } else if item.is_blessed() && item.buc_known {
-                    line = line.style(Style::default().fg(Color::Cyan));
+                    line = line.style(Style::default().fg(self.theme.accent));
                 }
 
                 list_items.push(ListItem::new(line));
@@ -298,6 +300,7 @@ pub struct SelectionMenu<'a> {
     title: &'a str,
     multi_select: bool,
     cursor: usize,
+    theme: Theme,
 }
 
 /// An item in a selection menu
@@ -315,6 +318,7 @@ impl<'a> SelectionMenu<'a> {
             title,
             multi_select: false,
             cursor: 0,
+            theme: Theme::detect(),
         }
     }
 
@@ -383,13 +387,14 @@ impl Widget for &SelectionMenu<'_> {
         let block = Block::default()
             .title(self.title)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::White));
+            .border_style(Style::default().fg(self.theme.border));
 
         let inner = block.inner(area);
         block.render(area, buf);
 
         if self.items.is_empty() {
-            let empty = Paragraph::new("Nothing here.").style(Style::default().fg(Color::Gray));
+            let empty =
+                Paragraph::new("Nothing here.").style(Style::default().fg(self.theme.text_muted));
             empty.render(inner, buf);
             return;
         }
@@ -405,12 +410,12 @@ impl Widget for &SelectionMenu<'_> {
 
                 let style = if i == self.cursor {
                     Style::default()
-                        .fg(Color::Yellow)
+                        .fg(self.theme.cursor_fg)
                         .add_modifier(Modifier::BOLD)
                 } else if item.selected {
-                    Style::default().fg(Color::Green)
+                    Style::default().fg(self.theme.selected)
                 } else {
-                    Style::default().fg(Color::White)
+                    Style::default().fg(self.theme.text)
                 };
 
                 ListItem::new(Line::from(Span::styled(text, style)))
@@ -428,6 +433,7 @@ mod tests {
 
     #[test]
     fn test_selection_menu() {
+        // Use dark theme for testing
         let mut menu = SelectionMenu::new("Test Menu")
             .add_item('a', "Item 1", 0)
             .add_item('b', "Item 2", 1)

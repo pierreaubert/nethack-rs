@@ -14,5 +14,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Behaviour convergence between C and Rust version**
+- [~] **Track: Behaviour convergence between C and Rust version**
   *Link: [./tracks/behaviour_convergence_20260216/](./tracks/behaviour_convergence_20260216/)*
