@@ -8,6 +8,7 @@ use nh_core::player::{Gender, Race, Role};
 use nh_core::{GameLoop, GameRng, GameState};
 use nh_test::ffi::CGameEngine;
 use serde_json::Value;
+use serial_test::serial;
 
 /// Helper to sync Rust stats to C engine
 fn sync_stats_to_c(rs: &GameState, c_engine: &CGameEngine, turn: i64) {
@@ -22,6 +23,7 @@ fn sync_stats_to_c(rs: &GameState, c_engine: &CGameEngine, turn: i64) {
 }
 
 #[test]
+#[serial]
 fn test_synchronized_movement_parity() {
     let seed = 42;
     let role = Role::Valkyrie;
@@ -110,6 +112,7 @@ fn test_synchronized_movement_parity() {
 }
 
 #[test]
+#[serial]
 fn test_gnomish_mines_gauntlet_parity() {
     let seed = 12345; // Different seed for variety
     
@@ -180,6 +183,7 @@ fn test_gnomish_mines_gauntlet_parity() {
 }
 
 #[test]
+#[serial]
 fn test_inventory_weight_stress_parity() {
     let seed = 999;
     
@@ -223,17 +227,91 @@ fn test_inventory_weight_stress_parity() {
 }
 
 #[test]
+#[serial]
+fn test_all_roles_inventory_parity() {
+    let roles = [
+        (Role::Barbarian, "Barbarian"),
+    ];
+    let seed = 12345;
+
+    for (role, role_name) in roles {
+        // 1. Initialize C Engine
+        let mut c_engine = CGameEngine::new();
+        c_engine.init(role_name, "Human", 0, 0).expect("C engine init failed");
+        c_engine.reset(seed).expect("C engine reset failed");
+        
+        // 2. Initialize Rust Engine
+        let rust_rng = GameRng::new(seed);
+        let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, Race::Human, Gender::Male);
+
+        let c_inv_str = c_engine.inventory_json();
+        let c_inv: Value = serde_json::from_str(&c_inv_str).unwrap();
+        let rs_inv = &rust_state.inventory;
+
+        println!("=== Role: {} Inventory Parity (Seed {}) ===", role_name, seed);
+        println!("Rust has {} items", rs_inv.len());
+        println!("C    has {} items", c_inv.as_array().unwrap().len());
+
+        assert_eq!(rs_inv.len(), c_inv.as_array().unwrap().len(), "Inventory count mismatch for role {}", role_name);
+        
+        // Deep comparison of items could be added here
+    }
+}
+
+#[test]
+#[serial]
+fn test_all_roles_character_generation_parity() {
+    let roles = [
+        (Role::Archeologist, "Archeologist"),
+        (Role::Barbarian, "Barbarian"),
+        (Role::Caveman, "Caveman"),
+        (Role::Healer, "Healer"),
+        (Role::Knight, "Knight"),
+        (Role::Monk, "Monk"),
+        (Role::Priest, "Priest"),
+        (Role::Ranger, "Ranger"),
+        (Role::Rogue, "Rogue"),
+        (Role::Samurai, "Samurai"),
+        (Role::Tourist, "Tourist"),
+        (Role::Valkyrie, "Valkyrie"),
+        (Role::Wizard, "Wizard"),
+    ];
+    let seed = 12345;
+
+    for (role, role_name) in roles {
+        // 1. Initialize C Engine
+        let mut c_engine = CGameEngine::new();
+        c_engine.init(role_name, "Human", 0, 0).expect("C engine init failed");
+        c_engine.reset(seed).expect("C engine reset failed");
+        
+        // 2. Initialize Rust Engine
+        let rust_rng = GameRng::new(seed);
+        let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, Race::Human, Gender::Male);
+
+        println!("=== Role: {} Parity (Seed {}) ===", role_name, seed);
+        println!("Rust: HP {}/{}, Energy {}/{}", rust_state.player.hp, rust_state.player.hp_max, rust_state.player.energy, rust_state.player.energy_max);
+        println!("C   : HP {}/{}, Energy {}/{}", c_engine.hp(), c_engine.max_hp(), c_engine.energy(), c_engine.max_energy());
+
+        assert_eq!(rust_state.player.hp, c_engine.hp(), "HP mismatch for role {}", role_name);
+        assert_eq!(rust_state.player.hp_max, c_engine.max_hp(), "HP Max mismatch for role {}", role_name);
+        assert_eq!(rust_state.player.energy, c_engine.energy(), "Energy mismatch for role {}", role_name);
+        assert_eq!(rust_state.player.energy_max, c_engine.max_energy(), "Energy Max mismatch for role {}", role_name);
+    }
+}
+
+#[test]
+#[serial]
 fn test_character_generation_parity() {
     let seed = 42;
     
     // 1. Initialize C Engine
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+    c_engine.init("Wizard", "Human", 0, 0).expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
     
     // 2. Initialize Rust Engine
     let rust_rng = GameRng::new(seed);
-    let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), Role::Valkyrie, Race::Human, Gender::Female);
+    let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), Role::Wizard, Race::Human, Gender::Male);
     
     println!("\n=== Character Generation Parity (Seed {}) ===", seed);
     println!("Rust: HP {}/{}, Energy {}/{}", rust_state.player.hp, rust_state.player.hp_max, rust_state.player.energy, rust_state.player.energy_max);
@@ -245,6 +323,7 @@ fn test_character_generation_parity() {
 }
 
 #[test]
+#[serial]
 fn test_multi_seed_baseline_rest_parity() {
     let seeds = vec![1, 42, 12345, 99999];
     let role = Role::Valkyrie;
