@@ -3,7 +3,7 @@
 //! Provides extern fn declarations and a safe `CGameEngine` wrapper
 //! for comparison testing with the Rust nethack-rs implementation.
 
-use libc::{c_char, c_int, c_ulong, c_void};
+use libc::{c_char, c_int, c_long, c_ulong, c_void};
 use std::ffi::{CStr, CString};
 
 // ============================================================================
@@ -34,6 +34,9 @@ pub struct CObject {
     pub inv_letter: c_char,
     pub x: c_int,
     pub y: c_int,
+    pub recharged: c_int,
+    pub poisoned: c_int,
+    pub otyp: c_int,
 }
 
 #[repr(C)]
@@ -48,54 +51,11 @@ pub struct CMonster {
     pub y: c_int,
     pub asleep: c_int,
     pub peaceful: c_int,
-}
-
-#[repr(C)]
-pub struct CPlayer {
-    pub role: [c_char; 32],
-    pub race: [c_char; 32],
-    pub gender: c_int,
-    pub alignment: c_int,
-    pub hp: c_int,
-    pub max_hp: c_int,
-    pub energy: c_int,
-    pub max_energy: c_int,
-    pub x: c_int,
-    pub y: c_int,
-    pub level: c_int,
-    pub experience_level: c_int,
-    pub armor_class: c_int,
-    pub gold: c_int,
-    pub strength: c_int,
-    pub dexterity: c_int,
-    pub constitution: c_int,
-    pub intelligence: c_int,
-    pub wisdom: c_int,
-    pub charisma: c_int,
-    pub is_dead: c_int,
-    pub hunger_state: c_int,
-    pub confusion_timeout: c_int,
-    pub stun_timeout: c_int,
-    pub blindness_timeout: c_int,
-}
-
-#[repr(C)]
-pub struct CGameState {
-    pub player: CPlayer,
-    pub inventory: [*mut CObject; NH_MAX_INVENTORY],
-    pub inventory_count: c_int,
-    pub monsters: [CMonster; NH_MAX_MONSTERS],
-    pub monster_count: c_int,
-    pub current_level: c_int,
-    pub dungeon_depth: c_int,
-    pub dungeon_visited: [c_int; NH_MAX_DUNGEON_LEVELS],
-    pub turn_count: c_ulong,
-    pub hunger_state: c_int,
-    pub last_message: [c_char; 256],
+    pub strategy: c_ulong,
 }
 
 // ============================================================================
-// FFI Function Declarations (superset of both old interfaces)
+// FFI Function Declarations
 // ============================================================================
 
 unsafe extern "C" {
@@ -134,7 +94,7 @@ unsafe extern "C" {
     pub fn nh_ffi_get_alignment() -> c_int;
 
     // State Manipulation
-    pub fn nh_ffi_set_state(x: c_int, y: c_int, hp: c_int, max_hp: c_int, level: c_int, ac: c_int);
+    pub fn nh_ffi_set_state(hp: c_int, hpmax: c_int, x: c_int, y: c_int, ac: c_int, moves: c_long);
 
     // State Serialization
     pub fn nh_ffi_get_state_json() -> *mut c_char;
@@ -164,27 +124,22 @@ unsafe extern "C" {
     pub fn nh_ffi_wear_item(item_id: c_int) -> c_int;
     pub fn nh_ffi_add_item_to_inv(item_id: c_int, weight: c_int) -> c_int;
     pub fn nh_ffi_get_weight() -> c_int;
+    pub fn nh_ffi_set_wizard_mode(enable: c_int);
 }
 
 // ============================================================================
 // Safe Rust Wrapper
 // ============================================================================
 
-/// Safe wrapper for the C NetHack game engine.
-///
-/// Provides the superset of methods from both the old `CGameEngine`
-/// (c_interface.rs) and `FfiGameEngine` (c_interface_ffi.rs).
 pub struct CGameEngine {
     initialized: bool,
 }
 
 impl CGameEngine {
-    /// Create a new C game engine
     pub fn new() -> Self {
         Self { initialized: false }
     }
 
-    /// Initialize the game with character parameters
     pub fn init(
         &mut self,
         role: &str,
@@ -212,7 +167,6 @@ impl CGameEngine {
         Ok(())
     }
 
-    /// Reset the game to initial state
     pub fn reset(&mut self, seed: u64) -> Result<(), String> {
         if !self.initialized {
             return Err("Game not initialized".to_string());
@@ -226,7 +180,6 @@ impl CGameEngine {
         Ok(())
     }
 
-    /// Execute a command
     pub fn exec_cmd(&self, cmd: char) -> Result<(), String> {
         if !self.initialized {
             return Err("Game not initialized".to_string());
@@ -243,7 +196,6 @@ impl CGameEngine {
         Ok(())
     }
 
-    /// Execute a directional command
     pub fn exec_cmd_dir(&self, cmd: char, dx: i32, dy: i32) -> Result<(), String> {
         if !self.initialized {
             return Err("Game not initialized".to_string());
@@ -257,27 +209,22 @@ impl CGameEngine {
         Ok(())
     }
 
-    /// Get player HP
     pub fn hp(&self) -> i32 {
         unsafe { nh_ffi_get_hp() as i32 }
     }
 
-    /// Get player max HP
     pub fn max_hp(&self) -> i32 {
         unsafe { nh_ffi_get_max_hp() as i32 }
     }
 
-    /// Get player energy
     pub fn energy(&self) -> i32 {
         unsafe { nh_ffi_get_energy() as i32 }
     }
 
-    /// Get player max energy
     pub fn max_energy(&self) -> i32 {
         unsafe { nh_ffi_get_max_energy() as i32 }
     }
 
-    /// Get player position
     pub fn position(&self) -> (i32, i32) {
         let mut x: c_int = 0;
         let mut y: c_int = 0;
@@ -285,71 +232,59 @@ impl CGameEngine {
         (x as i32, y as i32)
     }
 
-    /// Set exact game state (synchronization)
-    pub fn set_state(&self, x: i32, y: i32, hp: i32, max_hp: i32, level: i32, ac: i32) {
+    pub fn set_state(&self, hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64) {
         unsafe {
             nh_ffi_set_state(
+                hp as c_int,
+                hpmax as c_int,
                 x as c_int,
                 y as c_int,
-                hp as c_int,
-                max_hp as c_int,
-                level as c_int,
                 ac as c_int,
+                moves as c_long,
             )
         };
     }
 
-    /// Get armor class
     pub fn armor_class(&self) -> i32 {
         unsafe { nh_ffi_get_armor_class() as i32 }
     }
 
-    /// Get gold
     pub fn gold(&self) -> i32 {
         unsafe { nh_ffi_get_gold() as i32 }
     }
 
-    /// Get experience level
     pub fn experience_level(&self) -> i32 {
         unsafe { nh_ffi_get_experience_level() as i32 }
     }
 
-    /// Get current level
     pub fn current_level(&self) -> i32 {
         unsafe { nh_ffi_get_current_level() as i32 }
     }
 
-    /// Get dungeon depth
     pub fn dungeon_depth(&self) -> i32 {
         unsafe { nh_ffi_get_dungeon_depth() as i32 }
     }
 
-    /// Get turn count
     pub fn turn_count(&self) -> u64 {
         unsafe { nh_ffi_get_turn_count() as u64 }
     }
 
-    /// Check if player is dead
     pub fn is_dead(&self) -> bool {
         unsafe { nh_ffi_is_player_dead() != 0 }
     }
 
-    /// Check if game is initialized
     pub fn is_initialized(&self) -> bool {
         self.initialized
     }
 
-    /// Check if game is over
     pub fn is_game_over(&self) -> bool {
         unsafe { nh_ffi_is_game_over() != 0 }
     }
 
-    /// Check if game is won
     pub fn is_won(&self) -> bool {
         unsafe { nh_ffi_is_game_won() != 0 }
     }
 
-    /// Get state as JSON string
     pub fn state_json(&self) -> String {
         let json_ptr = unsafe { nh_ffi_get_state_json() };
         if json_ptr.is_null() {
@@ -360,7 +295,6 @@ impl CGameEngine {
         result
     }
 
-    /// Get last message
     pub fn last_message(&self) -> String {
         let msg_ptr = unsafe { nh_ffi_get_last_message() };
         if msg_ptr.is_null() {
@@ -371,12 +305,10 @@ impl CGameEngine {
         result
     }
 
-    /// Get inventory count
     pub fn inventory_count(&self) -> i32 {
         unsafe { nh_ffi_get_inventory_count() as i32 }
     }
 
-    /// Get inventory as JSON
     pub fn inventory_json(&self) -> String {
         let json_ptr = unsafe { nh_ffi_get_inventory_json() };
         if json_ptr.is_null() {
@@ -387,7 +319,6 @@ impl CGameEngine {
         result
     }
 
-    /// Get nearby monsters as JSON
     pub fn monsters_json(&self) -> String {
         let json_ptr = unsafe { nh_ffi_get_nearby_monsters_json() };
         if json_ptr.is_null() {
@@ -398,12 +329,10 @@ impl CGameEngine {
         result
     }
 
-    /// Get monster count
     pub fn monster_count(&self) -> i32 {
         unsafe { nh_ffi_count_monsters() as i32 }
     }
 
-    /// Get role as string
     pub fn role(&self) -> String {
         let ptr = unsafe { nh_ffi_get_role() };
         if ptr.is_null() {
@@ -412,7 +341,6 @@ impl CGameEngine {
         unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
     }
 
-    /// Get race as string
     pub fn race(&self) -> String {
         let ptr = unsafe { nh_ffi_get_race() };
         if ptr.is_null() {
@@ -421,7 +349,6 @@ impl CGameEngine {
         unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
     }
 
-    /// Get gender as formatted string
     pub fn gender_string(&self) -> String {
         match unsafe { nh_ffi_get_gender() } {
             0 => "Male".to_string(),
@@ -429,7 +356,6 @@ impl CGameEngine {
         }
     }
 
-    /// Get alignment as formatted string
     pub fn alignment_string(&self) -> String {
         match unsafe { nh_ffi_get_alignment() } {
             -1 => "Chaotic".to_string(),
@@ -438,7 +364,6 @@ impl CGameEngine {
         }
     }
 
-    /// Get result message
     pub fn result_message(&self) -> String {
         let msg_ptr = unsafe { nh_ffi_get_result_message() };
         if msg_ptr.is_null() {
@@ -449,29 +374,24 @@ impl CGameEngine {
         result
     }
 
-    /// Generate a random number [0, limit) using the C engine's RNG
     pub fn rng_rn2(&self, limit: i32) -> i32 {
         unsafe { nh_ffi_rng_rn2(limit as c_int) as i32 }
     }
 
-    /// Calculate base damage for a weapon against a monster size
     pub fn calc_base_damage(&self, weapon_id: i32, small_monster: bool) -> i32 {
         unsafe { nh_ffi_calc_base_damage(weapon_id as c_int, small_monster as c_int) as i32 }
     }
 
-    /// Get current Armor Class (calc wrapper)
     pub fn ac(&self) -> i32 {
         unsafe { nh_ffi_get_ac() as i32 }
     }
 
-    /// Setup specific status for testing (test-only FFI)
     pub fn test_setup_status(&self, hp: i32, max_hp: i32, level: i32, ac: i32) {
         unsafe {
             nh_ffi_test_setup_status(hp as c_int, max_hp as c_int, level as c_int, ac as c_int)
         };
     }
 
-    /// Wear an item
     pub fn wear_item(&self, item_id: i32) -> Result<(), String> {
         let res = unsafe { nh_ffi_wear_item(item_id as c_int) };
         if res < 0 {
@@ -481,7 +401,6 @@ impl CGameEngine {
         }
     }
 
-    /// Add item to inventory
     pub fn add_item_to_inv(&self, item_id: i32, weight: i32) -> Result<(), String> {
         let res = unsafe { nh_ffi_add_item_to_inv(item_id as c_int, weight as c_int) };
         if res < 0 {
@@ -491,9 +410,23 @@ impl CGameEngine {
         }
     }
 
-    /// Get current carrying weight
     pub fn carrying_weight(&self) -> i32 {
         unsafe { nh_ffi_get_weight() as i32 }
+    }
+
+    pub fn set_wizard_mode(&self, enable: bool) {
+        unsafe { nh_ffi_set_wizard_mode(if enable { 1 } else { 0 }) };
+    }
+
+    /// Enable RNG tracing for the C engine (only works if using isolated CIsaac64)
+    /// Note: Real NetHack globals don't support this yet.
+    pub fn start_tracing(&mut self) {
+        // Placeholder for future global tracing support
+    }
+
+    /// Get RNG trace
+    pub fn get_trace(&self) -> Vec<nh_rng::RngTraceEntry> {
+        Vec::new() // Placeholder
     }
 }
 
@@ -521,11 +454,9 @@ mod tests {
         let mut engine = CGameEngine::new();
         assert!(!engine.is_initialized());
 
-        // Initialize with default character
         assert!(engine.init("Tourist", "Human", 0, 0).is_ok());
         assert!(engine.is_initialized());
 
-        // Check initial state - HP should be positive for a new game
         let hp = engine.hp();
         assert!(hp > 0, "HP should be positive, got {}", hp);
         assert!(engine.max_hp() > 0);
@@ -533,14 +464,12 @@ mod tests {
         assert!(!engine.is_game_over());
         assert_eq!(engine.position(), (40, 10));
 
-        // Execute some commands using directional to avoid interference
         let _ = engine.exec_cmd_dir('h', -1, 0);
         assert_eq!(engine.position(), (39, 10));
 
         let _ = engine.exec_cmd_dir('j', 0, 1);
         assert_eq!(engine.position(), (39, 11));
 
-        // Check turn count
         let turns = engine.turn_count();
         assert!(turns >= 2, "Turn count should be at least 2, got {}", turns);
     }
@@ -563,14 +492,11 @@ mod tests {
         let mut engine = CGameEngine::new();
         engine.init("Rogue", "Gnome", 0, 0).unwrap();
 
-        // Move somewhere - use directional command to avoid test interference
         let _ = engine.exec_cmd_dir('l', 1, 0);
         let _ = engine.exec_cmd_dir('l', 1, 0);
 
-        // Reset
         engine.reset(12345).unwrap();
 
-        // Should be back at start
         assert_eq!(engine.position(), (40, 10));
         assert_eq!(engine.turn_count(), 0);
     }
@@ -581,7 +507,6 @@ mod tests {
         let mut engine = CGameEngine::new();
         engine.init("Priest", "Dwarf", 0, 0).unwrap();
 
-        // Unknown command should return error (using '@' which is not a valid command)
         assert!(engine.exec_cmd('@').is_err());
     }
 }

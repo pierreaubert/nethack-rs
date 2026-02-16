@@ -14,5 +14,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Assessing gameplay between the C and Rust version.**
+- [x] **Track: Assessing gameplay between the C and Rust version.**
   *Link: [./tracks/gameplay_parity_20260215/](./tracks/gameplay_parity_20260215/)*

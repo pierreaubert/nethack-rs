@@ -2198,34 +2198,55 @@ impl GameLoop {
     fn process_regeneration(state: &mut GameState) {
         use crate::player::Attribute;
 
-        // HP regeneration every few turns based on Con
-        let con = state.player.attr_current.get(Attribute::Constitution);
-        let regen_rate = match con {
-            0..=6 => 35,
-            7..=10 => 30,
-            11..=14 => 25,
-            15..=17 => 20,
-            _ => 15,
-        };
+        let ulevel = state.player.exp_level as i32;
+        let turns = state.turns;
 
-        if state.turns.is_multiple_of(regen_rate as u64) && state.player.hp < state.player.hp_max {
-            state.player.hp += 1;
+        if turns == 0 {
+            return;
         }
 
-        // Energy regeneration
-        let int = state.player.attr_current.get(Attribute::Intelligence);
-        let energy_rate = match int {
-            0..=6 => 40,
-            7..=10 => 35,
-            11..=14 => 30,
-            15..=17 => 25,
-            _ => 20,
-        };
+        // HP Regeneration (C: regen_hp from allmain.c)
+        if state.player.hp < state.player.hp_max {
+            let hp_freq = if ulevel > 9 {
+                3
+            } else {
+                // (MAXULEV + 12) / (u.ulevel + 2) + 1
+                (30 + 12) / (ulevel + 2) + 1
+            };
 
-        if state.turns.is_multiple_of(energy_rate as u64)
-            && state.player.energy < state.player.energy_max
-        {
-            state.player.energy += 1;
+            if turns % hp_freq as u64 == 0 {
+                let mut heal = 1;
+                if ulevel > 9 {
+                    let con = state.player.attr_current.get(Attribute::Constitution) as i32;
+                    if con > 12 {
+                        heal = state.rng.rnd(con as u32) as i32;
+                        if heal > (ulevel - 9) {
+                            heal = ulevel - 9;
+                        }
+                    }
+                }
+                state.player.hp = (state.player.hp + heal).min(state.player.hp_max);
+            }
+        }
+
+        // Energy Regeneration (C: moveloop from allmain.c)
+        if state.player.energy < state.player.energy_max {
+            let energy_stat = if state.player.role == crate::player::Role::Wizard {
+                state.player.attr_current.get(Attribute::Intelligence)
+            } else {
+                state.player.attr_current.get(Attribute::Wisdom)
+            } as i32;
+
+            // (MAXULEV + 15) / (energy_stat + 2) + 1
+            let en_freq = (30 + 15) / (energy_stat + 2) + 1;
+            
+            if turns % en_freq as u64 == 0 {
+                let mut heal = 1;
+                if state.player.role == crate::player::Role::Wizard || state.player.role == crate::player::Role::Priest {
+                    heal = state.rng.rnd((ulevel / 3 + 1) as u32) as i32;
+                }
+                state.player.energy = (state.player.energy + heal).min(state.player.energy_max);
+            }
         }
     }
 }

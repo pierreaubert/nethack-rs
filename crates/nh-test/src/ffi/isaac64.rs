@@ -33,6 +33,9 @@ unsafe extern "C" {
 /// Safe wrapper around the C ISAAC64 implementation
 pub struct CIsaac64 {
     ctx: Isaac64Ctx,
+    tracing: bool,
+    trace: Vec<nh_rng::RngTraceEntry>,
+    call_count: u64,
 }
 
 impl CIsaac64 {
@@ -58,12 +61,30 @@ impl CIsaac64 {
             isaac64_init(&mut ctx, seed_bytes.as_ptr(), 8);
         }
 
-        Self { ctx }
+        Self {
+            ctx,
+            tracing: false,
+            trace: Vec::new(),
+            call_count: 0,
+        }
     }
 
     /// Get the next random u64
     pub fn next_u64(&mut self) -> u64 {
-        unsafe { isaac64_next_uint64(&mut self.ctx) }
+        let val = unsafe { isaac64_next_uint64(&mut self.ctx) };
+        self.call_count += 1;
+        val
+    }
+
+    /// Enable RNG tracing
+    pub fn start_tracing(&mut self) {
+        self.tracing = true;
+        self.trace.clear();
+    }
+
+    /// Get current RNG trace
+    pub fn get_trace(&self) -> Vec<nh_rng::RngTraceEntry> {
+        self.trace.clone()
     }
 
     /// Get a random value in [0, n)
@@ -73,7 +94,36 @@ impl CIsaac64 {
 
     /// Returns a random value in [0, x) - matches rn2(x)
     pub fn rn2(&mut self, x: u32) -> u32 {
-        (self.next_u64() % x as u64) as u32
+        if x == 0 { return 0; }
+        let raw = self.next_u64();
+        let result = (raw % x as u64) as u32;
+        if self.tracing {
+            self.trace.push(nh_rng::RngTraceEntry {
+                seq: self.call_count - 1,
+                func: "rn2",
+                arg: x as u64,
+                result: result as u64,
+                raw,
+            });
+        }
+        result
+    }
+
+    /// Returns a random value in [1, x] - matches rnd(x)
+    pub fn rnd(&mut self, x: u32) -> u32 {
+        if x == 0 { return 0; }
+        let raw = self.next_u64();
+        let result = (raw % x as u64) as u32 + 1;
+        if self.tracing {
+            self.trace.push(nh_rng::RngTraceEntry {
+                seq: self.call_count - 1,
+                func: "rnd",
+                arg: x as u64,
+                result: result as u64,
+                raw,
+            });
+        }
+        result
     }
 }
 

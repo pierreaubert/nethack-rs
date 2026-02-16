@@ -1,5 +1,5 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     "crates/nh-core",
     "crates/nh-tui",
@@ -8,13 +8,18 @@ members = [
     "crates/nh-bevy",
     "crates/nh-player",
     "crates/nh-assets",
+    "crates/nh-rng",
 ]
-# Note: crates/nh-polkadot is NOT a workspace member.
-# It requires a nightly toolchain and custom RISC-V target (PolkaVM).
-# Build it independently: cd crates/nh-polkadot && cargo build --release
+
+exclude = [
+  # Note: crates/nh-polkadot is NOT a workspace member.
+  "crates/nh-polkadot",
+  # It requires a nightly toolchain and custom RISC-V target (PolkaVM).
+  # Build it independently: cd crates/nh-polkadot && cargo build --release
+]
 
 [workspace.package]
-version = "0.1.11"
+version = "0.1.13"
 edition = "2024"
 license = "MIT"
 rust-version = "1.93"
@@ -27,6 +32,7 @@ nh-test = { path = "crates/nh-test" }
 nh-compare = { path = "crates/nh-compare" }
 nh-player = { path = "crates/nh-player" }
 nh-assets = { path = "crates/nh-assets" }
+nh-rng = { path = "crates/nh-rng" }
 
 # UI
 ratatui = "0.29"

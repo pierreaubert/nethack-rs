@@ -13,7 +13,7 @@ To modernize the classic roguelike NetHack by porting it to Rust, providing a ro
 - **Blockchain Developers:** Users interested in decentralized gaming and smart contract-based roguelike mechanics.
 
 ## Core Goals
-- **Feature & Bug Parity:** Achieve 100% functional compatibility with NetHack 3.6.x.
+- **Feature & Bug Parity:** Achieve 100% functional compatibility with NetHack 3.6.x, verified via automated turn-by-turn comparison with the original C engine.
 - **Modular Architecture:** Strictly separate game logic (the "engine") from input/output interfaces.
 - **Performance & Scalability:** Optimize for high-speed simulations and AI training environments.
 - **WASM & Smart Contract Readiness:** Ensure the core engine can compile to WebAssembly and execute within the constraints of a Polkadot smart contract (ink!).

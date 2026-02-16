@@ -1,0 +1,10 @@
+[package]
+name = "nh-rng"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+rand = "0.8"

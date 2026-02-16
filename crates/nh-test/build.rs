@@ -26,9 +26,8 @@ fn main() {
 
         // HACKDIR must match the installed NetHack data directory
         // (normally set by the NetHack Makefile via -DHACKDIR=...)
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/pierre".to_string());
-        let hackdir = format!("\"{}\"", std::path::PathBuf::from(&home).join("nethackdir").display());
-        builder.define("HACKDIR", Some(hackdir.as_str()));
+        let hackdir = "\"/Users/pierre/src/games/NetHack-3.6.7/dat\"";
+        builder.define("HACKDIR", Some(hackdir));
         // C99 compatibility for bool type
         builder.define("__STDC_VERSION__", Some("199901L"));
 
@@ -37,13 +36,13 @@ fn main() {
 
         // Compile the FFI wrapper
         builder.file(nethack_src.join("nethack_ffi.c"));
-        builder.compile("nethack_c");
+        builder.compile("nethack_ffi");
 
         // Link against ncurses for terminal functions
         println!("cargo:rustc-link-lib=ncurses");
 
-        // Link against existing NetHack object files
-        // We skip unixmain.o to avoid duplicate 'main' symbol
+        // Collect all NetHack object files
+        let mut all_objs = Vec::new();
         let obj_files = std::fs::read_dir(&real_nethack_src).unwrap();
         for entry in obj_files {
             let entry = entry.unwrap();
@@ -51,10 +50,28 @@ fn main() {
             if path.extension().map_or(false, |ext| ext == "o") {
                 let file_name = path.file_name().unwrap().to_str().unwrap();
                 if file_name != "unixmain.o" && file_name != "nethack_ffi.o" {
-                    println!("cargo:rustc-link-arg={}", path.display());
+                    all_objs.push(path);
                 }
             }
         }
+
+        // Create a static library containing all these objects using 'ar'
+        let out_dir = std::env::var("OUT_DIR").unwrap();
+        let lib_path = std::path::PathBuf::from(&out_dir).join("libnethack_full.a");
+        
+        let mut ar_cmd = std::process::Command::new("ar");
+        ar_cmd.arg("crs").arg(&lib_path);
+        for obj in all_objs {
+            ar_cmd.arg(obj);
+        }
+        
+        let status = ar_cmd.status().expect("failed to execute ar");
+        if !status.success() {
+            panic!("ar command failed with status: {}", status);
+        }
+
+        println!("cargo:rustc-link-search=native={}", out_dir);
+        println!("cargo:rustc-link-lib=static=nethack_full");
     } else {
         println!("Building standalone NetHack FFI stub");
 

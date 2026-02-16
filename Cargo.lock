@@ -3948,7 +3948,7 @@ dependencies = [
 
 [[package]]
 name = "nh-bevy"
-version = "0.1.11"
+version = "0.1.13"
 dependencies = [
  "bevy",
  "bevy_egui",
@@ -3960,7 +3960,7 @@ dependencies = [
 
 [[package]]
 name = "nh-compare"
-version = "0.1.11"
+version = "0.1.13"
 dependencies = [
  "nh-core",
  "nh-test",
@@ -3969,7 +3969,7 @@ dependencies = [
 
 [[package]]
 name = "nh-core"
-version = "0.1.11"
+version = "0.1.13"
 dependencies = [
  "atty",
  "bitflags 2.10.0",
@@ -3978,6 +3978,7 @@ dependencies = [
  "flate2",
  "getrandom 0.2.17",
  "hashbrown 0.15.5",
+ "nh-rng",
  "parity-scale-codec",
  "proptest",
  "rand 0.8.5",
@@ -3990,7 +3991,7 @@ dependencies = [
 
 [[package]]
 name = "nh-player"
-version = "0.1.11"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "candle-core",
@@ -4014,8 +4015,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nh-rng"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "rand 0.8.5",
+ "serde",
+]
+
+[[package]]
 name = "nh-test"
-version = "0.1.11"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "candle-core",
@@ -4028,6 +4038,7 @@ dependencies = [
  "nalgebra",
  "ndarray",
  "nh-core",
+ "nh-rng",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "regex",
@@ -4040,7 +4051,7 @@ dependencies = [
 
 [[package]]
 name = "nh-tui"
-version = "0.1.11"
+version = "0.1.13"
 dependencies = [
  "clap",
  "crossterm",

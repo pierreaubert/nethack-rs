@@ -18,5 +18,6 @@
 ## Key Libraries & Utilities
 - **Serialization:** `serde` for save-game and configuration management.
 - **CLI Framework:** `clap` for managing simulation and player parameters.
-- **Randomness:** `rand` and `rand_chacha` for deterministic game seeds.
+- **Randomness:** `nh-rng` (ISAAC64) for precise behavioral parity with NetHack 3.6.x, plus `rand` and `rand_chacha` for general purposes.
+- **Verification:** `nh-compare` automated integration suite for turn-by-turn C vs Rust behavioral parity testing.
 - **Error Handling:** `thiserror` and `strum` for robust and idiomatic Rust patterns.

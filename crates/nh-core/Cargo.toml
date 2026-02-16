@@ -29,6 +29,7 @@ thiserror = { workspace = true, default-features = false }
 strum = { workspace = true, default-features = false }
 rand = { workspace = true, default-features = false }
 rand_chacha.workspace = true
+nh-rng = { workspace = true }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 hashbrown = { version = "0.15", features = ["serde"] }
 

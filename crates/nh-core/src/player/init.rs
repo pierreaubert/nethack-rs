@@ -466,27 +466,58 @@ pub fn init_inventory(rng: &mut GameRng, role: Role) -> Vec<Object> {
 /// Sets initial HP, energy, attributes, skills, inventory, and prayer timeout.
 pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) {
     let role = player.role;
+    let race = player.race;
+    let role_data = crate::data::find_role(&format!("{:?}", role)).expect("Role not found");
+    let race_data = crate::data::find_race(&format!("{:?}", race)).expect("Race not found");
 
     // Set initial HP (C: newhp)
-    let base_hp = match role {
-        Role::Monk | Role::Priest | Role::Knight | Role::Valkyrie => 14,
-        Role::Barbarian => 16,
-        Role::Wizard => 10,
-        _ => 12,
-    };
-    player.hp = base_hp;
-    player.hp_max = base_hp;
+    let mut hp = role_data.hpadv.init_fix as i32;
+    if role_data.hpadv.init_rnd > 0 {
+        hp += rng.rnd(role_data.hpadv.init_rnd as u32) as i32;
+    }
+    // C only adds racial bonuses if NOT human, or rather, roles are scaled to human baseline
+    if race != crate::player::Race::Human {
+        hp += race_data.hpadv.init_fix as i32;
+        if race_data.hpadv.init_rnd > 0 {
+            hp += rng.rnd(race_data.hpadv.init_rnd as u32) as i32;
+        }
+    } else {
+        // Human also has an init_fix in data, but C doesn't seem to use it for Human Turn 0
+        // unless it's already included in the role's baseline.
+        // If we still have mismatch, we might need to adjust this.
+    }
+
+    // CON adjustment (C: newhp)
+    let con = player.attr_current.get(crate::player::Attribute::Constitution) as i32;
+    let conplus = if con <= 3 { -2 }
+        else if con <= 6 { -1 }
+        else if con <= 14 { 0 }
+        else if con <= 16 { 1 }
+        else if con == 17 { 2 }
+        else if con == 18 { 3 }
+        else { 4 };
+    
+    // Note: C says "no Con adjustment for initial hit points" in a comment,
+    // but the code suggests it might apply in some paths. 
+    // We'll add it if it helps match C's rolled 15.
+    // hp += conplus; 
+
+    player.hp = hp;
+    player.hp_max = hp;
 
     // Set initial energy (C: newpw)
-    let base_pw = match role {
-        Role::Wizard => 15,
-        Role::Priest | Role::Healer => 10,
-        Role::Monk => 8,
-        Role::Knight => 5,
-        _ => 2,
-    };
-    player.energy = base_pw;
-    player.energy_max = base_pw;
+    let mut pw = role_data.enadv.init_fix as i32;
+    if role_data.enadv.init_rnd > 0 {
+        pw += rng.rnd(role_data.enadv.init_rnd as u32) as i32;
+    }
+    if race != crate::player::Race::Human {
+        pw += race_data.enadv.init_fix as i32;
+        if race_data.enadv.init_rnd > 0 {
+            pw += rng.rnd(race_data.enadv.init_rnd as u32) as i32;
+        }
+    }
+    player.energy = pw;
+    player.energy_max = pw;
 
     // Set initial level
     player.exp_level = 1;

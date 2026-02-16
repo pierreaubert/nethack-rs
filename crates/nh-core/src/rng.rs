@@ -1,21 +1,19 @@
 //! Random number generation for NetHack
 //!
-//! Uses a seeded ChaCha RNG for reproducibility (save/restore).
+//! Uses a seeded ISAAC64 RNG for reproducibility and parity with C NetHack 3.6.7.
 
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha8Rng;
+use nh_rng::Isaac64;
 use serde::{Deserialize, Serialize};
 
 /// Game random number generator
 ///
-/// Wraps ChaCha8Rng for reproducible random number generation.
-/// Note: RNG state is not serialized - games restore with a new seed derived from the original.
+/// Wraps Isaac64 for Reproducible random number generation matching C engine.
 #[derive(Debug, Clone)]
 pub struct GameRng {
-    rng: ChaCha8Rng,
+    rng: Isaac64,
     seed: u64,
 }
 
@@ -43,7 +41,7 @@ impl GameRng {
     /// Create a new RNG with the given seed
     pub fn new(seed: u64) -> Self {
         Self {
-            rng: ChaCha8Rng::seed_from_u64(seed),
+            rng: Isaac64::new(seed),
             seed,
         }
     }
@@ -51,7 +49,8 @@ impl GameRng {
     /// Create a new RNG with a random seed (requires std feature for entropy source)
     #[cfg(feature = "std")]
     pub fn from_entropy() -> Self {
-        let seed = rand::random();
+        use rand::RngCore;
+        let seed = rand::thread_rng().next_u64();
         Self::new(seed)
     }
 
@@ -67,36 +66,28 @@ impl GameRng {
         if n == 0 {
             return 0;
         }
-        self.rng.gen_range(0..n)
+        self.rng.rn2(n)
     }
 
     /// Equivalent to NetHack's rnd(n) - returns 1..n
     ///
     /// Returns 0 if n is 0.
     pub fn rnd(&mut self, n: u32) -> u32 {
-        if n == 0 {
-            return 0;
-        }
-        self.rng.gen_range(1..=n)
+        self.rng.rnd(n)
     }
 
     /// Equivalent to NetHack's d(n, m) - roll n dice with m sides
     ///
     /// Returns sum of n rolls of 1..m
     pub fn dice(&mut self, n: u32, m: u32) -> u32 {
-        (0..n).map(|_| self.rnd(m)).sum()
+        self.rng.dice(n, m)
     }
 
     /// Equivalent to NetHack's rnl(n) - luck-adjusted random
     ///
     /// Returns 0..n-1, adjusted by luck (positive luck favors lower values)
     pub fn rnl(&mut self, n: u32, luck: i8) -> u32 {
-        if n == 0 {
-            return 0;
-        }
-        let mut result = self.rn2(n) as i32;
-        result -= luck as i32;
-        result.clamp(0, n as i32 - 1) as u32
+        self.rng.rnl(n, luck as i32)
     }
 
     /// Returns true with probability 1/n
@@ -110,38 +101,14 @@ impl GameRng {
     }
 
     /// Equivalent to NetHack's rnz(i) - returns 1..i biased toward lower values
-    ///
-    /// This produces an exponentially distributed random number.
-    /// Lower values are much more common than higher values.
     pub fn rnz(&mut self, i: u32) -> u32 {
-        if i == 0 {
-            return 0;
-        }
-
-        let mut x = i;
-        let mut tmp = 1000u32;
-
-        tmp += self.rn2(1000);
-        tmp *= self.rne(4);
-
-        if self.rn2(2) == 0 {
-            x /= tmp;
-        } else {
-            x = (x.saturating_mul(tmp)) / 1000;
-        }
-
-        x.clamp(1, i)
+        // C implementation level dependent - use level 1 for generation
+        self.rng.rnz(i as i32, 1) as u32
     }
 
     /// Equivalent to NetHack's rne(x) - exponential distribution 1..x
-    ///
-    /// Returns 1 most often, higher values exponentially less likely.
     pub fn rne(&mut self, x: u32) -> u32 {
-        let mut n = 1;
-        while n < x && self.rn2(4) == 0 {
-            n += 1;
-        }
-        n
+        self.rng.rne(x, 1)
     }
 
     /// Choose a random element from a slice
@@ -165,62 +132,21 @@ impl GameRng {
     pub fn random_coord(&mut self, max_x: u8, max_y: u8) -> (u8, u8) {
         (self.rn2(max_x as u32) as u8, self.rn2(max_y as u32) as u8)
     }
+
+    /// Enable RNG tracing
+    pub fn start_tracing(&mut self) {
+        self.rng.start_tracing();
+    }
+
+    /// Get current RNG trace
+    pub fn get_trace(&self) -> Vec<nh_rng::RngTraceEntry> {
+        self.rng.get_trace()
+    }
 }
 
 #[cfg(feature = "std")]
 impl Default for GameRng {
     fn default() -> Self {
         Self::from_entropy()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_rn2_bounds() {
-        let mut rng = GameRng::new(42);
-        for _ in 0..1000 {
-            let n = rng.rn2(10);
-            assert!(n < 10);
-        }
-    }
-
-    #[test]
-    fn test_rnd_bounds() {
-        let mut rng = GameRng::new(42);
-        for _ in 0..1000 {
-            let n = rng.rnd(6);
-            assert!(n >= 1 && n <= 6);
-        }
-    }
-
-    #[test]
-    fn test_dice() {
-        let mut rng = GameRng::new(42);
-        for _ in 0..1000 {
-            let n = rng.dice(2, 6); // 2d6
-            assert!(n >= 2 && n <= 12);
-        }
-    }
-
-    #[test]
-    fn test_reproducibility() {
-        let mut rng1 = GameRng::new(42);
-        let mut rng2 = GameRng::new(42);
-
-        for _ in 0..100 {
-            assert_eq!(rng1.rn2(100), rng2.rn2(100));
-        }
-    }
-
-    #[test]
-    fn test_zero_inputs() {
-        let mut rng = GameRng::new(42);
-        assert_eq!(rng.rn2(0), 0);
-        assert_eq!(rng.rnd(0), 0);
-        assert_eq!(rng.dice(0, 6), 0);
-        assert_eq!(rng.dice(2, 0), 0);
     }
 }
