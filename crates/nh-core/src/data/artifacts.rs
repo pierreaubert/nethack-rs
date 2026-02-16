@@ -347,7 +347,7 @@ pub static ARTIFACTS: &[Artifact] = &[
     // Orcrist - Elven sword that warns of orcs
     Artifact {
         name: "Orcrist",
-        otyp: ObjectType::ElvenBroadSword,
+        otyp: ObjectType::ElvenBroadsword,
         spfx: spfx(&[ArtifactFlags::WARN, ArtifactFlags::DFLAG2]),
         cspfx: ArtifactFlags::NONE,
         mtype: M2_ORC,
@@ -444,7 +444,7 @@ pub static ARTIFACTS: &[Artifact] = &[
     // Dragonbane
     Artifact {
         name: "Dragonbane",
-        otyp: ObjectType::BroadSword,
+        otyp: ObjectType::Broadsword,
         spfx: spfx(&[
             ArtifactFlags::RESTR,
             ArtifactFlags::DCLAS,
@@ -751,7 +751,7 @@ pub static ARTIFACTS: &[Artifact] = &[
     // The Mitre of Holiness - Priest's quest artifact
     Artifact {
         name: "The Mitre of Holiness",
-        otyp: ObjectType::HelmOfBrilliancE,
+        otyp: ObjectType::HelmOfBrilliance,
         spfx: spfx(&[
             ArtifactFlags::NOGEN,
             ArtifactFlags::RESTR,

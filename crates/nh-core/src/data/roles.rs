@@ -224,10 +224,10 @@ pub struct Race {
 static ARCHEOLOGIST_ITEMS: &[StartingItem] = &[
     StartingItem::item(ObjectType::Boomerang, 2, 1, UNDEF_BLESS), // Bullwhip placeholder
     StartingItem::item(ObjectType::LeatherJacket, 0, 1, UNDEF_BLESS),
-    StartingItem::item(ObjectType::FedoraHat, 0, 1, UNDEF_BLESS),
+    StartingItem::item(ObjectType::Fedora, 0, 1, UNDEF_BLESS),
     StartingItem::item(ObjectType::FoodRation, 0, 3, 0),
     StartingItem::item(ObjectType::PickAxe, UNDEF_SPE, 1, UNDEF_BLESS),
-    StartingItem::item(ObjectType::Tinning, UNDEF_SPE, 1, UNDEF_BLESS),
+    StartingItem::item(ObjectType::TinningKit, UNDEF_SPE, 1, UNDEF_BLESS),
     StartingItem::item(ObjectType::Touchstone, 0, 1, 0),
     StartingItem::item(ObjectType::Sack, 0, 1, 0),
 ];
@@ -251,12 +251,12 @@ static HEALER_ITEMS: &[StartingItem] = &[
     StartingItem::item(ObjectType::Scalpel, 0, 1, UNDEF_BLESS),
     StartingItem::item(ObjectType::LeatherGloves, 1, 1, UNDEF_BLESS),
     StartingItem::item(ObjectType::Stethoscope, 0, 1, 0),
-    StartingItem::item(ObjectType::PotionOfHealing, 0, 4, UNDEF_BLESS),
-    StartingItem::item(ObjectType::PotionOfExtraHealing, 0, 4, UNDEF_BLESS),
-    StartingItem::item(ObjectType::WandOfSleep, UNDEF_SPE, 1, UNDEF_BLESS),
-    StartingItem::item(ObjectType::SpellbookOfHealing, 0, 1, 1),
-    StartingItem::item(ObjectType::SpellbookOfExtraHealing, 0, 1, 1),
-    StartingItem::item(ObjectType::SpellbookOfStoneSkin, 0, 1, 1), // Stone to flesh placeholder
+    StartingItem::item(ObjectType::Healing, 0, 4, UNDEF_BLESS),
+    StartingItem::item(ObjectType::ExtraHealing, 0, 4, UNDEF_BLESS),
+    StartingItem::item(ObjectType::Sleep, UNDEF_SPE, 1, UNDEF_BLESS),
+    StartingItem::item(ObjectType::Healing, 0, 1, 1),
+    StartingItem::item(ObjectType::ExtraHealing, 0, 1, 1),
+    StartingItem::item(ObjectType::StoneToFlesh, 0, 1, 1), // Stone to flesh placeholder
     StartingItem::item(ObjectType::Apple, 0, 5, 0),
 ];
 
@@ -276,7 +276,7 @@ static MONK_ITEMS: &[StartingItem] = &[
     StartingItem::item(ObjectType::Robe, 1, 1, UNDEF_BLESS),
     StartingItem::new(None, UNDEF_SPE, 1, 1), // Random spellbook
     StartingItem::new(None, UNDEF_SPE, 1, UNDEF_BLESS), // Random scroll
-    StartingItem::item(ObjectType::PotionOfHealing, 0, 3, UNDEF_BLESS),
+    StartingItem::item(ObjectType::Healing, 0, 3, UNDEF_BLESS),
     StartingItem::item(ObjectType::FoodRation, 0, 3, 0),
     StartingItem::item(ObjectType::Apple, 0, 5, UNDEF_BLESS),
     StartingItem::item(ObjectType::Orange, 0, 5, UNDEF_BLESS),
@@ -286,9 +286,9 @@ static PRIEST_ITEMS: &[StartingItem] = &[
     StartingItem::item(ObjectType::Mace, 1, 1, 1),
     StartingItem::item(ObjectType::Robe, 0, 1, UNDEF_BLESS),
     StartingItem::item(ObjectType::SmallShield, 0, 1, UNDEF_BLESS),
-    StartingItem::item(ObjectType::PotionOfWater, 0, 4, 1), // Holy water
-    StartingItem::item(ObjectType::Clove, 0, 1, 0),         // Garlic
-    StartingItem::item(ObjectType::Sprig, 0, 1, 0),         // Wolfsbane
+    StartingItem::item(ObjectType::Water, 0, 4, 1), // Holy water
+    StartingItem::item(ObjectType::CloveOfGarlic, 0, 1, 0),         // Garlic
+    StartingItem::item(ObjectType::SprigOfWolfsbane, 0, 1, 0),         // Wolfsbane
     StartingItem::new(None, UNDEF_SPE, 2, UNDEF_BLESS),     // Random spellbooks
 ];
 
@@ -298,14 +298,14 @@ static RANGER_ITEMS: &[StartingItem] = &[
     StartingItem::item(ObjectType::Arrow, 2, 50, UNDEF_BLESS),
     StartingItem::item(ObjectType::Arrow, 0, 30, UNDEF_BLESS),
     StartingItem::item(ObjectType::CloakOfDisplacement, 2, 1, UNDEF_BLESS),
-    StartingItem::item(ObjectType::Cram, 0, 4, 0),
+    StartingItem::item(ObjectType::CramRation, 0, 4, 0),
 ];
 
 static ROGUE_ITEMS: &[StartingItem] = &[
     StartingItem::item(ObjectType::ShortSword, 0, 1, UNDEF_BLESS),
     StartingItem::item(ObjectType::Dagger, 0, 10, 0),
     StartingItem::item(ObjectType::LeatherArmor, 1, 1, UNDEF_BLESS),
-    StartingItem::item(ObjectType::PotionOfSickness, 0, 1, 0),
+    StartingItem::item(ObjectType::Sickness, 0, 1, 0),
     StartingItem::item(ObjectType::LockPick, 0, 1, 0),
     StartingItem::item(ObjectType::Sack, 0, 1, 0),
 ];
@@ -319,13 +319,21 @@ static SAMURAI_ITEMS: &[StartingItem] = &[
 ];
 
 static TOURIST_ITEMS: &[StartingItem] = &[
+
     StartingItem::item(ObjectType::Dart, 2, 25, UNDEF_BLESS),
-    StartingItem::new(None, UNDEF_SPE, 10, 0), // Random food
-    StartingItem::item(ObjectType::PotionOfExtraHealing, 0, 2, UNDEF_BLESS),
-    StartingItem::item(ObjectType::ScrollOfMagicMapping, 0, 4, UNDEF_BLESS),
+
+    StartingItem::new(None, UNDEF_SPE, 10, 0),        // Random food
+
+    StartingItem::item(ObjectType::ExtraHealing, 0, 2, UNDEF_BLESS),
+
+    StartingItem::item(ObjectType::MagicMapping, 0, 4, UNDEF_BLESS),
+
     StartingItem::item(ObjectType::HawaiianShirt, 0, 1, UNDEF_BLESS),
+
     StartingItem::item(ObjectType::ExpensiveCamera, UNDEF_SPE, 1, 0),
+
     StartingItem::item(ObjectType::CreditCard, 0, 1, 0),
+
 ];
 
 static VALKYRIE_ITEMS: &[StartingItem] = &[
@@ -342,7 +350,7 @@ static WIZARD_ITEMS: &[StartingItem] = &[
     StartingItem::new(None, UNDEF_SPE, 2, UNDEF_BLESS), // Random rings
     StartingItem::new(None, UNDEF_SPE, 3, UNDEF_BLESS), // Random potions
     StartingItem::new(None, UNDEF_SPE, 3, UNDEF_BLESS), // Random scrolls
-    StartingItem::item(ObjectType::SpellbookOfForceBolt, 0, 1, 1),
+    StartingItem::item(ObjectType::ForceBolt, 0, 1, 1),
     StartingItem::new(None, UNDEF_SPE, 1, UNDEF_BLESS), // Random spellbook
 ];
 

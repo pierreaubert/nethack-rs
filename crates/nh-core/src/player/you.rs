@@ -1956,69 +1956,88 @@ pub fn losexp(player: &mut You, fraction_string: Option<&str>) {
 
 /// Calculate new HP gain for level up (newhp equivalent)
 pub fn newhp(player: &You, rng: &mut crate::GameRng) -> i32 {
+    let role_data = crate::data::roles::find_role(&format!("{:?}", player.role)).unwrap();
+    let race_data = crate::data::roles::find_race(&format!("{:?}", player.race)).unwrap();
+
     let mut hp = 0i32;
 
-    if player.exp_level == 1 {
+    if player.exp_level <= 1 {
         // Initial HP: fixed + role/race + random component
-        hp += 10; // Base HD
-    // In full implementation: urole.hpadv.infix + urace.hpadv.infix
-    // Plus: rnd(urole.hpadv.inrnd) + rnd(urace.hpadv.inrnd)
-    } else if player.exp_level < 30 {
-        // Normal level: fixed + random
-        hp += 8; // Typical
-        hp += rng.rn2(4) as i32; // Random 0-3
+        hp += role_data.hpadv.init_fix as i32;
+        if role_data.hpadv.init_rnd > 0 {
+            hp += rng.rnd(role_data.hpadv.init_rnd as u32) as i32;
+        }
+        hp += race_data.hpadv.init_fix as i32;
+        if race_data.hpadv.init_rnd > 0 {
+            hp += rng.rnd(race_data.hpadv.init_rnd as u32) as i32;
+        }
+    } else if player.exp_level < role_data.xlev as i32 {
+        // Low level: lofix + rnd(lornd)
+        hp += role_data.hpadv.low_fix as i32;
+        if role_data.hpadv.low_rnd > 0 {
+            hp += rng.rnd(role_data.hpadv.low_rnd as u32) as i32;
+        }
+        hp += race_data.hpadv.low_fix as i32;
+        if race_data.hpadv.low_rnd > 0 {
+            hp += rng.rnd(race_data.hpadv.low_rnd as u32) as i32;
+        }
     } else {
-        // High level: smaller gains
-        hp += 3;
+        // High level: hifix + rnd(hirnd)
+        hp += role_data.hpadv.high_fix as i32;
+        if role_data.hpadv.high_rnd > 0 {
+            hp += rng.rnd(role_data.hpadv.high_rnd as u32) as i32;
+        }
+        hp += race_data.hpadv.high_fix as i32;
+        if race_data.hpadv.high_rnd > 0 {
+            hp += rng.rnd(race_data.hpadv.high_rnd as u32) as i32;
+        }
     }
 
-    // Adjust for constitution
-    let con_attr = player
-        .attr_current
-        .get(crate::player::Attribute::Constitution) as i32;
-    let con_bonus = if con_attr <= 3 {
-        -2
-    } else if con_attr <= 6 {
-        -1
-    } else if con_attr <= 14 {
-        0
-    } else if con_attr <= 16 {
-        1
-    } else if con_attr == 17 {
-        2
-    } else if con_attr == 18 {
-        3
-    } else {
-        4
-    };
-
-    hp += con_bonus;
+    // Adjust for constitution (C: only if level > 0, newhp() handles it via u.ulevel check)
+    if player.exp_level >= 1 {
+        hp += player.attr_current.constitution_hp_bonus() as i32;
+    }
     hp.max(1)
 }
 
 /// Calculate new magic energy/power for level up (newpw equivalent)
 pub fn newpw(player: &You, rng: &mut crate::GameRng) -> i32 {
+    let role_data = crate::data::roles::find_role(&format!("{:?}", player.role)).unwrap();
+    let race_data = crate::data::roles::find_race(&format!("{:?}", player.race)).unwrap();
+
     let mut en = 0i32;
 
-    if player.exp_level == 1 {
+    if player.exp_level <= 1 {
         // Initial energy: fixed + role/race + random
-        en += 5; // Base
+        en += role_data.enadv.init_fix as i32;
+        if role_data.enadv.init_rnd > 0 {
+            en += rng.rnd(role_data.enadv.init_rnd as u32) as i32;
+        }
+        en += race_data.enadv.init_fix as i32;
+        if race_data.enadv.init_rnd > 0 {
+            en += rng.rnd(race_data.enadv.init_rnd as u32) as i32;
+        }
+    } else if player.exp_level < role_data.xlev as i32 {
+        // Low level: lofix + rnd(lornd)
+        en += role_data.enadv.low_fix as i32;
+        if role_data.enadv.low_rnd > 0 {
+            en += rng.rnd(role_data.enadv.low_rnd as u32) as i32;
+        }
+        en += race_data.enadv.low_fix as i32;
+        if race_data.enadv.low_rnd > 0 {
+            en += rng.rnd(race_data.enadv.low_rnd as u32) as i32;
+        }
     } else {
-        // Energy gain based on wisdom and role
-        let wis_attr = player.attr_current.get(crate::player::Attribute::Wisdom) as i32;
-        let en_base = wis_attr / 2;
-
-        en += en_base;
-        en += rng.rn2(4) as i32;
+        // High level: hifix + rnd(hirnd)
+        en += role_data.enadv.high_fix as i32;
+        if role_data.enadv.high_rnd > 0 {
+            en += rng.rnd(role_data.enadv.high_rnd as u32) as i32;
+        }
+        en += race_data.enadv.high_fix as i32;
+        if race_data.enadv.high_rnd > 0 {
+            en += rng.rnd(race_data.enadv.high_rnd as u32) as i32;
+        }
     }
-
-    // Apply role modifier for spell-using classes
-    let en = match player.role {
-        Role::Priest | Role::Wizard => en * 2,       // Double energy
-        Role::Healer | Role::Knight => (en * 3) / 2, // 1.5x energy
-        Role::Barbarian | Role::Valkyrie => (en * 3) / 4, // 0.75x energy
-        _ => en,
-    };
 
     en.max(1)
 }

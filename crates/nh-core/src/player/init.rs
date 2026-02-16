@@ -7,7 +7,7 @@
 use crate::compat::*;
 
 use crate::object::{BucStatus, Object, ObjectClass};
-use crate::player::{Role, SkillLevel, SkillSet, SkillType};
+use crate::player::{Attribute, Attributes, Role, SkillLevel, SkillSet, SkillType, You};
 use crate::rng::GameRng;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,141 +44,141 @@ impl StartingItem {
 
 /// Archeologist starting inventory
 static ARCHEOLOGIST_INV: &[StartingItem] = &[
-    StartingItem::new(185, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),   // BULLWHIP
-    StartingItem::new(282, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_JACKET
-    StartingItem::new(268, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // FEDORA
-    StartingItem::new(346, 0, ObjectClass::Food, 3, 0),               // FOOD_RATION
-    StartingItem::new(193, UNDEF_SPE, ObjectClass::Tool, 1, UNDEF_BLESS), // PICK_AXE
-    StartingItem::new(208, UNDEF_SPE, ObjectClass::Tool, 1, UNDEF_BLESS), // TINNING_KIT
-    StartingItem::new(374, 0, ObjectClass::Gem, 1, 0),                // TOUCHSTONE
-    StartingItem::new(218, 0, ObjectClass::Tool, 1, 0),               // SACK
+    StartingItem::new(crate::data::objects::ObjectType::Bullwhip as i16, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),   // BULLWHIP
+    StartingItem::new(crate::data::objects::ObjectType::LeatherJacket as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_JACKET
+    StartingItem::new(crate::data::objects::ObjectType::Fedora as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // FEDORA
+    StartingItem::new(crate::data::objects::ObjectType::FoodRation as i16, 0, ObjectClass::Food, 3, 0),               // FOOD_RATION
+    StartingItem::new(crate::data::objects::ObjectType::PickAxe as i16, UNDEF_SPE, ObjectClass::Tool, 1, UNDEF_BLESS), // PICK_AXE
+    StartingItem::new(crate::data::objects::ObjectType::TinningKit as i16, UNDEF_SPE, ObjectClass::Tool, 1, UNDEF_BLESS), // TINNING_KIT
+    StartingItem::new(crate::data::objects::ObjectType::Touchstone as i16, 0, ObjectClass::Gem, 1, 0),                // TOUCHSTONE
+    StartingItem::new(crate::data::objects::ObjectType::Sack as i16, 0, ObjectClass::Tool, 1, 0),               // SACK
 ];
 
 /// Barbarian starting inventory
 static BARBARIAN_INV: &[StartingItem] = &[
-    StartingItem::new(153, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // TWO_HANDED_SWORD
-    StartingItem::new(148, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // AXE
-    StartingItem::new(275, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // RING_MAIL
-    StartingItem::new(346, 0, ObjectClass::Food, 1, 0),               // FOOD_RATION
+    StartingItem::new(crate::data::objects::ObjectType::TwoHandedSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // TWO_HANDED_SWORD
+    StartingItem::new(crate::data::objects::ObjectType::Axe as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // AXE
+    StartingItem::new(crate::data::objects::ObjectType::RingMail as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // RING_MAIL
+    StartingItem::new(crate::data::objects::ObjectType::FoodRation as i16, 0, ObjectClass::Food, 1, 0),               // FOOD_RATION
 ];
 
 /// Caveman starting inventory
 static CAVEMAN_INV: &[StartingItem] = &[
-    StartingItem::new(155, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // CLUB
-    StartingItem::new(163, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SLING
-    StartingItem::new(372, 0, ObjectClass::Gem, 15, UNDEF_BLESS),     // FLINT (qty variable)
-    StartingItem::new(373, 0, ObjectClass::Gem, 3, 0),                // ROCK
-    StartingItem::new(281, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_ARMOR
+    StartingItem::new(crate::data::objects::ObjectType::Club as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // CLUB
+    StartingItem::new(crate::data::objects::ObjectType::Sling as i16, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SLING
+    StartingItem::new(crate::data::objects::ObjectType::Flint as i16, 0, ObjectClass::Gem, 15, UNDEF_BLESS),     // FLINT (qty variable)
+    StartingItem::new(crate::data::objects::ObjectType::Rock as i16, 0, ObjectClass::Gem, 3, 0),                // ROCK
+    StartingItem::new(crate::data::objects::ObjectType::LeatherArmor as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_ARMOR
 ];
 
 /// Healer starting inventory
 static HEALER_INV: &[StartingItem] = &[
-    StartingItem::new(170, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SCALPEL
-    StartingItem::new(264, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
-    StartingItem::new(211, 0, ObjectClass::Tool, 1, 0),               // STETHOSCOPE
-    StartingItem::new(306, 0, ObjectClass::Potion, 4, UNDEF_BLESS),   // POT_HEALING
-    StartingItem::new(307, 0, ObjectClass::Potion, 4, UNDEF_BLESS),   // POT_EXTRA_HEALING
-    StartingItem::new(244, UNDEF_SPE, ObjectClass::Wand, 1, UNDEF_BLESS), // WAN_SLEEP
-    StartingItem::new(393, 0, ObjectClass::Spellbook, 1, 1),          // SPE_HEALING
-    StartingItem::new(394, 0, ObjectClass::Spellbook, 1, 1),          // SPE_EXTRA_HEALING
-    StartingItem::new(413, 0, ObjectClass::Spellbook, 1, 1),          // SPE_STONE_TO_FLESH
-    StartingItem::new(338, 0, ObjectClass::Food, 5, 0),               // APPLE
+    StartingItem::new(crate::data::objects::ObjectType::Scalpel as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SCALPEL
+    StartingItem::new(crate::data::objects::ObjectType::LeatherGloves as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
+    StartingItem::new(crate::data::objects::ObjectType::Stethoscope as i16, 0, ObjectClass::Tool, 1, 0),               // STETHOSCOPE
+    StartingItem::new(crate::data::objects::ObjectType::Healing as i16, 0, ObjectClass::Potion, 4, UNDEF_BLESS),   // POT_HEALING
+    StartingItem::new(crate::data::objects::ObjectType::ExtraHealing as i16, 0, ObjectClass::Potion, 4, UNDEF_BLESS),   // POT_EXTRA_HEALING
+    StartingItem::new(crate::data::objects::ObjectType::Sleep as i16, UNDEF_SPE, ObjectClass::Wand, 1, UNDEF_BLESS), // WAN_SLEEP
+    StartingItem::new(crate::data::objects::ObjectType::Healing as i16, 0, ObjectClass::Spellbook, 1, 1),          // SPE_HEALING
+    StartingItem::new(crate::data::objects::ObjectType::ExtraHealing as i16, 0, ObjectClass::Spellbook, 1, 1),          // SPE_EXTRA_HEALING
+    StartingItem::new(crate::data::objects::ObjectType::StoneToFlesh as i16, 0, ObjectClass::Spellbook, 1, 1),          // SPE_STONE_TO_FLESH
+    StartingItem::new(crate::data::objects::ObjectType::Apple as i16, 0, ObjectClass::Food, 5, 0),               // APPLE
 ];
 
 /// Knight starting inventory
 static KNIGHT_INV: &[StartingItem] = &[
-    StartingItem::new(143, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LONG_SWORD
-    StartingItem::new(152, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LANCE
-    StartingItem::new(275, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // RING_MAIL
-    StartingItem::new(260, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // HELMET
-    StartingItem::new(258, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
-    StartingItem::new(264, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
-    StartingItem::new(338, 0, ObjectClass::Food, 10, 0),              // APPLE
-    StartingItem::new(339, 0, ObjectClass::Food, 10, 0),              // CARROT
+    StartingItem::new(crate::data::objects::ObjectType::LongSword as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LONG_SWORD
+    StartingItem::new(crate::data::objects::ObjectType::Lance as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LANCE
+    StartingItem::new(crate::data::objects::ObjectType::RingMail as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // RING_MAIL
+    StartingItem::new(crate::data::objects::ObjectType::Helmet as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // HELMET
+    StartingItem::new(crate::data::objects::ObjectType::SmallShield as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
+    StartingItem::new(crate::data::objects::ObjectType::LeatherGloves as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
+    StartingItem::new(crate::data::objects::ObjectType::Apple as i16, 0, ObjectClass::Food, 10, 0),              // APPLE
+    StartingItem::new(crate::data::objects::ObjectType::Carrot as i16, 0, ObjectClass::Food, 10, 0),              // CARROT
 ];
 
 /// Monk starting inventory
 static MONK_INV: &[StartingItem] = &[
-    StartingItem::new(264, 2, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
-    StartingItem::new(283, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // ROBE
-    StartingItem::new(0, UNDEF_SPE, ObjectClass::Spellbook, 1, 1),    // Random spellbook
-    StartingItem::new(0, UNDEF_SPE, ObjectClass::Scroll, 1, UNDEF_BLESS), // Random scroll
-    StartingItem::new(306, 0, ObjectClass::Potion, 3, UNDEF_BLESS),   // POT_HEALING
-    StartingItem::new(346, 0, ObjectClass::Food, 3, 0),               // FOOD_RATION
-    StartingItem::new(338, 0, ObjectClass::Food, 5, UNDEF_BLESS),     // APPLE
-    StartingItem::new(340, 0, ObjectClass::Food, 5, UNDEF_BLESS),     // ORANGE
-    StartingItem::new(353, 0, ObjectClass::Food, 3, UNDEF_BLESS),     // FORTUNE_COOKIE
+    StartingItem::new(crate::data::objects::ObjectType::LeatherGloves as i16, 2, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
+    StartingItem::new(crate::data::objects::ObjectType::Robe as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // ROBE
+    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Spellbook, 1, 1),    // Random spellbook
+    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Scroll, 1, UNDEF_BLESS), // Random scroll
+    StartingItem::new(crate::data::objects::ObjectType::Healing as i16, 0, ObjectClass::Potion, 3, UNDEF_BLESS),   // POT_HEALING
+    StartingItem::new(crate::data::objects::ObjectType::FoodRation as i16, 0, ObjectClass::Food, 3, 0),               // FOOD_RATION
+    StartingItem::new(crate::data::objects::ObjectType::Apple as i16, 0, ObjectClass::Food, 5, UNDEF_BLESS),     // APPLE
+    StartingItem::new(crate::data::objects::ObjectType::Orange as i16, 0, ObjectClass::Food, 5, UNDEF_BLESS),     // ORANGE
+    StartingItem::new(crate::data::objects::ObjectType::FortuneCookie as i16, 0, ObjectClass::Food, 3, UNDEF_BLESS),     // FORTUNE_COOKIE
 ];
 
 /// Priest starting inventory
 static PRIEST_INV: &[StartingItem] = &[
-    StartingItem::new(156, 1, ObjectClass::Weapon, 1, 1),             // MACE (blessed)
-    StartingItem::new(283, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // ROBE
-    StartingItem::new(258, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
-    StartingItem::new(311, 0, ObjectClass::Potion, 4, 1),             // POT_WATER (holy)
-    StartingItem::new(350, 0, ObjectClass::Food, 1, 0),               // CLOVE_OF_GARLIC
-    StartingItem::new(351, 0, ObjectClass::Food, 1, 0),               // SPRIG_OF_WOLFSBANE
-    StartingItem::new(0, UNDEF_SPE, ObjectClass::Spellbook, 2, UNDEF_BLESS), // Random spellbooks
+    StartingItem::new(crate::data::objects::ObjectType::Mace as i16, 1, ObjectClass::Weapon, 1, 1),             // MACE (blessed)
+    StartingItem::new(crate::data::objects::ObjectType::Robe as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // ROBE
+    StartingItem::new(crate::data::objects::ObjectType::SmallShield as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
+    StartingItem::new(crate::data::objects::ObjectType::Water as i16, 0, ObjectClass::Potion, 4, 1),             // POT_WATER (holy)
+    StartingItem::new(crate::data::objects::ObjectType::CloveOfGarlic as i16, 0, ObjectClass::Food, 1, 0),               // CLOVE_OF_GARLIC
+    StartingItem::new(crate::data::objects::ObjectType::SprigOfWolfsbane as i16, 0, ObjectClass::Food, 1, 0),               // SPRIG_OF_WOLFSBANE
+    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Spellbook, 2, UNDEF_BLESS), // Random spellbooks
 ];
 
 /// Ranger starting inventory
 static RANGER_INV: &[StartingItem] = &[
-    StartingItem::new(139, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // DAGGER
-    StartingItem::new(163, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // BOW
-    StartingItem::new(164, 2, ObjectClass::Weapon, 50, UNDEF_BLESS),  // ARROW (qty variable)
-    StartingItem::new(164, 0, ObjectClass::Weapon, 30, UNDEF_BLESS),  // ARROW
-    StartingItem::new(291, 2, ObjectClass::Armor, 1, UNDEF_BLESS),    // CLOAK_OF_DISPLACEMENT
-    StartingItem::new(347, 0, ObjectClass::Food, 4, 0),               // CRAM_RATION
+    StartingItem::new(crate::data::objects::ObjectType::Dagger as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // DAGGER
+    StartingItem::new(crate::data::objects::ObjectType::Bow as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // BOW
+    StartingItem::new(crate::data::objects::ObjectType::Arrow as i16, 2, ObjectClass::Weapon, 50, UNDEF_BLESS),  // ARROW (qty variable)
+    StartingItem::new(crate::data::objects::ObjectType::Arrow as i16, 0, ObjectClass::Weapon, 30, UNDEF_BLESS),  // ARROW
+    StartingItem::new(crate::data::objects::ObjectType::CloakOfDisplacement as i16, 2, ObjectClass::Armor, 1, UNDEF_BLESS),    // CLOAK_OF_DISPLACEMENT
+    StartingItem::new(crate::data::objects::ObjectType::CramRation as i16, 0, ObjectClass::Food, 4, 0),               // CRAM_RATION
 ];
 
 /// Rogue starting inventory
 static ROGUE_INV: &[StartingItem] = &[
-    StartingItem::new(141, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SHORT_SWORD
-    StartingItem::new(139, 0, ObjectClass::Weapon, 10, 0),            // DAGGER (qty variable)
-    StartingItem::new(281, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_ARMOR
-    StartingItem::new(320, 0, ObjectClass::Potion, 1, 0),             // POT_SICKNESS
-    StartingItem::new(221, 0, ObjectClass::Tool, 1, 0),               // LOCK_PICK
-    StartingItem::new(218, 0, ObjectClass::Tool, 1, 0),               // SACK
+    StartingItem::new(crate::data::objects::ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SHORT_SWORD
+    StartingItem::new(crate::data::objects::ObjectType::Dagger as i16, 0, ObjectClass::Weapon, 10, 0),            // DAGGER (qty variable)
+    StartingItem::new(crate::data::objects::ObjectType::LeatherArmor as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_ARMOR
+    StartingItem::new(crate::data::objects::ObjectType::Sickness as i16, 0, ObjectClass::Potion, 1, 0),             // POT_SICKNESS
+    StartingItem::new(crate::data::objects::ObjectType::LockPick as i16, 0, ObjectClass::Tool, 1, 0),               // LOCK_PICK
+    StartingItem::new(crate::data::objects::ObjectType::Sack as i16, 0, ObjectClass::Tool, 1, 0),               // SACK
 ];
 
 /// Samurai starting inventory
 static SAMURAI_INV: &[StartingItem] = &[
-    StartingItem::new(144, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // KATANA
-    StartingItem::new(141, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SHORT_SWORD (wakizashi)
-    StartingItem::new(167, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // YUMI
-    StartingItem::new(168, 0, ObjectClass::Weapon, 25, UNDEF_BLESS),  // YA (qty variable)
-    StartingItem::new(276, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SPLINT_MAIL
+    StartingItem::new(crate::data::objects::ObjectType::Katana as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // KATANA
+    StartingItem::new(crate::data::objects::ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SHORT_SWORD (wakizashi)
+    StartingItem::new(crate::data::objects::ObjectType::Yumi as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // YUMI
+    StartingItem::new(crate::data::objects::ObjectType::Ya as i16, 0, ObjectClass::Weapon, 25, UNDEF_BLESS),  // YA (qty variable)
+    StartingItem::new(crate::data::objects::ObjectType::SplintMail as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SPLINT_MAIL
 ];
 
 /// Tourist starting inventory
 static TOURIST_INV: &[StartingItem] = &[
-    StartingItem::new(165, 2, ObjectClass::Weapon, 25, UNDEF_BLESS),  // DART (qty variable)
-    StartingItem::new(0, UNDEF_SPE, ObjectClass::Food, 10, 0),        // Random food
-    StartingItem::new(307, 0, ObjectClass::Potion, 2, UNDEF_BLESS),   // POT_EXTRA_HEALING
-    StartingItem::new(423, 0, ObjectClass::Scroll, 4, UNDEF_BLESS),   // SCR_MAGIC_MAPPING
-    StartingItem::new(284, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // HAWAIIAN_SHIRT
-    StartingItem::new(212, UNDEF_SPE, ObjectClass::Tool, 1, 0),       // EXPENSIVE_CAMERA
-    StartingItem::new(220, 0, ObjectClass::Tool, 1, 0),               // CREDIT_CARD
+    StartingItem::new(crate::data::objects::ObjectType::Dart as i16, 2, ObjectClass::Weapon, 25, UNDEF_BLESS),  // DART (qty variable)
+    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Food, 10, 0),        // Random food
+    StartingItem::new(crate::data::objects::ObjectType::ExtraHealing as i16, 0, ObjectClass::Potion, 2, UNDEF_BLESS),   // POT_EXTRA_HEALING
+    StartingItem::new(crate::data::objects::ObjectType::MagicMapping as i16, 0, ObjectClass::Scroll, 4, UNDEF_BLESS),   // SCR_MAGIC_MAPPING
+    StartingItem::new(crate::data::objects::ObjectType::HawaiianShirt as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // HAWAIIAN_SHIRT
+    StartingItem::new(crate::data::objects::ObjectType::ExpensiveCamera as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0),       // EXPENSIVE_CAMERA
+    StartingItem::new(crate::data::objects::ObjectType::CreditCard as i16, 0, ObjectClass::Tool, 1, 0),               // CREDIT_CARD
 ];
 
 /// Valkyrie starting inventory
 static VALKYRIE_INV: &[StartingItem] = &[
-    StartingItem::new(143, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LONG_SWORD
-    StartingItem::new(139, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // DAGGER
-    StartingItem::new(258, 3, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
-    StartingItem::new(346, 0, ObjectClass::Food, 1, 0),               // FOOD_RATION
+    StartingItem::new(crate::data::objects::ObjectType::LongSword as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LONG_SWORD
+    StartingItem::new(crate::data::objects::ObjectType::Dagger as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // DAGGER
+    StartingItem::new(crate::data::objects::ObjectType::SmallShield as i16, 3, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
+    StartingItem::new(crate::data::objects::ObjectType::FoodRation as i16, 0, ObjectClass::Food, 1, 0),               // FOOD_RATION
 ];
 
 /// Wizard starting inventory
 static WIZARD_INV: &[StartingItem] = &[
-    StartingItem::new(154, 1, ObjectClass::Weapon, 1, 1),             // QUARTERSTAFF (blessed)
-    StartingItem::new(293, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // CLOAK_OF_MAGIC_RESISTANCE
-    StartingItem::new(0, UNDEF_SPE, ObjectClass::Wand, 1, UNDEF_BLESS), // Random wand
-    StartingItem::new(0, UNDEF_SPE, ObjectClass::Ring, 2, UNDEF_BLESS), // Random rings
-    StartingItem::new(0, UNDEF_SPE, ObjectClass::Potion, 3, UNDEF_BLESS), // Random potions
-    StartingItem::new(0, UNDEF_SPE, ObjectClass::Scroll, 3, UNDEF_BLESS), // Random scrolls
-    StartingItem::new(395, 0, ObjectClass::Spellbook, 1, 1),          // SPE_FORCE_BOLT
-    StartingItem::new(0, UNDEF_SPE, ObjectClass::Spellbook, 1, UNDEF_BLESS), // Random spellbook
+    StartingItem::new(crate::data::objects::ObjectType::Quarterstaff as i16, 1, ObjectClass::Weapon, 1, 1),             // QUARTERSTAFF (blessed)
+    StartingItem::new(crate::data::objects::ObjectType::CloakOfMagicResistance as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // CLOAK_OF_MAGIC_RESISTANCE
+    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Wand, 1, UNDEF_BLESS), // Random wand
+    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Ring, 2, UNDEF_BLESS), // Random rings
+    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Potion, 3, UNDEF_BLESS), // Random potions
+    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Scroll, 3, UNDEF_BLESS), // Random scrolls
+    StartingItem::new(crate::data::objects::ObjectType::ForceBolt as i16, 0, ObjectClass::Spellbook, 1, 1),          // SPE_FORCE_BOLT
+    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Spellbook, 1, UNDEF_BLESS), // Random spellbook
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -461,67 +461,74 @@ pub fn init_inventory(rng: &mut GameRng, role: Role) -> Vec<Object> {
     inventory
 }
 
+/// Roll initial attributes (C: init_attr(75))
+fn roll_attributes(player: &mut You, rng: &mut GameRng) {
+    let role_data = crate::data::roles::find_role(&format!("{:?}", player.role)).unwrap();
+    let race_data = crate::data::roles::find_race(&format!("{:?}", player.race)).unwrap();
+
+    let mut np = 75i32;
+    let mut values = [0i8; 6];
+
+    // Initial base from role
+    for i in 0..6 {
+        values[i] = role_data.attrbase[i] as i8;
+        np -= values[i] as i32;
+    }
+
+    // Distribute remaining points based on role distribution
+    let mut try_count = 0;
+    while np > 0 && try_count < 100 {
+        let mut x = rng.rn2(100) as i32;
+        let mut i = 0;
+        while i < 6 {
+            x -= role_data.attrdist[i] as i32;
+            if x <= 0 {
+                break;
+            }
+            i += 1;
+        }
+        if i >= 6 {
+            continue;
+        }
+
+        // Check racial max
+        if values[i] >= race_data.attrmax[i] {
+            try_count += 1;
+            continue;
+        }
+
+        try_count = 0;
+        values[i] += 1;
+        np -= 1;
+    }
+
+    player.attr_current = Attributes::new(values);
+    player.attr_max = Attributes::new(values);
+
+    // Biased variation (C: u_init loop with rn2(20))
+    for i in 0..6 {
+        if rng.rn2(20) == 0 {
+            let xd = rng.rn2(7) as i8 - 2;
+            player.adjattrib(Attribute::from_index(i).unwrap(), xd);
+        }
+    }
+}
+
 /// Full player initialization (C: u_init)
 ///
 /// Sets initial HP, energy, attributes, skills, inventory, and prayer timeout.
-pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) {
+pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object> {
     let role = player.role;
-    let race = player.race;
-    let role_data = crate::data::find_role(&format!("{:?}", role)).expect("Role not found");
-    let race_data = crate::data::find_race(&format!("{:?}", race)).expect("Race not found");
 
-    // Set initial HP (C: newhp)
-    let mut hp = role_data.hpadv.init_fix as i32;
-    if role_data.hpadv.init_rnd > 0 {
-        hp += rng.rnd(role_data.hpadv.init_rnd as u32) as i32;
-    }
-    // C only adds racial bonuses if NOT human, or rather, roles are scaled to human baseline
-    if race != crate::player::Race::Human {
-        hp += race_data.hpadv.init_fix as i32;
-        if race_data.hpadv.init_rnd > 0 {
-            hp += rng.rnd(race_data.hpadv.init_rnd as u32) as i32;
-        }
-    } else {
-        // Human also has an init_fix in data, but C doesn't seem to use it for Human Turn 0
-        // unless it's already included in the role's baseline.
-        // If we still have mismatch, we might need to adjust this.
-    }
-
-    // CON adjustment (C: newhp)
-    let con = player.attr_current.get(crate::player::Attribute::Constitution) as i32;
-    let conplus = if con <= 3 { -2 }
-        else if con <= 6 { -1 }
-        else if con <= 14 { 0 }
-        else if con <= 16 { 1 }
-        else if con == 17 { 2 }
-        else if con == 18 { 3 }
-        else { 4 };
-    
-    // Note: C says "no Con adjustment for initial hit points" in a comment,
-    // but the code suggests it might apply in some paths. 
-    // We'll add it if it helps match C's rolled 15.
-    // hp += conplus; 
-
-    player.hp = hp;
-    player.hp_max = hp;
-
-    // Set initial energy (C: newpw)
-    let mut pw = role_data.enadv.init_fix as i32;
-    if role_data.enadv.init_rnd > 0 {
-        pw += rng.rnd(role_data.enadv.init_rnd as u32) as i32;
-    }
-    if race != crate::player::Race::Human {
-        pw += race_data.enadv.init_fix as i32;
-        if race_data.enadv.init_rnd > 0 {
-            pw += rng.rnd(race_data.enadv.init_rnd as u32) as i32;
-        }
-    }
-    player.energy = pw;
-    player.energy_max = pw;
-
-    // Set initial level
-    player.exp_level = 1;
-    player.max_exp_level = 1;
+    // Set initial HP and Energy (C: u_init calls newhp/newpw)
+    // We set ulevel=0 temporarily to trigger initial HP logic in newhp
+    let old_level = player.exp_level;
+    player.exp_level = 0;
+    player.hp_max = crate::player::you::newhp(player, rng);
+    player.hp = player.hp_max;
+    player.energy_max = crate::player::you::newpw(player, rng);
+    player.energy = player.energy_max;
+    player.exp_level = old_level;
 
     // Initialize skills
     init_skills(&mut player.skills, role);
@@ -544,6 +551,61 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) {
         Role::Tourist => player.gold = rng.rnd(1000) as i32,
         _ => {}
     }
+
+    // Initialize inventory (MATCHES C: role-specific ini_inv calls)
+    let mut inventory = Vec::new();
+    let mut next_id: u32 = 1;
+    let mut letter = b'a';
+
+    let base_items = starting_inventory(role);
+    for item in base_items {
+        let mut obj = make_starting_object(item, rng, &mut next_id);
+        obj.inv_letter = letter as char;
+        if letter < b'z' {
+            letter += 1;
+        }
+        inventory.push(obj);
+    }
+
+    // Role-specific extra items
+    match role {
+        Role::Archeologist => {
+            if rng.rn2(10) == 0 {
+                // Tinopener
+                let item = StartingItem::new(crate::data::objects::ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
+                let mut obj = make_starting_object(&item, rng, &mut next_id);
+                obj.inv_letter = letter as char;
+                if letter < b'z' {
+                    letter += 1;
+                }
+                inventory.push(obj);
+            } else if rng.rn2(4) == 0 {
+                // Lamp
+                let item = StartingItem::new(crate::data::objects::ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                let mut obj = make_starting_object(&item, rng, &mut next_id);
+                obj.inv_letter = letter as char;
+                if letter < b'z' {
+                    letter += 1;
+                }
+                inventory.push(obj);
+            } else if rng.rn2(10) == 0 {
+                // Magic marker
+                let item = StartingItem::new(crate::data::objects::ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                let mut obj = make_starting_object(&item, rng, &mut next_id);
+                obj.inv_letter = letter as char;
+                if letter < b'z' {
+                    letter += 1;
+                }
+                inventory.push(obj);
+            }
+        }
+        _ => {}
+    }
+
+    // Roll attributes (C: init_attr(75)) - happens after inventory in C
+    roll_attributes(player, rng);
+
+    inventory
 }
 
 /// Check if a spell discipline is restricted for the player's role (C: restricted_spell_discipline)
@@ -705,7 +767,7 @@ mod tests {
     fn test_make_starting_object_blessed() {
         let mut rng = GameRng::new(42);
         let mut next_id = 1;
-        let item = StartingItem::new(156, 1, ObjectClass::Weapon, 1, 1); // blessed mace
+        let item = StartingItem::new(crate::data::objects::ObjectType::Mace as i16, 1, ObjectClass::Weapon, 1, 1); // blessed mace
         let obj = make_starting_object(&item, &mut rng, &mut next_id);
         assert_eq!(obj.buc, BucStatus::Blessed);
         assert_eq!(obj.enchantment, 1);
@@ -715,7 +777,7 @@ mod tests {
     fn test_make_starting_object_uncursed() {
         let mut rng = GameRng::new(42);
         let mut next_id = 1;
-        let item = StartingItem::new(346, 0, ObjectClass::Food, 3, 0); // uncursed food
+        let item = StartingItem::new(crate::data::objects::ObjectType::Light as i16, 0, ObjectClass::Food, 3, 0); // uncursed food
         let obj = make_starting_object(&item, &mut rng, &mut next_id);
         assert_eq!(obj.buc, BucStatus::Uncursed);
         assert_eq!(obj.quantity, 3);
