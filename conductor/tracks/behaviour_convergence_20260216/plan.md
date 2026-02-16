@@ -15,7 +15,7 @@ This plan focuses on achieving functional parity between the Rust and C engines 
 ## Phase 2: Map Generation Parity (Core Algorithms) [checkpoint: P2-MAP]
 - [~] Task: Implement C engine process isolation (worker subprocess)
     - [x] Identify SIGABRT root cause (global state corruption in NetHack)
-    - [ ] Create `CGameEngineSubprocess` to handle FFI in a separate process
+    - [x] Create `CGameEngineSubprocess` to handle FFI in a separate process 1048e60
     - [ ] Update `nh-compare` to use subprocess-backed engine
 - [~] Task: Port `mklev.c` core room placement logic
     - [x] Add Map/Room JSON export to FFI
