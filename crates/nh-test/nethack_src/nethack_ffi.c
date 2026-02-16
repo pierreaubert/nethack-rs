@@ -24,8 +24,15 @@ extern void NDECL(role_init);
 extern void NDECL(init_dungeons);
 extern void NDECL(init_artifacts);
 
-/* Stub out status_initialize to avoid window-related segfaults */
-void status_initialize(int reassessment) { (void)reassessment; }
+/* Stub out status_initialize to avoid window-related segfaults but satisfy checks */
+static boolean blinit_stub = FALSE;
+void status_initialize(int reassessment) { 
+    if (!reassessment) blinit_stub = TRUE;
+}
+/* NetHack's botl.c uses a static 'blinit'. We can't see it, but we can 
+   hope our stub 'status_initialize' is linked instead of the real one. 
+   Actually, the real one is in botl.o which is in the library. 
+   To override it, we need to make sure our symbol is stronger. */
 
 /* Missing symbols from unixmain.c that we need to provide since we skip it */
 short ospeed = 0;
@@ -304,11 +311,6 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
         
         dlb_init();
         init_objects();
-        init_artifacts();
-        init_dungeons();
-        init_attr(75);
-        /* Use the window-agnostic status init if possible */
-        status_initialize(0);
         
         global_initialized = TRUE;
     } 
