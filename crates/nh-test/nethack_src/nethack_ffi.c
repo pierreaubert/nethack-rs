@@ -264,6 +264,33 @@ static char g_json_buffer[1024 * 1024]; /* 1MB for map/state serialization */
  * Implementations
  * ============================================================================ */
 
+/* Set current dungeon level */
+void nh_ffi_set_dlevel(int dnum, int dlevel) {
+    u.uz.dnum = dnum;
+    u.uz.dlevel = dlevel;
+}
+
+/* Force generation of a standard maze */
+void nh_ffi_generate_maze(void) {
+#ifdef REAL_NETHACK
+    fprintf(stderr, "FFI: nh_ffi_generate_maze()...\n");
+    
+    s_level *sp = Is_special(&u.uz);
+    if (sp) {
+        fprintf(stderr, "FFI: Is_special! proto=%s, rndlevs=%d\n", sp->proto, (int)sp->rndlevs);
+    }
+    
+    /* Setup level flags for maze */
+    level.flags.is_maze_lev = TRUE;
+    
+    makemaz("");
+    
+    fprintf(stderr, "FFI: nh_ffi_generate_maze() complete. is_maze_lev=%d, corrmaze=%d\n", 
+            level.flags.is_maze_lev, level.flags.corrmaze);
+    fflush(stderr);
+#endif
+}
+
 /* Cleanup globals to allow re-initialization */
 void nh_ffi_cleanup_globals(void) {
 #ifdef REAL_NETHACK
@@ -443,9 +470,18 @@ int nh_ffi_reset(unsigned long seed) {
 /* Generate a new level */
 int nh_ffi_generate_level(void) {
 #ifdef REAL_NETHACK
-    /* Reseed to match mklev expectation of fresh RNG if needed, 
-       but mklev already does reseed_random(rn2) */
+    fprintf(stderr, "FFI: nh_ffi_generate_level() ledger=%d, dnum=%d, dlevel=%d, name=%s...\n", 
+            ledger_no(&u.uz), u.uz.dnum, u.uz.dlevel, dungeons[u.uz.dnum].dname);
+    fflush(stderr);
+    
+    /* We can't easily hook internal of makemaz without modifying C code,
+       but we can check level.flags.is_maze_lev after it runs. */
+    
     mklev();
+    
+    fprintf(stderr, "FFI: nh_ffi_generate_level() complete. is_maze=%d, corrmaze=%d\n", 
+            level.flags.is_maze_lev, level.flags.corrmaze);
+    fflush(stderr);
     return 0;
 #else
     return 0;
@@ -456,6 +492,53 @@ int nh_ffi_generate_level(void) {
 int getbones(void) {
     return 0;
 }
+
+#ifdef REAL_NETHACK
+static const char* typ_name(int t) {
+    switch(t) {
+        case STONE: return "Stone";
+        case VWALL: return "VWall";
+        case HWALL: return "HWall";
+        case TLCORNER: return "TLCorner";
+        case TRCORNER: return "TRCorner";
+        case BLCORNER: return "BLCorner";
+        case BRCORNER: return "BRCorner";
+        case CROSSWALL: return "CrossWall";
+        case TUWALL: return "TUWall";
+        case TDWALL: return "TDWall";
+        case TLWALL: return "TLWall";
+        case TRWALL: return "TRWall";
+        case DBWALL: return "DBWall";
+        case SDOOR: return "SDoor";
+        case SCORR: return "SCorr";
+        case POOL: return "Pool";
+        case MOAT: return "Moat";
+        case WATER: return "Water";
+        case DRAWBRIDGE_UP: return "DrawbridgeUp";
+        case LAVAPOOL: return "LavaPool";
+        case IRONBARS: return "IronBars";
+        case DOOR: return "Door";
+        case STAIRS: return "Stairs";
+        case CORR: return "Corridor";
+        case ROOM: return "Room";
+        case AIR: return "Air";
+        case CLOUD: return "Cloud";
+        case ICE: return "Ice";
+        case FOUNTAIN: return "Fountain";
+        case THRONE: return "Throne";
+        case SINK: return "Sink";
+        case GRAVE: return "Grave";
+        case ALTAR: return "Altar";
+        case DRAWBRIDGE_DOWN: return "DrawbridgeDown";
+        case TREE: return "Tree";
+        default: {
+            static char buf[32];
+            sprintf(buf, "Unknown(%d)", t);
+            return buf;
+        }
+    }
+}
+#endif
 
 /* Setup status for testing */
 void nh_ffi_test_setup_status(int hp, int max_hp, int level, int ac) {
@@ -482,8 +565,9 @@ const char* nh_ffi_get_map_json(void) {
     for (int x = 0; x < COLNO; x++) {
         p += sprintf(p, "[");
         for (int y = 0; y < ROWNO; y++) {
-            p += sprintf(p, "{\"t\": %d, \"l\": %d}%s", 
+            p += sprintf(p, "{\"t\": %d, \"type\": \"%s\", \"l\": %d}%s", 
                 level.locations[x][y].typ, 
+                typ_name(level.locations[x][y].typ),
                 level.locations[x][y].lit,
                 (y < ROWNO - 1) ? "," : "");
         }
@@ -1085,10 +1169,23 @@ void nh_ffi_set_wizard_mode(int enable) {
 /* RNG wrapper */
 int nh_ffi_rng_rn2(int limit) {
 #ifdef REAL_NETHACK
-    return rn2(limit);
+    int r = rn2(limit);
+    fprintf(stderr, "FFI: rn2(%d) = %d\n", limit, r);
+    return r;
 #else
     if (limit <= 0) return 0;
     return 0;
+#endif
+}
+
+int nh_ffi_rng_rnd(int limit) {
+#ifdef REAL_NETHACK
+    int r = rnd(limit);
+    fprintf(stderr, "FFI: rnd(%d) = %d\n", limit, r);
+    return r;
+#else
+    if (limit <= 0) return 1;
+    return 1;
 #endif
 }
 

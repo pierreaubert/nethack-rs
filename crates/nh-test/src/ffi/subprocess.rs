@@ -9,6 +9,7 @@ enum CommandMsg {
     Init { role: String, race: String, gender: i32, align: i32 },
     Reset { seed: u64 },
     GenerateLevel,
+    GenerateMaze,
     GetHp,
     GetMaxHp,
     GetEnergy,
@@ -19,6 +20,7 @@ enum CommandMsg {
     GetMapJson,
     ExecCmd { cmd: char },
     ExecCmdDir { cmd: char, dx: i32, dy: i32 },
+    SetDLevel { dnum: i32, dlevel: i32 },
     SetState { hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64 },
     GetArmorClass,
     GetGold,
@@ -150,6 +152,14 @@ impl CGameEngineSubprocess {
         }
     }
 
+    pub fn generate_maze(&self) -> Result<(), String> {
+        match self.send_command(CommandMsg::GenerateMaze).map_err(|e| e.to_string())? {
+            ResponseMsg::Ok => Ok(()),
+            ResponseMsg::Error(e) => Err(e),
+            _ => Err("Unexpected response".to_string()),
+        }
+    }
+
     pub fn hp(&self) -> i32 {
         match self.send_command(CommandMsg::GetHp).unwrap() {
             ResponseMsg::Int(hp) => hp,
@@ -220,6 +230,10 @@ impl CGameEngineSubprocess {
             ResponseMsg::Error(e) => Err(e),
             _ => Err("Unexpected response".to_string()),
         }
+    }
+
+    pub fn set_dlevel(&self, dnum: i32, dlevel: i32) {
+        let _ = self.send_command(CommandMsg::SetDLevel { dnum, dlevel });
     }
 
     pub fn set_state(&self, hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64) {

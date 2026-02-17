@@ -7,6 +7,7 @@ enum Command {
     Init { role: String, race: String, gender: i32, align: i32 },
     Reset { seed: u64 },
     GenerateLevel,
+    GenerateMaze,
     GetHp,
     GetMaxHp,
     GetEnergy,
@@ -17,6 +18,7 @@ enum Command {
     GetMapJson,
     ExecCmd { cmd: char },
     ExecCmdDir { cmd: char, dx: i32, dy: i32 },
+    SetDLevel { dnum: i32, dlevel: i32 },
     SetState { hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64 },
     GetArmorClass,
     GetGold,
@@ -98,6 +100,12 @@ fn main() {
                     Err(e) => Response::Error(format!("{}", e)),
                 }
             }
+            Command::GenerateMaze => {
+                match engine.generate_maze() {
+                    Ok(_) => Response::Ok,
+                    Err(e) => Response::Error(format!("{}", e)),
+                }
+            }
             Command::GetHp => Response::Int(engine.hp()),
             Command::GetMaxHp => Response::Int(engine.max_hp()),
             Command::GetEnergy => Response::Int(engine.energy()),
@@ -120,6 +128,10 @@ fn main() {
                     Ok(_) => Response::Ok,
                     Err(e) => Response::Error(format!("{}", e)),
                 }
+            }
+            Command::SetDLevel { dnum, dlevel } => {
+                engine.set_dlevel(dnum, dlevel);
+                Response::Ok
             }
             Command::SetState { hp, hpmax, x, y, ac, moves } => {
                 engine.set_state(hp, hpmax, x, y, ac, moves);

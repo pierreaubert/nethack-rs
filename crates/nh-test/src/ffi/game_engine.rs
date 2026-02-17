@@ -69,6 +69,7 @@ unsafe extern "C" {
     pub fn nh_ffi_free();
     pub fn nh_ffi_reset(seed: c_ulong) -> c_int;
     pub fn nh_ffi_generate_level() -> c_int;
+    pub fn nh_ffi_generate_maze();
 
     // Command Execution
     pub fn nh_ffi_exec_cmd(cmd: c_char) -> c_int;
@@ -87,6 +88,7 @@ unsafe extern "C" {
     pub fn nh_ffi_get_dungeon_depth() -> c_int;
     pub fn nh_ffi_get_turn_count() -> c_ulong;
     pub fn nh_ffi_is_player_dead() -> c_int;
+    pub fn nh_ffi_set_dlevel(dnum: c_int, dlevel: c_int);
 
     // Character info
     pub fn nh_ffi_get_role() -> *const c_char;
@@ -198,6 +200,15 @@ impl CGameEngine {
         Ok(())
     }
 
+    pub fn generate_maze(&self) -> Result<(), String> {
+        if !self.initialized {
+            return Err("Game not initialized".to_string());
+        }
+
+        unsafe { nh_ffi_generate_maze() };
+        Ok(())
+    }
+
     pub fn exec_cmd(&self, cmd: char) -> Result<(), String> {
         if !self.initialized {
             return Err("Game not initialized".to_string());
@@ -289,6 +300,10 @@ impl CGameEngine {
 
     pub fn is_dead(&self) -> bool {
         unsafe { nh_ffi_is_player_dead() != 0 }
+    }
+
+    pub fn set_dlevel(&self, dnum: i32, dlevel: i32) {
+        unsafe { nh_ffi_set_dlevel(dnum, dlevel) }
     }
 
     pub fn is_initialized(&self) -> bool {

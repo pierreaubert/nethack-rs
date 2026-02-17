@@ -66,14 +66,15 @@ impl GameRng {
         if n == 0 {
             return 0;
         }
-        self.rng.rn2(n)
+        let r = self.rng.rn2(n);
+        eprintln!("RS: rn2({}) = {}", n, r);
+        r
     }
 
-    /// Equivalent to NetHack's rnd(n) - returns 1..n
-    ///
-    /// Returns 0 if n is 0.
     pub fn rnd(&mut self, n: u32) -> u32 {
-        self.rng.rnd(n)
+        let r = self.rng.rnd(n);
+        eprintln!("RS: rnd({}) = {}", n, r);
+        r
     }
 
     /// Equivalent to NetHack's d(n, m) - roll n dice with m sides
