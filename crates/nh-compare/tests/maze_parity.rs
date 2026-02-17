@@ -14,8 +14,11 @@ fn test_maze_parity_seeds() {
         c_engine.init("Valkyrie", "Human", 0, 0).expect("C engine init failed");
         c_engine.reset(seed).expect("C engine reset failed");
 
-        // Set state to Gehennom 2 (dnum=1, dlevel=2)
-        c_engine.set_dlevel(1, 2);
+        // Set state to Main Dungeon 14 (dnum=0, dlevel=14)
+        c_engine.set_dlevel(0, 14);
+        
+        // Reset RNG state RIGHT before generation to match Rust's fresh RNG
+        c_engine.reset_rng(seed).expect("C RNG reset failed");
         c_engine.generate_maze().expect("C maze generation failed");
         
         let c_map_str = c_engine.map_json();
@@ -38,7 +41,7 @@ fn test_maze_parity_seeds() {
         let mut fresh_rng = GameRng::new(seed);
         // Note: FFI helper now consumes rn2(3) for corrmaze and potentially rn2(2)/rnd(4) for scale
         
-        let mut fresh_level = nh_core::dungeon::Level::new(nh_core::dungeon::DLevel::new(1, 2));
+        let mut fresh_level = nh_core::dungeon::Level::new(nh_core::dungeon::DLevel::new(0, 14));
         
         nh_core::dungeon::generate_maze(&mut fresh_level, &mut fresh_rng);
         

@@ -30,12 +30,19 @@ pub fn generate_rooms_and_corridors(
     let _ = rng.rn2(5);
 
     let mut rect_mgr = RectManager::new(COLNO as u8, ROWNO as u8);
+    let mut tried_vault = false;
 
     // make rooms until satisfied (makerooms() in C)
     while level.rooms.len() < super::mapseen::MAXNROFROOMS && rect_mgr.rnd_rect(rng).is_some() {
-        // C calls rnd_rect() once in while condition, and then create_room() 
-        // calls it again inside its own retry loop.
-        if let Some(room) = rect_mgr.create_room_random(rng) {
+        // Vault check logic (mklev.c:230-236)
+        if level.rooms.len() >= (super::mapseen::MAXNROFROOMS / 6) && rng.rn2(2) != 0 && !tried_vault {
+            tried_vault = true;
+            // For now just skip actual vault creation but consume the flag
+            // In C: if (create_vault()) { ... }
+            // Since we don't have create_vault yet, we just fall through to OROOM
+        }
+
+        if let Some(room) = rect_mgr.create_room_random(level, rng, level.rooms.len()) {
             carve_room(level, &room);
             level.rooms.push(room);
         } else {
@@ -788,7 +795,7 @@ pub fn generate_rooms_with_rects(level: &mut Level, rng: &mut GameRng) -> Vec<Ro
                 x + width + 1,
                 y + height + 1,
             );
-            rect_mgr.split_rects(&room_rect);
+            rect_mgr.split_rects_legacy(&room_rect);
 
             rooms.push(room);
         }

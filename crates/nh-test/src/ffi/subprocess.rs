@@ -8,6 +8,7 @@ use std::cell::RefCell;
 enum CommandMsg {
     Init { role: String, race: String, gender: i32, align: i32 },
     Reset { seed: u64 },
+    ResetRng { seed: u64 },
     GenerateLevel,
     GenerateMaze,
     GetHp,
@@ -138,6 +139,14 @@ impl CGameEngineSubprocess {
 
     pub fn reset(&mut self, seed: u64) -> Result<(), String> {
         match self.send_command(CommandMsg::Reset { seed }).map_err(|e| e.to_string())? {
+            ResponseMsg::Ok => Ok(()),
+            ResponseMsg::Error(e) => Err(e),
+            _ => Err("Unexpected response".to_string()),
+        }
+    }
+
+    pub fn reset_rng(&self, seed: u64) -> Result<(), String> {
+        match self.send_command(CommandMsg::ResetRng { seed }).map_err(|e| e.to_string())? {
             ResponseMsg::Ok => Ok(()),
             ResponseMsg::Error(e) => Err(e),
             _ => Err("Unexpected response".to_string()),

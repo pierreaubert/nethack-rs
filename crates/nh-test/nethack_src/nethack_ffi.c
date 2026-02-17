@@ -283,6 +283,7 @@ void nh_ffi_generate_maze(void) {
     /* Setup level flags for maze */
     level.flags.is_maze_lev = TRUE;
     
+    fprintf(stderr, "FFI: x_maze_max=%d, y_maze_max=%d\n", x_maze_max, y_maze_max);
     makemaz("");
     
     fprintf(stderr, "FFI: nh_ffi_generate_maze() complete. is_maze_lev=%d, corrmaze=%d\n", 
@@ -1167,6 +1168,21 @@ void nh_ffi_set_wizard_mode(int enable) {
 }
 
 /* RNG wrapper */
+void nh_ffi_reset_rng(unsigned long seed) {
+#ifdef REAL_NETHACK
+    g_seed = seed;
+    init_isaac64(seed, rn2);
+    init_isaac64(seed, rn2_on_display_rng);
+#endif
+}
+
+/* Override reseed_random to keep things deterministic */
+void reseed_random(int (*fn)(int)) {
+#ifdef REAL_NETHACK
+    init_isaac64(g_seed, fn);
+#endif
+}
+
 int nh_ffi_rng_rn2(int limit) {
 #ifdef REAL_NETHACK
     int r = rn2(limit);

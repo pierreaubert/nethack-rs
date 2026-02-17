@@ -1,11 +1,16 @@
-//! 3D Model spawning system for Player and Monsters
+//! Model and billboard spawning for Player, Monsters, and Objects
 //!
-//! Replaces 2D billboards with 3D primitives based on race/category.
+//! Provides `BillboardSpawner` (textured sprite quads) as the primary renderer,
+//! with `ModelBuilder` (3D primitives) as a fallback.
 
 use bevy::prelude::*;
 use nh_core::monster::Monster;
 
-use crate::components::{MapPosition, MonsterMarker, PlayerMarker};
+use crate::components::{Billboard, MapPosition, MonsterMarker, PlayerMarker};
+use crate::plugins::sprites::{
+    lookup_object_sprite, monster_size_scale, player_sprite_path, SpriteAssets,
+};
+use crate::resources::AssetRegistryResource;
 
 pub struct ModelsPlugin;
 
@@ -17,7 +22,150 @@ impl Plugin for ModelsPlugin {
     }
 }
 
-/// Helpers to create meshes for different creature types
+/// Billboard spawner that creates textured quad sprites in the 3D scene.
+/// Uses the `Billboard` component so `billboard_face_camera` rotates them.
+pub struct BillboardSpawner<'a> {
+    pub sprite_assets: &'a SpriteAssets,
+    pub materials: &'a mut Assets<StandardMaterial>,
+    pub registry: Option<&'a AssetRegistryResource>,
+    pub asset_server: &'a AssetServer,
+}
+
+impl<'a> BillboardSpawner<'a> {
+    pub fn new(
+        sprite_assets: &'a SpriteAssets,
+        materials: &'a mut Assets<StandardMaterial>,
+        registry: Option<&'a AssetRegistryResource>,
+        asset_server: &'a AssetServer,
+    ) -> Self {
+        Self {
+            sprite_assets,
+            materials,
+            registry,
+            asset_server,
+        }
+    }
+
+    fn make_sprite_material(&mut self, texture: Handle<Image>) -> Handle<StandardMaterial> {
+        self.materials.add(StandardMaterial {
+            base_color_texture: Some(texture),
+            alpha_mode: AlphaMode::Blend,
+            unlit: true,
+            cull_mode: None,
+            ..default()
+        })
+    }
+
+    /// Spawn a billboard quad for the player, using the role sprite.
+    /// Returns the entity, or `None` if no sprite is available.
+    pub fn spawn_player_billboard(
+        &mut self,
+        commands: &mut Commands,
+        player: &nh_core::player::You,
+        transform: Transform,
+    ) -> Option<Entity> {
+        let role_key = player_sprite_path(player.role)
+            .strip_prefix("items/player/")
+            .unwrap()
+            .strip_suffix(".png")
+            .unwrap()
+            .to_string();
+
+        let texture = self.sprite_assets.player_roles.get(&role_key)?.clone();
+        let material = self.make_sprite_material(texture);
+        let quad_size = 0.8;
+
+        let map_pos = MapPosition {
+            x: player.pos.x,
+            y: player.pos.y,
+        };
+
+        let entity = commands
+            .spawn((
+                PlayerMarker,
+                Billboard,
+                map_pos,
+                Mesh3d(self.sprite_assets.billboard_mesh.clone()),
+                MeshMaterial3d(material),
+                transform
+                    .with_translation(transform.translation + Vec3::Y * (quad_size / 2.0))
+                    .with_scale(Vec3::splat(quad_size)),
+                Visibility::Inherited,
+            ))
+            .id();
+
+        Some(entity)
+    }
+
+    /// Spawn a billboard quad for a monster, scaled by MonsterSize.
+    /// Returns the entity, or `None` if no sprite is available.
+    pub fn spawn_monster_billboard(
+        &mut self,
+        commands: &mut Commands,
+        monster: &Monster,
+        monster_def: &nh_core::monster::PerMonst,
+        transform: Transform,
+    ) -> Option<Entity> {
+        let key = monster_def.name.to_lowercase().replace([' ', '-'], "_");
+        let texture = self.sprite_assets.monsters.get(&key)?.clone();
+        let material = self.make_sprite_material(texture);
+
+        let base_size = 0.8;
+        let scale = monster_size_scale(monster_def.size);
+        let quad_size = base_size * scale;
+
+        let entity = commands
+            .spawn((
+                MonsterMarker {
+                    monster_id: monster.id,
+                },
+                Billboard,
+                Mesh3d(self.sprite_assets.billboard_mesh.clone()),
+                MeshMaterial3d(material),
+                transform
+                    .with_translation(transform.translation + Vec3::Y * (quad_size / 2.0))
+                    .with_scale(Vec3::splat(quad_size)),
+                Visibility::Inherited,
+            ))
+            .id();
+
+        Some(entity)
+    }
+
+    /// Spawn a billboard quad for a floor object.
+    /// Returns the entity, or `None` if no sprite is available.
+    pub fn spawn_object_billboard(
+        &mut self,
+        commands: &mut Commands,
+        obj: &nh_core::object::Object,
+        transform: Transform,
+    ) -> Option<Entity> {
+        let texture = lookup_object_sprite(
+            obj,
+            self.sprite_assets,
+            self.registry,
+            self.asset_server,
+        )?;
+        let material = self.make_sprite_material(texture);
+        let quad_size = 0.4;
+
+        let entity = commands
+            .spawn((
+                Billboard,
+                Mesh3d(self.sprite_assets.billboard_mesh.clone()),
+                MeshMaterial3d(material),
+                transform
+                    .with_translation(transform.translation + Vec3::Y * (quad_size / 2.0))
+                    .with_scale(Vec3::splat(quad_size)),
+                Visibility::Inherited,
+            ))
+            .id();
+
+        Some(entity)
+    }
+}
+
+/// Helpers to create 3D meshes for different creature types (fallback renderer)
 pub struct ModelBuilder<'a> {
     pub meshes: &'a mut Assets<Mesh>,
     pub materials: &'a mut Assets<StandardMaterial>,
@@ -441,7 +589,7 @@ impl<'a> ModelBuilder<'a> {
             .id();
 
         // Stack 2-4 discs based on pile size
-        let stack_count = (count.min(4)).max(2);
+        let stack_count = count.clamp(2, 4);
         let mut children = Vec::new();
 
         for i in 0..stack_count {

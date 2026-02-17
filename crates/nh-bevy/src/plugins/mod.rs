@@ -13,4 +13,5 @@ pub mod lighting;
 pub mod map;
 pub mod models;
 pub mod navigation;
+pub mod sprites;
 pub mod ui;

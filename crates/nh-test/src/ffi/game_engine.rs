@@ -68,6 +68,7 @@ unsafe extern "C" {
     ) -> c_int;
     pub fn nh_ffi_free();
     pub fn nh_ffi_reset(seed: c_ulong) -> c_int;
+    pub fn nh_ffi_reset_rng(seed: c_ulong);
     pub fn nh_ffi_generate_level() -> c_int;
     pub fn nh_ffi_generate_maze();
 
@@ -184,6 +185,15 @@ impl CGameEngine {
             return Err("Failed to reset game".to_string());
         }
 
+        Ok(())
+    }
+
+    pub fn reset_rng(&self, seed: u64) -> Result<(), String> {
+        if !self.initialized {
+            return Err("Game not initialized".to_string());
+        }
+
+        unsafe { nh_ffi_reset_rng(seed as c_ulong) };
         Ok(())
     }
 

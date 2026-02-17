@@ -11,12 +11,13 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
-use crate::components::{Billboard, MapPosition, MonsterMarker, PlayerMarker};
+use crate::components::{Billboard, CameraMode, MapPosition, MonsterMarker, PlayerMarker};
 use crate::plugins::animation::AnimationEvent;
 use crate::plugins::camera::MainCamera;
 use crate::plugins::game::AppState;
-use crate::plugins::models::ModelBuilder;
-use crate::resources::GameStateResource;
+use crate::plugins::models::{BillboardSpawner, ModelBuilder};
+use crate::plugins::sprites::SpriteAssets;
+use crate::resources::{AssetRegistryResource, GameStateResource};
 
 pub struct EntityPlugin;
 
@@ -85,12 +86,16 @@ fn mark_entities_for_respawn(mut entity_state: ResMut<EntityState>) {
 }
 
 /// Check if level changed (or respawn forced) and respawn entities
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn check_level_change(
     mut commands: Commands,
     game_state: Res<GameStateResource>,
     mut entity_state: ResMut<EntityState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    sprite_assets: Option<Res<SpriteAssets>>,
+    registry: Option<Res<AssetRegistryResource>>,
+    asset_server: Res<AssetServer>,
     player_query: Query<Entity, With<PlayerMarker>>,
     monster_query: Query<Entity, With<MonsterMarker>>,
     object_query: Query<Entity, With<FloorObjectMarker>>,
@@ -140,8 +145,16 @@ fn check_level_change(
             commands.entity(entity).despawn_recursive();
         }
 
-        // Spawn new entities
-        spawn_entities_internal(&mut commands, &game_state.0, &mut meshes, &mut materials);
+        // Spawn new entities (billboard sprites with 3D fallback)
+        spawn_entities_internal(
+            &mut commands,
+            &game_state.0,
+            &mut meshes,
+            &mut materials,
+            sprite_assets.as_deref(),
+            registry.as_deref(),
+            &asset_server,
+        );
 
         // Update state
         entity_state.current_dlevel = Some(current_dlevel);
@@ -151,12 +164,16 @@ fn check_level_change(
 
 /// Spawn new monster entities that appeared in GameState but don't have Bevy entities yet.
 /// Handles monsters spawning mid-game (e.g., MonsterSpawn timed events).
+#[allow(clippy::too_many_arguments)]
 fn sync_monster_entities(
     game_state: Res<GameStateResource>,
     monster_query: Query<&MonsterMarker>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    sprite_assets: Option<Res<SpriteAssets>>,
+    registry: Option<Res<AssetRegistryResource>>,
+    asset_server: Res<AssetServer>,
 ) {
     if !game_state.is_changed() {
         return;
@@ -169,11 +186,8 @@ fn sync_monster_entities(
     let existing_ids: HashSet<nh_core::monster::MonsterId> =
         monster_query.iter().map(|m| m.monster_id).collect();
 
-    let mut model_builder = ModelBuilder::new(&mut meshes, &mut materials);
-
     for monster in &level.monsters {
         if !existing_ids.contains(&monster.id) {
-            // New monster - spawn it
             let map_pos = MapPosition {
                 x: monster.x,
                 y: monster.y,
@@ -181,12 +195,34 @@ fn sync_monster_entities(
             let world_pos = map_pos.to_world();
             let monster_def = &monsters_data[monster.monster_type as usize];
 
-            let entity = model_builder.spawn_monster(
-                &mut commands,
-                monster,
-                monster_def,
-                Transform::from_translation(world_pos),
-            );
+            // Try billboard sprite first, fall back to 3D model
+            let entity = if let Some(ref sprites) = sprite_assets {
+                let mut spawner = BillboardSpawner::new(
+                    sprites,
+                    &mut materials,
+                    registry.as_deref(),
+                    &asset_server,
+                );
+                spawner.spawn_monster_billboard(
+                    &mut commands,
+                    monster,
+                    monster_def,
+                    Transform::from_translation(world_pos),
+                )
+            } else {
+                None
+            };
+
+            let entity = entity.unwrap_or_else(|| {
+                let mut model_builder = ModelBuilder::new(&mut meshes, &mut materials);
+                model_builder.spawn_monster(
+                    &mut commands,
+                    monster,
+                    monster_def,
+                    Transform::from_translation(world_pos),
+                )
+            });
+
             commands.entity(entity).insert(map_pos);
         }
     }
@@ -197,9 +233,20 @@ fn spawn_entities(
     game_state: Res<GameStateResource>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    sprite_assets: Option<Res<SpriteAssets>>,
+    registry: Option<Res<AssetRegistryResource>>,
+    asset_server: Res<AssetServer>,
 ) {
     let state = &game_state.0;
-    spawn_entities_internal(&mut commands, state, &mut meshes, &mut materials);
+    spawn_entities_internal(
+        &mut commands,
+        state,
+        &mut meshes,
+        &mut materials,
+        sprite_assets.as_deref(),
+        registry.as_deref(),
+        &asset_server,
+    );
 }
 
 fn spawn_entities_internal(
@@ -207,72 +254,93 @@ fn spawn_entities_internal(
     state: &nh_core::GameState,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    sprite_assets: Option<&SpriteAssets>,
+    registry: Option<&AssetRegistryResource>,
+    asset_server: &AssetServer,
 ) {
-    let mut model_builder = ModelBuilder::new(meshes, materials);
-
-    // Spawn player
+    // Spawn player — try billboard, fall back to 3D model
     let player_pos = MapPosition {
         x: state.player.pos.x,
         y: state.player.pos.y,
     };
     let world_pos = player_pos.to_world();
 
-    model_builder.spawn_player(
-        commands,
-        &state.player,
-        Transform::from_translation(world_pos),
-    );
+    let player_spawned = if let Some(sprites) = sprite_assets {
+        let mut spawner = BillboardSpawner::new(sprites, materials, registry, asset_server);
+        spawner.spawn_player_billboard(
+            commands,
+            &state.player,
+            Transform::from_translation(world_pos),
+        )
+    } else {
+        None
+    };
+
+    if player_spawned.is_none() {
+        let mut model_builder = ModelBuilder::new(meshes, materials);
+        model_builder.spawn_player(
+            commands,
+            &state.player,
+            Transform::from_translation(world_pos),
+        );
+    }
 
     // Spawn monsters
-    let monsters = nh_core::data::monsters::MONSTERS;
+    let monsters_data = nh_core::data::monsters::MONSTERS;
     for monster in &state.current_level.monsters {
         let map_pos = MapPosition {
             x: monster.x,
             y: monster.y,
         };
         let world_pos = map_pos.to_world();
-        let monster_def = &monsters[monster.monster_type as usize];
+        let monster_def = &monsters_data[monster.monster_type as usize];
 
-        let entity = model_builder.spawn_monster(
-            commands,
-            monster,
-            monster_def,
-            Transform::from_translation(world_pos),
-        );
+        let entity = if let Some(sprites) = sprite_assets {
+            let mut spawner = BillboardSpawner::new(sprites, materials, registry, asset_server);
+            spawner.spawn_monster_billboard(
+                commands,
+                monster,
+                monster_def,
+                Transform::from_translation(world_pos),
+            )
+        } else {
+            None
+        };
+
+        let entity = entity.unwrap_or_else(|| {
+            let mut model_builder = ModelBuilder::new(meshes, materials);
+            model_builder.spawn_monster(
+                commands,
+                monster,
+                monster_def,
+                Transform::from_translation(world_pos),
+            )
+        });
+
         commands.entity(entity).insert(map_pos);
 
-        // Spawn indicators (health, status, etc) - attached to the monster entity or separate?
-        // The original code spawned them separately. Let's keep them separate for now but link them by ID.
-        // Or we could parent them?
-        // For simplicity and backward compat with the update system, I'll keep the indicator spawning logic here,
-        // but I need to make sure I have the entity ID if I want to parent.
-        // `spawn_monster` returns ID.
-
-        // Re-implement indicator spawning
+        // Spawn indicators above sprites
         let hp_percent = if monster.hp_max > 0 {
             (monster.hp as f32 / monster.hp_max as f32).clamp(0.0, 1.0)
         } else {
             1.0
         };
 
-        // Spawn health indicator for damaged monsters
         if hp_percent < 1.0 && hp_percent > 0.0 {
             spawn_health_indicator(commands, monster, world_pos + Vec3::Y * 0.5, hp_percent);
         }
 
-        // Spawn status indicator if any status effects
         if has_visible_status(monster) {
             spawn_status_indicator(commands, monster, world_pos + Vec3::Y * 0.5);
         }
 
-        // Spawn allegiance indicator for pets/peaceful
         if monster.state.tame || monster.state.peaceful {
             spawn_allegiance_indicator(commands, monster, world_pos + Vec3::Y * 0.5);
         }
     }
 
-    // Spawn floor objects as 3D models
-    spawn_floor_objects(commands, state, meshes, materials);
+    // Spawn floor objects (billboard sprites with 3D fallback)
+    spawn_floor_objects(commands, state, meshes, materials, sprite_assets, registry, asset_server);
 }
 
 // spawn_monsters function is removed as it is integrated into spawn_entities_internal
@@ -461,11 +529,13 @@ fn spawn_floor_objects(
     state: &nh_core::GameState,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    sprite_assets: Option<&SpriteAssets>,
+    registry: Option<&AssetRegistryResource>,
+    asset_server: &AssetServer,
 ) {
     use std::collections::HashMap;
 
     let level = &state.current_level;
-    let mut model_builder = ModelBuilder::new(meshes, materials);
 
     // Group objects by position to detect piles
     let mut objects_by_pos: HashMap<(i8, i8), Vec<&nh_core::object::Object>> = HashMap::new();
@@ -481,24 +551,38 @@ fn spawn_floor_objects(
         let world_pos = map_pos.to_world();
 
         if objects.len() == 1 {
-            // Single object - spawn 3D model
             let obj = objects[0];
-            let entity =
-                model_builder.spawn_object(commands, obj, Transform::from_translation(world_pos));
 
-            // Add marker components to the spawned entity
+            // Try billboard sprite, fall back to 3D model
+            let entity = if let Some(sprites) = sprite_assets {
+                let mut spawner =
+                    BillboardSpawner::new(sprites, materials, registry, asset_server);
+                spawner.spawn_object_billboard(
+                    commands,
+                    obj,
+                    Transform::from_translation(world_pos),
+                )
+            } else {
+                None
+            };
+
+            let entity = entity.unwrap_or_else(|| {
+                let mut model_builder = ModelBuilder::new(meshes, materials);
+                model_builder.spawn_object(commands, obj, Transform::from_translation(world_pos))
+            });
+
             commands
                 .entity(entity)
                 .insert((FloorObjectMarker { object_id: obj.id }, map_pos));
         } else {
-            // Multiple objects - spawn pile indicator
+            // Multiple objects - spawn pile indicator (keep as 3D)
+            let mut model_builder = ModelBuilder::new(meshes, materials);
             let entity = model_builder.spawn_pile(
                 commands,
                 objects.len(),
                 Transform::from_translation(world_pos),
             );
 
-            // Add marker components
             commands
                 .entity(entity)
                 .insert((PileMarker { x, y }, map_pos));
@@ -508,20 +592,47 @@ fn spawn_floor_objects(
 
 fn billboard_face_camera(
     camera_query: Query<&Transform, With<MainCamera>>,
+    camera_mode: Res<State<CameraMode>>,
     mut billboards: Query<&mut Transform, (With<Billboard>, Without<MainCamera>)>,
 ) {
     let Ok(camera_transform) = camera_query.get_single() else {
         return;
     };
 
-    for mut transform in billboards.iter_mut() {
-        // Get direction from billboard to camera, ignoring Y for upright billboards
-        let to_camera = camera_transform.translation - transform.translation;
-        let horizontal = Vec3::new(to_camera.x, 0.0, to_camera.z);
-
-        if horizontal.length_squared() > 0.001 {
-            // Face camera (billboard technique)
-            transform.look_to(-horizontal.normalize(), Vec3::Y);
+    match camera_mode.get() {
+        CameraMode::TopDown => {
+            // Camera looks straight down — lay billboards flat on the ground plane
+            // facing upward so they're visible from above.
+            // The quad's default normal is +Z; rotating it to face +Y means
+            // we look along -Y with forward = -Z (screen up).
+            for mut transform in billboards.iter_mut() {
+                let pos = transform.translation;
+                let scale = transform.scale;
+                *transform = Transform::from_translation(pos)
+                    .with_scale(scale)
+                    .looking_to(Vec3::NEG_Y, Vec3::NEG_Z);
+            }
+        }
+        CameraMode::Isometric => {
+            // Camera is at a fixed 45-degree angle — face the camera direction
+            let cam_forward = camera_transform.forward().as_vec3();
+            for mut transform in billboards.iter_mut() {
+                let pos = transform.translation;
+                let scale = transform.scale;
+                *transform = Transform::from_translation(pos)
+                    .with_scale(scale)
+                    .looking_to(-cam_forward, Vec3::Y);
+            }
+        }
+        CameraMode::ThirdPerson | CameraMode::FirstPerson => {
+            // Upright billboards that rotate around Y to face camera
+            for mut transform in billboards.iter_mut() {
+                let to_camera = camera_transform.translation - transform.translation;
+                let horizontal = Vec3::new(to_camera.x, 0.0, to_camera.z);
+                if horizontal.length_squared() > 0.001 {
+                    transform.look_to(-horizontal.normalize(), Vec3::Y);
+                }
+            }
         }
     }
 }
@@ -595,6 +706,7 @@ fn sync_entity_positions(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn sync_floor_objects(
     game_state: Res<GameStateResource>,
     existing_objects: Query<Entity, With<FloorObjectMarker>>,
@@ -602,14 +714,14 @@ fn sync_floor_objects(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    sprite_assets: Option<Res<SpriteAssets>>,
+    registry: Option<Res<AssetRegistryResource>>,
+    asset_server: Res<AssetServer>,
 ) {
-    // Only sync when game state changes
     if !game_state.is_changed() {
         return;
     }
 
-    // Despawn all existing floor object entities and respawn
-    // (Simple approach - could optimize with change detection)
     for entity in existing_objects.iter() {
         commands.entity(entity).despawn_recursive();
     }
@@ -617,8 +729,15 @@ fn sync_floor_objects(
         commands.entity(entity).despawn_recursive();
     }
 
-    // Respawn floor objects as 3D models
-    spawn_floor_objects(&mut commands, &game_state.0, &mut meshes, &mut materials);
+    spawn_floor_objects(
+        &mut commands,
+        &game_state.0,
+        &mut meshes,
+        &mut materials,
+        sprite_assets.as_deref(),
+        registry.as_deref(),
+        &asset_server,
+    );
 }
 
 /// Update monster indicators (health bars, status effects) when game state changes

@@ -9,8 +9,10 @@ fn main() {
 
     // Check if real NetHack source is available
     let real_nethack_src = std::path::PathBuf::from("/Users/pierre/src/games/NetHack-3.6.7/src");
+    println!("cargo:warning=Checking path: {:?}", real_nethack_src);
 
     if real_nethack_src.exists() {
+        println!("cargo:warning=Path exists!");
         println!("cargo:rustc-cfg=real_nethack");
         println!("Building with real NetHack 3.6.7 source");
         let nethack_root = real_nethack_src.parent().unwrap();
@@ -47,6 +49,7 @@ fn main() {
             let path = entry.path();
             if path.extension().map_or(false, |ext| ext == "o") {
                 let file_name = path.file_name().unwrap().to_str().unwrap();
+                println!("cargo:warning=Collecting object from path: {:?}", path);
                 if file_name != "unixmain.o" && file_name != "nethack_ffi.o" {
                     all_objs.push(path);
                 }
@@ -56,6 +59,10 @@ fn main() {
         // Create a static library containing all these objects using 'ar'
         let out_dir = std::env::var("OUT_DIR").unwrap();
         let lib_path = std::path::PathBuf::from(&out_dir).join("libnethack_full.a");
+        
+        if lib_path.exists() {
+            std::fs::remove_file(&lib_path).unwrap();
+        }
         
         let mut ar_cmd = std::process::Command::new("ar");
         ar_cmd.arg("crs").arg(&lib_path);

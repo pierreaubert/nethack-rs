@@ -66,15 +66,11 @@ impl GameRng {
         if n == 0 {
             return 0;
         }
-        let r = self.rng.rn2(n);
-        eprintln!("RS: rn2({}) = {}", n, r);
-        r
+        self.rng.rn2(n)
     }
 
     pub fn rnd(&mut self, n: u32) -> u32 {
-        let r = self.rng.rnd(n);
-        eprintln!("RS: rnd({}) = {}", n, r);
-        r
+        self.rng.rnd(n)
     }
 
     /// Equivalent to NetHack's d(n, m) - roll n dice with m sides

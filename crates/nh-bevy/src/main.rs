@@ -27,12 +27,9 @@ fn main() {
                     ..default()
                 })
                 .set(AssetPlugin {
-                    // Look for assets folder - try workspace root first, then crate root
-                    file_path: if std::path::Path::new("crates/nh-bevy/assets").exists() {
-                        "crates/nh-bevy/assets".to_string()
-                    } else {
-                        "assets".to_string()
-                    },
+                    // Bevy resolves file_path relative to CARGO_MANIFEST_DIR (crate root)
+                    // during `cargo run`, so "assets" → crates/nh-bevy/assets/
+                    file_path: "assets".to_string(),
                     ..default()
                 }),
         )

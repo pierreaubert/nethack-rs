@@ -6,7 +6,8 @@ use bevy::prelude::*;
 use crate::plugins::{
     animation::AnimationPlugin, audio::AudioPlugin, camera::CameraPlugin, effects::EffectsPlugin,
     entities::EntityPlugin, fog::FogOfWarPlugin, gamepad::GamepadPlugin, input::InputPlugin,
-    lighting::LightingPlugin, map::MapPlugin, navigation::NavigationPlugin, ui::UiPlugin,
+    lighting::LightingPlugin, map::MapPlugin, navigation::NavigationPlugin,
+    sprites::SpritesPlugin, ui::UiPlugin,
 };
 use crate::resources::GameStateResource;
 
@@ -24,6 +25,7 @@ impl Plugin for GamePlugin {
 
         // Add sub-plugins in dependency order
         app.add_plugins((
+            SpritesPlugin,
             MapPlugin,
             EntityPlugin,
             CameraPlugin,

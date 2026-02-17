@@ -6,6 +6,7 @@ use nh_test::ffi::CGameEngine;
 enum Command {
     Init { role: String, race: String, gender: i32, align: i32 },
     Reset { seed: u64 },
+    ResetRng { seed: u64 },
     GenerateLevel,
     GenerateMaze,
     GetHp,
@@ -90,6 +91,12 @@ fn main() {
             }
             Command::Reset { seed } => {
                 match engine.reset(seed) {
+                    Ok(_) => Response::Ok,
+                    Err(e) => Response::Error(format!("{}", e)),
+                }
+            }
+            Command::ResetRng { seed } => {
+                match engine.reset_rng(seed) {
                     Ok(_) => Response::Ok,
                     Err(e) => Response::Error(format!("{}", e)),
                 }

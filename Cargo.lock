@@ -3948,7 +3948,7 @@ dependencies = [
 
 [[package]]
 name = "nh-bevy"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "bevy",
  "bevy_egui",
@@ -3960,7 +3960,7 @@ dependencies = [
 
 [[package]]
 name = "nh-compare"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "nh-core",
  "nh-test",
@@ -3970,7 +3970,7 @@ dependencies = [
 
 [[package]]
 name = "nh-core"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "atty",
  "bitflags 2.10.0",
@@ -3992,7 +3992,7 @@ dependencies = [
 
 [[package]]
 name = "nh-player"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "anyhow",
  "candle-core",
@@ -4026,7 +4026,7 @@ dependencies = [
 
 [[package]]
 name = "nh-test"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "anyhow",
  "candle-core",
@@ -4052,7 +4052,7 @@ dependencies = [
 
 [[package]]
 name = "nh-tui"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "clap",
  "crossterm",
