@@ -330,10 +330,6 @@ impl RectManager {
                 self.add_rect(r);
             }
             
-            eprintln!("RS: Rects after split: cnt={}", self.rects.len());
-            for (i, r) in self.rects.iter().enumerate() {
-                eprintln!("  [{}] {},{} to {},{}", i, r.lx, r.ly, r.hx, r.hy);
-            }
         }
     }
 
@@ -366,6 +362,61 @@ impl RectManager {
         to_remove.sort_unstable();
         for i in to_remove.into_iter().rev() { self.remove_rect(i); }
         for r in to_add { self.add_rect(r); }
+    }
+
+    /// Create a vault room (2x2 fixed size) - port of C's create_vault()
+    /// which calls create_room(-1,-1,2,2,-1,-1,VAULT,TRUE)
+    pub fn create_room_vault(&mut self, level: &Level, rng: &mut GameRng) -> Option<Room> {
+        let mut trycnt = 0;
+
+        // Vault lighting RNG calls to match NetHack (same as create_room_random)
+        let depth = level.dlevel.depth();
+        if rng.rnd(1 + depth.abs() as u32) < 11 {
+            let _ = rng.rn2(77);
+        }
+
+        while trycnt < 100 {
+            trycnt += 1;
+            let r1 = self.rnd_rect(rng)?;
+
+            let hx = r1.hx;
+            let hy = r1.hy;
+            let lx = r1.lx;
+            let ly = r1.ly;
+
+            // Vault is always 2x2
+            let dx: u8 = 2;
+            let dy: u8 = 2;
+
+            let xborder = if lx > 0 && hx < crate::COLNO as u8 - 1 { 2 * XLIM } else { XLIM + 1 };
+            let yborder = if ly > 0 && hy < crate::ROWNO as u8 - 1 { 2 * YLIM } else { YLIM + 1 };
+
+            if hx - lx < dx + 3 + xborder || hy - ly < dy + 3 + yborder {
+                continue;
+            }
+
+            let mut xabs = lx + (if lx > 0 { XLIM } else { 3 })
+                + rng.rn2((hx - (if lx > 0 { lx } else { 3 }) - dx - xborder + 1) as u32) as u8;
+            let mut yabs = ly + (if ly > 0 { YLIM } else { 2 })
+                + rng.rn2((hy - (if ly > 0 { ly } else { 2 }) - dy - yborder + 1) as u32) as u8;
+
+            let mut ddx = dx;
+            let mut ddy = dy;
+            if !self.check_room(level, &mut xabs, &mut ddx, &mut yabs, &mut ddy, true, rng) {
+                continue;
+            }
+
+            let wtmp = ddx + 1;
+            let htmp = ddy + 1;
+
+            let r2 = NhRect::new(xabs.saturating_sub(1), yabs.saturating_sub(1), xabs + wtmp, yabs + htmp);
+            self.split_rects(r1, &r2);
+
+            let mut room = Room::new(xabs as usize, yabs as usize, wtmp as usize, htmp as usize);
+            room.room_type = super::room::RoomType::Vault;
+            return Some(room);
+        }
+        None
     }
 
     pub fn pick_room_position(&self, width: u8, height: u8, rng: &mut GameRng) -> Option<(NhRect, u8, u8)> {

@@ -31,15 +31,21 @@ pub fn generate_rooms_and_corridors(
 
     let mut rect_mgr = RectManager::new(COLNO as u8, ROWNO as u8);
     let mut tried_vault = false;
+    let mut vault_position: Option<(usize, usize)> = None;
 
     // make rooms until satisfied (makerooms() in C)
     while level.rooms.len() < super::mapseen::MAXNROFROOMS && rect_mgr.rnd_rect(rng).is_some() {
-        // Vault check logic (mklev.c:230-236)
+        // Vault check logic (mklev.c:229-240)
         if level.rooms.len() >= (super::mapseen::MAXNROFROOMS / 6) && rng.rn2(2) != 0 && !tried_vault {
             tried_vault = true;
-            // For now just skip actual vault creation but consume the flag
-            // In C: if (create_vault()) { ... }
-            // Since we don't have create_vault yet, we just fall through to OROOM
+            // C: if (create_vault()) { vault_x = ...; vault_y = ...; rooms[nroom].hx = -1; }
+            if let Some(vault_room) = rect_mgr.create_room_vault(level, rng) {
+                vault_position = Some((vault_room.x, vault_room.y));
+                // In C, the vault room entry is marked invalid (hx = -1),
+                // meaning it's not pushed as a real room. We just don't push it.
+            }
+            // Whether vault creation succeeds or fails, skip OROOM this iteration
+            continue;
         }
 
         if let Some(room) = rect_mgr.create_room_random(level, rng, level.rooms.len()) {
@@ -51,12 +57,12 @@ pub fn generate_rooms_and_corridors(
         }
     }
 
-    // Connect rooms with corridors
+    // Connect rooms with corridors (doors are placed inside join() per C's algorithm)
     let rooms_clone = level.rooms.clone();
     generate_corridors(level, &rooms_clone, rng);
 
-    // Place doors
-    place_doors(level, &rooms_clone, rng);
+    // TODO: if vault_position.is_some(), run do_vault() equivalent
+    let _ = vault_position;
 
     // Select and assign special room type based on depth
     let depth = level.dlevel.depth();
@@ -113,141 +119,6 @@ pub fn generate_rooms_and_corridors(
 
     // Place branch entrances if this level has one
     place_branch_entrance(level, &final_rooms, rng);
-}
-
-/// Place doors at room entrances
-fn place_doors(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
-    let depth = level.dlevel.depth();
-
-    for room in rooms {
-        let is_shop = room.room_type.is_shop();
-
-        // Check each wall position for potential door placement
-        for x in room.x..room.x + room.width {
-            // Top wall
-            if room.y > 0 {
-                check_and_place_door(level, x, room.y - 1, depth, is_shop, rng);
-            }
-            // Bottom wall
-            if room.y + room.height < ROWNO {
-                check_and_place_door(level, x, room.y + room.height, depth, is_shop, rng);
-            }
-        }
-
-        for y in room.y..room.y + room.height {
-            // Left wall
-            if room.x > 0 {
-                check_and_place_door(level, room.x - 1, y, depth, is_shop, rng);
-            }
-            // Right wall
-            if room.x + room.width < COLNO {
-                check_and_place_door(level, room.x + room.width, y, depth, is_shop, rng);
-            }
-        }
-    }
-}
-
-/// Check if there's already a door adjacent to this position (bydoor() in C)
-fn has_adjacent_door(level: &Level, x: usize, y: usize) -> bool {
-    for (dx, dy) in [(-1i32, 0), (1, 0), (0, -1), (0, 1)] {
-        let nx = x as i32 + dx;
-        let ny = y as i32 + dy;
-        if nx >= 0 && ny >= 0 && (nx as usize) < COLNO && (ny as usize) < ROWNO {
-            let cell_type = level.cells[nx as usize][ny as usize].typ;
-            if cell_type == CellType::Door || cell_type == CellType::SecretDoor {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// Create door type and state based on C's dosdoor() logic
-fn create_door_state(rng: &mut GameRng, depth: i32, is_shop: bool) -> (CellType, DoorState) {
-    // 12.5% secret doors (1 in 8) - matches C: rn2(8) ? DOOR : SDOOR
-    let is_secret = rng.rn2(8) == 0;
-    let cell_type = if is_secret {
-        CellType::SecretDoor
-    } else {
-        CellType::Door
-    };
-
-    // Determine door state
-    let mut state = if is_shop {
-        // Shop doors: secret ones are locked, regular are open
-        if is_secret {
-            DoorState::LOCKED
-        } else {
-            DoorState::OPEN
-        }
-    } else {
-        // Regular doors: 1/3 each locked/closed/open
-        // Matches C: rn2(5) < 3 gives ~60% chance of locked/closed vs open
-        match rng.rn2(3) {
-            0 => DoorState::LOCKED,
-            1 => DoorState::CLOSED,
-            _ => DoorState::OPEN,
-        }
-    };
-
-    // 4% trapped if depth >= 5 and locked (matches C: !rn2(25) at depth >= 5)
-    if depth >= 5 && state.contains(DoorState::LOCKED) && rng.rn2(25) == 0 {
-        state |= DoorState::TRAPPED;
-    }
-
-    (cell_type, state)
-}
-
-/// Check if a door should be placed at this position
-fn check_and_place_door(
-    level: &mut Level,
-    x: usize,
-    y: usize,
-    depth: i32,
-    is_shop: bool,
-    rng: &mut GameRng,
-) {
-    if x >= COLNO || y >= ROWNO {
-        return;
-    }
-
-    let cell = &level.cells[x][y];
-
-    // Only place doors on walls
-    if !cell.typ.is_wall() {
-        return;
-    }
-
-    // Check if there's a corridor adjacent
-    let has_corridor = [(-1, 0), (1, 0), (0, -1), (0, 1)].iter().any(|(dx, dy)| {
-        let nx = x as i32 + dx;
-        let ny = y as i32 + dy;
-        if nx >= 0 && ny >= 0 && (nx as usize) < COLNO && (ny as usize) < ROWNO {
-            let cell_type = level.cells[nx as usize][ny as usize].typ;
-            cell_type == CellType::Corridor || cell_type == CellType::SecretCorridor
-        } else {
-            false
-        }
-    });
-
-    if !has_corridor {
-        return;
-    }
-
-    // Don't place adjacent doors (C: bydoor() check)
-    if has_adjacent_door(level, x, y) {
-        return;
-    }
-
-    // 87.5% chance to place a door (matches C behavior closer than 80%)
-    if rng.rn2(8) < 7 {
-        let (cell_type, state) = create_door_state(rng, depth, is_shop);
-        level.cells[x][y].typ = cell_type;
-        level.cells[x][y].set_door_state(state);
-    } else {
-        // Make it a corridor opening instead
-        level.cells[x][y].typ = CellType::Corridor;
-    }
 }
 
 /// Place stairs in the level
@@ -1405,12 +1276,26 @@ pub fn create_door(
 
     if is_secret && level.cells[x][y].typ.is_wall() {
         level.cells[x][y].typ = CellType::SecretDoor;
-        // Secret doors are initially closed
         level.cells[x][y].flags = DoorState::CLOSED.bits();
     } else {
-        let (cell_type, door_state) = create_door_state(rng, depth, is_shop);
+        // Inline dosdoor-style logic
+        let cell_type = if is_secret { CellType::SecretDoor } else { CellType::Door };
         level.cells[x][y].typ = cell_type;
-        level.cells[x][y].flags = door_state.bits();
+
+        let state = if is_shop {
+            if is_secret { DoorState::LOCKED } else { DoorState::OPEN }
+        } else {
+            match rng.rn2(3) {
+                0 => DoorState::LOCKED,
+                1 => DoorState::CLOSED,
+                _ => DoorState::OPEN,
+            }
+        };
+        let mut state = state;
+        if depth >= 5 && state.contains(DoorState::LOCKED) && rng.rn2(25) == 0 {
+            state |= DoorState::TRAPPED;
+        }
+        level.cells[x][y].flags = state.bits();
     }
 }
 

@@ -93,21 +93,16 @@ fn test_synchronized_movement_parity() {
         assert_eq!(rs.player.pos.y, cy as i8, "Y pos desync at turn {}", i);
 
         // 5. Compare Deep Inventory State (JSON)
-        let _c_inv_json = c_engine.inventory_json();
-        // Basic check: count (skipped for now as C starting inventory not initialized)
-        /*
+        let c_inv_json = c_engine.inventory_json();
         let c_inv: Value = serde_json::from_str(&c_inv_json).unwrap();
-        assert_eq!(rs.inventory.len(), c_inv.as_array().unwrap().len(), 
+        assert_eq!(rs.inventory.len(), c_inv.as_array().unwrap().len(),
             "Inventory count desync at turn {}. Rust: {}, C: {}", i, rs.inventory.len(), c_inv.as_array().unwrap().len());
-        */
 
         // 6. Compare Monsters
-        let _c_mon_json = c_engine.monsters_json();
-        /*
+        let c_mon_json = c_engine.monsters_json();
         let c_mons: Value = serde_json::from_str(&c_mon_json).unwrap();
         assert_eq!(rs.current_level.monsters.len(), c_mons.as_array().unwrap().len(),
             "Monster count desync at turn {}", i);
-        */
     }
 }
 
@@ -230,7 +225,19 @@ fn test_inventory_weight_stress_parity() {
 #[serial]
 fn test_all_roles_inventory_parity() {
     let roles = [
+        (Role::Archeologist, "Archeologist"),
         (Role::Barbarian, "Barbarian"),
+        (Role::Caveman, "Caveman"),
+        (Role::Healer, "Healer"),
+        (Role::Knight, "Knight"),
+        (Role::Monk, "Monk"),
+        (Role::Priest, "Priest"),
+        (Role::Ranger, "Ranger"),
+        (Role::Rogue, "Rogue"),
+        (Role::Samurai, "Samurai"),
+        (Role::Tourist, "Tourist"),
+        (Role::Valkyrie, "Valkyrie"),
+        (Role::Wizard, "Wizard"),
     ];
     let seed = 12345;
 
@@ -361,5 +368,204 @@ fn test_multi_seed_baseline_rest_parity() {
             assert_eq!(rs.player.pos.x as i32, c_engine.position().0, "X desync seed {} turn {}", seed, turn);
             assert_eq!(rs.player.pos.y as i32, c_engine.position().1, "Y desync seed {} turn {}", seed, turn);
         }
+    }
+}
+
+#[test]
+#[serial]
+fn test_full_state_comparison_multi_seed() {
+    let seeds = vec![7, 42, 256, 1337, 9999, 31415, 65536, 100000, 271828, 314159];
+    let role = Role::Valkyrie;
+    let race = Race::Human;
+    let gender = Gender::Female;
+
+    // Varied command sequence: movement, rest, and diagonal moves
+    let command_sequence = vec![
+        Command::Move(Direction::North),
+        Command::Move(Direction::East),
+        Command::Rest,
+        Command::Move(Direction::South),
+        Command::Move(Direction::West),
+        Command::Rest,
+        Command::Move(Direction::North),
+        Command::Move(Direction::North),
+        Command::Move(Direction::East),
+        Command::Move(Direction::East),
+        Command::Rest,
+        Command::Move(Direction::South),
+        Command::Move(Direction::South),
+        Command::Move(Direction::West),
+        Command::Move(Direction::West),
+        Command::Rest,
+        Command::Rest,
+        Command::Move(Direction::North),
+        Command::Move(Direction::East),
+        Command::Move(Direction::South),
+        Command::Move(Direction::West),
+        Command::Rest,
+        Command::Rest,
+        Command::Rest,
+        Command::Move(Direction::North),
+        Command::Move(Direction::North),
+        Command::Move(Direction::East),
+        Command::Move(Direction::South),
+        Command::Move(Direction::West),
+        Command::Move(Direction::West),
+        Command::Rest,
+        Command::Move(Direction::East),
+        Command::Move(Direction::East),
+        Command::Move(Direction::North),
+        Command::Rest,
+        Command::Move(Direction::South),
+        Command::Move(Direction::South),
+        Command::Move(Direction::West),
+        Command::Rest,
+        Command::Rest,
+        Command::Move(Direction::North),
+        Command::Move(Direction::East),
+        Command::Move(Direction::South),
+        Command::Move(Direction::West),
+        Command::Rest,
+        Command::Move(Direction::North),
+        Command::Move(Direction::East),
+        Command::Move(Direction::East),
+        Command::Move(Direction::South),
+        Command::Rest,
+    ];
+
+    for seed in seeds {
+        println!("\n--- Full state comparison, Seed {} ---", seed);
+
+        let mut c_engine = CGameEngine::new();
+        c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+        c_engine.reset(seed).expect("C engine reset failed");
+        let (cx_start, cy_start) = c_engine.position();
+
+        let rust_rng = GameRng::new(seed);
+        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender);
+        rust_state.player.pos.x = cx_start as i8;
+        rust_state.player.pos.y = cy_start as i8;
+        let mut rust_loop = GameLoop::new(rust_state);
+
+        for (turn, cmd) in command_sequence.iter().enumerate() {
+            let rs_start = rust_loop.state();
+            sync_stats_to_c(rs_start, &c_engine, rs_start.turns as i64);
+
+            rust_loop.tick(cmd.clone());
+
+            let c_cmd = match cmd {
+                Command::Move(Direction::North) => 'k',
+                Command::Move(Direction::South) => 'j',
+                Command::Move(Direction::East) => 'l',
+                Command::Move(Direction::West) => 'h',
+                Command::Rest => '.',
+                _ => '.',
+            };
+            c_engine.exec_cmd(c_cmd).expect("C command failed");
+
+            let rs = rust_loop.state();
+            let (cx, cy) = c_engine.position();
+
+            // Position check
+            assert_eq!(rs.player.pos.x, cx as i8, "X desync seed {} turn {}", seed, turn);
+            assert_eq!(rs.player.pos.y, cy as i8, "Y desync seed {} turn {}", seed, turn);
+
+            // HP check (log but don't fail on minor regen differences)
+            if rs.player.hp != c_engine.hp() {
+                println!("Seed {} turn {}: HP mismatch (Rust={}, C={})", seed, turn, rs.player.hp, c_engine.hp());
+            }
+
+            // Inventory count
+            let c_inv_json = c_engine.inventory_json();
+            let c_inv: Value = serde_json::from_str(&c_inv_json).unwrap();
+            assert_eq!(rs.inventory.len(), c_inv.as_array().unwrap().len(),
+                "Inventory count desync seed {} turn {}", seed, turn);
+
+            // Monster count
+            let c_mon_json = c_engine.monsters_json();
+            let c_mons: Value = serde_json::from_str(&c_mon_json).unwrap();
+            assert_eq!(rs.current_level.monsters.len(), c_mons.as_array().unwrap().len(),
+                "Monster count desync seed {} turn {}", seed, turn);
+        }
+        println!("Seed {} passed full state comparison ({} turns)", seed, command_sequence.len());
+    }
+}
+
+#[test]
+#[serial]
+#[ignore]
+fn test_long_stress_1000_turns() {
+    let seeds = vec![42, 12345, 99999];
+    let role = Role::Valkyrie;
+    let race = Race::Human;
+    let gender = Gender::Female;
+
+    for seed in seeds {
+        println!("\n--- Long stress test, Seed {} (1000 turns) ---", seed);
+
+        let mut c_engine = CGameEngine::new();
+        c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+        c_engine.reset(seed).expect("C engine reset failed");
+        let (cx_start, cy_start) = c_engine.position();
+
+        let rust_rng = GameRng::new(seed);
+        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender);
+        rust_state.player.pos.x = cx_start as i8;
+        rust_state.player.pos.y = cy_start as i8;
+        let mut rust_loop = GameLoop::new(rust_state);
+
+        // Use a repeating pattern of commands
+        let pattern = [
+            Command::Move(Direction::North),
+            Command::Move(Direction::East),
+            Command::Rest,
+            Command::Move(Direction::South),
+            Command::Move(Direction::West),
+            Command::Rest,
+        ];
+
+        for turn in 0..1000 {
+            let cmd = &pattern[turn % pattern.len()];
+
+            let rs_start = rust_loop.state();
+            sync_stats_to_c(rs_start, &c_engine, rs_start.turns as i64);
+
+            rust_loop.tick(cmd.clone());
+
+            let c_cmd = match cmd {
+                Command::Move(Direction::North) => 'k',
+                Command::Move(Direction::South) => 'j',
+                Command::Move(Direction::East) => 'l',
+                Command::Move(Direction::West) => 'h',
+                Command::Rest => '.',
+                _ => '.',
+            };
+            c_engine.exec_cmd(c_cmd).expect("C command failed");
+
+            let rs = rust_loop.state();
+            let (cx, cy) = c_engine.position();
+
+            assert_eq!(rs.player.pos.x, cx as i8, "X desync seed {} turn {}", seed, turn);
+            assert_eq!(rs.player.pos.y, cy as i8, "Y desync seed {} turn {}", seed, turn);
+
+            // Full state comparison every 100 turns
+            if turn % 100 == 0 {
+                let c_inv_json = c_engine.inventory_json();
+                let c_inv: Value = serde_json::from_str(&c_inv_json).unwrap();
+                assert_eq!(rs.inventory.len(), c_inv.as_array().unwrap().len(),
+                    "Inventory count desync seed {} turn {}", seed, turn);
+
+                let c_mon_json = c_engine.monsters_json();
+                let c_mons: Value = serde_json::from_str(&c_mon_json).unwrap();
+                assert_eq!(rs.current_level.monsters.len(), c_mons.as_array().unwrap().len(),
+                    "Monster count desync seed {} turn {}", seed, turn);
+
+                println!("  Turn {}: Position ({},{}), HP {}/{}, Inv {}, Monsters {}",
+                    turn, rs.player.pos.x, rs.player.pos.y,
+                    rs.player.hp, rs.player.hp_max,
+                    rs.inventory.len(), rs.current_level.monsters.len());
+            }
+        }
+        println!("Seed {} passed 1000-turn stress test", seed);
     }
 }
