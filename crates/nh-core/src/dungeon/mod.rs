@@ -115,8 +115,9 @@ pub use generation::{
     wallify_map,
 };
 pub use level::{
-    Engraving, EngravingType, Level, LevelFlags, LightSource, LightSourceFlags, LightSourceType,
-    Stairway, Trap, TrapType, enexto, migrate_monster_to_level,
+    Engraving, EngravingType, FixtureMonster, FixtureObject, FixtureRoom, FixtureStair, Level,
+    LevelFixture, LevelFlags, LightSource, LightSourceFlags, LightSourceType, Stairway, Trap,
+    TrapType, enexto, migrate_monster_to_level,
 };
 pub use mapseen::{
     MAXNROFROOMS,

@@ -302,6 +302,104 @@ pub struct Level {
     pub pending_messages: Vec<String>,
 }
 
+/// Map C `levl[][].typ` integer to Rust CellType.
+/// Values match NetHack 3.6.7 rm.h definitions.
+fn cell_type_from_c(typ: u8) -> CellType {
+    match typ {
+        0 => CellType::Stone,
+        1 => CellType::VWall,
+        2 => CellType::HWall,
+        3 => CellType::TLCorner,
+        4 => CellType::TRCorner,
+        5 => CellType::BLCorner,
+        6 => CellType::BRCorner,
+        7 => CellType::CrossWall,
+        8 => CellType::TUWall,
+        9 => CellType::TDWall,
+        10 => CellType::TLWall,
+        11 => CellType::TRWall,
+        12 => CellType::DBWall,
+        13 => CellType::Tree,
+        14 => CellType::SecretDoor,
+        15 => CellType::SecretCorridor,
+        16 => CellType::Pool,
+        17 => CellType::Moat,
+        18 => CellType::Water,
+        19 => CellType::DrawbridgeUp,
+        20 => CellType::Lava,
+        21 => CellType::IronBars,
+        22 => CellType::Door,
+        23 => CellType::Corridor,
+        24 => CellType::Room,
+        25 => CellType::Stairs,
+        26 => CellType::Ladder,
+        27 => CellType::Fountain,
+        28 => CellType::Throne,
+        29 => CellType::Sink,
+        30 => CellType::Grave,
+        31 => CellType::Altar,
+        32 => CellType::Ice,
+        33 => CellType::DrawbridgeDown,
+        34 => CellType::Air,
+        35 => CellType::Cloud,
+        _ => CellType::Stone,
+    }
+}
+
+/// Serialized level fixture from C engine — used to import C-generated levels
+/// into the Rust engine for comparison testing.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LevelFixture {
+    pub width: usize,
+    pub height: usize,
+    pub dnum: i8,
+    pub dlevel: i8,
+    /// Cell type integers in [y][x] order, matching C's levl[x][y].typ values
+    pub cells: Vec<Vec<u8>>,
+    pub rooms: Vec<FixtureRoom>,
+    pub stairs: Vec<FixtureStair>,
+    pub objects: Vec<FixtureObject>,
+    pub monsters: Vec<FixtureMonster>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FixtureRoom {
+    pub lx: i32,
+    pub hx: i32,
+    pub ly: i32,
+    pub hy: i32,
+    #[serde(rename = "type")]
+    pub room_type: i32,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FixtureStair {
+    pub x: i32,
+    pub y: i32,
+    pub dir: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FixtureObject {
+    pub otyp: i16,
+    pub x: i32,
+    pub y: i32,
+    pub quan: i32,
+    pub spe: i8,
+    pub buc: i8,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FixtureMonster {
+    pub mnum: i16,
+    pub x: i32,
+    pub y: i32,
+    pub hp: i32,
+    pub hpmax: i32,
+    pub peaceful: bool,
+    pub asleep: bool,
+}
+
 impl Default for Level {
     fn default() -> Self {
         Self::new(DLevel::default())
@@ -372,6 +470,62 @@ impl Level {
     /// Take all pending messages, clearing the buffer
     pub fn take_pending_messages(&mut self) -> Vec<String> {
         core::mem::take(&mut self.pending_messages)
+    }
+
+    /// Create a level from a C engine fixture (imported level data).
+    /// This bypasses level generation entirely, using the C engine's level layout.
+    pub fn from_fixture(fixture: &LevelFixture) -> Self {
+        let dlevel = DLevel {
+            dungeon_num: fixture.dnum,
+            level_num: fixture.dlevel,
+        };
+        let mut level = Self::new(dlevel);
+
+        // Import cell types from fixture
+        for y in 0..fixture.height.min(ROWNO) {
+            for x in 0..fixture.width.min(COLNO) {
+                if y < fixture.cells.len() && x < fixture.cells[y].len() {
+                    let typ_val = fixture.cells[y][x];
+                    let cell_type = cell_type_from_c(typ_val);
+                    level.cells[x][y].typ = cell_type;
+                    // Light rooms by default
+                    if cell_type == CellType::Room {
+                        level.cells[x][y].lit = true;
+                    }
+                }
+            }
+        }
+
+        // Import stairs
+        for stair in &fixture.stairs {
+            let up = stair.dir == "up";
+            let dest = if up {
+                DLevel {
+                    dungeon_num: fixture.dnum,
+                    level_num: fixture.dlevel - 1,
+                }
+            } else {
+                DLevel {
+                    dungeon_num: fixture.dnum,
+                    level_num: fixture.dlevel + 1,
+                }
+            };
+            level.stairs.push(Stairway {
+                x: stair.x as i8,
+                y: stair.y as i8,
+                destination: dest,
+                up,
+            });
+            // Mark cell as stairs
+            let sx = stair.x as usize;
+            let sy = stair.y as usize;
+            if sx < COLNO && sy < ROWNO {
+                level.cells[sx][sy].typ = CellType::Stairs;
+            }
+        }
+
+        level.rebuild_grids();
+        level
     }
 
     /// Create a new level with generated content

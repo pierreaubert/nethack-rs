@@ -3963,7 +3963,9 @@ name = "nh-compare"
 version = "0.1.14"
 dependencies = [
  "nh-core",
+ "nh-rng",
  "nh-test",
+ "serde",
  "serde_json",
  "serial_test",
 ]

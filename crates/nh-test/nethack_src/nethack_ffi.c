@@ -1183,13 +1183,18 @@ void reseed_random(int (*fn)(int)) {
 #endif
 }
 
+/* Forward declaration for rng_trace_record (defined below) */
+static void rng_trace_record(const char *func, unsigned long arg, unsigned long result);
+
 int nh_ffi_rng_rn2(int limit) {
 #ifdef REAL_NETHACK
     int r = rn2(limit);
+    rng_trace_record("rn2", (unsigned long)limit, (unsigned long)r);
     fprintf(stderr, "FFI: rn2(%d) = %d\n", limit, r);
     return r;
 #else
     if (limit <= 0) return 0;
+    rng_trace_record("rn2", (unsigned long)limit, 0);
     return 0;
 #endif
 }
@@ -1197,10 +1202,12 @@ int nh_ffi_rng_rn2(int limit) {
 int nh_ffi_rng_rnd(int limit) {
 #ifdef REAL_NETHACK
     int r = rnd(limit);
+    rng_trace_record("rnd", (unsigned long)limit, (unsigned long)r);
     fprintf(stderr, "FFI: rnd(%d) = %d\n", limit, r);
     return r;
 #else
     if (limit <= 0) return 1;
+    rng_trace_record("rnd", (unsigned long)limit, 1);
     return 1;
 #endif
 }
@@ -1214,6 +1221,183 @@ int nh_ffi_calc_base_damage(int weapon_id, int small_monster) {
     (void)weapon_id;
     (void)small_monster;
     return 4;
+#endif
+}
+
+/* ============================================================================
+ * RNG Trace Ring Buffer (Phase 4: Convergence Framework)
+ * ============================================================================ */
+
+#define RNG_TRACE_SIZE 4096
+
+struct rng_trace_entry {
+    unsigned long seq;
+    char func[8]; /* "rn2", "rnd", "rne", "rnz" */
+    unsigned long arg;
+    unsigned long result;
+};
+
+static struct rng_trace_entry g_rng_trace[RNG_TRACE_SIZE];
+static unsigned long g_rng_trace_count = 0;
+static int g_rng_tracing = 0;
+
+void nh_ffi_enable_rng_tracing(void) {
+    g_rng_tracing = 1;
+    g_rng_trace_count = 0;
+}
+
+void nh_ffi_disable_rng_tracing(void) {
+    g_rng_tracing = 0;
+}
+
+static void rng_trace_record(const char *func, unsigned long arg, unsigned long result) {
+    if (!g_rng_tracing) return;
+    unsigned long idx = g_rng_trace_count % RNG_TRACE_SIZE;
+    g_rng_trace[idx].seq = g_rng_trace_count;
+    strncpy(g_rng_trace[idx].func, func, sizeof(g_rng_trace[idx].func) - 1);
+    g_rng_trace[idx].func[sizeof(g_rng_trace[idx].func) - 1] = '\0';
+    g_rng_trace[idx].arg = arg;
+    g_rng_trace[idx].result = result;
+    g_rng_trace_count++;
+}
+
+/* Get RNG trace as JSON array */
+char* nh_ffi_get_rng_trace(void) {
+    unsigned long count = g_rng_trace_count < RNG_TRACE_SIZE ? g_rng_trace_count : RNG_TRACE_SIZE;
+    unsigned long start = g_rng_trace_count <= RNG_TRACE_SIZE ? 0 : (g_rng_trace_count % RNG_TRACE_SIZE);
+
+    /* Estimate buffer: ~80 chars per entry */
+    size_t buf_size = count * 80 + 16;
+    char* json = (char*)malloc(buf_size);
+    if (json == NULL) return strdup("[]");
+
+    char *p = json;
+    p += sprintf(p, "[");
+    for (unsigned long i = 0; i < count; i++) {
+        unsigned long idx = (start + i) % RNG_TRACE_SIZE;
+        if (i > 0) p += sprintf(p, ",");
+        p += sprintf(p, "{\"seq\":%lu,\"func\":\"%s\",\"arg\":%lu,\"result\":%lu}",
+            g_rng_trace[idx].seq, g_rng_trace[idx].func,
+            g_rng_trace[idx].arg, g_rng_trace[idx].result);
+    }
+    p += sprintf(p, "]");
+    return json;
+}
+
+/* Clear the RNG trace buffer */
+void nh_ffi_clear_rng_trace(void) {
+    g_rng_trace_count = 0;
+}
+
+/* ============================================================================
+ * Extended State Queries (Phase 2b: Convergence Framework)
+ * ============================================================================ */
+
+/* Get player nutrition */
+int nh_ffi_get_nutrition(void) {
+#ifdef REAL_NETHACK
+    return u.uhunger;
+#else
+    return 900; /* Default starting nutrition */
+#endif
+}
+
+/* Get player attributes as JSON */
+char* nh_ffi_get_attributes_json(void) {
+#ifdef REAL_NETHACK
+    char* json = (char*)malloc(512);
+    if (json == NULL) return NULL;
+    snprintf(json, 512,
+        "{\"str\": %d, \"int\": %d, \"wis\": %d, \"dex\": %d, \"con\": %d, \"cha\": %d}",
+        ACURR(A_STR), ACURR(A_INT), ACURR(A_WIS),
+        ACURR(A_DEX), ACURR(A_CON), ACURR(A_CHA));
+    return json;
+#else
+    return strdup("{\"str\": 10, \"int\": 10, \"wis\": 10, \"dex\": 10, \"con\": 10, \"cha\": 10}");
+#endif
+}
+
+/* Export current level as JSON (cells, rooms, stairs, objects, monsters) */
+char* nh_ffi_export_level(void) {
+#ifdef REAL_NETHACK
+    /* Use the 1MB global buffer */
+    char *p = g_json_buffer;
+    char *end = g_json_buffer + sizeof(g_json_buffer) - 256;
+
+    p += sprintf(p, "{\"width\": %d, \"height\": %d, ", COLNO, ROWNO);
+    p += sprintf(p, "\"dnum\": %d, \"dlevel\": %d, ", u.uz.dnum, u.uz.dlevel);
+
+    /* Cells */
+    p += sprintf(p, "\"cells\": [");
+    for (int y = 0; y < ROWNO && p < end; y++) {
+        p += sprintf(p, "[");
+        for (int x = 0; x < COLNO && p < end; x++) {
+            p += sprintf(p, "%d%s", level.locations[x][y].typ,
+                (x < COLNO - 1) ? "," : "");
+        }
+        p += sprintf(p, "]%s", (y < ROWNO - 1) ? "," : "");
+    }
+    p += sprintf(p, "], ");
+
+    /* Rooms */
+    p += sprintf(p, "\"rooms\": [");
+    for (int i = 0; rooms[i].hx >= 0 && i < MAXNROFROOMS && p < end; i++) {
+        if (i > 0) p += sprintf(p, ",");
+        p += sprintf(p, "{\"lx\":%d,\"hx\":%d,\"ly\":%d,\"hy\":%d,\"type\":%d}",
+            rooms[i].lx, rooms[i].hx, rooms[i].ly, rooms[i].hy, rooms[i].rtype);
+    }
+    p += sprintf(p, "], ");
+
+    /* Stairs */
+    p += sprintf(p, "\"stairs\": [");
+    {
+        int first = 1;
+        if (xupstair) {
+            p += sprintf(p, "{\"x\":%d,\"y\":%d,\"dir\":\"up\"}", xupstair, yupstair);
+            first = 0;
+        }
+        if (xdnstair) {
+            if (!first) p += sprintf(p, ",");
+            p += sprintf(p, "{\"x\":%d,\"y\":%d,\"dir\":\"down\"}", xdnstair, ydnstair);
+        }
+    }
+    p += sprintf(p, "], ");
+
+    /* Objects on floor */
+    p += sprintf(p, "\"objects\": [");
+    {
+        struct obj *otmp;
+        int first = 1;
+        for (otmp = fobj; otmp && p < end; otmp = otmp->nobj) {
+            if (!first) p += sprintf(p, ",");
+            p += sprintf(p, "{\"otyp\":%d,\"x\":%d,\"y\":%d,\"quan\":%d,\"spe\":%d,\"buc\":%d}",
+                otmp->otyp, otmp->ox, otmp->oy, (int)otmp->quan, (int)otmp->spe,
+                otmp->blessed ? 1 : (otmp->cursed ? -1 : 0));
+            first = 0;
+        }
+    }
+    p += sprintf(p, "], ");
+
+    /* Monsters */
+    p += sprintf(p, "\"monsters\": [");
+    {
+        struct monst *mtmp;
+        int first = 1;
+        for (mtmp = fmon; mtmp && p < end; mtmp = mtmp->nmon) {
+            if (!first) p += sprintf(p, ",");
+            p += sprintf(p, "{\"mnum\":%d,\"x\":%d,\"y\":%d,\"hp\":%d,\"hpmax\":%d,\"peaceful\":%d,\"asleep\":%d}",
+                mtmp->mnum, mtmp->mx, mtmp->my,
+                mtmp->mhp, mtmp->mhpmax,
+                mtmp->mpeaceful ? 1 : 0,
+                mtmp->msleeping ? 1 : 0);
+            first = 0;
+        }
+    }
+    p += sprintf(p, "]}");
+
+    return strdup(g_json_buffer);
+#else
+    return strdup("{\"width\":80,\"height\":21,\"dnum\":0,\"dlevel\":1,\"cells\":[],\"rooms\":[],\"stairs\":[],\"objects\":[],\"monsters\":[]}");
 #endif
 }
 

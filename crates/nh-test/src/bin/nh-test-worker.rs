@@ -46,6 +46,13 @@ enum Command {
     GetAc,
     TestSetupStatus { hp: i32, max_hp: i32, level: i32, ac: i32 },
     WearItem { item_id: i32 },
+    GetNutrition,
+    GetAttributesJson,
+    ExportLevel,
+    EnableRngTracing,
+    DisableRngTracing,
+    GetRngTrace,
+    ClearRngTrace,
     Exit,
 }
 
@@ -184,6 +191,22 @@ fn main() {
                     Ok(_) => Response::Ok,
                     Err(e) => Response::Error(format!("{}", e)),
                 }
+            }
+            Command::GetNutrition => Response::Int(engine.nutrition()),
+            Command::GetAttributesJson => Response::String(engine.attributes_json()),
+            Command::ExportLevel => Response::String(engine.export_level()),
+            Command::EnableRngTracing => {
+                engine.enable_rng_tracing();
+                Response::Ok
+            }
+            Command::DisableRngTracing => {
+                engine.disable_rng_tracing();
+                Response::Ok
+            }
+            Command::GetRngTrace => Response::String(engine.rng_trace_json()),
+            Command::ClearRngTrace => {
+                engine.clear_rng_trace();
+                Response::Ok
             }
             Command::Exit => break,
         };

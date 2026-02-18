@@ -133,6 +133,17 @@ unsafe extern "C" {
     pub fn nh_ffi_add_item_to_inv(item_id: c_int, weight: c_int) -> c_int;
     pub fn nh_ffi_get_weight() -> c_int;
     pub fn nh_ffi_set_wizard_mode(enable: c_int);
+
+    // Extended state queries (convergence framework)
+    pub fn nh_ffi_get_nutrition() -> c_int;
+    pub fn nh_ffi_get_attributes_json() -> *mut c_char;
+    pub fn nh_ffi_export_level() -> *mut c_char;
+
+    // RNG tracing (convergence framework)
+    pub fn nh_ffi_enable_rng_tracing();
+    pub fn nh_ffi_disable_rng_tracing();
+    pub fn nh_ffi_get_rng_trace() -> *mut c_char;
+    pub fn nh_ffi_clear_rng_trace();
 }
 
 // ============================================================================
@@ -481,15 +492,60 @@ impl CGameEngine {
         unsafe { nh_ffi_set_wizard_mode(if enable { 1 } else { 0 }) };
     }
 
-    /// Enable RNG tracing for the C engine (only works if using isolated CIsaac64)
-    /// Note: Real NetHack globals don't support this yet.
+    pub fn nutrition(&self) -> i32 {
+        unsafe { nh_ffi_get_nutrition() as i32 }
+    }
+
+    pub fn attributes_json(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_get_attributes_json() };
+        if json_ptr.is_null() {
+            return "{}".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
+    }
+
+    pub fn export_level(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_export_level() };
+        if json_ptr.is_null() {
+            return "{}".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
+    }
+
+    pub fn enable_rng_tracing(&self) {
+        unsafe { nh_ffi_enable_rng_tracing() };
+    }
+
+    pub fn disable_rng_tracing(&self) {
+        unsafe { nh_ffi_disable_rng_tracing() };
+    }
+
+    pub fn rng_trace_json(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_get_rng_trace() };
+        if json_ptr.is_null() {
+            return "[]".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
+    }
+
+    pub fn clear_rng_trace(&self) {
+        unsafe { nh_ffi_clear_rng_trace() };
+    }
+
+    /// Enable RNG tracing for the C engine.
     pub fn start_tracing(&mut self) {
-        // Placeholder for future global tracing support
+        self.enable_rng_tracing();
     }
 
     /// Get RNG trace
     pub fn get_trace(&self) -> Vec<nh_rng::RngTraceEntry> {
-        Vec::new() // Placeholder
+        Vec::new() // Full trace requires JSON parsing; use rng_trace_json() instead
     }
 }
 

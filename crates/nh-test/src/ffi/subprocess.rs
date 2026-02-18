@@ -48,6 +48,13 @@ enum CommandMsg {
     GetAc,
     TestSetupStatus { hp: i32, max_hp: i32, level: i32, ac: i32 },
     WearItem { item_id: i32 },
+    GetNutrition,
+    GetAttributesJson,
+    ExportLevel,
+    EnableRngTracing,
+    DisableRngTracing,
+    GetRngTrace,
+    ClearRngTrace,
     Exit,
 }
 
@@ -418,6 +425,46 @@ impl CGameEngineSubprocess {
             ResponseMsg::Error(e) => Err(e),
             _ => Err("Unexpected response".to_string()),
         }
+    }
+
+    pub fn nutrition(&self) -> i32 {
+        match self.send_command(CommandMsg::GetNutrition).unwrap() {
+            ResponseMsg::Int(n) => n,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    pub fn attributes_json(&self) -> String {
+        match self.send_command(CommandMsg::GetAttributesJson).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    pub fn export_level(&self) -> String {
+        match self.send_command(CommandMsg::ExportLevel).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    pub fn enable_rng_tracing(&self) {
+        let _ = self.send_command(CommandMsg::EnableRngTracing);
+    }
+
+    pub fn disable_rng_tracing(&self) {
+        let _ = self.send_command(CommandMsg::DisableRngTracing);
+    }
+
+    pub fn rng_trace_json(&self) -> String {
+        match self.send_command(CommandMsg::GetRngTrace).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    pub fn clear_rng_trace(&self) {
+        let _ = self.send_command(CommandMsg::ClearRngTrace);
     }
 }
 
