@@ -43,7 +43,7 @@ fn test_maze_parity_seeds() {
         
         let mut fresh_level = nh_core::dungeon::Level::new(nh_core::dungeon::DLevel::new(0, 14));
         
-        nh_core::dungeon::generate_maze(&mut fresh_level, &mut fresh_rng);
+        nh_core::dungeon::generate_maze(&mut fresh_level, false, &mut fresh_rng);
         
         let rs_passages = fresh_level.cells.iter()
             .flat_map(|col| col.iter())

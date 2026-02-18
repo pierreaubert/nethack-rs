@@ -333,7 +333,7 @@ pub fn maze_remove_deadends(
 }
 
 /// Generate a maze level
-pub fn generate_maze(level: &mut Level, rng: &mut GameRng) {
+pub fn generate_maze(level: &mut Level, is_invocation: bool, rng: &mut GameRng) {
     let depth = level.dlevel.depth();
 
     level.flags.is_maze = true;
@@ -346,8 +346,6 @@ pub fn generate_maze(level: &mut Level, rng: &mut GameRng) {
             level.cells[x][y].lit = depth < 10;
         }
     }
-
-    let is_invocation = false; // TODO: Implement proper check
     
     if !is_invocation && rng.rn2(2) != 0 {
         let corrwid = rng.rnd(4) as i32;
