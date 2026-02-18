@@ -192,6 +192,23 @@ pub fn do_wear(state: &mut GameState, obj_letter: char) -> ActionResult {
             .map(armor_source)
             .unwrap_or(PropertyFlags::FROM_ARMOR);
         state.player.properties.grant_extrinsic(prop, source);
+
+        // Apply property-specific side effects
+        use crate::player;
+        match prop {
+            crate::player::Property::Stealth => {
+                player::toggle_stealth(&mut state.player.properties, true);
+            }
+            crate::player::Property::Displaced => {
+                player::toggle_displacement(&mut state.player.properties, true);
+            }
+            crate::player::Property::Levitation => {
+                let in_pit = state.player.utrap > 0;
+                let msg = player::float_up(&mut state.player.properties, in_pit, false);
+                state.message(msg.to_string());
+            }
+            _ => {}
+        }
     }
 
     state.message(format!("You put on {}.", obj_name));
@@ -239,6 +256,21 @@ pub fn do_takeoff(state: &mut GameState, obj_letter: char) -> ActionResult {
             .map(armor_source)
             .unwrap_or(PropertyFlags::FROM_ARMOR);
         state.player.properties.remove_extrinsic(prop, source);
+
+        // Apply property-specific side effects
+        use crate::player;
+        match prop {
+            crate::player::Property::Stealth => {
+                player::toggle_stealth(&mut state.player.properties, false);
+            }
+            crate::player::Property::Displaced => {
+                player::toggle_displacement(&mut state.player.properties, false);
+            }
+            crate::player::Property::Levitation => {
+                player::float_down(&mut state.player.properties, true);
+            }
+            _ => {}
+        }
     }
 
     state.message(format!("You take off {}.", obj_name));

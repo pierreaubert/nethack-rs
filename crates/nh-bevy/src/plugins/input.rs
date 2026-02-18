@@ -139,7 +139,10 @@ fn keyboard_to_command(
     } else if input.just_pressed(KeyCode::Comma) && !input.pressed(KeyCode::ShiftLeft) {
         // ',' - pickup
         commands.send(GameCommand(Command::Pickup));
-    } else if input.just_pressed(KeyCode::KeyS) {
+    } else if input.just_pressed(KeyCode::KeyS)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+    {
         // 's' - search
         commands.send(GameCommand(Command::Search));
     } else if input.just_pressed(KeyCode::Semicolon) && input.pressed(KeyCode::ShiftLeft) {
@@ -169,12 +172,75 @@ fn keyboard_to_command(
         // 'F' - fight (needs direction)
         dir_state.active = true;
         dir_state.action = Some(DirectionAction::Fight);
+    } else if input.just_pressed(KeyCode::KeyF)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+    {
+        // 'f' - fire from quiver (needs direction)
+        dir_state.active = true;
+        dir_state.action = Some(DirectionAction::Fire);
     // '\' - discoveries: handled directly in discoveries.rs
     } else if input.just_pressed(KeyCode::KeyV)
         && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
     {
         // 'V' - history
         commands.send(GameCommand(Command::History));
+    }
+    // Simple action keys (no extra input needed)
+    else if input.just_pressed(KeyCode::KeyP)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+        && !input.pressed(KeyCode::ControlLeft)
+    {
+        // 'p' - pay shopkeeper
+        commands.send(GameCommand(Command::Pay));
+    } else if input.just_pressed(KeyCode::KeyX)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+        && !input.pressed(KeyCode::ControlLeft)
+    {
+        // 'x' - swap weapons
+        commands.send(GameCommand(Command::SwapWeapon));
+    } else if input.just_pressed(KeyCode::KeyX)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
+        // 'X' - two-weapon mode
+        commands.send(GameCommand(Command::TwoWeapon));
+    } else if input.just_pressed(KeyCode::KeyZ)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
+        // 'Z' - cast spell
+        commands.send(GameCommand(Command::ShowSpells));
+    } else if input.just_pressed(KeyCode::Digit4) && input.pressed(KeyCode::ShiftLeft) {
+        // '$' - count gold
+        commands.send(GameCommand(Command::CountGold));
+    } else if input.just_pressed(KeyCode::Minus) {
+        // '_' on most keyboards is Shift+Minus, but crossterm/bevy may vary
+        if input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight) {
+            // '_' - travel
+            commands.send(GameCommand(Command::Travel));
+        }
+    } else if input.just_pressed(KeyCode::Equal)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
+        // '+' - enhance weapon skill
+        commands.send(GameCommand(Command::EnhanceSkill));
+    } else if input.just_pressed(KeyCode::KeyS)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
+        // 'S' - save game
+        commands.send(GameCommand(Command::Save));
+    }
+    // Ctrl key combos
+    else if input.just_pressed(KeyCode::KeyP) && input.pressed(KeyCode::ControlLeft) {
+        // Ctrl+P - message history
+        commands.send(GameCommand(Command::History));
+    } else if input.just_pressed(KeyCode::KeyR) && input.pressed(KeyCode::ControlLeft) {
+        // Ctrl+R - redraw
+        commands.send(GameCommand(Command::Redraw));
+    } else if input.just_pressed(KeyCode::KeyX) && input.pressed(KeyCode::ControlLeft) {
+        // Ctrl+X - show attributes
+        commands.send(GameCommand(Command::ShowAttributes));
     }
     // Item commands
     else if input.just_pressed(KeyCode::KeyE) {

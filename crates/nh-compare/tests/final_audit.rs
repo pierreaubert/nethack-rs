@@ -140,6 +140,7 @@ fn run_game(seed: u64, role: Role, commands: &[Command]) -> (u64, i32, i8, i8, u
         role,
         Race::Human,
         Gender::Male,
+        role.default_alignment(),
     );
     let mut gl = GameLoop::new(state);
 
@@ -319,6 +320,7 @@ fn test_stress_multi_seed() {
             *role,
             Race::Human,
             Gender::Male,
+            role.default_alignment(),
         );
         let mut gl = GameLoop::new(state);
 
@@ -371,6 +373,7 @@ fn test_stress_multi_seed() {
             Role::Valkyrie,
             Race::Human,
             Gender::Female,
+            Role::Valkyrie.default_alignment(),
         );
         let mut gl = GameLoop::new(state);
 

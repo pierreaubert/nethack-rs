@@ -3,8 +3,10 @@
 
 use crate::plugins::game::AppState;
 use crate::plugins::input::GameCommand;
+use crate::plugins::ui::direction::{DirectionAction, DirectionSelectState};
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
+use nh_core::action::Command;
 
 pub struct ExtendedCommandsPlugin;
 
@@ -67,6 +69,7 @@ fn handle_extended_commands_input(
     input: Res<ButtonInput<KeyCode>>,
     mut state: ResMut<ExtendedCommandsState>,
     mut commands: Commands,
+    mut dir_state: ResMut<DirectionSelectState>,
 ) {
     // Toggle with '#' key (Shift+3 on most keyboards)
     let shift_held = input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight);
@@ -99,12 +102,75 @@ fn handle_extended_commands_input(
         if input.just_pressed(KeyCode::Enter)
             && state.selected_index < state.filtered_commands.len()
         {
-            let cmd_name = state.filtered_commands[state.selected_index].name.clone();
-            commands.send_event(GameCommand(nh_core::action::Command::ExtendedCommand(
-                cmd_name,
-            )));
+            let cmd_name = &state.filtered_commands[state.selected_index].name;
+            dispatch_extended_command(cmd_name, &mut commands, &mut dir_state);
             state.open = false;
         }
+    }
+}
+
+/// Dispatch an extended command by name to the proper Command enum variant
+fn dispatch_extended_command(
+    name: &str,
+    commands: &mut Commands,
+    dir_state: &mut ResMut<DirectionSelectState>,
+) {
+    let lower = name.to_lowercase();
+    // Simple commands (no extra input)
+    let cmd = match lower.as_str() {
+        "pray" => Some(Command::Pray),
+        "offer" => Some(Command::Offer),
+        "sit" => Some(Command::Sit),
+        "chat" => Some(Command::Chat),
+        "pay" => Some(Command::Pay),
+        "dip" => Some(Command::Dip),
+        "jump" => Some(Command::Jump),
+        "ride" => Some(Command::Ride),
+        "wipe" => Some(Command::Wipe),
+        "invoke" => Some(Command::Invoke),
+        "turn" => Some(Command::TurnUndead),
+        "monster" => Some(Command::MonsterAbility),
+        "enhance" => Some(Command::EnhanceSkill),
+        "loot" => Some(Command::Loot),
+        "travel" => Some(Command::Travel),
+        "twoweapon" => Some(Command::TwoWeapon),
+        "swap" => Some(Command::SwapWeapon),
+        "search" => Some(Command::Search),
+        "save" => Some(Command::Save),
+        "quit" => Some(Command::Quit),
+        "discoveries" | "known" => Some(Command::Discoveries),
+        "history" => Some(Command::History),
+        "attributes" => Some(Command::ShowAttributes),
+        "conduct" => Some(Command::ShowConduct),
+        "overview" => Some(Command::DungeonOverview),
+        "spells" => Some(Command::ShowSpells),
+        "equipment" => Some(Command::ShowEquipment),
+        "vanquished" => Some(Command::Vanquished),
+        "redraw" => Some(Command::Redraw),
+        "gold" => Some(Command::CountGold),
+        "help" | "version" => Some(Command::Help),
+        _ => None,
+    };
+
+    if let Some(cmd) = cmd {
+        commands.send_event(GameCommand(cmd));
+        return;
+    }
+
+    // Direction-needing commands: open direction select UI
+    let dir_action = match lower.as_str() {
+        "untrap" => Some(DirectionAction::Untrap),
+        "force" => Some(DirectionAction::Force),
+        "fight" => Some(DirectionAction::Fight),
+        "kick" => Some(DirectionAction::Kick),
+        "open" => Some(DirectionAction::Open),
+        "close" => Some(DirectionAction::Close),
+        _ => None,
+    };
+
+    if let Some(action) = dir_action {
+        dir_state.active = true;
+        dir_state.action = Some(action);
     }
 }
 
@@ -233,64 +299,198 @@ fn get_all_commands() -> Vec<CommandInfo> {
     vec![
         // Meta commands
         CommandInfo {
-            name: "version".to_string(),
-            description: "Show version information and build details".to_string(),
-            category: CommandCategory::Meta,
-        },
-        CommandInfo {
             name: "help".to_string(),
             description: "Display help and command reference".to_string(),
             category: CommandCategory::Meta,
         },
         CommandInfo {
+            name: "version".to_string(),
+            description: "Show version information and build details".to_string(),
+            category: CommandCategory::Meta,
+        },
+        CommandInfo {
             name: "history".to_string(),
-            description: "Show game history and background".to_string(),
+            description: "Show game history and message log".to_string(),
             category: CommandCategory::Meta,
         },
         CommandInfo {
-            name: "key bindings".to_string(),
-            description: "Display all key bindings and controls".to_string(),
+            name: "discoveries".to_string(),
+            description: "View all discovered item types".to_string(),
             category: CommandCategory::Meta,
         },
         CommandInfo {
-            name: "menu controls".to_string(),
-            description: "Show menu navigation controls".to_string(),
+            name: "attributes".to_string(),
+            description: "Show character attributes and stats".to_string(),
             category: CommandCategory::Meta,
         },
         CommandInfo {
-            name: "direction keys".to_string(),
-            description: "Display directional movement keys".to_string(),
+            name: "conduct".to_string(),
+            description: "Show current conducts maintained".to_string(),
             category: CommandCategory::Meta,
         },
         CommandInfo {
-            name: "list commands".to_string(),
-            description: "List all available extended commands".to_string(),
+            name: "overview".to_string(),
+            description: "Show dungeon overview".to_string(),
             category: CommandCategory::Meta,
         },
         CommandInfo {
-            name: "mode info".to_string(),
-            description: "Show game mode information".to_string(),
+            name: "spells".to_string(),
+            description: "Show known spells".to_string(),
             category: CommandCategory::Meta,
         },
-        // Gameplay commands
+        CommandInfo {
+            name: "equipment".to_string(),
+            description: "Show worn and wielded equipment".to_string(),
+            category: CommandCategory::Meta,
+        },
+        CommandInfo {
+            name: "vanquished".to_string(),
+            description: "Show list of vanquished monsters".to_string(),
+            category: CommandCategory::Meta,
+        },
+        CommandInfo {
+            name: "gold".to_string(),
+            description: "Count gold pieces".to_string(),
+            category: CommandCategory::Meta,
+        },
+        // Gameplay: religious
+        CommandInfo {
+            name: "pray".to_string(),
+            description: "Pray to your deity for help".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "offer".to_string(),
+            description: "Offer a sacrifice to your deity".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "turn".to_string(),
+            description: "Turn undead (clerics)".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        // Gameplay: interaction
+        CommandInfo {
+            name: "chat".to_string(),
+            description: "Chat with a nearby creature".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "pay".to_string(),
+            description: "Pay a shopkeeper".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        // Gameplay: actions
+        CommandInfo {
+            name: "sit".to_string(),
+            description: "Sit down on the floor or a throne".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "dip".to_string(),
+            description: "Dip an object into something".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "jump".to_string(),
+            description: "Jump to a nearby location".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "ride".to_string(),
+            description: "Ride or dismount a steed".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "wipe".to_string(),
+            description: "Wipe off your face".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "invoke".to_string(),
+            description: "Invoke a special power of an artifact".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "monster".to_string(),
+            description: "Use a monster ability".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "loot".to_string(),
+            description: "Loot a container on the floor".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "enhance".to_string(),
+            description: "Enhance weapon skills".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "travel".to_string(),
+            description: "Travel to a location on the map".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "twoweapon".to_string(),
+            description: "Toggle two-weapon fighting".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "swap".to_string(),
+            description: "Swap primary and secondary weapons".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        // Gameplay: direction-needing
+        CommandInfo {
+            name: "untrap".to_string(),
+            description: "Untrap a trap or chest".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "force".to_string(),
+            description: "Force a lock open".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "kick".to_string(),
+            description: "Kick something in a direction".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "fight".to_string(),
+            description: "Force attack in a direction".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "open".to_string(),
+            description: "Open a door or container".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "close".to_string(),
+            description: "Close a door".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        // Gameplay: meta
         CommandInfo {
             name: "adjust".to_string(),
             description: "Adjust inventory letters for items".to_string(),
             category: CommandCategory::Gameplay,
         },
         CommandInfo {
-            name: "annotate".to_string(),
-            description: "Add notes to the current level".to_string(),
+            name: "save".to_string(),
+            description: "Save and quit the game".to_string(),
             category: CommandCategory::Gameplay,
         },
         CommandInfo {
-            name: "discoveries".to_string(),
-            description: "View all discovered item types".to_string(),
+            name: "quit".to_string(),
+            description: "Quit the game (no save)".to_string(),
             category: CommandCategory::Gameplay,
         },
         CommandInfo {
-            name: "explore mode".to_string(),
-            description: "Enter explore mode (no permadeath)".to_string(),
+            name: "redraw".to_string(),
+            description: "Redraw the screen".to_string(),
             category: CommandCategory::Gameplay,
         },
         // Wizard mode commands

@@ -25,6 +25,8 @@ pub use context::Context;
 pub use errors::{FileError, validate_file_path, validate_prefix_locations};
 pub use flags::Flags;
 #[cfg(feature = "std")]
+pub use flags::{decl_init, freedynamicdata, sys_early_init, sysopt_release, sysopt_seduce_set};
+#[cfg(feature = "std")]
 pub use paths::ParsedArgs;
 pub use timeout::{TimedEvent, TimedEventType, TimeoutManager};
 

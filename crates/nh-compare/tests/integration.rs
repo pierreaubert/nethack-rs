@@ -21,7 +21,7 @@ struct RunResult {
 /// Create a game with full player identity and run the given commands
 fn run_with_identity(seed: u64, role: Role, commands: &[Command]) -> RunResult {
     let rng = GameRng::new(seed);
-    let state = GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male);
+    let state = GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
     let mut gl = GameLoop::new(state);
     let mut results = Vec::new();
 
@@ -98,7 +98,7 @@ fn test_all_13_roles_initialize() {
     for role in ALL_ROLES {
         let rng = GameRng::new(42);
         let state =
-            GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male);
+            GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
 
         assert!(
             state.player.hp > 0,
@@ -159,8 +159,8 @@ fn test_role_hp_energy_values() {
     for &(role, expected_hp_min, expected_energy_min) in expected {
         let rng = GameRng::new(42);
         let state =
-            GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male);
-        
+            GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
+
         assert!(state.player.hp_max >= expected_hp_min, 
             "{:?}: HP {} should be >= {}", role, state.player.hp_max, expected_hp_min);
         assert!(state.player.energy_max >= expected_energy_min,
@@ -190,7 +190,7 @@ fn test_role_inventory_counts() {
     for &(role, expected_count) in expected {
         let rng = GameRng::new(42);
         let state =
-            GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male);
+            GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
         assert_eq!(
             state.inventory.len(),
             expected_count,
@@ -265,7 +265,7 @@ fn test_1000_turn_stress_10_seeds() {
 fn test_all_command_variants_no_panic() {
     let rng = GameRng::new(42);
     let state =
-        GameState::new_with_identity(rng, "Hero".into(), Role::Valkyrie, Race::Human, Gender::Male);
+        GameState::new_with_identity(rng, "Hero".into(), Role::Valkyrie, Race::Human, Gender::Male, Role::Valkyrie.default_alignment());
     let mut gl = GameLoop::new(state);
 
     let commands: Vec<Command> = vec![
@@ -424,7 +424,7 @@ fn test_save_restore_roundtrip() {
 fn test_starvation_death() {
     let rng = GameRng::new(42);
     let mut state =
-        GameState::new_with_identity(rng, "Hero".into(), Role::Valkyrie, Race::Human, Gender::Male);
+        GameState::new_with_identity(rng, "Hero".into(), Role::Valkyrie, Race::Human, Gender::Male, Role::Valkyrie.default_alignment());
     state.player.nutrition = 10;
     let mut gl = GameLoop::new(state);
 
@@ -449,6 +449,7 @@ fn test_racial_intrinsics() {
         Role::Ranger,
         Race::Elf,
         Gender::Male,
+        Role::Ranger.default_alignment(),
     );
     assert!(
         elf_state.player.properties.has_infravision(),
@@ -461,6 +462,7 @@ fn test_racial_intrinsics() {
         Role::Valkyrie,
         Race::Dwarf,
         Gender::Male,
+        Role::Valkyrie.default_alignment(),
     );
     assert!(
         dwarf_state.player.properties.has_infravision(),
@@ -473,6 +475,7 @@ fn test_racial_intrinsics() {
         Role::Valkyrie,
         Race::Human,
         Gender::Male,
+        Role::Valkyrie.default_alignment(),
     );
     assert!(
         !human_state.player.properties.has_infravision(),
@@ -489,6 +492,7 @@ fn test_healer_tourist_gold() {
         Role::Healer,
         Race::Human,
         Gender::Male,
+        Role::Healer.default_alignment(),
     );
     assert!(
         healer_state.player.gold >= 1001,
@@ -502,6 +506,7 @@ fn test_healer_tourist_gold() {
         Role::Tourist,
         Race::Human,
         Gender::Male,
+        Role::Tourist.default_alignment(),
     );
     assert!(
         tourist_state.player.gold >= 1,

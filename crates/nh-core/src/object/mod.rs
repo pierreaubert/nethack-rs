@@ -251,4 +251,9 @@ pub use objname::{
     xname,
     yname,
     ysimple_name,
+    // Additional naming functions
+    Aobjnam, S_suffix, aobjnam, ansimpleoname, arti_cost, arti_immune, arti_light_description,
+    arti_light_radius, arti_reflects, arti_speak, artifact_id_from_name, artiname, cxname,
+    cxname_singular, is_artifact_name, s_suffix, simpleoname,
 };
+pub use obj::{bcsign, blessorcurse};

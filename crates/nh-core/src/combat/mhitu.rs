@@ -268,6 +268,14 @@ pub fn mattacku(
         .abs()
         .max((attacker.y - player.pos.y).abs())) as i32;
 
+    // Check for auto-miss conditions (displacement, etc.)
+    if automiss(player, attacker) {
+        result
+            .messages
+            .push(format!("The {} misses wildly!", attacker_name));
+        return result;
+    }
+
     // Process each attack in the monster's attack set
     for attack in &attacker.attacks {
         if !attack.is_active() {
@@ -358,10 +366,21 @@ pub fn mattacku(
             break;
         }
 
-        // Check for attacker death (passive damage)
+        // Check for attacker death (passive damage from player)
         if attack_result.attacker_died {
             result.monster_died = true;
             break;
+        }
+
+        // Apply passive damage to attacker (e.g., acid blood, fire body)
+        if attack_result.hit && attack.attack_type.is_melee() {
+            let passive_dmg = passiveum(player, attacker, rng);
+            if passive_dmg > 0 {
+                result.messages.push(format!(
+                    "The {} is hurt by your passive defense!",
+                    attacker_name
+                ));
+            }
         }
     }
 
@@ -434,6 +453,11 @@ fn process_engulf_attack(
     if result.hit {
         player.swallowed = true;
         result.special_effect = Some(CombatEffect::Engulfed);
+
+        // Check for blindness when engulfed
+        if gulp_blnd_check(player) {
+            player.blinded_timeout = player.blinded_timeout.saturating_add(1);
+        }
     }
 
     result
@@ -446,11 +470,7 @@ fn process_explode_attack(
     attack: &Attack,
     rng: &mut GameRng,
 ) -> CombatResult {
-    // Explosion always hits if in range, and kills the attacker
-    let mut result = monster_attack_player(attacker, player, attack, rng);
-    result.hit = true; // Explosions always hit
-    result.attacker_died = true; // Attacker dies from explosion
-    result
+    explmu(player, attacker, attack, rng)
 }
 
 /// Process gaze attack (gazemu in C)
@@ -1181,6 +1201,30 @@ pub fn monster_attack_player_full(
         DamageType::Wrap | DamageType::Stick => {
             grab_player(player, attacker.id);
             Some(format!("The {} grabs you!", attacker.name))
+        }
+        DamageType::Slow => {
+            let msg = u_slow_down(player);
+            Some(msg)
+        }
+        DamageType::Disease => {
+            let (msg, _fatal) = diseasemu(player, &attacker.name, rng);
+            Some(msg)
+        }
+        DamageType::Seduce | DamageType::SeduceSpecial => {
+            match doseduce(player, attacker, inventory, rng) {
+                SeduceResult::Yes => Some(format!("The {} seduces you!", attacker.name)),
+                SeduceResult::WrongGender => Some(format!("The {} ugly thing tries to seduce you.", attacker.name)),
+                SeduceResult::No => None,
+            }
+        }
+        DamageType::StealGold => {
+            let amount = stealgold(inventory, player.gold, rng);
+            if amount > 0 {
+                player.gold -= amount;
+                Some(format!("The {} steals {} gold!", attacker.name, amount))
+            } else {
+                Some(format!("The {} couldn't find any gold.", attacker.name))
+            }
         }
         _ => None,
     };

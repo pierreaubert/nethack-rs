@@ -1,10 +1,26 @@
 //! Input handling - convert key events to commands
+//!
+//! Key bindings follow the original NetHack cmd.c conventions.
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nh_core::action::{Command, Direction};
 
-/// Convert a key event to a game command
+/// Convert a key event to a game command.
+///
+/// These are the "simple" bindings that map directly to a Command
+/// without needing additional input (item selection, direction, or text).
+/// More complex bindings (d, e, t, o, c, #, etc.) are handled in app.rs.
 pub fn key_to_command(key: KeyEvent, num_pad: bool) -> Option<Command> {
+    // Ctrl key combos
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        return match key.code {
+            KeyCode::Char('p') => Some(Command::History),       // Ctrl+P: message history
+            KeyCode::Char('r') => Some(Command::Redraw),        // Ctrl+R: redraw screen
+            KeyCode::Char('x') => Some(Command::ShowAttributes), // Ctrl+X: show attributes
+            _ => None,
+        };
+    }
+
     match key.code {
         // Vi keys (hjklyubn) when not using numpad
         KeyCode::Char('h') if !num_pad => Some(Command::Move(Direction::West)),
@@ -32,34 +48,32 @@ pub fn key_to_command(key: KeyEvent, num_pad: bool) -> Option<Command> {
         KeyCode::Left => Some(Command::Move(Direction::West)),
         KeyCode::Right => Some(Command::Move(Direction::East)),
 
-        // Common commands
-        KeyCode::Char(',') | KeyCode::Char('g') => Some(Command::Pickup),
-        // KeyCode::Char('d') => Some(Command::Drop),
-        // KeyCode::Char('e') => Some(Command::Eat),
-        // KeyCode::Char('q') => Some(Command::Quaff),
-        // KeyCode::Char('r') => Some(Command::Read),
-        // KeyCode::Char('z') => Some(Command::Zap),
-        // KeyCode::Char('a') => Some(Command::Apply),
-        KeyCode::Char('i') => Some(Command::Inventory),
-        KeyCode::Char('.') => Some(Command::Rest),
-        KeyCode::Char('<') => Some(Command::GoUp),
-        KeyCode::Char('>') => Some(Command::GoDown),
-        KeyCode::Char('s') => Some(Command::Search),
-        // KeyCode::Char('o') => Some(Command::Open),
-        // KeyCode::Char('c') => Some(Command::Close),
-        KeyCode::Char(':') => Some(Command::Look),
-        KeyCode::Char('/') => Some(Command::WhatsHere),
-        KeyCode::Char('?') => Some(Command::Help),
+        // Pickup / movement
+        KeyCode::Char(',') => Some(Command::Pickup),           // , : pickup
+        KeyCode::Char('.') => Some(Command::Rest),              // . : rest/wait
+        KeyCode::Char('<') => Some(Command::GoUp),              // < : go up stairs
+        KeyCode::Char('>') => Some(Command::GoDown),            // > : go down stairs
+        KeyCode::Char('_') => Some(Command::Travel),            // _ : travel
+        KeyCode::Char('s') => Some(Command::Search),            // s : search
 
-        // Wearing/wielding
-        // KeyCode::Char('w') => Some(Command::Wield),
-        // KeyCode::Char('W') => Some(Command::Wear),
-        // KeyCode::Char('T') => Some(Command::TakeOff),
-        // KeyCode::Char('P') => Some(Command::PutOn),
-        // KeyCode::Char('R') => Some(Command::Remove),
+        // Information
+        KeyCode::Char('i') => Some(Command::Inventory),         // i : inventory
+        KeyCode::Char(':') => Some(Command::Look),               // : : look here
+        KeyCode::Char('/') => Some(Command::WhatsHere),          // / : what is symbol
+        KeyCode::Char('?') => Some(Command::Help),               // ? : help
+        KeyCode::Char('\\') => Some(Command::Discoveries),       // \ : discoveries
+        KeyCode::Char('$') => Some(Command::CountGold),          // $ : count gold
+        KeyCode::Char('V') => Some(Command::History),            // V : version/history
+
+        // Simple actions (no extra input)
+        KeyCode::Char('p') => Some(Command::Pay),               // p : pay shopkeeper
+        KeyCode::Char('x') => Some(Command::SwapWeapon),        // x : swap weapons
+        KeyCode::Char('X') => Some(Command::TwoWeapon),         // X : two-weapon mode
+        KeyCode::Char('Z') => Some(Command::ShowSpells),        // Z : cast spell
+        KeyCode::Char('+') => Some(Command::EnhanceSkill),      // + : enhance weapon skill
 
         // Meta
-        KeyCode::Char('S') => Some(Command::Save),
+        KeyCode::Char('S') => Some(Command::Save),              // S : save game
 
         _ => None,
     }

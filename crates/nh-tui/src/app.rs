@@ -38,6 +38,8 @@ pub enum UiMode {
         prompt: String,
         action: PendingAction,
     },
+    /// Typing an extended command (#command)
+    ExtendedCommandInput { input: String },
     /// Showing help
     Help,
     /// Death screen showing final statistics
@@ -111,6 +113,13 @@ pub enum PendingAction {
     Quaff,
     Read,
     Zap,
+    Fight,
+    Fire,
+    Throw,
+    /// Throw: item already selected, waiting for direction
+    ThrowDir(char),
+    Untrap,
+    Force,
 }
 
 /// Application state
@@ -194,6 +203,7 @@ impl App {
                     let action = *action;
                     self.handle_direction_select_input(key, action)
                 }
+                UiMode::ExtendedCommandInput { .. } => self.handle_extended_command_input(key),
                 UiMode::Help => {
                     self.handle_help_input(key);
                     None
@@ -209,18 +219,34 @@ impl App {
     }
 
     /// Handle input in normal gameplay mode
+    ///
+    /// Key bindings follow the original NetHack cmd.c conventions.
     fn handle_normal_input(&mut self, key: crossterm::event::KeyEvent) -> Option<Command> {
+        // Handle Ctrl key combos first
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            return match key.code {
+                // Ctrl+D: kick (NetHack convention)
+                KeyCode::Char('d') => {
+                    self.enter_direction_select("Kick in which direction?", PendingAction::Kick);
+                    None
+                }
+                _ => key_to_command(key, self.num_pad),
+            };
+        }
+
         match key.code {
+            // ================================================================
             // Commands that need item selection
-            KeyCode::Char('d') => {
+            // ================================================================
+            KeyCode::Char('d') => {                                          // d: drop
                 self.enter_item_select("Drop what?", PendingAction::Drop, None);
                 None
             }
-            KeyCode::Char('e') => {
+            KeyCode::Char('e') => {                                          // e: eat
                 self.enter_item_select("Eat what?", PendingAction::Eat, Some(ObjectClass::Food));
                 None
             }
-            KeyCode::Char('a') => {
+            KeyCode::Char('a') => {                                          // a: apply
                 self.enter_item_select(
                     "Apply what?",
                     PendingAction::Apply,
@@ -228,11 +254,11 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('W') => {
+            KeyCode::Char('W') => {                                          // W: wear armor
                 self.enter_item_select("Wear what?", PendingAction::Wear, Some(ObjectClass::Armor));
                 None
             }
-            KeyCode::Char('T') => {
+            KeyCode::Char('T') => {                                          // T: take off armor
                 self.enter_item_select(
                     "Take off what?",
                     PendingAction::TakeOff,
@@ -240,7 +266,7 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('w') => {
+            KeyCode::Char('w') => {                                          // w: wield weapon
                 self.enter_item_select(
                     "Wield what?",
                     PendingAction::Wield,
@@ -248,15 +274,15 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('P') => {
-                self.enter_item_select("Put on what?", PendingAction::PutOn, None); // Rings or amulets
+            KeyCode::Char('P') => {                                          // P: put on ring/amulet
+                self.enter_item_select("Put on what?", PendingAction::PutOn, None);
                 None
             }
-            KeyCode::Char('R') => {
+            KeyCode::Char('R') => {                                          // R: remove ring/amulet
                 self.enter_item_select("Remove what?", PendingAction::Remove, None);
                 None
             }
-            KeyCode::Char('q') => {
+            KeyCode::Char('q') => {                                          // q: quaff potion
                 self.enter_item_select(
                     "Quaff what?",
                     PendingAction::Quaff,
@@ -264,7 +290,7 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('r') => {
+            KeyCode::Char('r') => {                                          // r: read scroll/book
                 self.enter_item_select(
                     "Read what?",
                     PendingAction::Read,
@@ -272,32 +298,48 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('z') => {
+            KeyCode::Char('z') => {                                          // z: zap wand
                 self.enter_item_select("Zap what?", PendingAction::Zap, Some(ObjectClass::Wand));
                 None
             }
+            KeyCode::Char('t') => {                                          // t: throw
+                self.enter_item_select("Throw what?", PendingAction::Throw, None);
+                None
+            }
 
+            // ================================================================
             // Commands that need direction selection
-            KeyCode::Char('o') => {
+            // ================================================================
+            KeyCode::Char('o') => {                                          // o: open door
                 self.enter_direction_select("Open in which direction?", PendingAction::Open);
                 None
             }
-            KeyCode::Char('c') => {
+            KeyCode::Char('c') => {                                          // c: close door
                 self.enter_direction_select("Close in which direction?", PendingAction::Close);
                 None
             }
-            KeyCode::Char('k') if self.num_pad => {
-                // 'k' is movement in vi mode, kick in numpad mode
-                self.enter_direction_select("Kick in which direction?", PendingAction::Kick);
+            KeyCode::Char('F') => {                                          // F: fight (force attack)
+                self.enter_direction_select("Fight in which direction?", PendingAction::Fight);
                 None
             }
-            KeyCode::Char('D') => {
-                // Shift-D for kick in vi mode
-                self.enter_direction_select("Kick in which direction?", PendingAction::Kick);
+            KeyCode::Char('f') => {                                          // f: fire from quiver
+                self.enter_direction_select("Fire in which direction?", PendingAction::Fire);
                 None
             }
 
+            // ================================================================
+            // Extended command (#)
+            // ================================================================
+            KeyCode::Char('#') => {
+                self.mode = UiMode::ExtendedCommandInput {
+                    input: String::new(),
+                };
+                None
+            }
+
+            // ================================================================
             // Inventory display
+            // ================================================================
             KeyCode::Char('i') => {
                 self.mode = UiMode::Inventory;
                 None
@@ -309,7 +351,7 @@ impl App {
                 None
             }
 
-            // All other commands go through normal input handling
+            // All other commands go through key_to_command (movement, simple actions, etc.)
             _ => key_to_command(key, self.num_pad),
         }
     }
@@ -339,7 +381,8 @@ impl App {
                 // Check if this letter is in inventory
                 if self.game_loop.state().get_inventory_item(c).is_some() {
                     self.mode = UiMode::Normal;
-                    Some(self.action_with_item(action, c))
+                    // action_with_item may transition to another mode (e.g., Throw → direction)
+                    self.action_with_item(action, c)
                 } else {
                     self.game_loop
                         .state_mut()
@@ -388,6 +431,116 @@ impl App {
         }
     }
 
+    /// Handle input in extended command mode (#command)
+    fn handle_extended_command_input(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+    ) -> Option<Command> {
+        let input = match &self.mode {
+            UiMode::ExtendedCommandInput { input } => input.clone(),
+            _ => return None,
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.mode = UiMode::Normal;
+                None
+            }
+            KeyCode::Enter => {
+                self.mode = UiMode::Normal;
+                if input.is_empty() {
+                    None
+                } else {
+                    // Look up the extended command and dispatch
+                    self.dispatch_extended_command(&input)
+                }
+            }
+            KeyCode::Backspace => {
+                let mut new_input = input;
+                new_input.pop();
+                self.mode = UiMode::ExtendedCommandInput { input: new_input };
+                None
+            }
+            KeyCode::Char(c) if c.is_ascii_alphabetic() => {
+                let mut new_input = input;
+                new_input.push(c);
+                self.mode = UiMode::ExtendedCommandInput { input: new_input };
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Dispatch a named extended command to the appropriate Command
+    fn dispatch_extended_command(&mut self, name: &str) -> Option<Command> {
+        let lower = name.to_lowercase();
+        match lower.as_str() {
+            // Actions that need no extra input
+            "pray" => Some(Command::Pray),
+            "offer" => Some(Command::Offer),
+            "sit" => Some(Command::Sit),
+            "chat" => Some(Command::Chat),
+            "pay" => Some(Command::Pay),
+            "dip" => Some(Command::Dip),
+            "jump" => Some(Command::Jump),
+            "ride" => Some(Command::Ride),
+            "wipe" => Some(Command::Wipe),
+            "invoke" => Some(Command::Invoke),
+            "turn" => Some(Command::TurnUndead),
+            "monster" => Some(Command::MonsterAbility),
+            "enhance" => Some(Command::EnhanceSkill),
+            "loot" => Some(Command::Loot),
+            "travel" => Some(Command::Travel),
+            "twoweapon" => Some(Command::TwoWeapon),
+            "swap" => Some(Command::SwapWeapon),
+            "search" => Some(Command::Search),
+            "save" => Some(Command::Save),
+            "quit" => Some(Command::Quit),
+            "discoveries" | "known" => Some(Command::Discoveries),
+            "history" => Some(Command::History),
+            "attributes" => Some(Command::ShowAttributes),
+            "conduct" => Some(Command::ShowConduct),
+            "overview" => Some(Command::DungeonOverview),
+            "spells" => Some(Command::ShowSpells),
+            "equipment" => Some(Command::ShowEquipment),
+            "inventory" => Some(Command::Inventory),
+            "vanquished" => Some(Command::Vanquished),
+            "redraw" => Some(Command::Redraw),
+            "gold" => Some(Command::CountGold),
+            // Direction-needing commands go through direction select
+            "untrap" => {
+                self.enter_direction_select("Untrap in which direction?", PendingAction::Untrap);
+                None
+            }
+            "force" => {
+                self.enter_direction_select("Force in which direction?", PendingAction::Force);
+                None
+            }
+            "fight" => {
+                self.enter_direction_select("Fight in which direction?", PendingAction::Fight);
+                None
+            }
+            "kick" => {
+                self.enter_direction_select("Kick in which direction?", PendingAction::Kick);
+                None
+            }
+            "open" => {
+                self.enter_direction_select("Open in which direction?", PendingAction::Open);
+                None
+            }
+            "close" => {
+                self.enter_direction_select("Close in which direction?", PendingAction::Close);
+                None
+            }
+            _ => {
+                self.game_loop
+                    .state_mut()
+                    .message(format!("Unknown extended command: #{}", name));
+                None
+            }
+        }
+    }
+
     /// Handle input when viewing help
     fn handle_help_input(&mut self, key: crossterm::event::KeyEvent) {
         match key.code {
@@ -421,43 +574,45 @@ impl App {
         };
     }
 
-    /// Create a command for an action with an item
-    fn action_with_item(&self, action: PendingAction, letter: char) -> Command {
+    /// Create a command for an action with an item.
+    /// Returns None if the action needs further input (e.g., Throw needs a direction next).
+    fn action_with_item(&mut self, action: PendingAction, letter: char) -> Option<Command> {
         match action {
-            PendingAction::Drop => Command::ExtendedCommand(format!("drop {}", letter)),
-            PendingAction::Eat => Command::ExtendedCommand(format!("eat {}", letter)),
-            PendingAction::Apply => Command::ExtendedCommand(format!("apply {}", letter)),
-            PendingAction::Wear => Command::ExtendedCommand(format!("wear {}", letter)),
-            PendingAction::TakeOff => Command::ExtendedCommand(format!("takeoff {}", letter)),
-            PendingAction::Wield => Command::ExtendedCommand(format!("wield {}", letter)),
-            PendingAction::PutOn => Command::ExtendedCommand(format!("puton {}", letter)),
-            PendingAction::Remove => Command::ExtendedCommand(format!("remove {}", letter)),
-            PendingAction::Quaff => Command::ExtendedCommand(format!("quaff {}", letter)),
-            PendingAction::Read => Command::ExtendedCommand(format!("read {}", letter)),
-            PendingAction::Zap => Command::ExtendedCommand(format!("zap {}", letter)),
-            _ => Command::ExtendedCommand("noop".to_string()),
+            PendingAction::Drop => Some(Command::ExtendedCommand(format!("drop {}", letter))),
+            PendingAction::Eat => Some(Command::ExtendedCommand(format!("eat {}", letter))),
+            PendingAction::Apply => Some(Command::ExtendedCommand(format!("apply {}", letter))),
+            PendingAction::Wear => Some(Command::ExtendedCommand(format!("wear {}", letter))),
+            PendingAction::TakeOff => Some(Command::ExtendedCommand(format!("takeoff {}", letter))),
+            PendingAction::Wield => Some(Command::ExtendedCommand(format!("wield {}", letter))),
+            PendingAction::PutOn => Some(Command::ExtendedCommand(format!("puton {}", letter))),
+            PendingAction::Remove => Some(Command::ExtendedCommand(format!("remove {}", letter))),
+            PendingAction::Quaff => Some(Command::ExtendedCommand(format!("quaff {}", letter))),
+            PendingAction::Read => Some(Command::ExtendedCommand(format!("read {}", letter))),
+            PendingAction::Zap => Some(Command::ExtendedCommand(format!("zap {}", letter))),
+            PendingAction::Throw => {
+                // Throw needs a direction after item selection
+                self.enter_direction_select(
+                    "Throw in which direction?",
+                    PendingAction::ThrowDir(letter),
+                );
+                None
+            }
+            _ => None,
         }
     }
 
     /// Create a command for an action with a direction
     fn action_with_direction(&self, action: PendingAction, dir: GameDirection) -> Command {
-        let dir_str = match dir {
-            GameDirection::North => "n",
-            GameDirection::South => "s",
-            GameDirection::East => "e",
-            GameDirection::West => "w",
-            GameDirection::NorthEast => "ne",
-            GameDirection::NorthWest => "nw",
-            GameDirection::SouthEast => "se",
-            GameDirection::SouthWest => "sw",
-            GameDirection::Self_ => ".",
-            _ => ".",
-        };
         match action {
-            PendingAction::Open => Command::ExtendedCommand(format!("open {}", dir_str)),
-            PendingAction::Close => Command::ExtendedCommand(format!("close {}", dir_str)),
-            PendingAction::Kick => Command::ExtendedCommand(format!("kick {}", dir_str)),
-            _ => Command::ExtendedCommand("noop".to_string()),
+            PendingAction::Open => Command::Open(dir),
+            PendingAction::Close => Command::Close(dir),
+            PendingAction::Kick => Command::Kick(dir),
+            PendingAction::Fight => Command::Fight(dir),
+            PendingAction::Fire => Command::Fire(dir),
+            PendingAction::ThrowDir(item) => Command::Throw(item, dir),
+            PendingAction::Untrap => Command::Untrap(dir),
+            PendingAction::Force => Command::Force(dir),
+            _ => Command::Rest, // Should not happen
         }
     }
 
@@ -635,6 +790,9 @@ impl App {
             UiMode::DirectionSelect { prompt, .. } => {
                 self.render_direction_select(frame, prompt);
             }
+            UiMode::ExtendedCommandInput { input } => {
+                self.render_extended_command_input(frame, input);
+            }
             UiMode::Help => self.render_help(frame),
             UiMode::DeathScreen { cause } => {
                 self.render_death_screen(frame, cause);
@@ -715,35 +873,89 @@ impl App {
         frame.render_widget(paragraph, inner);
     }
 
+    /// Render extended command input overlay
+    fn render_extended_command_input(&self, frame: &mut Frame, input: &str) {
+        let area = centered_rect(50, 20, frame.area());
+        frame.render_widget(Clear, area);
+
+        let block = Block::default()
+            .title("# Extended Command")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(self.theme.border_action));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let display = format!("#{}_", input);
+        let paragraph = Paragraph::new(display)
+            .style(Style::default().fg(self.theme.text));
+
+        // Show matching commands below
+        let matches = if input.is_empty() {
+            "Type command name (e.g. pray, offer, sit, chat, jump, loot...)".to_string()
+        } else {
+            let lower = input.to_lowercase();
+            let matching: Vec<&str> = [
+                "pray", "offer", "sit", "chat", "pay", "dip", "jump", "ride", "wipe",
+                "invoke", "turn", "monster", "enhance", "loot", "travel", "twoweapon",
+                "untrap", "force", "kick", "open", "close", "fight", "discoveries",
+                "history", "attributes", "conduct", "overview", "spells", "equipment",
+                "vanquished", "redraw", "gold", "save", "quit", "search", "swap",
+            ]
+            .iter()
+            .filter(|cmd| cmd.starts_with(&lower))
+            .copied()
+            .collect();
+            if matching.is_empty() {
+                format!("No matching command for '{}'", input)
+            } else {
+                matching.join(", ")
+            }
+        };
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Min(1)])
+            .split(inner);
+
+        frame.render_widget(paragraph, chunks[0]);
+
+        let matches_para = Paragraph::new(matches)
+            .style(Style::default().fg(self.theme.text_dim))
+            .wrap(ratatui::widgets::Wrap { trim: true });
+        frame.render_widget(matches_para, chunks[1]);
+    }
+
     /// Render help overlay
     fn render_help(&self, frame: &mut Frame) {
         let area = centered_rect(70, 80, frame.area());
         frame.render_widget(Clear, area);
 
         let help_text = r#"Movement: hjklyubn (vi keys) or arrow keys
-Commands:
-  , g  Pickup items
-  d    Drop item
-  e    Eat food
-  q    Quaff potion
-  r    Read scroll
-  z    Zap wand
-  a    Apply tool
-  w    Wield weapon
-  W    Wear armor
-  T    Take off armor
-  P    Put on ring/amulet
-  R    Remove ring/amulet
-  o    Open door
-  c    Close door
-  D    Kick
-  s    Search
-  .    Rest
-  <    Go up stairs
-  >    Go down stairs
-  i    Inventory
-  S    Save game
-  Q    Quit
+         HJKLYUBN to run
+
+Items:
+  ,    Pickup         d  Drop          i  Inventory
+  e    Eat            q  Quaff         r  Read
+  a    Apply          z  Zap wand      t  Throw
+  w    Wield          W  Wear armor    T  Take off
+  P    Put on         R  Remove        $  Count gold
+
+Actions:
+  o    Open door      c  Close door    s  Search
+  f    Fire           F  Fight         ^D Kick
+  x    Swap weapon    X  Two-weapon    +  Enhance skill
+  Z    Cast spell     _  Travel
+  .    Rest/wait      <  Go up         >  Go down
+
+Information:
+  :    Look here      /  What is       ?  Help
+  \    Discoveries    V  History       ^X Attributes
+  ^P   Message log    ^R Redraw
+
+Meta:
+  #    Extended command (pray, offer, sit, chat, ...)
+  S    Save game      Q  Quit
 
 Press ESC or SPACE to close"#;
 
@@ -912,7 +1124,10 @@ Press ESC or SPACE to close"#;
                 }
             }
             CharacterCreationState::SelectRace { name, role, cursor } => {
-                let races: Vec<Race> = Race::iter().collect();
+                // Filter races compatible with selected role
+                let races: Vec<Race> = Race::iter()
+                    .filter(|&r| nh_core::player::validrace(role, r))
+                    .collect();
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => {
                         let new_cursor = if cursor == 0 {
@@ -1056,14 +1271,29 @@ Press ESC or SPACE to close"#;
                 gender,
                 cursor,
             } => {
-                let aligns = [
+                // Filter alignments compatible with role/race/gender
+                let aligns: Vec<AlignmentType> = [
                     AlignmentType::Lawful,
                     AlignmentType::Neutral,
                     AlignmentType::Chaotic,
-                ];
+                ].into_iter()
+                    .filter(|&a| nh_core::player::validalign(role, race, gender, a))
+                    .collect();
+                let aligns_len = aligns.len();
+                // If only one alignment is valid, skip selection
+                if aligns_len == 1 {
+                    self.mode = UiMode::CharacterCreation(CharacterCreationState::Done {
+                        name,
+                        role,
+                        race,
+                        gender,
+                        alignment: aligns[0],
+                    });
+                    return;
+                }
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => {
-                        let new_cursor = if cursor == 0 { 2 } else { cursor - 1 };
+                        let new_cursor = if cursor == 0 { aligns_len - 1 } else { cursor - 1 };
                         CharacterCreationState::SelectAlignment {
                             name,
                             role,
@@ -1073,7 +1303,7 @@ Press ESC or SPACE to close"#;
                         }
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
-                        let new_cursor = (cursor + 1) % 3;
+                        let new_cursor = (cursor + 1) % aligns_len;
                         CharacterCreationState::SelectAlignment {
                             name,
                             role,
@@ -1083,7 +1313,7 @@ Press ESC or SPACE to close"#;
                         }
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => {
-                        let alignment = aligns[cursor];
+                        let alignment = aligns[cursor.min(aligns_len - 1)];
                         CharacterCreationState::Done {
                             name,
                             role,
@@ -1092,29 +1322,26 @@ Press ESC or SPACE to close"#;
                             alignment,
                         }
                     }
-                    KeyCode::Char('l') | KeyCode::Char('L') => CharacterCreationState::Done {
-                        name,
-                        role,
-                        race,
-                        gender,
-                        alignment: AlignmentType::Lawful,
-                    },
-                    KeyCode::Char('n') | KeyCode::Char('N') => CharacterCreationState::Done {
-                        name,
-                        role,
-                        race,
-                        gender,
-                        alignment: AlignmentType::Neutral,
-                    },
-                    KeyCode::Char('c') | KeyCode::Char('C') => CharacterCreationState::Done {
-                        name,
-                        role,
-                        race,
-                        gender,
-                        alignment: AlignmentType::Chaotic,
-                    },
+                    KeyCode::Char('l') | KeyCode::Char('L') if aligns.contains(&AlignmentType::Lawful) => {
+                        CharacterCreationState::Done {
+                            name, role, race, gender,
+                            alignment: AlignmentType::Lawful,
+                        }
+                    }
+                    KeyCode::Char('n') | KeyCode::Char('N') if aligns.contains(&AlignmentType::Neutral) => {
+                        CharacterCreationState::Done {
+                            name, role, race, gender,
+                            alignment: AlignmentType::Neutral,
+                        }
+                    }
+                    KeyCode::Char('c') | KeyCode::Char('C') if aligns.contains(&AlignmentType::Chaotic) => {
+                        CharacterCreationState::Done {
+                            name, role, race, gender,
+                            alignment: AlignmentType::Chaotic,
+                        }
+                    }
                     KeyCode::Char('*') => {
-                        let alignment = aligns[self.selection_cursor % 3];
+                        let alignment = aligns[self.selection_cursor % aligns_len];
                         CharacterCreationState::Done {
                             name,
                             role,
@@ -1199,8 +1426,11 @@ Press ESC or SPACE to close"#;
                         "jk/arrows to move, Enter to select, * random, Esc back",
                     )
                 }
-                CharacterCreationState::SelectRace { cursor, .. } => {
-                    let races: Vec<Race> = Race::iter().collect();
+                CharacterCreationState::SelectRace { role, cursor, .. } => {
+                    // Show only races compatible with the selected role
+                    let races: Vec<Race> = Race::iter()
+                        .filter(|&r| nh_core::player::validrace(*role, r))
+                        .collect();
                     let items: Vec<(String, String)> = races
                         .iter()
                         .enumerate()
@@ -1228,12 +1458,23 @@ Press ESC or SPACE to close"#;
                         "jk/arrows to move, Enter to select, * random, Esc back",
                     )
                 }
-                CharacterCreationState::SelectAlignment { cursor, .. } => {
-                    let items = vec![
-                        ("l".to_string(), "Lawful".to_string()),
-                        ("n".to_string(), "Neutral".to_string()),
-                        ("c".to_string(), "Chaotic".to_string()),
-                    ];
+                CharacterCreationState::SelectAlignment { role, race, gender, cursor, .. } => {
+                    // Show only alignments compatible with role/race/gender
+                    let valid_aligns: Vec<AlignmentType> = [
+                        AlignmentType::Lawful,
+                        AlignmentType::Neutral,
+                        AlignmentType::Chaotic,
+                    ].into_iter()
+                        .filter(|&a| nh_core::player::validalign(*role, *race, *gender, a))
+                        .collect();
+                    let items: Vec<(String, String)> = valid_aligns.iter().map(|a| {
+                        let key = match a {
+                            AlignmentType::Lawful => "l",
+                            AlignmentType::Neutral => "n",
+                            AlignmentType::Chaotic => "c",
+                        };
+                        (key.to_string(), format!("{:?}", a))
+                    }).collect();
                     (
                         "Pick an alignment:",
                         items,

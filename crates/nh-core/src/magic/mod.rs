@@ -63,9 +63,10 @@ pub use advanced::{
     spell_affects_undead, spell_failure_message,
 };
 pub use artifacts::{
-    ArtifactAbility, ArtifactAttackType, ArtifactEffects, ArtifactProperty, apply_artifact_effects,
-    artifact_provides_protection, get_artifact_attack_bonus, get_artifact_defense_bonus,
-    get_artifact_effects, get_artifact_warning, remove_artifact_effects, should_warn_of_monster,
+    ArtifactAbility, ArtifactAttackType, ArtifactEffects, ArtifactProperty, InvokeResult,
+    apply_artifact_effects, artifact_provides_protection, doinvoke, get_artifact_attack_bonus,
+    get_artifact_defense_bonus, get_artifact_effects, get_artifact_warning,
+    remove_artifact_effects, should_warn_of_monster,
 };
 pub use components::{
     ComponentInventory, ComponentType, can_cast_with_components, consume_spell_components,

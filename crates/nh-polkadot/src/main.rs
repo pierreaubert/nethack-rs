@@ -361,7 +361,7 @@ fn handle_new_game(data: &[u8]) {
     let name = hex_name(&caller[..4]);
 
     // Create new game state
-    let state = GameState::new_with_identity(rng, name, role, race, gender);
+    let state = GameState::new_with_identity(rng, name, role, race, gender, role.default_alignment());
 
     // Serialize and store
     match postcard::to_allocvec(&state) {

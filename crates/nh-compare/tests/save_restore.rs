@@ -26,7 +26,7 @@ use nh_core::{GameRng, GameState};
 /// Create a GameState with a known seed and customized player fields
 fn make_test_state(seed: u64) -> GameState {
     let rng = GameRng::new(seed);
-    GameState::new_with_identity(rng, "TestHero".into(), Role::Valkyrie, Race::Human, Gender::Female)
+    GameState::new_with_identity(rng, "TestHero".into(), Role::Valkyrie, Race::Human, Gender::Female, Role::Valkyrie.default_alignment())
 }
 
 /// Unique temp file path (avoids collisions across parallel tests)

@@ -1414,28 +1414,6 @@ pub fn enexto(x: i8, y: i8, level: &Level) -> Option<(i8, i8)> {
     None
 }
 
-/// Randomly relocate a monster to a valid position on the same level (NetHack rloc)
-///
-/// Used by teleportation and escape mechanics. Finds a random valid position
-/// using rnd_goodpos() and moves the monster there.
-///
-/// # Arguments
-/// * `monster_id` - The monster to relocate
-/// * `level` - The level to operate on
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// true if successful, false if no valid position found
-pub fn rloc_monster(monster_id: MonsterId, level: &mut Level, rng: &mut crate::GameRng) -> bool {
-    // Find a random valid position on the level
-    if let Some((x, y)) = level.rnd_goodpos(rng) {
-        // Move the monster to the new position
-        level.move_monster(monster_id, x, y)
-    } else {
-        false
-    }
-}
-
 /// Move a monster to a different dungeon level (NetHack migrate_to_level)
 ///
 /// Removes the monster from the current level and returns it for placement on target level.

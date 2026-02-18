@@ -185,6 +185,8 @@ pub struct You {
 
     // Equipment bonuses
     pub weapon_bonus: i8,
+    #[serde(default)]
+    pub twoweap: bool,
 
     // Wealth
     pub gold: i32,
@@ -340,6 +342,7 @@ impl Default for You {
             status_effects: StatusEffectTracker::new(),
 
             weapon_bonus: 0,
+            twoweap: false,
             gold: 0,
 
             monster_num: None,

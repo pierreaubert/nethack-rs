@@ -11,7 +11,7 @@ use nh_core::{GameRng, GameState};
 fn test_rust_inventory_state_extraction_depth() {
     let rng = GameRng::new(42);
     // Archeologist starts with several items: pick-axe, tin opener, food rations, etc.
-    let state = GameState::new_with_identity(rng, "Hero".into(), Role::Archeologist, Race::Human, Gender::Male);
+    let state = GameState::new_with_identity(rng, "Hero".into(), Role::Archeologist, Race::Human, Gender::Male, Role::Archeologist.default_alignment());
     
     let inv = &state.inventory;
     assert!(!inv.is_empty(), "Archeologist should have starting inventory");
@@ -28,7 +28,7 @@ fn test_rust_inventory_state_extraction_depth() {
 #[test]
 fn test_rust_monster_state_extraction_depth() {
     let rng = GameRng::new(42);
-    let state = GameState::new_with_identity(rng, "Hero".into(), Role::Valkyrie, Race::Human, Gender::Male);
+    let state = GameState::new_with_identity(rng, "Hero".into(), Role::Valkyrie, Race::Human, Gender::Male, Role::Valkyrie.default_alignment());
     
     // Check if there are any monsters on the first level
     let monsters = &state.current_level.monsters;

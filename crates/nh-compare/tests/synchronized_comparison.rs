@@ -38,7 +38,7 @@ fn test_synchronized_movement_parity() {
 
     // 1. Initialize Rust Engine - Use C's starting position to match
     let rust_rng = GameRng::new(seed);
-    let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender);
+    let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender, role.default_alignment());
     rust_state.player.pos.x = cx_start as i8;
     rust_state.player.pos.y = cy_start as i8;
     let mut rust_loop = GameLoop::new(rust_state);
@@ -119,7 +119,7 @@ fn test_gnomish_mines_gauntlet_parity() {
     let (cx_start, cy_start) = c_engine.position();
 
     let rust_rng = GameRng::new(seed);
-    let mut rust_state = GameState::new_with_identity(rust_rng, "Miner".into(), Role::Archeologist, Race::Dwarf, Gender::Male);
+    let mut rust_state = GameState::new_with_identity(rust_rng, "Miner".into(), Role::Archeologist, Race::Dwarf, Gender::Male, Role::Archeologist.default_alignment());
     rust_state.player.pos.x = cx_start as i8;
     rust_state.player.pos.y = cy_start as i8;
     let mut rust_loop = GameLoop::new(rust_state);
@@ -187,7 +187,7 @@ fn test_inventory_weight_stress_parity() {
     c_engine.init("Tourist", "Human", 0, 0).expect("C engine init failed");
     
     let rust_rng = GameRng::new(seed);
-    let mut rust_state = GameState::new_with_identity(rust_rng, "PackRat".into(), Role::Tourist, Race::Human, Gender::Male);
+    let mut rust_state = GameState::new_with_identity(rust_rng, "PackRat".into(), Role::Tourist, Race::Human, Gender::Male, Role::Tourist.default_alignment());
     
     println!("\n=== Starting Inventory Weight Stress (Seed {}) ===", seed);
     
@@ -249,7 +249,7 @@ fn test_all_roles_inventory_parity() {
         
         // 2. Initialize Rust Engine
         let rust_rng = GameRng::new(seed);
-        let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, Race::Human, Gender::Male);
+        let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
 
         let c_inv_str = c_engine.inventory_json();
         let c_inv: Value = serde_json::from_str(&c_inv_str).unwrap();
@@ -293,7 +293,7 @@ fn test_all_roles_character_generation_parity() {
         
         // 2. Initialize Rust Engine
         let rust_rng = GameRng::new(seed);
-        let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, Race::Human, Gender::Male);
+        let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
 
         println!("=== Role: {} Parity (Seed {}) ===", role_name, seed);
         println!("Rust: HP {}/{}, Energy {}/{}", rust_state.player.hp, rust_state.player.hp_max, rust_state.player.energy, rust_state.player.energy_max);
@@ -318,7 +318,7 @@ fn test_character_generation_parity() {
     
     // 2. Initialize Rust Engine
     let rust_rng = GameRng::new(seed);
-    let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), Role::Wizard, Race::Human, Gender::Male);
+    let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), Role::Wizard, Race::Human, Gender::Male, Role::Wizard.default_alignment());
     
     println!("\n=== Character Generation Parity (Seed {}) ===", seed);
     println!("Rust: HP {}/{}, Energy {}/{}", rust_state.player.hp, rust_state.player.hp_max, rust_state.player.energy, rust_state.player.energy_max);
@@ -348,7 +348,7 @@ fn test_multi_seed_baseline_rest_parity() {
 
         // 2. Initialize Rust Engine
         let rust_rng = GameRng::new(seed);
-        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender);
+        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender, role.default_alignment());
         rust_state.player.pos.x = cx_start as i8;
         rust_state.player.pos.y = cy_start as i8;
         let mut rust_loop = GameLoop::new(rust_state);
@@ -442,7 +442,7 @@ fn test_full_state_comparison_multi_seed() {
         let (cx_start, cy_start) = c_engine.position();
 
         let rust_rng = GameRng::new(seed);
-        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender);
+        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender, role.default_alignment());
         rust_state.player.pos.x = cx_start as i8;
         rust_state.player.pos.y = cy_start as i8;
         let mut rust_loop = GameLoop::new(rust_state);
@@ -509,7 +509,7 @@ fn test_long_stress_1000_turns() {
         let (cx_start, cy_start) = c_engine.position();
 
         let rust_rng = GameRng::new(seed);
-        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender);
+        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender, role.default_alignment());
         rust_state.player.pos.x = cx_start as i8;
         rust_state.player.pos.y = cy_start as i8;
         let mut rust_loop = GameLoop::new(rust_state);

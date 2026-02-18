@@ -24,7 +24,18 @@ pub mod region;
 pub mod trap;
 
 pub use bones::{BonesFile, BonesHeader, BonesManager};
+#[cfg(feature = "std")]
+pub use bones::{
+    commit_bonesfile, create_bonesfile, delete_bonesfile, getbones, open_bonesfile, savebones,
+    set_bonesfile_name,
+};
 pub use cell::{Cell, CellType, DoorState, isok};
+pub use cell::{
+    ceiling, hliquid, is_drawbridge_wall, is_ice, is_lava, is_pool, set_lit, surface,
+    waterbody_name,
+};
+pub use corridor::corr;
+pub use rect::{add_rect_to_reg, inside_rect};
 pub use corridor::{ConnectivityTracker, generate_corridors};
 pub use dlevel::{
     DLevel,
@@ -105,7 +116,7 @@ pub use generation::{
 };
 pub use level::{
     Engraving, EngravingType, Level, LevelFlags, LightSource, LightSourceFlags, LightSourceType,
-    Stairway, Trap, TrapType, enexto,
+    Stairway, Trap, TrapType, enexto, migrate_monster_to_level,
 };
 pub use mapseen::{
     MAXNROFROOMS,

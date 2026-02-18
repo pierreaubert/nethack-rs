@@ -32,4 +32,8 @@ pub struct Context {
     // Save/restore
     pub restoring: bool,
     pub saving: bool,
+
+    // Artifact invocation cooldown
+    #[serde(default)]
+    pub last_invoke_turn: u64,
 }

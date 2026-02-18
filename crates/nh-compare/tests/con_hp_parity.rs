@@ -44,7 +44,7 @@ fn test_constitution_hp_bonus_parity() {
             println!("Testing Role: {}, Race: {}, Seed: 42, Align: {}", role_name, race_name, align);
 
             // 3. Initialize Rust Engine
-            let rust_state = GameState::new_with_identity(nh_core::GameRng::new(42), "Hero".into(), role, *race, Gender::Male);
+            let rust_state = GameState::new_with_identity(nh_core::GameRng::new(42), "Hero".into(), role, *race, Gender::Male, role.default_alignment());
 
             println!("  C HP: {}/{}, Energy: {}/{}", c_engine.hp(), c_engine.max_hp(), c_engine.energy(), c_engine.max_energy());
             println!("  Rust HP: {}/{}, Energy: {}/{}", rust_state.player.hp, rust_state.player.hp_max, rust_state.player.energy, rust_state.player.energy_max);

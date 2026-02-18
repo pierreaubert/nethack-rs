@@ -43,21 +43,34 @@ pub use mhitm::{
     mm_aggression, mm_displacement, monster_attack_monster, mswingsm, passivemm,
 };
 pub use mhitu::{
-    MonsterAttackResult, SeduceResult, apply_grab_damage, could_seduce, damage_effect_message,
-    expels, gazemu, gulpmu,
-    hit_message, mattacku, miss_message, monster_attack_player, resistance_message,
-    try_escape_grab, wild_miss_message,
+    MonsterAttackResult, SeduceResult, apply_grab_damage, automiss, could_seduce,
+    damage_effect_message, diseasemu, doseduce, expels, explmu, gazemu, gulp_blnd_check, gulpmu,
+    hit_message, mattacku, miss_message, monster_attack_player, passiveum, resistance_message,
+    steal_it, stealamulet, stealarm, stealgold, thitu, try_escape_grab, u_slow_down,
+    wild_miss_message,
 };
 pub use uhitm::{
     AttackSource, CleaveTarget, HitResult, JoustResult,
     ammo_for_launcher, artifact_to_hit_bonus, attack, attack_checks, attack_hits,
     bare_hand_damage, buc_damage_bonus, calculate_to_hit, cleave_targets, creature_vulnerability,
     dbon, find_roll_to_hit, greatest_erosion, hates_silver_check, hitval, hmon,
-    is_ranged_weapon, is_two_handed, joust, maybe_erode_weapon, mon_hates_silver,
-    player_attack_monster, retouch_equipment, retouch_object, shade_aware, shade_miss,
+    hates_silver, is_ranged_weapon, is_two_handed, joust, maybe_erode_weapon,
+    mon_hates_silver, mon_hates_silver_by_name,
+    advance_weapon_skill_from_combat,
+    player_attack_monster, process_player_xp_reward, retouch_equipment, retouch_object, shade_aware, shade_miss,
     shade_miss_message, silver_damage, silver_sears, skill_dam_bonus, skill_hit_bonus,
     special_dmgval, special_weapon_effects, sticks, throw_damage, throwing_weapon,
     two_weapon_hit, weapon_dam_bonus, weapon_hit_bonus, weapon_skill_type,
+    // Loot system
+    award_monster_loot, award_boss_hoard, generate_monster_loot, should_drop_hoard,
+    // Combat spells
+    can_player_cast_in_combat, player_cast_spell, get_player_combat_spells,
+    // Encounter system
+    create_encounter, calculate_encounter_difficulty, get_difficulty_label,
+    init_encounter_state, are_monsters_flanking, get_flanking_bonus,
+    apply_encounter_effects, process_encounter_round, get_encounter_victory_xp,
+    // Polymorph combat
+    hmonas, player_wearing_armor_type,
 };
 
 // Phase 14: Experience & Leveling System exports

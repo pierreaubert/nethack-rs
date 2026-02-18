@@ -296,7 +296,7 @@ impl Isaac64 {
         if x <= 1 { return 0; }
         let raw = self.next_u64();
         let res = (raw % x as u64) as u32;
-        eprintln!("RS: rn2({}) = {} (raw={})", x, res, raw);
+        // eprintln!("RS: rn2({}) = {} (raw={})", x, res, raw);
         if self.tracing {
             self.trace.push(RngTraceEntry {
                 seq: self.call_count - 1,
@@ -315,7 +315,7 @@ impl Isaac64 {
         if x == 0 { return 0; }
         let raw = self.next_u64();
         let res = (raw % x as u64) as u32 + 1;
-        eprintln!("RS: rnd({}) = {} (raw={})", x, res, raw);
+        // eprintln!("RS: rnd({}) = {} (raw={})", x, res, raw);
         if self.tracing {
             self.trace.push(RngTraceEntry {
                 seq: self.call_count - 1,

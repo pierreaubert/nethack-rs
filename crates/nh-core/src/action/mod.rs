@@ -51,6 +51,7 @@ pub enum Command {
     Throw(char, Direction),
     TwoWeapon,
     SwapWeapon,
+    CastSpell,
 
     // Object manipulation
     Pickup,

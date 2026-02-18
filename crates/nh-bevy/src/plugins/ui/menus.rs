@@ -609,6 +609,7 @@ fn render_character_creation(
                                 role,
                                 race,
                                 gender,
+                                role.default_alignment(),
                             );
                             state.player.alignment =
                                 nh_core::player::Alignment::new(alignment);

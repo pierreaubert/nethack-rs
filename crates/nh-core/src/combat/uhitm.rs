@@ -773,6 +773,11 @@ pub fn player_attack_monster(
     weapon: Option<&Object>,
     rng: &mut GameRng,
 ) -> CombatResult {
+    // Route through hmonas for polymorphed unarmed attacks
+    if player.monster_num.is_some() && weapon.is_none() {
+        return hmonas(player, target, rng);
+    }
+
     // Phase 13: Check if player is incapacitated by status effects
     if player.status_effects.is_incapacitated() {
         // Apply passive damage from status effects to player

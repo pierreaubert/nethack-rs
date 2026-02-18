@@ -12,10 +12,7 @@ use crossterm::{
 };
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use strum::IntoEnumIterator;
-
-use nh_core::dungeon::Level;
-use nh_core::player::{AlignmentType, Gender, Race, Role, You};
+use nh_core::player::{AlignmentType, Gender, Race, Role};
 use nh_core::save::{default_save_path, delete_save, load_game, save_game};
 use nh_core::{GameLoopResult, GameRng, GameState};
 use nh_tui::{App, Theme};
@@ -81,6 +78,10 @@ struct Args {
 fn main() -> io::Result<()> {
     // Parse command-line arguments before terminal setup
     let args = Args::parse();
+
+    // Early system initialization (C: sys_early_init + decl_init)
+    nh_core::world::sys_early_init();
+    nh_core::world::decl_init();
 
     // Handle special modes that don't require full game setup
 
@@ -198,7 +199,8 @@ fn main() -> io::Result<()> {
         }
     }
 
-    // Restore terminal
+    // Cleanup and restore terminal
+    nh_core::world::freedynamicdata();
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
@@ -293,31 +295,31 @@ fn create_new_game_with_args(player_name: &str, args: &Args) -> io::Result<GameS
         random_role(&mut rng)
     };
 
-    // Parse race from args or pick random
+    // Parse race from args or pick compatible random
     let race = if args.random {
-        random_race(&mut rng)
+        random_race(role, &mut rng)
     } else if let Some(ref race_str) = args.race {
-        parse_race(race_str).unwrap_or_else(|| random_race(&mut rng))
+        parse_race(race_str).unwrap_or_else(|| random_race(role, &mut rng))
     } else {
-        random_race(&mut rng)
+        random_race(role, &mut rng)
     };
 
-    // Parse gender from args or pick random
+    // Parse gender from args or pick compatible random
     let gender = if args.random {
-        random_gender(&mut rng)
+        random_gender(role, race, &mut rng)
     } else if let Some(ref gender_str) = args.gender {
-        parse_gender(gender_str).unwrap_or_else(|| random_gender(&mut rng))
+        parse_gender(gender_str).unwrap_or_else(|| random_gender(role, race, &mut rng))
     } else {
-        random_gender(&mut rng)
+        random_gender(role, race, &mut rng)
     };
 
-    // Parse alignment from args or pick random
+    // Parse alignment from args or use role default
     let alignment = if args.random {
-        random_alignment(&mut rng)
+        random_alignment(role)
     } else if let Some(ref align_str) = args.alignment {
-        parse_alignment(align_str).unwrap_or_else(|| random_alignment(&mut rng))
+        parse_alignment(align_str).unwrap_or_else(|| random_alignment(role))
     } else {
-        random_alignment(&mut rng)
+        random_alignment(role)
     };
 
     Ok(create_new_game_with_choices(
@@ -331,82 +333,53 @@ fn create_new_game_with_args(player_name: &str, args: &Args) -> io::Result<GameS
     ))
 }
 
-/// Parse role from string
+/// Parse role from string - delegates to nh_core's str2role
 fn parse_role(s: &str) -> Option<Role> {
-    let s = s.to_lowercase();
-    for role in Role::iter() {
-        if role.to_string().to_lowercase().starts_with(&s) {
-            return Some(role);
-        }
-    }
-    None
+    nh_core::player::str2role(s)
 }
 
-/// Parse race from string
+/// Parse race from string - delegates to nh_core's str2race
 fn parse_race(s: &str) -> Option<Race> {
-    let s = s.to_lowercase();
-    for race in Race::iter() {
-        if race.to_string().to_lowercase().starts_with(&s) {
-            return Some(race);
-        }
-    }
-    None
+    nh_core::player::str2race(s)
 }
 
-/// Parse gender from string
+/// Parse gender from string - delegates to nh_core's str2gend
 fn parse_gender(s: &str) -> Option<Gender> {
-    let s = s.to_lowercase();
-    if s.starts_with('m') {
-        Some(Gender::Male)
-    } else if s.starts_with('f') {
-        Some(Gender::Female)
-    } else {
-        None
-    }
+    nh_core::player::str2gend(s)
 }
 
-/// Parse alignment from string
+/// Parse alignment from string - delegates to nh_core's str2align
 fn parse_alignment(s: &str) -> Option<AlignmentType> {
-    let s = s.to_lowercase();
-    if s.starts_with('l') {
-        Some(AlignmentType::Lawful)
-    } else if s.starts_with('n') {
-        Some(AlignmentType::Neutral)
-    } else if s.starts_with('c') {
-        Some(AlignmentType::Chaotic)
-    } else {
-        None
-    }
+    nh_core::player::str2align(s)
 }
 
-/// Random role selection
-fn random_role(rng: &mut GameRng) -> Role {
-    let roles: Vec<Role> = Role::iter().collect();
-    roles[rng.rn2(roles.len() as u32) as usize]
+/// Random role selection using pick_role with no constraints
+fn random_role(_rng: &mut GameRng) -> Role {
+    let filter = nh_core::player::RoleFilter::new();
+    nh_core::player::pick_role(None, None, None, &filter).unwrap_or(Role::Valkyrie)
 }
 
-/// Random race selection
-fn random_race(rng: &mut GameRng) -> Race {
-    let races: Vec<Race> = Race::iter().collect();
-    races[rng.rn2(races.len() as u32) as usize]
+/// Random race selection using pick_race
+fn random_race(role: Role, _rng: &mut GameRng) -> Race {
+    let filter = nh_core::player::RoleFilter::new();
+    nh_core::player::pick_race(Some(role), None, None, &filter).unwrap_or(Race::Human)
 }
 
-/// Random gender selection
-fn random_gender(rng: &mut GameRng) -> Gender {
-    if rng.one_in(2) {
-        Gender::Male
-    } else {
-        Gender::Female
-    }
+/// Random gender selection using pick_gend
+fn random_gender(role: Role, race: Race, _rng: &mut GameRng) -> Gender {
+    let filter = nh_core::player::RoleFilter::new();
+    nh_core::player::pick_gend(Some(role), race, None, &filter).unwrap_or(Gender::Male)
 }
 
-/// Random alignment selection
-fn random_alignment(rng: &mut GameRng) -> AlignmentType {
-    let aligns: Vec<AlignmentType> = AlignmentType::iter().collect();
-    aligns[rng.rn2(aligns.len() as u32) as usize]
+/// Random alignment selection using pick_align
+fn random_alignment(role: Role) -> AlignmentType {
+    nh_core::player::pick_align(role).unwrap_or(AlignmentType::Neutral)
 }
 
 /// Create a new game with specified choices
+///
+/// Uses `GameState::new_with_identity()` which calls `u_init()` internally,
+/// properly initializing HP/energy/attributes/skills/inventory based on role.
 fn create_new_game_with_choices(
     name: &str,
     role: Role,
@@ -418,52 +391,27 @@ fn create_new_game_with_choices(
 ) -> GameState {
     let rng = GameRng::from_entropy();
 
-    // Create player
-    let mut player = You::new(name.to_string(), role, race, gender);
-    player.alignment.typ = alignment;
-    player.original_alignment = alignment;
+    // Create game state with proper initialization via u_init()
+    let mut state = GameState::new_with_identity(
+        rng,
+        name.to_string(),
+        role,
+        race,
+        gender,
+        alignment,
+    );
 
-    // Initialize player stats based on role
-    player.hp = 16;
-    player.hp_max = 16;
-    player.energy = 1;
-    player.energy_max = 1;
-    player.armor_class = 10;
+    state.flags.started = true;
 
-    // Set game modes - wizard mode gives extra powers for debugging
+    // Wizard mode overrides for debugging
     if wizard_mode {
-        player.hp = 100;
-        player.hp_max = 100;
-        player.energy = 100;
-        player.energy_max = 100;
+        state.player.hp = 100;
+        state.player.hp_max = 100;
+        state.player.energy = 100;
+        state.player.energy_max = 100;
     }
 
     let _ = discover_mode; // TODO: implement discover mode effects
-
-    // Set initial attributes (average values)
-    use nh_core::player::Attribute;
-    player.attr_current.set(Attribute::Strength, 18);
-    player.attr_current.set(Attribute::Dexterity, 13);
-    player.attr_current.set(Attribute::Constitution, 14);
-    player.attr_current.set(Attribute::Intelligence, 7);
-    player.attr_current.set(Attribute::Wisdom, 7);
-    player.attr_current.set(Attribute::Charisma, 10);
-    player.attr_max = player.attr_current;
-
-    // Create game state (includes generated level with basic monsters)
-    let mut state = GameState::new(rng);
-
-    // Preserve the spawn position from level generation
-    let spawn_pos = state.player.pos;
-    let spawn_prev = state.player.prev_pos;
-    state.player = player;
-    state.player.pos = spawn_pos;
-    state.player.prev_pos = spawn_prev;
-
-    // Populate monsters with actual data from nh-data
-    populate_monster_data(&mut state.current_level, &mut state.rng);
-
-    state.flags.started = true;
 
     // Add welcome and intro messages
     let rank = role.rank_title(1, gender);
@@ -498,47 +446,6 @@ fn create_new_game_with_choices(
     state.message("Be careful! The dungeon is full of monsters.");
 
     state
-}
-
-/// Populate monsters with actual data from nh-data
-fn populate_monster_data(level: &mut Level, rng: &mut GameRng) {
-    // Get list of monster IDs to update
-    let monster_ids: Vec<_> = level.monsters.iter().map(|m| m.id).collect();
-
-    for monster_id in monster_ids {
-        if let Some(monster) = level.monster_mut(monster_id) {
-            // Pick a random monster type from the available 380+ monsters
-            // Use depth-based selection for variety
-            let max_type = nh_core::data::monsters::num_monsters().min(20) as i16; // For now, use first 20 monsters
-            let monster_type = rng.rn2(max_type as u32) as i16;
-
-            // Get monster template
-            if let Some(permonst) = nh_core::data::monsters::get_monster(monster_type) {
-                monster.monster_type = monster_type;
-                monster.original_type = monster_type;
-                monster.name = permonst.name.to_string();
-                monster.attacks = permonst.attacks;
-                monster.level = permonst.level as u8;
-                monster.alignment = permonst.alignment;
-
-                // Set HP based on level
-                let base_hp = permonst.level as i32 + 1;
-                let hp = base_hp + rng.rnd(base_hp as u32) as i32;
-                monster.hp = hp;
-                monster.hp_max = hp;
-
-                // 20% chance to be peaceful
-                if rng.one_in(5) {
-                    monster.state.peaceful = true;
-                }
-
-                // 10% chance to be sleeping
-                if rng.one_in(10) {
-                    monster.state.sleeping = true;
-                }
-            }
-        }
-    }
 }
 
 /// Display the high scores screen
@@ -601,28 +508,10 @@ fn handle_recovery_mode(args: &Args) -> io::Result<()> {
         println!(
             "No save file found for player: {}",
             args.name
-                .as_ref()
-                .map(|s| s.as_str())
+                .as_deref()
                 .unwrap_or("(none specified)")
         );
         println!("\nTo start a new game, run: nethack");
-    }
-
-    Ok(())
-}
-
-/// Setup playground directory for saves
-fn setup_playground(playground: Option<&str>) -> io::Result<()> {
-    if let Some(path) = playground {
-        use std::path::Path;
-        let playground_path = Path::new(path);
-
-        if !playground_path.exists() {
-            std::fs::create_dir_all(playground_path)?;
-            println!("Created playground directory: {}", path);
-        }
-
-        println!("Using playground: {}", path);
     }
 
     Ok(())

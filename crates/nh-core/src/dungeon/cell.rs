@@ -532,11 +532,6 @@ pub const fn is_pool(cell_type: CellType) -> bool {
     matches!(cell_type, CellType::Pool | CellType::Moat | CellType::Water)
 }
 
-/// Check if cell is a moat (IS_MOAT equivalent)
-pub const fn is_moat(cell_type: CellType) -> bool {
-    matches!(cell_type, CellType::Moat)
-}
-
 /// Check if cell is lava (IS_LAVA equivalent)
 pub const fn is_lava(cell_type: CellType) -> bool {
     matches!(cell_type, CellType::Lava)
@@ -545,31 +540,6 @@ pub const fn is_lava(cell_type: CellType) -> bool {
 /// Check if cell is ice (IS_ICE equivalent)
 pub const fn is_ice(cell_type: CellType) -> bool {
     matches!(cell_type, CellType::Ice)
-}
-
-/// Check if cell is pool or lava
-pub const fn is_pool_or_lava(cell_type: CellType) -> bool {
-    is_pool(cell_type) || is_lava(cell_type)
-}
-
-/// Check if cell is solid (not passable)
-pub const fn is_solid(cell_type: CellType) -> bool {
-    !cell_type.is_passable()
-}
-
-/// Check if cell is a wall
-pub const fn iswall(cell_type: CellType) -> bool {
-    cell_type.is_wall()
-}
-
-/// Check if cell is a wall or stone
-pub const fn iswall_or_stone(cell_type: CellType) -> bool {
-    cell_type.is_wall() || matches!(cell_type, CellType::Stone)
-}
-
-/// Check if cell is a drawbridge wall (IS_DB_WALL equivalent)
-pub const fn is_db_wall(cell_type: CellType) -> bool {
-    matches!(cell_type, CellType::DBWall)
 }
 
 /// Check if this is any type of drawbridge wall (IS_DRAWBRIDGE_WALL equivalent)
@@ -584,43 +554,6 @@ pub const fn is_drawbridge_wall(cell_type: CellType) -> bool {
 pub fn set_lit(cell: &mut Cell, lit: bool) {
     cell.was_lit = cell.lit;
     cell.lit = lit;
-}
-
-/// Check if cell was lit before current turn (rm_waslit equivalent)
-pub const fn rm_waslit(cell: &Cell) -> bool {
-    cell.was_lit
-}
-
-/// Check if cell blocks vision at a point (does_block equivalent)
-pub const fn does_block(cell: &Cell) -> bool {
-    cell.blocks_sight()
-}
-
-/// Map a character symbol to cell type (cmap_to_type equivalent)
-///
-/// Converts a display character to the corresponding CellType.
-pub fn cmap_to_type(ch: char) -> CellType {
-    match ch {
-        ' ' => CellType::Stone,
-        '|' => CellType::VWall,
-        '-' => CellType::HWall,
-        '#' => CellType::Corridor,
-        '.' => CellType::Room,
-        '+' => CellType::Door,
-        '>' | '<' => CellType::Stairs,
-        '{' => CellType::Fountain,
-        '\\' => CellType::Throne,
-        '_' => CellType::Altar,
-        '}' => CellType::Pool,
-        _ => CellType::Stone,
-    }
-}
-
-/// Get glyph ID at a position (glyph_at equivalent)
-///
-/// Returns the remembered glyph at a cell position.
-pub const fn glyph_at(cell: &Cell) -> i32 {
-    cell.glyph
 }
 
 /// Check if coordinates are within valid map bounds (isok from hack.h)
@@ -671,36 +604,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_pool_or_lava() {
-        assert!(is_pool_or_lava(CellType::Pool));
-        assert!(is_pool_or_lava(CellType::Lava));
-        assert!(!is_pool_or_lava(CellType::Room));
-    }
-
-    #[test]
-    fn test_is_solid() {
-        assert!(is_solid(CellType::Stone));
-        assert!(is_solid(CellType::VWall));
-        assert!(!is_solid(CellType::Room));
-        assert!(!is_solid(CellType::Corridor));
-    }
-
-    #[test]
-    fn test_iswall() {
-        assert!(iswall(CellType::VWall));
-        assert!(iswall(CellType::HWall));
-        assert!(!iswall(CellType::Room));
-        assert!(!iswall(CellType::Stone));
-    }
-
-    #[test]
-    fn test_iswall_or_stone() {
-        assert!(iswall_or_stone(CellType::VWall));
-        assert!(iswall_or_stone(CellType::Stone));
-        assert!(!iswall_or_stone(CellType::Room));
-    }
-
-    #[test]
     fn test_is_drawbridge_wall() {
         assert!(is_drawbridge_wall(CellType::DBWall));
         assert!(is_drawbridge_wall(CellType::DrawbridgeUp));
@@ -715,15 +618,6 @@ mod tests {
         set_lit(&mut cell, false);
         assert!(!cell.lit);
         assert!(cell.was_lit);
-    }
-
-    #[test]
-    fn test_cmap_to_type() {
-        assert_eq!(cmap_to_type('.'), CellType::Room);
-        assert_eq!(cmap_to_type('#'), CellType::Corridor);
-        assert_eq!(cmap_to_type('|'), CellType::VWall);
-        assert_eq!(cmap_to_type('-'), CellType::HWall);
-        assert_eq!(cmap_to_type('+'), CellType::Door);
     }
 
     #[test]

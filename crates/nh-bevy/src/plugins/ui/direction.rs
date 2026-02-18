@@ -32,6 +32,9 @@ pub enum DirectionAction {
     Close,
     Kick,
     Fight,
+    Fire,
+    Untrap,
+    Force,
     Zap(char),
     Throw(char),
 }
@@ -43,6 +46,9 @@ impl DirectionAction {
             DirectionAction::Close => "close",
             DirectionAction::Kick => "kick",
             DirectionAction::Fight => "fight",
+            DirectionAction::Fire => "fire",
+            DirectionAction::Untrap => "untrap",
+            DirectionAction::Force => "force",
             DirectionAction::Zap(_) => "zap",
             DirectionAction::Throw(_) => "throw",
         }
@@ -55,6 +61,9 @@ impl DirectionAction {
             DirectionAction::Close => Command::Close(dir),
             DirectionAction::Kick => Command::Kick(dir),
             DirectionAction::Fight => Command::Fight(dir),
+            DirectionAction::Fire => Command::Fire(dir),
+            DirectionAction::Untrap => Command::Untrap(dir),
+            DirectionAction::Force => Command::Force(dir),
             DirectionAction::Zap(c) => Command::Zap(*c, dir),
             DirectionAction::Throw(c) => Command::Throw(*c, dir),
         }
