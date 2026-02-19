@@ -12,8 +12,12 @@ use nh_core::action::{Command, Direction as GameDirection};
 use nh_core::object::ObjectClass;
 use nh_core::player::{AlignmentType, Gender, Race, Role};
 use nh_core::{GameLoop, GameLoopResult, GameState};
+use ratatui_image::picker::Picker;
+use ratatui_image::protocol::StatefulProtocol;
+use ratatui_image::StatefulImage;
 use strum::IntoEnumIterator;
 
+use crate::icons::{self, ImageTileCache};
 use crate::input::key_to_command;
 use crate::theme::Theme;
 use crate::widgets::{InventoryWidget, MapWidget, MessagesWidget, StatusWidget};
@@ -144,6 +148,21 @@ pub struct App {
 
     /// Color theme (adapts to light/dark terminal background)
     theme: Theme,
+
+    /// Icons mode: render PNG tiles instead of ASCII characters.
+    icons: bool,
+
+    /// Terminal image protocol picker (Some when icons mode is active).
+    picker: Option<Picker>,
+
+    /// Sprite image cache for icons mode.
+    tile_cache: Option<ImageTileCache>,
+
+    /// Cached image protocol state for the map (avoids re-encoding unchanged images).
+    map_image_state: Option<StatefulProtocol>,
+
+    /// Last tile_px used for compositing (to detect resize).
+    last_tile_px: u32,
 }
 
 impl App {
@@ -157,7 +176,19 @@ impl App {
             selection_cursor: 0,
             assets,
             theme,
+            icons: false,
+            picker: None,
+            tile_cache: None,
+            map_image_state: None,
+            last_tile_px: 0,
         }
+    }
+
+    /// Enable icons mode with a pre-created Picker.
+    pub fn set_icons_mode(&mut self, picker: Picker) {
+        self.icons = true;
+        self.picker = Some(picker);
+        self.tile_cache = Some(ImageTileCache::new(icons::find_assets_base()));
     }
 
     /// Get game state
@@ -751,9 +782,7 @@ impl App {
     }
 
     /// Render the UI
-    pub fn render(&self, frame: &mut Frame) {
-        let state = self.state();
-
+    pub fn render(&mut self, frame: &mut Frame) {
         // Layout: map at top, status in middle, messages at bottom
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -764,39 +793,105 @@ impl App {
             ])
             .split(frame.area());
 
-        // Render map
-        let map_widget =
-            MapWidget::new(&state.current_level, &state.player, &self.assets, &self.theme);
-        frame.render_widget(map_widget, chunks[0]);
+        // Render map — icons mode or text mode
+        if self.icons {
+            self.render_map_icons(frame, chunks[0]);
+        } else {
+            let state = self.game_loop.state();
+            let map_widget =
+                MapWidget::new(&state.current_level, &state.player, &self.assets, &self.theme);
+            frame.render_widget(map_widget, chunks[0]);
+        }
 
-        // Render status
-        let status_widget = StatusWidget::new(&state.player, &self.theme);
-        frame.render_widget(status_widget, chunks[1]);
+        // Render status and messages (re-borrow state after map rendering)
+        {
+            let state = self.game_loop.state();
+            let status_widget = StatusWidget::new(&state.player, &self.theme);
+            frame.render_widget(status_widget, chunks[1]);
 
-        // Render messages
-        let messages_widget = MessagesWidget::new(&state.messages);
-        frame.render_widget(messages_widget, chunks[2]);
+            let messages_widget = MessagesWidget::new(&state.messages);
+            frame.render_widget(messages_widget, chunks[2]);
+        }
 
-        // Render modal overlays based on mode
-        match &self.mode {
+        // Render modal overlays based on mode (clone strings to avoid borrow conflicts)
+        match self.mode.clone() {
             UiMode::Normal => {}
-            UiMode::CharacterCreation(state) => {
-                self.render_character_creation(frame, state.clone());
+            UiMode::CharacterCreation(cc_state) => {
+                self.render_character_creation(frame, cc_state);
             }
             UiMode::Inventory => self.render_inventory(frame),
             UiMode::ItemSelect { prompt, filter, .. } => {
-                self.render_item_select(frame, prompt, *filter);
+                self.render_item_select(frame, &prompt, filter);
             }
             UiMode::DirectionSelect { prompt, .. } => {
-                self.render_direction_select(frame, prompt);
+                self.render_direction_select(frame, &prompt);
             }
             UiMode::ExtendedCommandInput { input } => {
-                self.render_extended_command_input(frame, input);
+                self.render_extended_command_input(frame, &input);
             }
             UiMode::Help => self.render_help(frame),
             UiMode::DeathScreen { cause } => {
-                self.render_death_screen(frame, cause);
+                self.render_death_screen(frame, &cause);
             }
+        }
+    }
+
+    /// Render the map using image tiles (icons mode).
+    fn render_map_icons(&mut self, frame: &mut Frame, area: Rect) {
+        let block = Block::default().borders(Borders::ALL).title("NetHack");
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let picker = match self.picker.as_mut() {
+            Some(p) => p,
+            None => return,
+        };
+
+        // Calculate tile size in pixels from picker font size and available area
+        let font_size = picker.font_size();
+        if font_size.0 == 0 || font_size.1 == 0 {
+            return;
+        }
+        let avail_w_px = inner.width as u32 * font_size.0 as u32;
+        let avail_h_px = inner.height as u32 * font_size.1 as u32;
+        let tile_px = std::cmp::min(
+            avail_w_px / nh_core::COLNO as u32,
+            avail_h_px / nh_core::ROWNO as u32,
+        );
+        if tile_px < 4 {
+            // Too small for icons, fall back to text
+            let state = self.game_loop.state();
+            let map_widget =
+                MapWidget::new(&state.current_level, &state.player, &self.assets, &self.theme);
+            frame.render_widget(map_widget, area);
+            return;
+        }
+
+        // Invalidate resized cache if tile size changed
+        if tile_px != self.last_tile_px {
+            if let Some(cache) = &mut self.tile_cache {
+                cache.clear_resized();
+            }
+            self.last_tile_px = tile_px;
+        }
+
+        // Compose the map canvas
+        let state = self.game_loop.state();
+        let canvas = icons::compose_map_image(
+            &state.current_level,
+            &state.player,
+            &self.assets,
+            self.tile_cache.as_mut().unwrap(),
+            tile_px,
+        );
+
+        // Encode and render via the picker's protocol
+        let picker = self.picker.as_mut().unwrap();
+        let protocol = picker.new_resize_protocol(canvas);
+        self.map_image_state = Some(protocol);
+
+        if let Some(state) = &mut self.map_image_state {
+            frame.render_stateful_widget(StatefulImage::default(), inner, state);
         }
     }
 

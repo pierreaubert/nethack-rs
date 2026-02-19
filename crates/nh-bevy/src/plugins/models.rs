@@ -7,6 +7,7 @@ use bevy::prelude::*;
 use nh_core::monster::Monster;
 
 use crate::components::{Billboard, MapPosition, MonsterMarker, PlayerMarker};
+use crate::plugins::model_assets::{model_name_from_sprite_path, ModelAssets};
 use crate::plugins::sprites::{
     lookup_object_sprite, monster_size_scale, player_sprite_path, SpriteAssets,
 };
@@ -24,11 +25,13 @@ impl Plugin for ModelsPlugin {
 
 /// Billboard spawner that creates textured quad sprites in the 3D scene.
 /// Uses the `Billboard` component so `billboard_face_camera` rotates them.
+/// When `model_assets` is provided, attempts to spawn textured OBJ meshes first.
 pub struct BillboardSpawner<'a> {
     pub sprite_assets: &'a SpriteAssets,
     pub materials: &'a mut Assets<StandardMaterial>,
     pub registry: Option<&'a AssetRegistryResource>,
     pub asset_server: &'a AssetServer,
+    pub model_assets: Option<&'a ModelAssets>,
 }
 
 impl<'a> BillboardSpawner<'a> {
@@ -43,7 +46,13 @@ impl<'a> BillboardSpawner<'a> {
             materials,
             registry,
             asset_server,
+            model_assets: None,
         }
+    }
+
+    pub fn with_model_assets(mut self, model_assets: Option<&'a ModelAssets>) -> Self {
+        self.model_assets = model_assets;
+        self
     }
 
     fn make_sprite_material(&mut self, texture: Handle<Image>) -> Handle<StandardMaterial> {
@@ -157,6 +166,90 @@ impl<'a> BillboardSpawner<'a> {
                 transform
                     .with_translation(transform.translation + Vec3::Y * (quad_size / 2.0))
                     .with_scale(Vec3::splat(quad_size)),
+                Visibility::Inherited,
+            ))
+            .id();
+
+        Some(entity)
+    }
+
+    /// Try to spawn a textured 3D OBJ model for a floor object.
+    /// Looks up the model via: registry sprite path → basename → ModelAssets.
+    /// Returns `None` if no 3D model is available.
+    pub fn spawn_3d_object(
+        &mut self,
+        commands: &mut Commands,
+        obj: &nh_core::object::Object,
+        transform: Transform,
+    ) -> Option<Entity> {
+        let model_assets = self.model_assets?;
+
+        // Resolve sprite path from the asset registry
+        let sprite_path = self
+            .registry
+            .and_then(|reg| reg.0.get_sprite_path(obj))?;
+
+        let model_name = model_name_from_sprite_path(sprite_path);
+        let entry = model_assets.models.get(model_name)?;
+
+        let material = self.materials.add(StandardMaterial {
+            base_color_texture: Some(entry.texture.clone()),
+            perceptual_roughness: 0.6,
+            ..default()
+        });
+
+        // OBJ vertices fit in ~0.58 unit cube; scale up to ~1.0 tile width for objects
+        let model_scale = 1.5;
+
+        let entity = commands
+            .spawn((
+                Mesh3d(entry.mesh.clone()),
+                MeshMaterial3d(material),
+                transform
+                    .with_translation(transform.translation + Vec3::Y * 0.01)
+                    .with_scale(Vec3::splat(model_scale)),
+                Visibility::Inherited,
+            ))
+            .id();
+
+        Some(entity)
+    }
+
+    /// Try to spawn a textured 3D OBJ model for a monster.
+    /// Looks up the model via monster name → ModelAssets.
+    /// Returns `None` if no 3D model is available.
+    pub fn spawn_3d_monster(
+        &mut self,
+        commands: &mut Commands,
+        monster: &Monster,
+        monster_def: &nh_core::monster::PerMonst,
+        transform: Transform,
+    ) -> Option<Entity> {
+        let model_assets = self.model_assets?;
+
+        let key = monster_def.name.to_lowercase().replace([' ', '-'], "_");
+        let entry = model_assets.models.get(&key)?;
+
+        let material = self.materials.add(StandardMaterial {
+            base_color_texture: Some(entry.texture.clone()),
+            perceptual_roughness: 0.6,
+            ..default()
+        });
+
+        let base_scale = 1.5;
+        let size_scale = monster_size_scale(monster_def.size);
+        let model_scale = base_scale * size_scale;
+
+        let entity = commands
+            .spawn((
+                MonsterMarker {
+                    monster_id: monster.id,
+                },
+                Mesh3d(entry.mesh.clone()),
+                MeshMaterial3d(material),
+                transform
+                    .with_translation(transform.translation + Vec3::Y * 0.01)
+                    .with_scale(Vec3::splat(model_scale)),
                 Visibility::Inherited,
             ))
             .id();

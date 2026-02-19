@@ -15,6 +15,7 @@ use crate::components::{Billboard, CameraMode, MapPosition, MonsterMarker, Playe
 use crate::plugins::animation::AnimationEvent;
 use crate::plugins::camera::MainCamera;
 use crate::plugins::game::AppState;
+use crate::plugins::model_assets::ModelAssets;
 use crate::plugins::models::{BillboardSpawner, ModelBuilder};
 use crate::plugins::sprites::SpriteAssets;
 use crate::resources::{AssetRegistryResource, GameStateResource};
@@ -96,6 +97,7 @@ fn check_level_change(
     sprite_assets: Option<Res<SpriteAssets>>,
     registry: Option<Res<AssetRegistryResource>>,
     asset_server: Res<AssetServer>,
+    model_assets: Option<Res<ModelAssets>>,
     player_query: Query<Entity, With<PlayerMarker>>,
     monster_query: Query<Entity, With<MonsterMarker>>,
     object_query: Query<Entity, With<FloorObjectMarker>>,
@@ -145,7 +147,7 @@ fn check_level_change(
             commands.entity(entity).despawn_recursive();
         }
 
-        // Spawn new entities (billboard sprites with 3D fallback)
+        // Spawn new entities (3D model → billboard sprite → procedural fallback)
         spawn_entities_internal(
             &mut commands,
             &game_state.0,
@@ -154,6 +156,7 @@ fn check_level_change(
             sprite_assets.as_deref(),
             registry.as_deref(),
             &asset_server,
+            model_assets.as_deref(),
         );
 
         // Update state
@@ -174,6 +177,7 @@ fn sync_monster_entities(
     sprite_assets: Option<Res<SpriteAssets>>,
     registry: Option<Res<AssetRegistryResource>>,
     asset_server: Res<AssetServer>,
+    model_assets: Option<Res<ModelAssets>>,
 ) {
     if !game_state.is_changed() {
         return;
@@ -195,20 +199,28 @@ fn sync_monster_entities(
             let world_pos = map_pos.to_world();
             let monster_def = &monsters_data[monster.monster_type as usize];
 
-            // Try billboard sprite first, fall back to 3D model
+            // Try 3D model → billboard sprite → procedural fallback
+            let transform = Transform::from_translation(world_pos);
+
             let entity = if let Some(ref sprites) = sprite_assets {
                 let mut spawner = BillboardSpawner::new(
                     sprites,
                     &mut materials,
                     registry.as_deref(),
                     &asset_server,
-                );
-                spawner.spawn_monster_billboard(
-                    &mut commands,
-                    monster,
-                    monster_def,
-                    Transform::from_translation(world_pos),
                 )
+                .with_model_assets(model_assets.as_deref());
+
+                spawner
+                    .spawn_3d_monster(&mut commands, monster, monster_def, transform)
+                    .or_else(|| {
+                        spawner.spawn_monster_billboard(
+                            &mut commands,
+                            monster,
+                            monster_def,
+                            transform,
+                        )
+                    })
             } else {
                 None
             };
@@ -219,7 +231,7 @@ fn sync_monster_entities(
                     &mut commands,
                     monster,
                     monster_def,
-                    Transform::from_translation(world_pos),
+                    transform,
                 )
             });
 
@@ -228,6 +240,7 @@ fn sync_monster_entities(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spawn_entities(
     mut commands: Commands,
     game_state: Res<GameStateResource>,
@@ -236,6 +249,7 @@ fn spawn_entities(
     sprite_assets: Option<Res<SpriteAssets>>,
     registry: Option<Res<AssetRegistryResource>>,
     asset_server: Res<AssetServer>,
+    model_assets: Option<Res<ModelAssets>>,
 ) {
     let state = &game_state.0;
     spawn_entities_internal(
@@ -246,9 +260,11 @@ fn spawn_entities(
         sprite_assets.as_deref(),
         registry.as_deref(),
         &asset_server,
+        model_assets.as_deref(),
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spawn_entities_internal(
     commands: &mut Commands,
     state: &nh_core::GameState,
@@ -257,6 +273,7 @@ fn spawn_entities_internal(
     sprite_assets: Option<&SpriteAssets>,
     registry: Option<&AssetRegistryResource>,
     asset_server: &AssetServer,
+    model_assets: Option<&ModelAssets>,
 ) {
     // Spawn player — try billboard, fall back to 3D model
     let player_pos = MapPosition {
@@ -266,7 +283,8 @@ fn spawn_entities_internal(
     let world_pos = player_pos.to_world();
 
     let player_spawned = if let Some(sprites) = sprite_assets {
-        let mut spawner = BillboardSpawner::new(sprites, materials, registry, asset_server);
+        let mut spawner = BillboardSpawner::new(sprites, materials, registry, asset_server)
+            .with_model_assets(model_assets);
         spawner.spawn_player_billboard(
             commands,
             &state.player,
@@ -285,7 +303,7 @@ fn spawn_entities_internal(
         );
     }
 
-    // Spawn monsters
+    // Spawn monsters (3D model → billboard → procedural fallback)
     let monsters_data = nh_core::data::monsters::MONSTERS;
     for monster in &state.current_level.monsters {
         let map_pos = MapPosition {
@@ -294,27 +312,23 @@ fn spawn_entities_internal(
         };
         let world_pos = map_pos.to_world();
         let monster_def = &monsters_data[monster.monster_type as usize];
+        let transform = Transform::from_translation(world_pos);
 
         let entity = if let Some(sprites) = sprite_assets {
-            let mut spawner = BillboardSpawner::new(sprites, materials, registry, asset_server);
-            spawner.spawn_monster_billboard(
-                commands,
-                monster,
-                monster_def,
-                Transform::from_translation(world_pos),
-            )
+            let mut spawner = BillboardSpawner::new(sprites, materials, registry, asset_server)
+                .with_model_assets(model_assets);
+            spawner
+                .spawn_3d_monster(commands, monster, monster_def, transform)
+                .or_else(|| {
+                    spawner.spawn_monster_billboard(commands, monster, monster_def, transform)
+                })
         } else {
             None
         };
 
         let entity = entity.unwrap_or_else(|| {
             let mut model_builder = ModelBuilder::new(meshes, materials);
-            model_builder.spawn_monster(
-                commands,
-                monster,
-                monster_def,
-                Transform::from_translation(world_pos),
-            )
+            model_builder.spawn_monster(commands, monster, monster_def, transform)
         });
 
         commands.entity(entity).insert(map_pos);
@@ -339,8 +353,17 @@ fn spawn_entities_internal(
         }
     }
 
-    // Spawn floor objects (billboard sprites with 3D fallback)
-    spawn_floor_objects(commands, state, meshes, materials, sprite_assets, registry, asset_server);
+    // Spawn floor objects (3D model → billboard sprite → procedural fallback)
+    spawn_floor_objects(
+        commands,
+        state,
+        meshes,
+        materials,
+        sprite_assets,
+        registry,
+        asset_server,
+        model_assets,
+    );
 }
 
 // spawn_monsters function is removed as it is integrated into spawn_entities_internal
@@ -524,6 +547,7 @@ fn spawn_allegiance_indicator(
     ));
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spawn_floor_objects(
     commands: &mut Commands,
     state: &nh_core::GameState,
@@ -532,6 +556,7 @@ fn spawn_floor_objects(
     sprite_assets: Option<&SpriteAssets>,
     registry: Option<&AssetRegistryResource>,
     asset_server: &AssetServer,
+    model_assets: Option<&ModelAssets>,
 ) {
     use std::collections::HashMap;
 
@@ -552,23 +577,23 @@ fn spawn_floor_objects(
 
         if objects.len() == 1 {
             let obj = objects[0];
+            let transform = Transform::from_translation(world_pos);
 
-            // Try billboard sprite, fall back to 3D model
+            // Try 3D model → billboard sprite → procedural fallback
             let entity = if let Some(sprites) = sprite_assets {
                 let mut spawner =
-                    BillboardSpawner::new(sprites, materials, registry, asset_server);
-                spawner.spawn_object_billboard(
-                    commands,
-                    obj,
-                    Transform::from_translation(world_pos),
-                )
+                    BillboardSpawner::new(sprites, materials, registry, asset_server)
+                        .with_model_assets(model_assets);
+                spawner
+                    .spawn_3d_object(commands, obj, transform)
+                    .or_else(|| spawner.spawn_object_billboard(commands, obj, transform))
             } else {
                 None
             };
 
             let entity = entity.unwrap_or_else(|| {
                 let mut model_builder = ModelBuilder::new(meshes, materials);
-                model_builder.spawn_object(commands, obj, Transform::from_translation(world_pos))
+                model_builder.spawn_object(commands, obj, transform)
             });
 
             commands
@@ -717,6 +742,7 @@ fn sync_floor_objects(
     sprite_assets: Option<Res<SpriteAssets>>,
     registry: Option<Res<AssetRegistryResource>>,
     asset_server: Res<AssetServer>,
+    model_assets: Option<Res<ModelAssets>>,
 ) {
     if !game_state.is_changed() {
         return;
@@ -737,6 +763,7 @@ fn sync_floor_objects(
         sprite_assets.as_deref(),
         registry.as_deref(),
         &asset_server,
+        model_assets.as_deref(),
     );
 }
 

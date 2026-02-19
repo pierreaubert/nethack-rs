@@ -11,6 +11,7 @@ pub mod gamepad;
 pub mod input;
 pub mod lighting;
 pub mod map;
+pub mod model_assets;
 pub mod models;
 pub mod navigation;
 pub mod sprites;

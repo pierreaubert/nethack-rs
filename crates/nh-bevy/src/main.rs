@@ -2,6 +2,7 @@
 
 use bevy::asset::AssetPlugin;
 use bevy::prelude::*;
+use bevy_obj::ObjPlugin;
 use nh_bevy::GamePlugin;
 use nh_bevy::resources::AssetRegistryResource;
 use nh_assets::registry::AssetRegistry;
@@ -33,6 +34,7 @@ fn main() {
                     ..default()
                 }),
         )
+        .add_plugins(ObjPlugin)
         .add_plugins(GamePlugin)
         .run();
 }

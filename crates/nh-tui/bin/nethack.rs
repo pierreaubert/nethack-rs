@@ -16,6 +16,7 @@ use nh_core::player::{AlignmentType, Gender, Race, Role};
 use nh_core::save::{default_save_path, delete_save, load_game, save_game};
 use nh_core::{GameLoopResult, GameRng, GameState};
 use nh_tui::{App, Theme};
+use ratatui_image::picker::Picker;
 
 /// NetHack clone in Rust
 #[derive(Parser, Debug)]
@@ -73,6 +74,10 @@ struct Args {
     /// Use light background color theme (auto-detected from COLORFGBG/NH_LIGHT_BG)
     #[arg(long = "light")]
     light: bool,
+
+    /// Render map using PNG tile icons (requires Kitty, iTerm2, or Sixel terminal)
+    #[arg(long = "icons")]
+    icons: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -104,6 +109,20 @@ fn main() -> io::Result<()> {
         handle_recovery_mode(&args)?;
         return Ok(());
     }
+
+    // Detect image protocol before entering raw mode / alternate screen
+    let picker = if args.icons {
+        match Picker::from_query_stdio() {
+            Ok(p) => Some(p),
+            Err(e) => {
+                eprintln!("Warning: --icons requested but terminal query failed: {e}");
+                eprintln!("Falling back to text mode.");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     // Setup terminal
     enable_raw_mode()?;
@@ -147,6 +166,11 @@ fn main() -> io::Result<()> {
 
     // Create app
     let mut app = App::new(state, assets, theme);
+
+    // Enable icons mode if picker was successfully detected
+    if let Some(picker) = picker {
+        app.set_icons_mode(picker);
+    }
 
     // Main loop
     loop {

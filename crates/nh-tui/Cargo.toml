@@ -18,3 +18,5 @@ ratatui.workspace = true
 crossterm.workspace = true
 strum.workspace = true
 clap.workspace = true
+ratatui-image = "4.1"
+image = { version = "0.25", default-features = false, features = ["png"] }
