@@ -3,7 +3,7 @@ from scipy.io import wavfile
 import os
 
 # Setup output directory
-folder = "game_sfx"
+folder = "tmp/game_sfx"
 if not os.path.exists(folder):
     os.makedirs(folder)
 

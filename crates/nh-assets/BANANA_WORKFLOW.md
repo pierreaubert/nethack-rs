@@ -29,9 +29,9 @@ The `scripts/generate_assets.py` script automates the process of calling the Goo
 ### Usage
 ```bash
 # Preview generation prompts
-python scripts/generate_assets.py --mapping crates/nh-assets/initial_mapping.json --output crates/nh-bevy/assets/items/ --dry-run
+python scripts/generate_assets.py --mapping assets/mapping.json --output assets/items/ --dry-run
 
 # Run actual generation (requires GOOGLE_API_KEY environment variable)
 export GOOGLE_API_KEY="your_key_here"
-python scripts/generate_assets.py --mapping crates/nh-assets/initial_mapping.json --output crates/nh-bevy/assets/items/
+python scripts/generate_assets.py --mapping assets/mapping.json --output assets/items/
 ```

@@ -6,9 +6,9 @@ use nh_core::object::ObjectClass;
 
 #[test]
 fn test_coverage_all_classes_mapped() {
-    let assets_path = "initial_mapping.json";
+    let assets_path = "../../assets/mapping.json";
     // We expect this to be run from crates/nh-assets
-    let registry = AssetRegistry::load_from_file(assets_path).expect("Failed to load initial_mapping.json");
+    let registry = AssetRegistry::load_from_file(assets_path).expect("Failed to load mapping.json");
     
     let mut missing_classes = Vec::new();
     
@@ -28,8 +28,8 @@ fn test_coverage_all_classes_mapped() {
 
 #[test]
 fn test_coverage_all_objects_mapped() {
-    let assets_path = "initial_mapping.json";
-    let registry = AssetRegistry::load_from_file(assets_path).expect("Failed to load initial_mapping.json");
+    let assets_path = "../../assets/mapping.json";
+    let registry = AssetRegistry::load_from_file(assets_path).expect("Failed to load mapping.json");
     
     let mut unmapped_objects = Vec::new();
     

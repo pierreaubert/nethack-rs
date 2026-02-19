@@ -567,12 +567,12 @@ def main():
         "--output",
         "-o",
         default=None,
-        help="Output file path (default: crates/nh-assets/mapping.json)",
+        help="Output file path (default: assets/mapping.json)",
     )
     args = parser.parse_args()
 
     root = find_project_root()
-    output = Path(args.output) if args.output else root / "crates" / "nh-assets" / "mapping.json"
+    output = Path(args.output) if args.output else root / "assets" / "mapping.json"
 
     print(f"Project root: {root}")
     print(f"Output:       {output}")

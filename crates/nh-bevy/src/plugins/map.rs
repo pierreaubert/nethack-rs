@@ -49,7 +49,7 @@ impl TextureVariants {
     fn count_variants(name: &str) -> usize {
         let mut count = 0;
         for i in 1.. {
-            let path = format!("crates/nh-bevy/assets/textures/{}-{}.jpeg", name, i);
+            let path = format!("assets/textures/{}-{}.jpeg", name, i);
             if std::path::Path::new(&path).exists() {
                 count = i;
             } else {

@@ -135,9 +135,19 @@ impl GameRng {
         self.rng.start_tracing();
     }
 
+    /// Enable RNG tracing (alias)
+    pub fn enable_tracing(&mut self) {
+        self.rng.enable_tracing();
+    }
+
     /// Get current RNG trace
     pub fn get_trace(&self) -> Vec<nh_rng::RngTraceEntry> {
         self.rng.get_trace()
+    }
+
+    /// Total number of raw u64 calls consumed
+    pub fn call_count(&self) -> u64 {
+        self.rng.call_count()
     }
 }
 

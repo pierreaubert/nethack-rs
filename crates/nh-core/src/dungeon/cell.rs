@@ -83,6 +83,32 @@ impl CellType {
         )
     }
 
+    /// C's IS_POOL: POOL through DRAWBRIDGE_UP
+    pub const fn is_pool(&self) -> bool {
+        matches!(
+            self,
+            CellType::Pool
+                | CellType::Moat
+                | CellType::Water
+                | CellType::Lava
+                | CellType::DrawbridgeUp
+        )
+    }
+
+    /// C's IS_FURNITURE: STAIRS through ALTAR
+    pub const fn is_furniture(&self) -> bool {
+        matches!(
+            self,
+            CellType::Stairs
+                | CellType::Ladder
+                | CellType::Fountain
+                | CellType::Throne
+                | CellType::Sink
+                | CellType::Grave
+                | CellType::Altar
+        )
+    }
+
     /// Check if this is a liquid/water type
     pub const fn is_liquid(&self) -> bool {
         matches!(

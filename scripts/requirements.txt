@@ -1,5 +1,7 @@
 mflux
 requests
+numpy
+scipy
 pyright
 pytest
 ruff

@@ -369,14 +369,9 @@ impl RectManager {
     pub fn create_room_vault(&mut self, level: &Level, rng: &mut GameRng) -> Option<Room> {
         let mut trycnt = 0;
 
-        // Vault lighting RNG calls to match NetHack (same as create_room_random)
-        let depth = level.dlevel.depth();
-        if rng.rnd(1 + depth.abs() as u32) < 11 {
-            let _ = rng.rn2(77);
-        }
-
         while trycnt < 100 {
             trycnt += 1;
+            println!("Rust: rnd_rect (create_room_vault)");
             let r1 = self.rnd_rect(rng)?;
 
             let hx = r1.hx;
@@ -385,19 +380,22 @@ impl RectManager {
             let ly = r1.ly;
 
             // Vault is always 2x2
-            let dx: u8 = 2;
-            let dy: u8 = 2;
+            let dx: u8 = 1;
+            let dy: u8 = 1;
 
-            let xborder = if lx > 0 && hx < crate::COLNO as u8 - 1 { 2 * XLIM } else { XLIM + 1 };
-            let yborder = if ly > 0 && hy < crate::ROWNO as u8 - 1 { 2 * YLIM } else { YLIM + 1 };
+            let xlim = XLIM + 1;
+            let ylim = YLIM + 1;
+
+            let xborder = if lx > 0 && hx < crate::COLNO as u8 - 1 { 2 * xlim } else { xlim + 1 };
+            let yborder = if ly > 0 && hy < crate::ROWNO as u8 - 1 { 2 * ylim } else { ylim + 1 };
 
             if hx - lx < dx + 3 + xborder || hy - ly < dy + 3 + yborder {
                 continue;
             }
 
-            let mut xabs = lx + (if lx > 0 { XLIM } else { 3 })
+            let mut xabs = lx + (if lx > 0 { xlim } else { 3 })
                 + rng.rn2((hx - (if lx > 0 { lx } else { 3 }) - dx - xborder + 1) as u32) as u8;
-            let mut yabs = ly + (if ly > 0 { YLIM } else { 2 })
+            let mut yabs = ly + (if ly > 0 { ylim } else { 2 })
                 + rng.rn2((hy - (if ly > 0 { ly } else { 2 }) - dy - yborder + 1) as u32) as u8;
 
             let mut ddx = dx;

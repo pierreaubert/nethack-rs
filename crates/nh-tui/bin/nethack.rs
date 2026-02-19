@@ -132,7 +132,7 @@ fn main() -> io::Result<()> {
     };
 
     // Load asset mapping
-    let assets_path = "crates/nh-assets/initial_mapping.json";
+    let assets_path = "assets/mapping.json";
     let assets = nh_assets::registry::AssetRegistry::load_from_file(assets_path)
         .unwrap_or_else(|_| {
             nh_assets::registry::AssetRegistry::new(nh_assets::mapping::AssetMapping::default())

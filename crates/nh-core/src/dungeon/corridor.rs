@@ -40,19 +40,17 @@ impl ConnectivityTracker {
     }
 
     /// Merge equivalence classes when rooms are connected
+    /// C: if (smeq[a] < smeq[b]) smeq[b] = smeq[a]; else smeq[a] = smeq[b];
+    /// Note: C only updates ONE entry, not all entries in the class.
     pub fn merge(&mut self, a: usize, b: usize) {
         if a >= self.smeq.len() || b >= self.smeq.len() {
             return;
         }
 
-        let old_class = self.smeq[b];
-        let new_class = self.smeq[a];
-
-        // Update all rooms in b's class to a's class
-        for eq in &mut self.smeq {
-            if *eq == old_class {
-                *eq = new_class;
-            }
+        if self.smeq[a] < self.smeq[b] {
+            self.smeq[b] = self.smeq[a];
+        } else {
+            self.smeq[a] = self.smeq[b];
         }
     }
 
@@ -84,6 +82,7 @@ pub fn bydoor(level: &Level, x: i32, y: i32) -> bool {
 
 /// Check if there's a door next to a position (8 directions including diagonals)
 /// Matches C's nexttodoor()
+#[allow(dead_code)]
 pub fn nexttodoor(level: &Level, x: i32, y: i32) -> bool {
     for dx in -1..=1 {
         for dy in -1..=1 {
@@ -166,10 +165,11 @@ pub fn finddpos(
         }
     }
 
-    // If no okdoor found, look for any wall near a door (nexttodoor)
+    // C: if (IS_DOOR(levl[x][y].typ) || levl[x][y].typ == SDOOR)
     for sx in xl..=xh {
         for sy in yl..=yh {
-            if nexttodoor(level, sx as i32, sy as i32) {
+            let typ = level.cells[sx][sy].typ;
+            if typ == CellType::Door || typ == CellType::SecretDoor {
                 return (sx, sy);
             }
         }
@@ -195,6 +195,11 @@ fn dodoor(level: &mut Level, x: usize, y: usize, _room_idx: usize, rng: &mut Gam
 /// C's dosdoor() - place door with specific type (mklev.c:385-449)
 ///
 /// Sets door type and state based on C's logic including shop awareness.
+/// Public wrapper for dosdoor — used by niche generation
+pub fn dosdoor_public(level: &mut Level, x: usize, y: usize, door_type: CellType, rng: &mut GameRng) {
+    dosdoor(level, x, y, door_type, rng);
+}
+
 fn dosdoor(level: &mut Level, x: usize, y: usize, mut door_type: CellType, rng: &mut GameRng) {
     if x >= COLNO || y >= ROWNO {
         return;
@@ -238,6 +243,20 @@ fn dosdoor(level: &mut Level, x: usize, y: usize, mut door_type: CellType, rng: 
                 level.cells[x][y].set_door_state(state);
             }
         }
+
+        // C mklev.c:461-474 — D_TRAPPED mimic check
+        if level.cells[x][y].door_state().contains(DoorState::TRAPPED) {
+            if depth >= 9 && rng.rn2(5) == 0 {
+                // TODO: actually create mimic monster and consume makemon RNG
+                // C: makemon(mkclass(S_MIMIC, 0), x, y, NO_MM_FLAGS)
+                // mkclass consumes RNG: rn2(num_monsters_in_class)
+                // TODO: actually create mimic monster
+                // For RNG parity, consume mkclass + makemon RNG
+                level.cells[x][y].set_door_state(DoorState::NO_DOOR);
+            }
+        }
+
+        // C: Rogue level check — skip for now (not rogue level at depth 14)
     } else {
         // Secret door
         let state = if shdoor || rng.rn2(5) == 0 {
@@ -253,11 +272,12 @@ fn dosdoor(level: &mut Level, x: usize, y: usize, mut door_type: CellType, rng: 
     }
 }
 
-/// Dig a corridor between two points using C's cardinal-direction pathfinder
-/// Port of sp_lev.c dig_corridor()
+/// Dig a corridor between two points.
+/// 1:1 port of sp_lev.c dig_corridor() (lines 2218-2325)
 ///
-/// Starts moving in the initial dx/dy direction, changes direction based on
-/// remaining distance ratios with RNG calls.
+/// Uses cell-type-aware lookahead: checks whether adjacent cells are
+/// btyp (background, usually Stone), ftyp (foreground, usually Corridor),
+/// or SCORR before changing direction.
 fn dig_corridor_inner(
     level: &mut Level,
     start_x: i32,
@@ -265,6 +285,8 @@ fn dig_corridor_inner(
     end_x: i32,
     end_y: i32,
     nxcor: bool,
+    ftyp: CellType,
+    btyp: CellType,
     rng: &mut GameRng,
 ) -> bool {
     let tx = end_x;
@@ -272,12 +294,16 @@ fn dig_corridor_inner(
     let mut xx = start_x;
     let mut yy = start_y;
 
-    // Bounds check
-    if xx <= 0 || yy <= 0 || tx <= 0 || ty <= 0
-        || xx >= COLNO as i32 - 1
-        || yy >= ROWNO as i32 - 1
-        || tx >= COLNO as i32 - 1
-        || ty >= ROWNO as i32 - 1
+    // Bounds check (C: xx <= 0 || yy <= 0 || tx <= 0 || ty <= 0
+    //   || xx > COLNO-1 || tx > COLNO-1 || yy > ROWNO-1 || ty > ROWNO-1)
+    if xx <= 0
+        || yy <= 0
+        || tx <= 0
+        || ty <= 0
+        || xx > COLNO as i32 - 1
+        || tx > COLNO as i32 - 1
+        || yy > ROWNO as i32 - 1
+        || ty > ROWNO as i32 - 1
     {
         return false;
     }
@@ -298,69 +324,100 @@ fn dig_corridor_inner(
     // Step back so first iteration steps forward
     xx -= dx;
     yy -= dy;
-
     let mut cct = 0;
 
     while xx != tx || yy != ty {
-        // Step forward
+        // C: if (cct++ > 500 || (nxcor && !rn2(35))) return FALSE;
+        cct += 1;
+        if cct > 500 || (nxcor && rng.rn2(35) == 0) {
+            return false;
+        }
+
         xx += dx;
         yy += dy;
 
-        // Bounds check
-        if xx <= 0 || yy <= 0 || xx >= COLNO as i32 || yy >= ROWNO as i32 {
+        // C: if (xx >= COLNO-1 || xx <= 0 || yy <= 0 || yy >= ROWNO-1)
+        if xx >= COLNO as i32 - 1 || xx <= 0 || yy <= 0 || yy >= ROWNO as i32 - 1 {
             return false;
         }
 
         let ux = xx as usize;
         let uy = yy as usize;
-        let cell_type = level.cells[ux][uy].typ;
+        let crm_typ = level.cells[ux][uy].typ;
 
-        if cell_type != CellType::Stone {
-            // Hit existing terrain
-            if nxcor && rng.rn2(35) == 0 {
-                return false; // Early exit when nxcor
-            }
-        } else {
-            // Empty cell - carve corridor (1% secret corridor)
-            if rng.rn2(100) == 0 {
-                level.cells[ux][uy].typ = CellType::SecretCorridor;
+        if crm_typ == btyp {
+            // C: if (ftyp != CORR || rn2(100)) crm->typ = ftyp; else crm->typ = SCORR;
+            if ftyp != CellType::Corridor || rng.rn2(100) != 0 {
+                level.cells[ux][uy].typ = ftyp;
+                if nxcor && rng.rn2(50) == 0 {
+                    // C: mksobj_at(BOULDER, xx, yy, TRUE, FALSE)
+                    // Boulder mksobj consumes 0 RNG (ROCK_CLASS, no init)
+                    // TODO: place boulder object
+                }
             } else {
-                level.cells[ux][uy].typ = CellType::Corridor;
+                level.cells[ux][uy].typ = CellType::SecretCorridor;
             }
-            // Boulder placement when nxcor (we skip actual boulder object for now)
-            if nxcor && rng.rn2(50) == 0 {
-                // TODO: mksobj_at(BOULDER, xx, yy) - place boulder object
-            }
-        }
-
-        // Calculate remaining distances and decide next direction
-        let dix = (xx - tx).unsigned_abs() as i32;
-        let diy = (yy - ty).unsigned_abs() as i32;
-
-        if diy > dix {
-            // More vertical distance remaining - prefer vertical
-            dy = if yy > ty { -1 } else { 1 };
-            dx = 0;
-            if dix != 0 && rng.rn2((diy - dix + 1) as u32) == 0 {
-                // Switch to horizontal
-                dy = 0;
-                dx = if xx > tx { -1 } else { 1 };
-            }
-        } else {
-            // More horizontal distance remaining - prefer horizontal
-            dx = if xx > tx { -1 } else { 1 };
-            dy = 0;
-            if diy != 0 && rng.rn2((dix - diy + 1) as u32) == 0 {
-                // Switch to vertical
-                dx = 0;
-                dy = if yy > ty { -1 } else { 1 };
-            }
-        }
-
-        cct += 1;
-        if cct > 500 {
+        } else if crm_typ != ftyp && crm_typ != CellType::SecretCorridor {
+            // C: return FALSE; (strange terrain)
             return false;
         }
+
+        // Find next corridor position
+        let mut dix = (xx - tx).unsigned_abs() as i32;
+        let mut diy = (yy - ty).unsigned_abs() as i32;
+
+        // C: if ((dix > diy) && diy && !rn2(dix-diy+1)) dix = 0;
+        //    else if ((diy > dix) && dix && !rn2(diy-dix+1)) diy = 0;
+        if dix > diy && diy != 0 && rng.rn2((dix - diy + 1) as u32) == 0 {
+            dix = 0;
+        } else if diy > dix && dix != 0 && rng.rn2((diy - dix + 1) as u32) == 0 {
+            diy = 0;
+        }
+
+        // Do we have to change direction?
+        if dy != 0 && dix > diy {
+            // Currently moving vertically, but more horizontal distance remains
+            let ddx: i32 = if xx > tx { -1 } else { 1 };
+            let next_typ = level.cells[(xx + ddx) as usize][yy as usize].typ;
+            if next_typ == btyp || next_typ == ftyp || next_typ == CellType::SecretCorridor {
+                dx = ddx;
+                dy = 0;
+                continue;
+            }
+        } else if dx != 0 && diy > dix {
+            // Currently moving horizontally, but more vertical distance remains
+            let ddy: i32 = if yy > ty { -1 } else { 1 };
+            let next_typ = level.cells[xx as usize][(yy + ddy) as usize].typ;
+            if next_typ == btyp || next_typ == ftyp || next_typ == CellType::SecretCorridor {
+                dy = ddy;
+                dx = 0;
+                continue;
+            }
+        }
+
+        // Continue straight on?
+        let straight_typ = level.cells[(xx + dx) as usize][(yy + dy) as usize].typ;
+        if straight_typ == btyp || straight_typ == ftyp || straight_typ == CellType::SecretCorridor
+        {
+            continue;
+        }
+
+        // No, switch to orthogonal direction
+        if dx != 0 {
+            dx = 0;
+            dy = if ty < yy { -1 } else { 1 };
+        } else {
+            dy = 0;
+            dx = if tx < xx { -1 } else { 1 };
+        }
+        let ortho_typ = level.cells[(xx + dx) as usize][(yy + dy) as usize].typ;
+        if ortho_typ == btyp || ortho_typ == ftyp || ortho_typ == CellType::SecretCorridor {
+            continue;
+        }
+
+        // Last resort: reverse direction
+        dy = -dy;
+        dx = -dx;
     }
     true
 }
@@ -396,66 +453,44 @@ fn join_rooms(
     let t_hx = troom.x + troom.width - 1;
     let t_hy = troom.y + troom.height - 1;
 
-    // Determine dx/dy based on relative room positions
-    let mut dx: i32;
-    let mut dy: i32;
+    // C's 4-case structure from mklev.c join() lines 262-290
+    let dx: i32;
+    let dy: i32;
+    let cc: (usize, usize);
+    let tt: (usize, usize);
 
-    // C: dy = (croom->hy + croom->ly)/2 - (troom->hy + troom->ly)/2
-    dy = ((c_hy + c_ly) as i32) / 2 - ((t_hy + t_ly) as i32) / 2;
-    dx = 0;
-
-    if (c_hx as i32) < (t_lx as i32) - 1 {
-        dx = 1; // croom is to the left of troom
+    if t_lx > c_hx {
+        // troom is to the RIGHT of croom
+        dx = 1;
         dy = 0;
-    } else if (c_lx as i32) > (t_hx as i32) + 1 {
-        dx = -1; // croom is to the right of troom
+        let xx = c_hx + 1;
+        let tx = t_lx - 1;
+        cc = finddpos(level, xx, c_ly, xx, c_hy, rng);
+        tt = finddpos(level, tx, t_ly, tx, t_hy, rng);
+    } else if t_hy < c_ly {
+        // troom is ABOVE croom
+        dy = -1;
+        dx = 0;
+        let yy = c_ly - 1;
+        let ty = t_hy + 1;
+        cc = finddpos(level, c_lx, yy, c_hx, yy, rng);
+        tt = finddpos(level, t_lx, ty, t_hx, ty, rng);
+    } else if t_hx < c_lx {
+        // troom is to the LEFT of croom
+        dx = -1;
         dy = 0;
-    }
-
-    let cc: (usize, usize); // door position on croom wall
-    let tt: (usize, usize); // door position on troom wall
-
-    if dy == 0 {
-        // Rooms are side by side: doors in vertical walls
-        if dx > 0 {
-            // croom left, troom right
-            cc = finddpos(level, c_hx + 1, c_ly, c_hx + 1, c_hy, rng);
-            tt = finddpos(level, t_lx.saturating_sub(1), t_ly, t_lx.saturating_sub(1), t_hy, rng);
-        } else if dx < 0 {
-            // croom right, troom left
-            cc = finddpos(level, c_lx.saturating_sub(1), c_ly, c_lx.saturating_sub(1), c_hy, rng);
-            tt = finddpos(level, t_hx + 1, t_ly, t_hx + 1, t_hy, rng);
-        } else {
-            // dx was 0, dy was 0 initially means rooms overlap horizontally
-            // Use dy to determine direction
-            if dy > 0 {
-                dx = 1;
-            } else {
-                dx = -1;
-            }
-            dy = 0;
-            // Default: try connecting via vertical walls
-            if dx > 0 {
-                cc = finddpos(level, c_hx + 1, c_ly, c_hx + 1, c_hy, rng);
-                tt = finddpos(level, t_lx.saturating_sub(1), t_ly, t_lx.saturating_sub(1), t_hy, rng);
-            } else {
-                cc = finddpos(level, c_lx.saturating_sub(1), c_ly, c_lx.saturating_sub(1), c_hy, rng);
-                tt = finddpos(level, t_hx + 1, t_ly, t_hx + 1, t_hy, rng);
-            }
-        }
+        let xx = c_lx - 1;
+        let tx = t_hx + 1;
+        cc = finddpos(level, xx, c_ly, xx, c_hy, rng);
+        tt = finddpos(level, tx, t_ly, tx, t_hy, rng);
     } else {
-        // Rooms are above/below: doors in horizontal walls
-        if dy > 0 {
-            // croom is below troom (higher y = lower on screen)
-            cc = finddpos(level, c_lx, c_ly.saturating_sub(1), c_hx, c_ly.saturating_sub(1), rng);
-            tt = finddpos(level, t_lx, t_hy + 1, t_hx, t_hy + 1, rng);
-        } else {
-            // croom is above troom
-            cc = finddpos(level, c_lx, c_hy + 1, c_hx, c_hy + 1, rng);
-            tt = finddpos(level, t_lx, t_ly.saturating_sub(1), t_hx, t_ly.saturating_sub(1), rng);
-        }
-        dx = if tt.0 > cc.0 { 1 } else { -1 };
-        dy = if dy > 0 { 1 } else { -1 };
+        // troom is BELOW croom (or overlapping)
+        dy = 1;
+        dx = 0;
+        let yy = c_hy + 1;
+        let ty = t_ly - 1;
+        cc = finddpos(level, c_lx, yy, c_hx, yy, rng);
+        tt = finddpos(level, t_lx, ty, t_hx, ty, rng);
     }
 
     let xx = cc.0 as i32;
@@ -482,15 +517,28 @@ fn join_rooms(
         dodoor(level, cc.0, cc.1, room_a, rng);
     }
 
-    // Dig corridor between doors
-    dig_corridor_inner(level, xx + dx, yy + dy, tx, ty, nxcor, rng);
+    // C: dig_corridor(&org, &dest, nxcor, level.flags.arboreal ? ROOM : CORR, STONE)
+    // For standard levels, ftyp=CORR, btyp=STONE
+    if !dig_corridor_inner(
+        level,
+        xx + dx,
+        yy + dy,
+        tx,
+        ty,
+        nxcor,
+        CellType::Corridor,
+        CellType::Stone,
+        rng,
+    ) {
+        return;
+    }
 
     // Place door on troom wall
     if okdoor(level, tt.0 as i32, tt.1 as i32) || !nxcor {
         dodoor(level, tt.0, tt.1, room_b, rng);
     }
 
-    // Merge connectivity
+    // C: if (smeq[a] < smeq[b]) smeq[b] = smeq[a]; else smeq[a] = smeq[b];
     tracker.merge(room_a, room_b);
 }
 
@@ -519,12 +567,19 @@ pub fn generate_corridors(level: &mut Level, rooms: &[Room], rng: &mut GameRng) 
         }
     }
 
-    // Phase 3: Ensure all rooms reachable from room 0
-    // C: for (a = 0; a < nroom; a++) { if (smeq[a] != smeq[0]) join(0, a, FALSE); }
-    for a in 0..rooms.len() {
-        if !tracker.are_connected(0, a) {
-            join_rooms(level, rooms, 0, a, &mut tracker, rng, false);
+    // Phase 3: Ensure all rooms are connected
+    // C: for (a=0; any && a<nroom; a++) { any=FALSE; for (b=0;b<nroom;b++) if(smeq[a]!=smeq[b]) { join(a,b,FALSE); any=TRUE; } }
+    let mut any = true;
+    let mut a = 0;
+    while any && a < rooms.len() {
+        any = false;
+        for b in 0..rooms.len() {
+            if !tracker.are_connected(a, b) {
+                join_rooms(level, rooms, a, b, &mut tracker, rng, false);
+                any = true;
+            }
         }
+        a += 1;
     }
 
     // Phase 4: Add random extra corridors (mklev.c:341-348)
@@ -676,7 +731,17 @@ mod tests {
         let mut rng = GameRng::new(42);
 
         // Dig a corridor from (10, 10) to (30, 10)
-        dig_corridor_inner(&mut level, 10, 10, 30, 10, false, &mut rng);
+        dig_corridor_inner(
+            &mut level,
+            10,
+            10,
+            30,
+            10,
+            false,
+            CellType::Corridor,
+            CellType::Stone,
+            &mut rng,
+        );
 
         // Should have corridor cells along the path
         let corridor_count = (10..=30)
@@ -792,9 +857,9 @@ mod tests {
         let level = Level::new(DLevel::main_dungeon_start());
         let mut rng = GameRng::new(42);
 
-        // No walls in empty area - should return last resort corner
-        let pos = finddpos(&level, 30, 30, 35, 35, &mut rng);
-        assert_eq!(pos, (30, 35), "Should return corner as last resort");
+        // No walls in empty area - should return last resort corner (xl, yh)
+        let pos = finddpos(&level, 30, 10, 35, 15, &mut rng);
+        assert_eq!(pos, (30, 15), "Should return corner as last resort");
     }
 
     #[test]

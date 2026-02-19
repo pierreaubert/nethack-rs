@@ -9,7 +9,7 @@ use nh_assets::mapping::AssetMapping;
 
 fn main() {
     // Load asset mapping
-    let assets_path = "crates/nh-assets/initial_mapping.json";
+    let assets_path = "assets/mapping.json";
     let registry = AssetRegistry::load_from_file(assets_path).unwrap_or_else(|_| {
         AssetRegistry::new(AssetMapping::default())
     });
@@ -27,8 +27,8 @@ fn main() {
                     ..default()
                 })
                 .set(AssetPlugin {
-                    // Bevy resolves file_path relative to CARGO_MANIFEST_DIR (crate root)
-                    // during `cargo run`, so "assets" → crates/nh-bevy/assets/
+                    // Bevy resolves file_path relative to the working directory,
+                    // which is the workspace root when using `cargo run`.
                     file_path: "assets".to_string(),
                     ..default()
                 }),

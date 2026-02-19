@@ -575,7 +575,7 @@ const char* nh_ffi_get_map_json(void) {
         p += sprintf(p, "]%s", (x < COLNO - 1) ? "," : "");
     }
     
-    p += sprintf(p, "], \"rooms\": [");
+    p += sprintf(p, "], \"nroom\": %d, \"rooms\": [", nroom);
     for (int i = 0; rooms[i].hx >= 0 && i < MAXNROFROOMS; i++) {
         p += sprintf(p, "{\"lx\": %d, \"hx\": %d, \"ly\": %d, \"hy\": %d, \"type\": %d}%s",
             rooms[i].lx, rooms[i].hx, rooms[i].ly, rooms[i].hy, rooms[i].rtype,
@@ -1173,6 +1173,7 @@ void nh_ffi_reset_rng(unsigned long seed) {
     g_seed = seed;
     init_isaac64(seed, rn2);
     init_isaac64(seed, rn2_on_display_rng);
+    { extern unsigned long rng_call_counter; rng_call_counter = 0; }
 #endif
 }
 
