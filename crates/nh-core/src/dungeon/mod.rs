@@ -4,18 +4,18 @@
 
 mod bones;
 mod cell;
-mod corridor;
+pub mod corridor;
 mod dlevel;
 pub mod drawbridge;
 pub mod economy;
 mod endgame;
-mod generation;
+pub mod generation;
 mod level;
 mod mapseen;
 mod maze;
 mod quest;
 mod rect;
-mod room;
+pub mod room;
 mod shop;
 mod special_level;
 mod special_rooms;

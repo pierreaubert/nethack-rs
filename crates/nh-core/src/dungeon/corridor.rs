@@ -422,6 +422,21 @@ fn dig_corridor_inner(
     true
 }
 
+/// Public wrapper for dig_corridor_inner (for isolation testing)
+pub fn dig_corridor_inner_public(
+    level: &mut Level,
+    start_x: i32,
+    start_y: i32,
+    end_x: i32,
+    end_y: i32,
+    nxcor: bool,
+    ftyp: CellType,
+    btyp: CellType,
+    rng: &mut GameRng,
+) -> bool {
+    dig_corridor_inner(level, start_x, start_y, end_x, end_y, nxcor, ftyp, btyp, rng)
+}
+
 /// 1:1 port of C's join() from mklev.c:245-317
 ///
 /// Determines wall ranges from relative room positions, finds door positions

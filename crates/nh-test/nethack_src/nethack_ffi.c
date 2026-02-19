@@ -479,8 +479,8 @@ int nh_ffi_generate_level(void) {
        but we can check level.flags.is_maze_lev after it runs. */
     
     mklev();
-    
-    fprintf(stderr, "FFI: nh_ffi_generate_level() complete. is_maze=%d, corrmaze=%d\n", 
+
+    fprintf(stderr, "FFI: nh_ffi_generate_level() complete. is_maze=%d, corrmaze=%d\n",
             level.flags.is_maze_lev, level.flags.corrmaze);
     fflush(stderr);
     return 0;
@@ -1399,6 +1399,198 @@ char* nh_ffi_export_level(void) {
     return strdup(g_json_buffer);
 #else
     return strdup("{\"width\":80,\"height\":21,\"dnum\":0,\"dlevel\":1,\"cells\":[],\"rooms\":[],\"stairs\":[],\"objects\":[],\"monsters\":[]}");
+#endif
+}
+
+/* ============================================================================
+ * Function-Level Isolation Testing (Phase 1: Parity Strategy)
+ * ============================================================================ */
+
+/* Re-implementation of finddpos() for isolation testing.
+ * finddpos is STATIC_DCL in mklev.c, so we reproduce it here.
+ * This is a direct copy of mklev.c:69-95 for test fidelity.
+ */
+void nh_ffi_test_finddpos(int xl, int yl, int xh, int yh, int *out_x, int *out_y) {
+#ifdef REAL_NETHACK
+    register xchar x, y;
+
+    x = rn1(xh - xl + 1, xl);  /* rn2(range) + base */
+    y = rn1(yh - yl + 1, yl);
+    if (okdoor(x, y))
+        goto gotit;
+
+    for (x = xl; x <= xh; x++)
+        for (y = yl; y <= yh; y++)
+            if (okdoor(x, y))
+                goto gotit;
+
+    for (x = xl; x <= xh; x++)
+        for (y = yl; y <= yh; y++)
+            if (IS_DOOR(levl[x][y].typ) || levl[x][y].typ == SDOOR)
+                goto gotit;
+    /* cannot find something reasonable -- strange */
+    x = xl;
+    y = yh;
+ gotit:
+    *out_x = x;
+    *out_y = y;
+#else
+    *out_x = xl;
+    *out_y = yh;
+#endif
+}
+
+/* Test dig_corridor() in isolation.
+ * Returns 1 if corridor was dug successfully, 0 otherwise.
+ * The level cells are modified in place — use export_level to read them.
+ */
+int nh_ffi_test_dig_corridor(int sx, int sy, int dx, int dy, int nxcor) {
+#ifdef REAL_NETHACK
+    coord org, dest;
+    org.x = sx;
+    org.y = sy;
+    dest.x = dx;
+    dest.y = dy;
+    /* dig_corridor(org, dest, nxcor, ftyp=CORR, btyp=STONE) */
+    return dig_corridor(&org, &dest, nxcor, CORR, STONE) ? 1 : 0;
+#else
+    (void)sx; (void)sy; (void)dx; (void)dy; (void)nxcor;
+    return 0;
+#endif
+}
+
+/* Test makecorridors() in isolation.
+ * Call after generate_level or after manually setting up rooms.
+ * Corridors are placed on the current level — use export_level to read them.
+ */
+void nh_ffi_test_makecorridors(void) {
+#ifdef REAL_NETHACK
+    makecorridors();
+#endif
+}
+
+/* Export a rectangular region of level cells as a flat JSON array.
+ * Returns JSON: [row0_col0_typ, row0_col1_typ, ...] (row-major, y then x).
+ * Caller must free with nh_ffi_free_string().
+ */
+char* nh_ffi_get_cell_region(int x1, int y1, int x2, int y2) {
+#ifdef REAL_NETHACK
+    /* Clamp bounds */
+    if (x1 < 0) x1 = 0;
+    if (y1 < 0) y1 = 0;
+    if (x2 >= COLNO) x2 = COLNO - 1;
+    if (y2 >= ROWNO) y2 = ROWNO - 1;
+
+    int w = x2 - x1 + 1;
+    int h = y2 - y1 + 1;
+    size_t buf_size = (size_t)(w * h) * 8 + 64;
+    char* json = (char*)malloc(buf_size);
+    if (!json) return strdup("[]");
+
+    char *p = json;
+    p += sprintf(p, "[");
+    int first = 1;
+    for (int y = y1; y <= y2; y++) {
+        for (int x = x1; x <= x2; x++) {
+            if (!first) p += sprintf(p, ",");
+            p += sprintf(p, "%d", level.locations[x][y].typ);
+            first = 0;
+        }
+    }
+    p += sprintf(p, "]");
+    return json;
+#else
+    (void)x1; (void)y1; (void)x2; (void)y2;
+    return strdup("[]");
+#endif
+}
+
+/* Set a single cell type on the current level (for isolation testing). */
+void nh_ffi_set_cell(int x, int y, int typ) {
+#ifdef REAL_NETHACK
+    if (x >= 0 && x < COLNO && y >= 0 && y < ROWNO) {
+        level.locations[x][y].typ = typ;
+    }
+#else
+    (void)x; (void)y; (void)typ;
+#endif
+}
+
+/* Clear the entire level to STONE (for isolation testing). */
+void nh_ffi_clear_level(void) {
+#ifdef REAL_NETHACK
+    for (int x = 0; x < COLNO; x++) {
+        for (int y = 0; y < ROWNO; y++) {
+            level.locations[x][y].typ = STONE;
+            level.locations[x][y].lit = 0;
+        }
+    }
+    /* Also reset rooms */
+    nroom = 0;
+    nsubroom = 0;
+    for (int i = 0; i < MAXNROFROOMS; i++) {
+        rooms[i].hx = -1;
+    }
+#endif
+}
+
+/* Set up a room in C's rooms[] array (for isolation testing of corridors).
+ * Returns the room index, or -1 if max rooms reached.
+ */
+int nh_ffi_add_room(int lx, int ly, int hx, int hy, int rtype) {
+#ifdef REAL_NETHACK
+    if (nroom >= MAXNROFROOMS) return -1;
+    int idx = nroom;
+    rooms[idx].lx = lx;
+    rooms[idx].ly = ly;
+    rooms[idx].hx = hx;
+    rooms[idx].hy = hy;
+    rooms[idx].rtype = rtype;
+    rooms[idx].rlit = 0;
+    rooms[idx].doorct = 0;
+    rooms[idx].fdoor = 0;
+    rooms[idx].nsubrooms = 0;
+    nroom++;
+    /* Sentinel */
+    rooms[nroom].hx = -1;
+    return idx;
+#else
+    (void)lx; (void)ly; (void)hx; (void)hy; (void)rtype;
+    return -1;
+#endif
+}
+
+/* Carve a room's interior and walls on the current level (like create_room).
+ * Matches the wall/floor layout from mklev.c add_room / makelevel.
+ */
+void nh_ffi_carve_room(int lx, int ly, int hx, int hy) {
+#ifdef REAL_NETHACK
+    /* Interior: ROOM */
+    for (int x = lx; x <= hx; x++) {
+        for (int y = ly; y <= hy; y++) {
+            level.locations[x][y].typ = ROOM;
+        }
+    }
+    /* Walls around the room */
+    /* Top and bottom walls */
+    for (int x = lx - 1; x <= hx + 1; x++) {
+        if (x >= 0 && x < COLNO) {
+            if (ly - 1 >= 0) level.locations[x][ly-1].typ = HWALL;
+            if (hy + 1 < ROWNO) level.locations[x][hy+1].typ = HWALL;
+        }
+    }
+    /* Left and right walls */
+    for (int y = ly; y <= hy; y++) {
+        if (lx - 1 >= 0) level.locations[lx-1][y].typ = VWALL;
+        if (hx + 1 < COLNO) level.locations[hx+1][y].typ = VWALL;
+    }
+    /* Corners */
+    if (lx-1 >= 0 && ly-1 >= 0) level.locations[lx-1][ly-1].typ = TLCORNER;
+    if (hx+1 < COLNO && ly-1 >= 0) level.locations[hx+1][ly-1].typ = TRCORNER;
+    if (lx-1 >= 0 && hy+1 < ROWNO) level.locations[lx-1][hy+1].typ = BLCORNER;
+    if (hx+1 < COLNO && hy+1 < ROWNO) level.locations[hx+1][hy+1].typ = BRCORNER;
+#else
+    (void)lx; (void)ly; (void)hx; (void)hy;
 #endif
 }
 

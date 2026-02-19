@@ -144,6 +144,16 @@ unsafe extern "C" {
     pub fn nh_ffi_disable_rng_tracing();
     pub fn nh_ffi_get_rng_trace() -> *mut c_char;
     pub fn nh_ffi_clear_rng_trace();
+
+    // Function-level isolation testing (Phase 1)
+    pub fn nh_ffi_test_finddpos(xl: c_int, yl: c_int, xh: c_int, yh: c_int, out_x: *mut c_int, out_y: *mut c_int);
+    pub fn nh_ffi_test_dig_corridor(sx: c_int, sy: c_int, dx: c_int, dy: c_int, nxcor: c_int) -> c_int;
+    pub fn nh_ffi_test_makecorridors();
+    pub fn nh_ffi_get_cell_region(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> *mut c_char;
+    pub fn nh_ffi_set_cell(x: c_int, y: c_int, typ: c_int);
+    pub fn nh_ffi_clear_level();
+    pub fn nh_ffi_add_room(lx: c_int, ly: c_int, hx: c_int, hy: c_int, rtype: c_int) -> c_int;
+    pub fn nh_ffi_carve_room(lx: c_int, ly: c_int, hx: c_int, hy: c_int);
 }
 
 // ============================================================================
@@ -536,6 +546,61 @@ impl CGameEngine {
 
     pub fn clear_rng_trace(&self) {
         unsafe { nh_ffi_clear_rng_trace() };
+    }
+
+    // ========================================================================
+    // Function-level isolation testing (Phase 1)
+    // ========================================================================
+
+    /// Test C's finddpos() in isolation. Returns (x, y) chosen position.
+    pub fn test_finddpos(&self, xl: i32, yl: i32, xh: i32, yh: i32) -> (i32, i32) {
+        let mut out_x: c_int = 0;
+        let mut out_y: c_int = 0;
+        unsafe {
+            nh_ffi_test_finddpos(xl as c_int, yl as c_int, xh as c_int, yh as c_int, &mut out_x, &mut out_y);
+        }
+        (out_x as i32, out_y as i32)
+    }
+
+    /// Test C's dig_corridor() in isolation. Returns true if corridor was dug.
+    pub fn test_dig_corridor(&self, sx: i32, sy: i32, dx: i32, dy: i32, nxcor: bool) -> bool {
+        unsafe { nh_ffi_test_dig_corridor(sx as c_int, sy as c_int, dx as c_int, dy as c_int, nxcor as c_int) != 0 }
+    }
+
+    /// Test C's makecorridors() in isolation.
+    pub fn test_makecorridors(&self) {
+        unsafe { nh_ffi_test_makecorridors() }
+    }
+
+    /// Get a rectangular region of level cells as a JSON array of type IDs.
+    pub fn get_cell_region(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> String {
+        let json_ptr = unsafe { nh_ffi_get_cell_region(x1 as c_int, y1 as c_int, x2 as c_int, y2 as c_int) };
+        if json_ptr.is_null() {
+            return "[]".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
+    }
+
+    /// Set a single cell type on the current C level.
+    pub fn set_cell(&self, x: i32, y: i32, typ: i32) {
+        unsafe { nh_ffi_set_cell(x as c_int, y as c_int, typ as c_int) }
+    }
+
+    /// Clear the entire C level to STONE.
+    pub fn clear_level(&self) {
+        unsafe { nh_ffi_clear_level() }
+    }
+
+    /// Add a room to C's rooms[] array. Returns room index or -1.
+    pub fn add_room(&self, lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32) -> i32 {
+        unsafe { nh_ffi_add_room(lx as c_int, ly as c_int, hx as c_int, hy as c_int, rtype as c_int) as i32 }
+    }
+
+    /// Carve a room's interior and walls on the C level.
+    pub fn carve_room(&self, lx: i32, ly: i32, hx: i32, hy: i32) {
+        unsafe { nh_ffi_carve_room(lx as c_int, ly as c_int, hx as c_int, hy as c_int) }
     }
 
     /// Enable RNG tracing for the C engine.

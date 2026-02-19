@@ -1041,6 +1041,82 @@ const G_FREQ_MASK: u16 = 0x0007;
 /// rndmonst() iterates C indices 0..<C_SPECIAL_PM.
 const C_SPECIAL_PM: usize = 326;
 
+/// C's mons[].difficulty values for indices 0..325 (C_SPECIAL_PM).
+/// These are computed by makedefs -m and differ from Rust's PerMonst.difficulty.
+/// Used for rndmonst's tooweak/toostrong filtering to match C exactly.
+#[rustfmt::skip]
+const C_MONS_DIFFICULTY: [u8; 326] = [
+     4,  5,  6,  6,  6, 12,  2,  6,  8,  7,  8,  8,  1,  1,  2,  4,
+     3,  5,  5,  7,  6,  7,  7,  8,  9,  9, 14,  2,  3,  8,  8,  8,
+     3,  5,  6,  7,  7,  7,  8,  8,  8, 11,  2,  4,  5,  6,  8, 13,
+    19,  3,  3,  4,  5,  7,  7,  5,  6,  8,  1,  2,  3,  4,  4,  8,
+     9, 11,  5,  5,  5,  1,  3,  3,  4,  5,  5,  5,  7,  4,  6,  9,
+     4,  7,  8,  9, 13, 15, 22,  1,  2,  4,  4,  4,  4,  3,  4,  7,
+     8, 12, 14,  4,  6,  6,  6,  7,  9,  4,  6,  7,  9,  9, 10,  6,
+     9, 10, 17,  1,  9,  5,  7, 11, 11, 12, 19, 21, 26,  2,  3,  6,
+     7,  6,  8,  9, 13, 13, 13, 13, 13, 13, 13, 13, 13, 20, 20, 20,
+    20, 20, 20, 20, 20, 20,  9, 10, 10, 10, 10,  1,  2,  2,  2,  2,
+     2,  5,  3,  4,  5,  6,  8,  8, 10, 11, 13, 13, 19, 20, 17, 18,
+     3,  4,  5,  6, 14, 18, 21, 29,  4,  5,  6,  6,  7,  7,  8, 10,
+     4,  4,  4,  4,  8, 10, 13, 16,  7,  9, 11,  4,  6,  8, 12,  9,
+     8, 14,  3,  6,  7,  8,  9, 10,  9, 12, 12, 13, 16, 12, 12, 14,
+    32,  7,  8, 17, 11,  4,  6,  7,  7,  8,  9,  1,  2,  3,  3,  4,
+     5,  7,  5,  9, 14,  4,  4,  6,  6,  7,  8, 10, 12, 15, 18, 22,
+     2,  3,  3,  6, 12,  6,  7,  8, 11, 11, 11, 15, 14, 14, 13, 15,
+    30,  8, 10, 13, 12, 14,  8, 12, 25, 34, 22, 12, 14, 11,  8,  9,
+     8, 10, 10, 11, 11, 12, 13, 14, 15, 16, 15, 20, 26, 31, 36, 36,
+    40, 45, 53, 57, 34, 34, 34,  8,  5,  6,  9,  7, 10, 22,  1,  2,
+     3,  4,  6,  7,  7, 12,
+];
+
+/// C's mons[].geno values for indices 0..325 (C_SPECIAL_PM).
+/// Used for rndmonst's uncommon/hell/nohell/frequency checks to match C exactly.
+/// Some Rust gen_flags differ from C's geno (e.g. animal wereforms missing G_NOGEN).
+#[rustfmt::skip]
+const C_MONS_GENO: [u16; 326] = [
+    0x00a3, 0x0062, 0x00a2, 0x00a1, 0x0023, 0x0220, 0x0022, 0x0022,
+    0x0022, 0x00a1, 0x0025, 0x0021, 0x00a3, 0x0021, 0x00a1, 0x0210,
+    0x0021, 0x0021, 0x0021, 0x0021, 0x00a2, 0x0210, 0x08a2, 0x00a2,
+    0x0821, 0x04a1, 0x0421, 0x0031, 0x0025, 0x0832, 0x0032, 0x0032,
+    0x0021, 0x0021, 0x0022, 0x0021, 0x0021, 0x0021, 0x0022, 0x0022,
+    0x0022, 0x0021, 0x0022, 0x0023, 0x0021, 0x0022, 0x0021, 0x0021,
+    0x0021, 0x0071, 0x0022, 0x0021, 0x0471, 0x0022, 0x0023, 0x0022,
+    0x0021, 0x0022, 0x0021, 0x0021, 0x0021, 0x0021, 0x0024, 0x0022,
+    0x0021, 0x0021, 0x0022, 0x0022, 0x0022, 0x0022, 0x0022, 0x0260,
+    0x0062, 0x0061, 0x0061, 0x0021, 0x0021, 0x0024, 0x0022, 0x0021,
+    0x00a4, 0x0021, 0x0022, 0x0021, 0x0022, 0x0022, 0x0021, 0x00a1,
+    0x00a2, 0x0021, 0x0210, 0x0022, 0x0220, 0x00a2, 0x0021, 0x0021,
+    0x0022, 0x0022, 0x0022, 0x0022, 0x0022, 0x0021, 0x0021, 0x0022,
+    0x0022, 0x0032, 0x0032, 0x0831, 0x0031, 0x0432, 0x0431, 0x0020,
+    0x0020, 0x0022, 0x0022, 0x00b3, 0x0023, 0x0034, 0x0032, 0x0022,
+    0x0891, 0x0811, 0x0811, 0x0811, 0x0811, 0x00a1, 0x0022, 0x0022,
+    0x0022, 0x0021, 0x0021, 0x0021, 0x0020, 0x0020, 0x0020, 0x0020,
+    0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0021, 0x0021, 0x0021,
+    0x0021, 0x0021, 0x0021, 0x0021, 0x0021, 0x0021, 0x0023, 0x0011,
+    0x0011, 0x0011, 0x0011, 0x0024, 0x0021, 0x0022, 0x0021, 0x0021,
+    0x0021, 0x0022, 0x00a1, 0x0022, 0x0021, 0x0021, 0x0221, 0x00a1,
+    0x00a1, 0x00a1, 0x08a1, 0x0021, 0x00a1, 0x0001, 0x0220, 0x0021,
+    0x0260, 0x02a0, 0x0220, 0x0220, 0x0031, 0x0031, 0x0431, 0x0431,
+    0x0031, 0x0031, 0x0031, 0x0031, 0x0031, 0x0031, 0x0031, 0x0031,
+    0x0020, 0x0020, 0x0020, 0x0020, 0x0021, 0x0021, 0x0021, 0x0021,
+    0x00a1, 0x0022, 0x0022, 0x0032, 0x0031, 0x0431, 0x0031, 0x0023,
+    0x0022, 0x0422, 0x0061, 0x0022, 0x0260, 0x0021, 0x0021, 0x0021,
+    0x0022, 0x0821, 0x0021, 0x0220, 0x0021, 0x0022, 0x0031, 0x0031,
+    0x1210, 0x0031, 0x0022, 0x0031, 0x0021, 0x0021, 0x00a2, 0x0023,
+    0x0022, 0x0021, 0x0021, 0x0031, 0x0031, 0x00b1, 0x00b1, 0x00b1,
+    0x00b1, 0x0031, 0x0031, 0x0031, 0x0210, 0x0011, 0x0011, 0x0011,
+    0x0011, 0x0011, 0x0011, 0x0001, 0x0011, 0x0011, 0x0011, 0x0011,
+    0x0200, 0x0001, 0x0001, 0x0001, 0x0200, 0x00a2, 0x00a2, 0x00a2,
+    0x00a2, 0x0021, 0x0021, 0x0200, 0x0200, 0x0200, 0x1200, 0x0200,
+    0x1200, 0x00a1, 0x00a1, 0x0023, 0x0021, 0x0021, 0x02a1, 0x0221,
+    0x1200, 0x1200, 0x1200, 0x0210, 0x0210, 0x0210, 0x0011, 0x0412,
+    0x0011, 0x0492, 0x0492, 0x0411, 0x0492, 0x0492, 0x0492, 0x0412,
+    0x0411, 0x0412, 0x0411, 0x0411, 0x1610, 0x1610, 0x1610, 0x1610,
+    0x1610, 0x1610, 0x1610, 0x1610, 0x1200, 0x1200, 0x1200, 0x0210,
+    0x0220, 0x02a0, 0x0220, 0x0220, 0x0220, 0x0220, 0x0025, 0x0025,
+    0x0025, 0x0020, 0x0025, 0x0022, 0x0021, 0x0401,
+];
+
 /// Mapping from C mons[] index (0..380) to Rust MONSTERS index.
 /// C has 381 monsters (NUMMONS=381), Rust has 400. The ordering differs
 /// because Rust added extra monsters (Cerberus, beholder, shimmering dragon,
@@ -1064,13 +1140,13 @@ const C_TO_RUST_MONS: [usize; 381] = [
     12,  // 12: PM_JACKAL
     13,  // 13: PM_FOX
     14,  // 14: PM_COYOTE
-    273, // 15: PM_WEREJACKAL
+    15,  // 15: PM_WEREJACKAL (animal form, S_DOG, G_NOGEN)
     16,  // 16: PM_LITTLE_DOG
     19,  // 17: PM_DINGO
     17,  // 18: PM_DOG
     18,  // 19: PM_LARGE_DOG
     20,  // 20: PM_WOLF
-    274, // 21: PM_WEREWOLF
+    21,  // 21: PM_WEREWOLF (animal form, S_DOG, G_NOGEN)
     23,  // 22: PM_WINTER_WOLF_CUB
     22,  // 23: PM_WARG
     24,  // 24: PM_WINTER_WOLF
@@ -1139,7 +1215,7 @@ const C_TO_RUST_MONS: [usize; 381] = [
     99,  // 87: PM_SEWER_RAT
     100, // 88: PM_GIANT_RAT
     101, // 89: PM_RABID_RAT
-    272, // 90: PM_WERERAT
+    102, // 90: PM_WERERAT (animal form, S_RODENT, G_NOGEN)
     103, // 91: PM_ROCK_MOLE
     104, // 92: PM_WOODCHUCK
     105, // 93: PM_CAVE_SPIDER
@@ -1306,9 +1382,9 @@ const C_TO_RUST_MONS: [usize; 381] = [
     269, // 254: PM_GLASS_GOLEM
     270, // 255: PM_IRON_GOLEM
     271, // 256: PM_HUMAN
-    272, // 257: PM_HUMAN_WERERAT (G_NOGEN)
-    273, // 258: PM_HUMAN_WEREJACKAL (G_NOGEN)
-    274, // 259: PM_HUMAN_WEREWOLF (G_NOGEN)
+    272, // 257: PM_HUMAN_WERERAT (human form, S_HUMAN, G_NOGEN)
+    273, // 258: PM_HUMAN_WEREJACKAL (human form, S_HUMAN, G_NOGEN)
+    274, // 259: PM_HUMAN_WEREWOLF (human form, S_HUMAN, G_NOGEN)
     275, // 260: PM_ELF
     276, // 261: PM_WOODLAND_ELF
     277, // 262: PM_GREEN_ELF
@@ -1462,7 +1538,6 @@ fn adj_lev_c(mon: &PerMonst, depth: i32, player_level: i32) -> i32 {
 /// Iterates C's mons[] ordering (0..C_SPECIAL_PM) for parity.
 /// Consumes exactly 1 RNG call (rnd(choice_count)).
 fn rndmonst_c_rng(
-    monsters: &[PerMonst],
     depth: i32,
     player_level: i32,
     in_hell: bool,
@@ -1475,11 +1550,11 @@ fn rndmonst_c_rng(
     // mchoices indexed by C mons[] index
     let mut mchoices = [0i32; 381];
 
-    // Find first non-uncommon monster (C ordering)
+    // Find first non-uncommon monster (C ordering).
+    // Use C's exact geno values for all filtering to ensure parity.
     let mut first_common: usize = 0;
     for c_mndx in 0..C_SPECIAL_PM {
-        let rs_idx = C_TO_RUST_MONS[c_mndx];
-        let gf = monsters[rs_idx].gen_flags;
+        let gf = C_MONS_GENO[c_mndx];
         if (gf & (G_NOGEN | G_UNIQ)) == 0 {
             first_common = c_mndx;
             break;
@@ -1489,16 +1564,14 @@ fn rndmonst_c_rng(
     let shift = align_shift_am_none();
 
     for c_mndx in first_common..C_SPECIAL_PM {
-        let rs_idx = C_TO_RUST_MONS[c_mndx];
-        let mon = &monsters[rs_idx];
-        let gf = mon.gen_flags;
+        let gf = C_MONS_GENO[c_mndx];
 
         if (gf & (G_NOGEN | G_UNIQ)) != 0 {
             continue;
         }
 
-        // C uses mons[].difficulty for tooweak/toostrong, not mlevel
-        let difficulty = mon.difficulty as i32;
+        // C uses mons[].difficulty for tooweak/toostrong, not mlevel.
+        let difficulty = C_MONS_DIFFICULTY[c_mndx] as i32;
         if difficulty < min_mlev {
             continue;
         }
@@ -1522,25 +1595,11 @@ fn rndmonst_c_rng(
     }
 
     // Select monster using C ordering
-    eprintln!("  rndmonst: choice_count={} min_mlev={} max_mlev={}", choice_count, min_mlev, max_mlev);
-    // Dump eligible monsters for debugging
-    for c_mndx in 0..C_SPECIAL_PM {
-        if mchoices[c_mndx] > 0 {
-            let rs_idx = C_TO_RUST_MONS[c_mndx];
-            let mon = &monsters[rs_idx];
-            eprintln!("    eligible C[{}]->RS[{}] \"{}\" freq={} diff={} level={}",
-                c_mndx, rs_idx, mon.name, mchoices[c_mndx], mon.difficulty, mon.level);
-        }
-    }
-    let rnd_val = rng.rnd(choice_count as u32) as i32;
-    eprintln!("  rndmonst: rnd({})={}", choice_count, rnd_val);
-    let mut ct = rnd_val;
+    let mut ct = rng.rnd(choice_count as u32) as i32;
     for c_mndx in 0..C_SPECIAL_PM {
         ct -= mchoices[c_mndx];
         if ct <= 0 {
-            let rs_idx = C_TO_RUST_MONS[c_mndx];
-            eprintln!("  rndmonst: selected C[{}] -> RS[{}] \"{}\" (ct_remaining={})", c_mndx, rs_idx, monsters[rs_idx].name, ct);
-            return rs_idx;
+            return C_TO_RUST_MONS[c_mndx];
         }
     }
     // Fallback
@@ -2011,7 +2070,7 @@ fn makemon_c_rng(
     let in_hell = false;
 
     // 1. rndmonst: select monster (1 RNG call)
-    let mndx = rndmonst_c_rng(monsters, depth, player_level, in_hell, rng);
+    let mndx = rndmonst_c_rng(depth, player_level, in_hell, rng);
     let mon = &monsters[mndx];
 
     eprintln!("  RS MAKEMON {}: mndx={} mlet='{}' mlevel={} rng={}",

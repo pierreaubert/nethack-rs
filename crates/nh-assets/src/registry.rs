@@ -97,6 +97,11 @@ impl AssetRegistry {
         true
     }
 
+    /// Return the bevy_sprite path for an object, if a mapping exists.
+    pub fn get_sprite_path(&self, obj: &Object) -> Option<&str> {
+        self.get_icon(obj).ok().map(|icon| icon.bevy_sprite.as_str())
+    }
+
     /// Helper to convert a color string to a ratatui color.
     pub fn parse_color(color_name: &str) -> Option<ratatui::style::Color> {
         use ratatui::style::Color;

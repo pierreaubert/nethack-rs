@@ -53,6 +53,15 @@ enum Command {
     DisableRngTracing,
     GetRngTrace,
     ClearRngTrace,
+    // Function-level isolation testing (Phase 1)
+    TestFinddpos { xl: i32, yl: i32, xh: i32, yh: i32 },
+    TestDigCorridor { sx: i32, sy: i32, dx: i32, dy: i32, nxcor: bool },
+    TestMakecorridors,
+    GetCellRegion { x1: i32, y1: i32, x2: i32, y2: i32 },
+    SetCell { x: i32, y: i32, typ: i32 },
+    ClearLevel,
+    AddRoom { lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32 },
+    CarveRoom { lx: i32, ly: i32, hx: i32, hy: i32 },
     Exit,
 }
 
@@ -206,6 +215,36 @@ fn main() {
             Command::GetRngTrace => Response::String(engine.rng_trace_json()),
             Command::ClearRngTrace => {
                 engine.clear_rng_trace();
+                Response::Ok
+            }
+            // Function-level isolation testing (Phase 1)
+            Command::TestFinddpos { xl, yl, xh, yh } => {
+                let (x, y) = engine.test_finddpos(xl, yl, xh, yh);
+                Response::Pos(x, y)
+            }
+            Command::TestDigCorridor { sx, sy, dx, dy, nxcor } => {
+                Response::Bool(engine.test_dig_corridor(sx, sy, dx, dy, nxcor))
+            }
+            Command::TestMakecorridors => {
+                engine.test_makecorridors();
+                Response::Ok
+            }
+            Command::GetCellRegion { x1, y1, x2, y2 } => {
+                Response::String(engine.get_cell_region(x1, y1, x2, y2))
+            }
+            Command::SetCell { x, y, typ } => {
+                engine.set_cell(x, y, typ);
+                Response::Ok
+            }
+            Command::ClearLevel => {
+                engine.clear_level();
+                Response::Ok
+            }
+            Command::AddRoom { lx, ly, hx, hy, rtype } => {
+                Response::Int(engine.add_room(lx, ly, hx, hy, rtype))
+            }
+            Command::CarveRoom { lx, ly, hx, hy } => {
+                engine.carve_room(lx, ly, hx, hy);
                 Response::Ok
             }
             Command::Exit => break,
