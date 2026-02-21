@@ -390,7 +390,10 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
     fprintf(stderr, "FFI: u_init()...\n");
     fflush(stderr);
     u_init();
-    
+
+    /* Fix ubirthday to a constant for reproducible antholemon() results */
+    ubirthday = 0;
+
     fprintf(stderr, "C FFI Rolled: Role=%s Race=%s HP=%d, Energy=%d\n", role, race, u.uhp, u.uen);
     fflush(stderr);
 
