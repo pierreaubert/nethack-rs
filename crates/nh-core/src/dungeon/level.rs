@@ -296,6 +296,11 @@ pub struct Level {
     #[cfg(feature = "extensions")]
     pub persistent_effects: crate::magic::spell_persistence::PersistentEffectTracker,
 
+    /// Door positions in placement order (matches C's doors[] array)
+    /// Each entry is (x, y) of a door. Room.first_door_idx indexes into this.
+    #[serde(skip, default)]
+    pub door_positions: Vec<(usize, usize)>,
+
     /// Message buffer for AI/monster actions (pline equivalent)
     /// These messages are collected and transferred to GameState after monster turns
     #[serde(skip, default)]
@@ -433,6 +438,7 @@ impl Level {
                 crate::magic::terrain_modification::TerrainModificationTracker::new(),
             #[cfg(feature = "extensions")]
             persistent_effects: crate::magic::spell_persistence::PersistentEffectTracker::new(),
+            door_positions: Vec::new(),
             pending_messages: Vec::new(),
         }
     }

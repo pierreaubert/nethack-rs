@@ -468,16 +468,44 @@ int nh_ffi_reset(unsigned long seed) {
 #endif
 }
 
+/* Thorough cleanup of accumulated state between level generations.
+   clear_level_structures() inside mklev->makelevel resets cells/rooms/doors/rects,
+   but there is other global state that accumulates across calls.
+   We just NULL out pointers (leaking memory is fine for test harness). */
+static void nh_ffi_pre_generate_cleanup(void) {
+    int x, y;
+
+    /* NULL out monster/object map arrays and global lists */
+    level.monlist = (struct monst *)0;
+    fmon = (struct monst *)0;
+    level.objlist = (struct obj *)0;
+    fobj = (struct obj *)0;
+    level.buriedobjlist = (struct obj *)0;
+    ftrap = (struct trap *)0;
+
+    for (x = 0; x < COLNO; x++)
+        for (y = 0; y < ROWNO; y++) {
+            level.monsters[x][y] = (struct monst *)0;
+            level.objects[x][y] = (struct obj *)0;
+        }
+
+    /* Clear mapseenchn to prevent accumulation (just leak it) */
+    {
+        extern mapseen *mapseenchn;
+        mapseenchn = (mapseen *)0;
+    }
+}
+
 /* Generate a new level */
 int nh_ffi_generate_level(void) {
 #ifdef REAL_NETHACK
-    fprintf(stderr, "FFI: nh_ffi_generate_level() ledger=%d, dnum=%d, dlevel=%d, name=%s...\n", 
+    fprintf(stderr, "FFI: nh_ffi_generate_level() ledger=%d, dnum=%d, dlevel=%d, name=%s...\n",
             ledger_no(&u.uz), u.uz.dnum, u.uz.dlevel, dungeons[u.uz.dnum].dname);
     fflush(stderr);
-    
-    /* We can't easily hook internal of makemaz without modifying C code,
-       but we can check level.flags.is_maze_lev after it runs. */
-    
+
+    /* Thorough cleanup of accumulated state from prior generations */
+    nh_ffi_pre_generate_cleanup();
+
     mklev();
 
     fprintf(stderr, "FFI: nh_ffi_generate_level() complete. is_maze=%d, corrmaze=%d\n",
@@ -1528,8 +1556,10 @@ void nh_ffi_clear_level(void) {
     /* Also reset rooms */
     nroom = 0;
     nsubroom = 0;
+    doorindex = 0;
     for (int i = 0; i < MAXNROFROOMS; i++) {
         rooms[i].hx = -1;
+        smeq[i] = 0;
     }
 #endif
 }
@@ -1550,6 +1580,7 @@ int nh_ffi_add_room(int lx, int ly, int hx, int hy, int rtype) {
     rooms[idx].doorct = 0;
     rooms[idx].fdoor = 0;
     rooms[idx].nsubrooms = 0;
+    smeq[idx] = idx;  /* Each room starts as its own equivalence class */
     nroom++;
     /* Sentinel */
     rooms[nroom].hx = -1;
@@ -1591,6 +1622,146 @@ void nh_ffi_carve_room(int lx, int ly, int hx, int hy) {
     if (hx+1 < COLNO && hy+1 < ROWNO) level.locations[hx+1][hy+1].typ = BRCORNER;
 #else
     (void)lx; (void)ly; (void)hx; (void)hy;
+#endif
+}
+
+/* Get the rectangle list from C's rect.c (static variables exposed via helper in rect.c) */
+extern int nh_ffi_rect_count(void);
+extern void nh_ffi_get_rect_list(int *out_count, int *out_coords);
+
+char* nh_ffi_get_rect_json(void) {
+#ifdef REAL_NETHACK
+    int count = 0;
+    int coords[200]; /* 50 rects * 4 coords */
+    nh_ffi_get_rect_list(&count, coords);
+
+    char *buf = (char*)malloc(4096);
+    char *p = buf;
+    p += sprintf(p, "{\"count\":%d,\"rects\":[", count);
+    for (int i = 0; i < count; i++) {
+        if (i > 0) p += sprintf(p, ",");
+        p += sprintf(p, "[%d,%d,%d,%d]", coords[i*4], coords[i*4+1], coords[i*4+2], coords[i*4+3]);
+    }
+    p += sprintf(p, "]}");
+    return buf;
+#else
+    return strdup("{\"count\":0,\"rects\":[]}");
+#endif
+}
+
+/* Re-implementation of C's join() for step-by-step isolation testing.
+ * Uses our re-implemented finddpos (same as mklev.c), and the public
+ * okdoor(), dodoor(), dig_corridor() functions.
+ * Modifies level cells, smeq[], and doorindex — just like the real join().
+ */
+void nh_ffi_test_join(int a, int b, int nxcor) {
+#ifdef REAL_NETHACK
+    coord cc, tt, org, dest;
+    register xchar tx, ty, xx, yy;
+    register struct mkroom *croom, *troom;
+    register int dx, dy;
+
+    croom = &rooms[a];
+    troom = &rooms[b];
+
+    if (troom->hx < 0 || croom->hx < 0 || doorindex >= DOORMAX)
+        return;
+
+    /* Use temp ints for finddpos output (cc/tt fields are xchar/schar) */
+    int cc_x, cc_y, tt_x, tt_y;
+
+    if (troom->lx > croom->hx) {
+        dx = 1;
+        dy = 0;
+        xx = croom->hx + 1;
+        tx = troom->lx - 1;
+        nh_ffi_test_finddpos(xx, croom->ly, xx, croom->hy, &cc_x, &cc_y);
+        nh_ffi_test_finddpos(tx, troom->ly, tx, troom->hy, &tt_x, &tt_y);
+    } else if (troom->hy < croom->ly) {
+        dy = -1;
+        dx = 0;
+        yy = croom->ly - 1;
+        nh_ffi_test_finddpos(croom->lx, yy, croom->hx, yy, &cc_x, &cc_y);
+        ty = troom->hy + 1;
+        nh_ffi_test_finddpos(troom->lx, ty, troom->hx, ty, &tt_x, &tt_y);
+    } else if (troom->hx < croom->lx) {
+        dx = -1;
+        dy = 0;
+        xx = croom->lx - 1;
+        tx = troom->hx + 1;
+        nh_ffi_test_finddpos(xx, croom->ly, xx, croom->hy, &cc_x, &cc_y);
+        nh_ffi_test_finddpos(tx, troom->ly, tx, troom->hy, &tt_x, &tt_y);
+    } else {
+        dy = 1;
+        dx = 0;
+        yy = croom->hy + 1;
+        ty = troom->ly - 1;
+        nh_ffi_test_finddpos(croom->lx, yy, croom->hx, yy, &cc_x, &cc_y);
+        nh_ffi_test_finddpos(troom->lx, ty, troom->hx, ty, &tt_x, &tt_y);
+    }
+
+    cc.x = (xchar)cc_x;
+    cc.y = (xchar)cc_y;
+    tt.x = (xchar)tt_x;
+    tt.y = (xchar)tt_y;
+
+    xx = cc.x;
+    yy = cc.y;
+    tx = tt.x - dx;
+    ty = tt.y - dy;
+
+    if (nxcor && levl[xx + dx][yy + dy].typ)
+        return;
+
+    if (okdoor(xx, yy) || !nxcor)
+        dodoor(xx, yy, croom);
+
+    org.x = xx + dx;
+    org.y = yy + dy;
+    dest.x = tx;
+    dest.y = ty;
+
+    if (!dig_corridor(&org, &dest, (boolean)nxcor,
+                      level.flags.arboreal ? ROOM : CORR, STONE))
+        return;
+
+    if (okdoor(tt.x, tt.y) || !nxcor)
+        dodoor(tt.x, tt.y, troom);
+
+    if (smeq[a] < smeq[b])
+        smeq[b] = smeq[a];
+    else
+        smeq[a] = smeq[b];
+#else
+    (void)a; (void)b; (void)nxcor;
+#endif
+}
+
+/* Get smeq array as JSON for comparing connectivity state.
+ * Returns JSON: [smeq[0], smeq[1], ...] for nroom entries.
+ */
+char* nh_ffi_get_smeq(void) {
+#ifdef REAL_NETHACK
+    char buf[1024];
+    char *p = buf;
+    p += sprintf(p, "[");
+    for (int i = 0; i < nroom; i++) {
+        if (i > 0) p += sprintf(p, ",");
+        p += sprintf(p, "%d", smeq[i]);
+    }
+    p += sprintf(p, "]");
+    return strdup(buf);
+#else
+    return strdup("[]");
+#endif
+}
+
+/* Get doorindex for diagnostics. */
+int nh_ffi_get_doorindex(void) {
+#ifdef REAL_NETHACK
+    return doorindex;
+#else
+    return 0;
 #endif
 }
 

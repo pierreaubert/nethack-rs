@@ -634,7 +634,7 @@ pub fn pick_room(
 }
 
 /// Check if room has upstairs
-fn room_has_upstairs(room: &Room, level: &super::Level) -> bool {
+pub fn room_has_upstairs(room: &Room, level: &super::Level) -> bool {
     for stair in &level.stairs {
         if stair.up && room.contains(stair.x as usize, stair.y as usize) {
             return true;
@@ -644,7 +644,7 @@ fn room_has_upstairs(room: &Room, level: &super::Level) -> bool {
 }
 
 /// Check if room has downstairs
-fn room_has_downstairs(room: &Room, level: &super::Level) -> bool {
+pub fn room_has_downstairs(room: &Room, level: &super::Level) -> bool {
     for stair in &level.stairs {
         if !stair.up && room.contains(stair.x as usize, stair.y as usize) {
             return true;

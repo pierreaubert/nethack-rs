@@ -292,6 +292,7 @@ fn test_makecorridors_isolation() {
 
     for seed in [42, 123, 500] {
         // === C side ===
+        c_engine.set_dlevel(0, 14); // Match Rust's DLevel::new(0, 14)
         c_engine.clear_level();
 
         // Add rooms to C
@@ -356,5 +357,202 @@ fn test_makecorridors_isolation() {
         // This test is currently informational — we expect mismatches
         // and want to quantify them. Uncomment when we expect 0:
         // assert_eq!(mismatches, 0, "makecorridors cell mismatches for seed={}", seed);
+    }
+}
+
+/// ============================================================================
+/// Step-by-step join comparison: finds EXACTLY which join call first diverges
+/// ============================================================================
+
+#[test]
+#[serial]
+fn test_join_step_by_step() {
+    let mut c_engine = CGameEngine::new();
+    c_engine.init("Valkyrie", "Human", 0, 0).expect("C init");
+
+    let room_defs = [
+        (5, 3, 10, 7, 0),
+        (20, 3, 28, 8, 0),
+        (38, 3, 45, 7, 0),
+        (5, 12, 12, 16, 0),
+        (22, 12, 30, 17, 0),
+    ];
+
+    let seed: u64 = 42;
+
+    // === Setup C side ===
+    c_engine.set_dlevel(0, 14); // Match Rust's DLevel::new(0, 14) for level_difficulty()
+    c_engine.clear_level();
+    for (lx, ly, hx, hy, rtype) in &room_defs {
+        c_engine.add_room(*lx, *ly, *hx, *hy, *rtype);
+        c_engine.carve_room(*lx, *ly, *hx, *hy);
+    }
+    c_engine.reset_rng(seed).expect("reset rng");
+
+    // === Setup Rust side ===
+    let mut rs_level = Level::new(DLevel::new(0, 14));
+    let mut rs_rng = GameRng::new(seed);
+    let mut rooms = Vec::new();
+    for (lx, ly, hx, hy, _rtype) in &room_defs {
+        let w = (*hx - *lx + 1) as usize;
+        let h = (*hy - *ly + 1) as usize;
+        let room = Room::new(*lx as usize, *ly as usize, w, h);
+        carve_room(&mut rs_level, &room);
+        rooms.push(room);
+    }
+
+    let mut tracker = nh_core::dungeon::ConnectivityTracker::new(rooms.len());
+
+    // Pre-join: compare initial level state
+    {
+        let c_cells_json = c_engine.get_cell_region(0, 0, (COLNO - 1) as i32, (ROWNO - 1) as i32);
+        let c_cells: Vec<i32> = serde_json::from_str(&c_cells_json).unwrap_or_default();
+        let mut initial_mismatches = 0;
+        for y in 0..ROWNO {
+            for x in 0..COLNO {
+                let idx = y * COLNO + x;
+                let c_typ = c_cells.get(idx).copied().unwrap_or(0);
+                let rs_typ = rust_cell_to_c_id(rs_level.cells[x][y].typ);
+                if c_typ != rs_typ {
+                    initial_mismatches += 1;
+                    if initial_mismatches <= 5 {
+                        println!("  initial diff: ({},{}) Rust={:?}({}) C={}", x, y, rs_level.cells[x][y].typ, rs_typ, c_typ);
+                    }
+                }
+            }
+        }
+        println!("Initial level comparison: {} mismatches", initial_mismatches);
+    }
+
+    // Trace finddpos for the first join: rooms[0] to rooms[1]
+    {
+        let croom = &rooms[0];
+        let troom = &rooms[1];
+        let c_lx = croom.x;
+        let c_ly = croom.y;
+        let c_hx = croom.x + croom.width - 1;
+        let c_hy = croom.y + croom.height - 1;
+        let t_lx = troom.x;
+        let t_ly = troom.y;
+        let _t_hx = troom.x + troom.width - 1;
+        let t_hy = troom.y + troom.height - 1;
+
+        println!("Room 0: ({},{}) to ({},{})", c_lx, c_ly, c_hx, c_hy);
+        println!("Room 1: ({},{}) to ({},{})", t_lx, t_ly, _t_hx, t_hy);
+
+        // Case: t_lx > c_hx (room 1 is to the right)
+        if t_lx > c_hx {
+            let xx = c_hx + 1; // right wall of room 0
+            let tx = t_lx - 1; // left wall of room 1
+            println!("RIGHT case: xx={} tx={}", xx, tx);
+
+            // Test finddpos in C
+            let (c_cc_x, c_cc_y) = c_engine.test_finddpos(xx as i32, c_ly as i32, xx as i32, c_hy as i32);
+            let (c_tt_x, c_tt_y) = c_engine.test_finddpos(tx as i32, t_ly as i32, tx as i32, t_hy as i32);
+            println!("C finddpos: cc=({},{}) tt=({},{})", c_cc_x, c_cc_y, c_tt_x, c_tt_y);
+
+            // Test finddpos in Rust (using a FRESH rng, same seed)
+            let mut test_rng = GameRng::new(seed);
+            let rs_cc = nh_core::dungeon::corridor::finddpos(&rs_level, xx, c_ly, xx, c_hy, &mut test_rng);
+            let rs_tt = nh_core::dungeon::corridor::finddpos(&rs_level, tx, t_ly, tx, t_hy, &mut test_rng);
+            println!("Rust finddpos: cc=({},{}) tt=({},{})", rs_cc.0, rs_cc.1, rs_tt.0, rs_tt.1);
+
+            if (c_cc_x as usize, c_cc_y as usize) != rs_cc || (c_tt_x as usize, c_tt_y as usize) != rs_tt {
+                println!("  *** FINDDPOS MISMATCH ***");
+            } else {
+                println!("  finddpos matches!");
+            }
+        }
+    }
+
+    // Reset RNG after finddpos tracing (tracing consumed C RNG calls)
+    c_engine.reset_rng(seed).expect("reset rng after tracing");
+    rs_rng = GameRng::new(seed);
+
+    // Phase 1: Join adjacent rooms one at a time
+    println!("\n=== Phase 1: Adjacent room joins ===");
+    for i in 0..rooms.len() - 1 {
+        // C side
+        c_engine.test_join(i as i32, (i + 1) as i32, false);
+        // Rust side
+        nh_core::dungeon::corridor::join_rooms(
+            &mut rs_level, &rooms, i, i + 1, &mut tracker, &mut rs_rng, false,
+        );
+
+        // Compare levels
+        let c_cells_json = c_engine.get_cell_region(0, 0, (COLNO - 1) as i32, (ROWNO - 1) as i32);
+        let c_cells: Vec<i32> = serde_json::from_str(&c_cells_json).unwrap_or_default();
+        let mut mismatches = 0;
+        let mut first_mismatch = None;
+        for y in 0..ROWNO {
+            for x in 0..COLNO {
+                let idx = y * COLNO + x;
+                let c_typ = c_cells.get(idx).copied().unwrap_or(0);
+                let rs_typ = rust_cell_to_c_id(rs_level.cells[x][y].typ);
+                if c_typ != rs_typ && first_mismatch.is_none() {
+                    first_mismatch = Some((x, y, rs_level.cells[x][y].typ, c_typ));
+                }
+                if c_typ != rs_typ {
+                    mismatches += 1;
+                }
+            }
+        }
+
+        // Compare smeq
+        let c_smeq: Vec<i32> = serde_json::from_str(&c_engine.get_smeq()).unwrap_or_default();
+        let rs_smeq: Vec<usize> = (0..rooms.len()).map(|i| tracker.smeq_value(i)).collect();
+        let smeq_match = c_smeq.iter().zip(rs_smeq.iter()).all(|(c, r)| *c == *r as i32);
+
+        println!(
+            "  join({},{},false): {} cell mismatches, smeq C={:?} Rust={:?} {}",
+            i, i + 1, mismatches, c_smeq, rs_smeq,
+            if smeq_match { "OK" } else { "MISMATCH" },
+        );
+
+        if let Some((mx, my, rs_t, c_t)) = first_mismatch {
+            println!("    first mismatch: ({},{}) Rust={:?} C_type={}", mx, my, rs_t, c_t);
+        }
+
+        if mismatches > 0 {
+            // Show up to 10 mismatches with positions
+            let mut shown = 0;
+            for y in 0..ROWNO {
+                for x in 0..COLNO {
+                    let idx = y * COLNO + x;
+                    let c_typ = c_cells.get(idx).copied().unwrap_or(0);
+                    let rs_typ = rust_cell_to_c_id(rs_level.cells[x][y].typ);
+                    if c_typ != rs_typ {
+                        shown += 1;
+                        if shown <= 10 {
+                            println!("    ({},{}) Rust={:?}({}) C={}", x, y,
+                                rs_level.cells[x][y].typ, rs_typ, c_typ);
+                        }
+                    }
+                }
+            }
+            println!("  STOP: divergence found at join({},{})", i, i + 1);
+            break;
+        }
+
+        // NOTE: rn2(50) early exit is part of makecorridors(), not join().
+        // Since we're stepping through joins individually, we skip it here.
+        // This means Phase 1 always runs all joins (no early break).
+    }
+}
+
+/// Compare C and Rust rectangle lists after level generation
+#[test]
+#[serial]
+fn test_rect_list_after_generation() {
+    let mut c_engine = CGameEngine::new();
+    c_engine.init("Valkyrie", "Human", 0, 0).expect("C engine init failed");
+
+    for seed in [5u64, 42, 123] {
+        c_engine.set_dlevel(0, 14);
+        c_engine.reset_rng(seed).expect("C RNG reset failed");
+        c_engine.generate_level().expect("C level generation failed");
+
+        let rect_json = c_engine.rect_json();
+        println!("Seed {}: C rects = {}", seed, rect_json);
     }
 }

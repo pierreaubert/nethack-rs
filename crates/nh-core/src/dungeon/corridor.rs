@@ -62,6 +62,11 @@ impl ConnectivityTracker {
         let first_class = self.smeq[0];
         self.smeq.iter().all(|&c| c == first_class)
     }
+
+    /// Get raw smeq value for a room (for test comparison with C)
+    pub fn smeq_value(&self, room: usize) -> usize {
+        self.smeq[room]
+    }
 }
 
 /// Check if there's a door next to a position (4 cardinal directions)
@@ -183,21 +188,41 @@ pub fn finddpos(
 ///
 /// Decides whether door is regular or secret (rn2(8) ? DOOR : SDOOR),
 /// then delegates to dosdoor().
-fn dodoor(level: &mut Level, x: usize, y: usize, _room_idx: usize, rng: &mut GameRng) {
+fn dodoor(level: &mut Level, x: usize, y: usize, room_idx: usize, rng: &mut GameRng) {
     let door_type = if rng.rn2(8) != 0 {
         CellType::Door
     } else {
         CellType::SecretDoor
     };
+    add_door_tracking(level, x, y, room_idx);
     dosdoor(level, x, y, door_type, rng);
 }
 
 /// C's dosdoor() - place door with specific type (mklev.c:385-449)
 ///
 /// Sets door type and state based on C's logic including shop awareness.
-/// Public wrapper for dosdoor — used by niche generation
-pub fn dosdoor_public(level: &mut Level, x: usize, y: usize, door_type: CellType, rng: &mut GameRng) {
+/// Public wrapper for dosdoor — used by niche generation.
+/// `room_idx` matches C's `aroom` parameter for add_door tracking.
+pub fn dosdoor_public(level: &mut Level, x: usize, y: usize, door_type: CellType, room_idx: usize, rng: &mut GameRng) {
+    add_door_tracking(level, x, y, room_idx);
     dosdoor(level, x, y, door_type, rng);
+}
+
+/// Track a door position for a room (C's add_door equivalent).
+///
+/// In C, `add_door` inserts the new door at `fdoor` position and shifts older
+/// doors right. This means `doors[fdoor]` always holds the MOST RECENTLY added
+/// door. We simplify by just storing the last door's index per room, since
+/// fill_zoo only accesses `doors[sroom->fdoor]`.
+fn add_door_tracking(level: &mut Level, x: usize, y: usize, room_idx: usize) {
+    let door_index = level.door_positions.len() as u8;
+    level.door_positions.push((x, y));
+    if room_idx < level.rooms.len() {
+        let room = &mut level.rooms[room_idx];
+        // C's fdoor always points to the newest door (insertion at front)
+        room.first_door_idx = door_index;
+        room.door_count += 1;
+    }
 }
 
 fn dosdoor(level: &mut Level, x: usize, y: usize, mut door_type: CellType, rng: &mut GameRng) {
@@ -247,12 +272,12 @@ fn dosdoor(level: &mut Level, x: usize, y: usize, mut door_type: CellType, rng: 
         // C mklev.c:461-474 — D_TRAPPED mimic check
         if level.cells[x][y].door_state().contains(DoorState::TRAPPED) {
             if depth >= 9 && rng.rn2(5) == 0 {
-                // TODO: actually create mimic monster and consume makemon RNG
-                // C: makemon(mkclass(S_MIMIC, 0), x, y, NO_MM_FLAGS)
-                // mkclass consumes RNG: rn2(num_monsters_in_class)
-                // TODO: actually create mimic monster
-                // For RNG parity, consume mkclass + makemon RNG
+                // C: levl[x][y].doormask = D_NODOOR;
+                //    mtmp = makemon(mkclass(S_MIMIC, 0), x, y, NO_MM_FLAGS);
+                eprintln!("RS dosdoor: MIMIC at ({},{}) rng={}", x, y, rng.call_count());
                 level.cells[x][y].set_door_state(DoorState::NO_DOOR);
+                super::generation::mimic_door_c_rng(depth, rng);
+                eprintln!("RS dosdoor: MIMIC done rng={}", rng.call_count());
             }
         }
 
@@ -441,7 +466,7 @@ pub fn dig_corridor_inner_public(
 ///
 /// Determines wall ranges from relative room positions, finds door positions
 /// using finddpos(), places doors via dodoor(), and digs corridor between them.
-fn join_rooms(
+pub fn join_rooms(
     level: &mut Level,
     rooms: &[Room],
     room_a: usize,
@@ -456,6 +481,7 @@ fn join_rooms(
 
     let croom = &rooms[room_a];
     let troom = &rooms[room_b];
+    eprintln!("RS join: a={} b={} nxcor={} rng={}", room_a, room_b, nxcor, rng.call_count());
 
     // Room bounds (C's lx, ly, hx, hy)
     let c_lx = croom.x;
@@ -512,6 +538,7 @@ fn join_rooms(
     let yy = cc.1 as i32;
     let tx = tt.0 as i32 - dx;
     let ty = tt.1 as i32 - dy;
+    eprintln!("RS join: cc=({},{}) tt=({},{}) dx={} dy={} rng={}", cc.0, cc.1, tt.0, tt.1, dx, dy, rng.call_count());
 
     // Early exit check for nxcor: if cell beyond door already has terrain
     if nxcor {
@@ -523,6 +550,7 @@ fn join_rooms(
             && (check_y as usize) < ROWNO
             && level.cells[check_x as usize][check_y as usize].typ != CellType::Stone
         {
+            eprintln!("RS join: nxcor early exit, cell ({},{})={:?} rng={}", check_x, check_y, level.cells[check_x as usize][check_y as usize].typ, rng.call_count());
             return;
         }
     }
@@ -531,6 +559,7 @@ fn join_rooms(
     if okdoor(level, xx, yy) || !nxcor {
         dodoor(level, cc.0, cc.1, room_a, rng);
     }
+    eprintln!("RS join: after first dodoor rng={}", rng.call_count());
 
     // C: dig_corridor(&org, &dest, nxcor, level.flags.arboreal ? ROOM : CORR, STONE)
     // For standard levels, ftyp=CORR, btyp=STONE
@@ -545,13 +574,16 @@ fn join_rooms(
         CellType::Stone,
         rng,
     ) {
+        eprintln!("RS join: dig_corridor FAILED rng={}", rng.call_count());
         return;
     }
+    eprintln!("RS join: after dig_corridor rng={}", rng.call_count());
 
     // Place door on troom wall
     if okdoor(level, tt.0 as i32, tt.1 as i32) || !nxcor {
         dodoor(level, tt.0, tt.1, room_b, rng);
     }
+    eprintln!("RS join: done rng={}", rng.call_count());
 
     // C: if (smeq[a] < smeq[b]) smeq[b] = smeq[a]; else smeq[a] = smeq[b];
     tracker.merge(room_a, room_b);

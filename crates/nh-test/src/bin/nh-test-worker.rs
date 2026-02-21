@@ -57,11 +57,15 @@ enum Command {
     TestFinddpos { xl: i32, yl: i32, xh: i32, yh: i32 },
     TestDigCorridor { sx: i32, sy: i32, dx: i32, dy: i32, nxcor: bool },
     TestMakecorridors,
+    TestJoin { a: i32, b: i32, nxcor: bool },
+    GetSmeq,
+    GetDoorindex,
     GetCellRegion { x1: i32, y1: i32, x2: i32, y2: i32 },
     SetCell { x: i32, y: i32, typ: i32 },
     ClearLevel,
     AddRoom { lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32 },
     CarveRoom { lx: i32, ly: i32, hx: i32, hy: i32 },
+    GetRectJson,
     Exit,
 }
 
@@ -229,6 +233,16 @@ fn main() {
                 engine.test_makecorridors();
                 Response::Ok
             }
+            Command::TestJoin { a, b, nxcor } => {
+                engine.test_join(a, b, nxcor);
+                Response::Ok
+            }
+            Command::GetSmeq => {
+                Response::String(engine.get_smeq())
+            }
+            Command::GetDoorindex => {
+                Response::Int(engine.get_doorindex())
+            }
             Command::GetCellRegion { x1, y1, x2, y2 } => {
                 Response::String(engine.get_cell_region(x1, y1, x2, y2))
             }
@@ -247,6 +261,7 @@ fn main() {
                 engine.carve_room(lx, ly, hx, hy);
                 Response::Ok
             }
+            Command::GetRectJson => Response::String(engine.rect_json()),
             Command::Exit => break,
         };
 

@@ -59,11 +59,15 @@ enum CommandMsg {
     TestFinddpos { xl: i32, yl: i32, xh: i32, yh: i32 },
     TestDigCorridor { sx: i32, sy: i32, dx: i32, dy: i32, nxcor: bool },
     TestMakecorridors,
+    TestJoin { a: i32, b: i32, nxcor: bool },
+    GetSmeq,
+    GetDoorindex,
     GetCellRegion { x1: i32, y1: i32, x2: i32, y2: i32 },
     SetCell { x: i32, y: i32, typ: i32 },
     ClearLevel,
     AddRoom { lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32 },
     CarveRoom { lx: i32, ly: i32, hx: i32, hy: i32 },
+    GetRectJson,
     Exit,
 }
 
@@ -498,6 +502,24 @@ impl CGameEngineSubprocess {
         let _ = self.send_command(CommandMsg::TestMakecorridors);
     }
 
+    pub fn test_join(&self, a: i32, b: i32, nxcor: bool) {
+        let _ = self.send_command(CommandMsg::TestJoin { a, b, nxcor });
+    }
+
+    pub fn get_smeq(&self) -> String {
+        match self.send_command(CommandMsg::GetSmeq).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    pub fn get_doorindex(&self) -> i32 {
+        match self.send_command(CommandMsg::GetDoorindex).unwrap() {
+            ResponseMsg::Int(i) => i,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
     pub fn get_cell_region(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> String {
         match self.send_command(CommandMsg::GetCellRegion { x1, y1, x2, y2 }).unwrap() {
             ResponseMsg::String(s) => s,
@@ -522,6 +544,13 @@ impl CGameEngineSubprocess {
 
     pub fn carve_room(&self, lx: i32, ly: i32, hx: i32, hy: i32) {
         let _ = self.send_command(CommandMsg::CarveRoom { lx, ly, hx, hy });
+    }
+
+    pub fn rect_json(&self) -> String {
+        match self.send_command(CommandMsg::GetRectJson).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
     }
 }
 

@@ -149,11 +149,15 @@ unsafe extern "C" {
     pub fn nh_ffi_test_finddpos(xl: c_int, yl: c_int, xh: c_int, yh: c_int, out_x: *mut c_int, out_y: *mut c_int);
     pub fn nh_ffi_test_dig_corridor(sx: c_int, sy: c_int, dx: c_int, dy: c_int, nxcor: c_int) -> c_int;
     pub fn nh_ffi_test_makecorridors();
+    pub fn nh_ffi_test_join(a: c_int, b: c_int, nxcor: c_int);
+    pub fn nh_ffi_get_smeq() -> *mut c_char;
+    pub fn nh_ffi_get_doorindex() -> c_int;
     pub fn nh_ffi_get_cell_region(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> *mut c_char;
     pub fn nh_ffi_set_cell(x: c_int, y: c_int, typ: c_int);
     pub fn nh_ffi_clear_level();
     pub fn nh_ffi_add_room(lx: c_int, ly: c_int, hx: c_int, hy: c_int, rtype: c_int) -> c_int;
     pub fn nh_ffi_carve_room(lx: c_int, ly: c_int, hx: c_int, hy: c_int);
+    pub fn nh_ffi_get_rect_json() -> *mut c_char;
 }
 
 // ============================================================================
@@ -572,6 +576,25 @@ impl CGameEngine {
         unsafe { nh_ffi_test_makecorridors() }
     }
 
+    /// Test C's join() in isolation (re-implemented in FFI using public functions).
+    pub fn test_join(&self, a: i32, b: i32, nxcor: bool) {
+        unsafe { nh_ffi_test_join(a as c_int, b as c_int, nxcor as c_int) }
+    }
+
+    /// Get C's smeq[] connectivity array as JSON.
+    pub fn get_smeq(&self) -> String {
+        let ptr = unsafe { nh_ffi_get_smeq() };
+        if ptr.is_null() { return "[]".to_string(); }
+        let result = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(ptr as *mut c_void) };
+        result
+    }
+
+    /// Get C's doorindex value.
+    pub fn get_doorindex(&self) -> i32 {
+        unsafe { nh_ffi_get_doorindex() as i32 }
+    }
+
     /// Get a rectangular region of level cells as a JSON array of type IDs.
     pub fn get_cell_region(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> String {
         let json_ptr = unsafe { nh_ffi_get_cell_region(x1 as c_int, y1 as c_int, x2 as c_int, y2 as c_int) };
@@ -601,6 +624,17 @@ impl CGameEngine {
     /// Carve a room's interior and walls on the C level.
     pub fn carve_room(&self, lx: i32, ly: i32, hx: i32, hy: i32) {
         unsafe { nh_ffi_carve_room(lx as c_int, ly as c_int, hx as c_int, hy as c_int) }
+    }
+
+    /// Get C's rectangle list as JSON.
+    pub fn rect_json(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_get_rect_json() };
+        if json_ptr.is_null() {
+            return "{\"count\":0,\"rects\":[]}".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
     }
 
     /// Enable RNG tracing for the C engine.

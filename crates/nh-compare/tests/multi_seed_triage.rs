@@ -208,6 +208,7 @@ fn multi_seed_triage_100() {
 
         if result.total_mismatches == 0 {
             perfect_seeds += 1;
+            println!("  PERFECT: seed {}", seed);
         }
         if !result.room_count_match {
             room_mismatch_seeds += 1;
@@ -294,6 +295,19 @@ fn multi_seed_triage_100() {
         }
     }
 
+    // Show near-perfect seeds (1-5 mismatches)
+    let mut near_perfect: Vec<_> = all_results.iter()
+        .filter(|r| r.total_mismatches > 0 && r.total_mismatches <= 5)
+        .collect();
+    near_perfect.sort_by_key(|r| r.total_mismatches);
+    if !near_perfect.is_empty() {
+        println!("\nNear-perfect seeds (1-5 mismatches):");
+        for r in &near_perfect {
+            let cats: Vec<_> = r.categories.iter().map(|(c, n)| format!("{}:{}", c, n)).collect();
+            println!("  seed {}: {} mismatches [{}]", r.seed, r.total_mismatches, cats.join(", "));
+        }
+    }
+
     // Metric: perfect seeds should only increase over time
     println!("\n========================================");
     println!("  PRIMARY METRIC: {}/100 seeds with 0 mismatches", perfect_seeds);
@@ -344,5 +358,64 @@ fn triage_single_seed() {
             "  ({},{}) Rust={} C={}",
             m.x, m.y, m.rust_type, m.c_type
         );
+    }
+}
+
+/// Test state leakage: run seed 89 alone vs after running prior seeds
+#[test]
+#[serial]
+fn test_state_leakage() {
+    let target_seed: u64 = std::env::var("TRIAGE_SEED")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(89);
+
+    // Test 1: Run target seed alone (fresh engine)
+    let mut c_engine1 = CGameEngine::new();
+    c_engine1.init("Valkyrie", "Human", 0, 0).expect("init failed");
+    let result_alone = run_seed(target_seed, &mut c_engine1);
+
+    // Test 2: Run target seed after running seeds 1..target_seed first
+    let mut c_engine2 = CGameEngine::new();
+    c_engine2.init("Valkyrie", "Human", 0, 0).expect("init failed");
+    for prior_seed in 1..target_seed {
+        let _ = run_seed(prior_seed, &mut c_engine2);
+    }
+    let result_after = run_seed(target_seed, &mut c_engine2);
+
+    println!("\n=== State Leakage Test for seed {} ===", target_seed);
+    println!("  Alone:      {} mismatches", result_alone.total_mismatches);
+    println!("  After 1..{}: {} mismatches", target_seed - 1, result_after.total_mismatches);
+
+    if result_alone.total_mismatches != result_after.total_mismatches {
+        println!("  *** STATE LEAKAGE DETECTED! ***");
+
+        // Binary search: find which prior seed introduces the leak
+        let mut lo = 1u64;
+        let mut hi = target_seed - 1;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let mut engine = CGameEngine::new();
+            engine.init("Valkyrie", "Human", 0, 0).expect("init failed");
+            for s in 1..=mid {
+                let _ = run_seed(s, &mut engine);
+            }
+            let r = run_seed(target_seed, &mut engine);
+            if r.total_mismatches == result_alone.total_mismatches {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        println!("  First leaking seed: {}", lo);
+
+        // Confirm: run just the leaking seed then the target
+        let mut engine = CGameEngine::new();
+        engine.init("Valkyrie", "Human", 0, 0).expect("init failed");
+        let _ = run_seed(lo, &mut engine);
+        let r = run_seed(target_seed, &mut engine);
+        println!("  After only seed {}: {} mismatches", lo, r.total_mismatches);
+    } else {
+        println!("  No state leakage detected!");
     }
 }
