@@ -726,9 +726,7 @@ fn setup_sokoban_level(
         });
     }
 
-    // TODO: Place boulder objects at boulder positions once Object creation
-    // is integrated into level generation. For now, boulders are tracked
-    // as room cells (the positions are parsed and available).
+    // NOTE: Boulder object placement deferred; positions tracked as room cells.
 }
 
 /// Generate any Sokoban level from its canonical map

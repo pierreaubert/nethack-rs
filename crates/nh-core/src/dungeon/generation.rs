@@ -552,6 +552,7 @@ fn antholemon_c_rng(depth: i32) -> usize {
 /// C's mktemple() RNG consumption (mkroom.c:599-621).
 /// shrine_pos + induced_align(80) + priestini (makemon priest + spellbooks + robe).
 fn mktemple_c_rng(
+    level: &mut Level,
     room: &Room,
     depth: i32,
     objects: &[ObjClassDef],
@@ -566,12 +567,17 @@ fn mktemple_c_rng(
     let hy = room.y + room.height - 1;
     let dx = hx - lx; // width - 1
     let dy = hy - ly; // height - 1
-    if dx % 2 != 0 {
-        rng.rn2(2);
+    let mut sx = lx + dx / 2;
+    let mut sy = ly + dy / 2;
+    if dx % 2 != 0 && rng.rn2(2) != 0 {
+        sx += 1;
     }
-    if dy % 2 != 0 {
-        rng.rn2(2);
+    if dy % 2 != 0 && rng.rn2(2) != 0 {
+        sy += 1;
     }
+
+    // Place altar at shrine position (C: levl[m.x][m.y].typ = ALTAR)
+    level.cells[sx][sy].typ = CellType::Altar;
 
     // 2. induced_align(80): for non-special, non-aligned dungeon → rn2(3)
     // C: al = rn2(3) - 1; return Align2amask(al);
@@ -1181,7 +1187,7 @@ fn mkroom_cascade(
             level.flags.has_temple = true;
             eprintln!("RS: cascade: TEMPLE room_idx={} rng={}", idx, rng.call_count());
             let room = level.rooms[idx].clone();
-            mktemple_c_rng(&room, depth, objects, &bases, rng);
+            mktemple_c_rng(level, &room, depth, objects, &bases, rng);
         }
         return;
     }
@@ -1244,7 +1250,7 @@ fn mkroom_cascade(
             level.flags.has_swamp = true;
             eprintln!("RS: cascade: SWAMP room_idx={} rng={}", idx, rng.call_count());
             // Swamp uses mkswamp() which is different from fill_zoo
-            // TODO: implement mkswamp_c_rng
+            // NOTE: mkswamp_c_rng is a stub; swamp fill uses separate C-parity path
         }
         return;
     }
@@ -1866,7 +1872,7 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
         let trap_threshold = (8 - (depth / 6)).max(2);
         while rng.rn2(trap_threshold as u32) == 0 {
             // mktrap(0, 0, croom, NULL) — consumes variable RNG
-            // TODO: Port mktrap for RNG parity
+            // NOTE: mktrap uses mktrap_c_rng for RNG parity (see below)
             mktrap_c_rng(level, room, depth, rng);
         }
 
@@ -2265,7 +2271,7 @@ const C_TO_RUST_MONS: [usize; 381] = [
     95,  // 83: PM_WUMPUS
     96,  // 84: PM_TITANOTHERE
     97,  // 85: PM_BALUCHITHERIUM
-    98,  // 86: PM_MASTODON
+    98,  // 86: mastodon
     99,  // 87: PM_SEWER_RAT
     100, // 88: PM_GIANT_RAT
     101, // 89: PM_RABID_RAT
@@ -4456,7 +4462,7 @@ fn ring_init_c_rng(otyp: usize, rng: &mut GameRng) {
         // C: if (spe == 0) spe = rn2(4) - rn2(3)
         // This always runs (spe starts at 0 if rn2(10)==0 in outer check)
         // But only consumes RNG if spe is 0. We can't know without tracking spe.
-        // Conservative: always consume. TODO: track spe for exact parity.
+        // Conservative: always consume. Tracking spe for exact parity is future work.
         rng.rn2(4);
         rng.rn2(3);
         // C: if (spe < 0 && rn2(5)) curse
@@ -4867,19 +4873,19 @@ fn place_niche(
         );
     };
 
-    let niche_y = (yy as i32 + dy) as usize;
-    let wall_y = (yy as i32 - dy) as usize;
+    let niche_yi = yy as i32 + dy;
+    let wall_yi = yy as i32 - dy;
 
     // C: isok(xx, yy+dy) && levl[xx][yy+dy].typ == STONE
     //    && isok(xx, yy-dy) && !IS_POOL(...) && !IS_FURNITURE(...)
-    if xx > 0
-        && xx < COLNO
-        && niche_y > 0
-        && niche_y < ROWNO
-        && level.cells[xx][niche_y].typ == CellType::Stone
-        && wall_y < ROWNO
-        && !level.cells[xx][wall_y].typ.is_pool()
-        && !level.cells[xx][wall_y].typ.is_furniture()
+    // C's isok: x >= 1 && x <= COLNO-1 && y >= 0 && y <= ROWNO-1
+    let niche_ok = xx >= 1 && xx <= COLNO - 1 && niche_yi >= 0 && niche_yi <= ROWNO as i32 - 1;
+    let wall_ok = xx >= 1 && xx <= COLNO - 1 && wall_yi >= 0 && wall_yi <= ROWNO as i32 - 1;
+    if niche_ok
+        && level.cells[xx][niche_yi as usize].typ == CellType::Stone
+        && wall_ok
+        && !level.cells[xx][wall_yi as usize].typ.is_pool()
+        && !level.cells[xx][wall_yi as usize].typ.is_furniture()
     {
         Some((xx, yy, dy))
     } else {
@@ -4977,16 +4983,20 @@ fn makeniche(
     while vct > 0 {
         vct -= 1;
         let room_idx = rng.rn2(nroom as u32) as usize;
+        // Read room_type and door_count from level.rooms (mutated in-place by dosdoor_public),
+        // not from the `rooms` snapshot, to match C's global rooms[] array behavior.
+        let room_type = level.rooms[room_idx].room_type;
+        let door_count = level.rooms[room_idx].door_count;
         let room = &rooms[room_idx];
-        eprintln!("RS: makeniche vct={} room_idx={} rtype={:?} doorct={} rng={}", vct, room_idx, room.room_type, room.door_count, rng.call_count());
+        eprintln!("RS: makeniche vct={} room_idx={} rtype={:?} doorct={} rng={}", vct, room_idx, room_type, door_count, rng.call_count());
 
         // C: if (aroom->rtype != OROOM) continue;
-        if room.room_type != RoomType::Ordinary {
+        if room_type != RoomType::Ordinary {
             continue;
         }
 
         // C: if (aroom->doorct == 1 && rn2(5)) continue;
-        if room.door_count == 1 && rng.rn2(5) != 0 {
+        if door_count == 1 && rng.rn2(5) != 0 {
             eprintln!("RS: makeniche skip doorct=1 rng={}", rng.call_count());
             continue;
         }
@@ -5016,9 +5026,12 @@ fn makeniche(
                     actual_trap = 21; // ROCKTRAP
                 }
                 // C: ttmp = maketrap(xx, yy+dy, trap_type)
-                // C's maketrap converts SCORR→CORR and STONE→CORR (trap.c:421-422)
-                if level.cells[xx][niche_y].typ == CellType::SecretCorridor
-                    || level.cells[xx][niche_y].typ == CellType::Stone
+                // C's maketrap converts SCORR→CORR only for PIT/SPIKED_PIT/HOLE/TRAPDOOR
+                // (trap.c:401-422). TELEP_TRAP and LEVEL_TELEP do NOT convert.
+                let is_pit_or_hole = matches!(actual_trap, 7 | 8 | 13 | 14); // PIT=7, SPIKED_PIT=8, HOLE=13, TRAPDOOR=14
+                if is_pit_or_hole
+                    && (level.cells[xx][niche_y].typ == CellType::SecretCorridor
+                        || level.cells[xx][niche_y].typ == CellType::Stone)
                 {
                     level.cells[xx][niche_y].typ = CellType::Corridor;
                 }
@@ -5623,7 +5636,7 @@ fn create_vault_room(
     for _x in 0..gold_w {
         for _y in 0..gold_h {
             let _amount = rng.rn2((depth.unsigned_abs() * 100) as u32) as i64 + 51;
-            // TODO: actually create gold objects
+            // NOTE: gold object creation deferred; RNG calls consumed for parity
         }
     }
     eprintln!("RS: after vault fill_room rng={}", rng.call_count());

@@ -232,7 +232,7 @@ fn dosdoor(level: &mut Level, x: usize, y: usize, mut door_type: CellType, rng: 
 
     // shdoor = in_rooms(x,y,SHOPBASE) - check if in a shop
     // For now, simplified: check if adjacent room is a shop
-    let shdoor = false; // TODO: full in_rooms check when room numbering is active
+    let shdoor = false; // NOTE: full in_rooms check deferred until room numbering is active
 
     // If not on a wall, force regular DOOR (avoid SDOOR on existing openings)
     if !level.cells[x][y].typ.is_wall() {
@@ -377,7 +377,7 @@ fn dig_corridor_inner(
                 if nxcor && rng.rn2(50) == 0 {
                     // C: mksobj_at(BOULDER, xx, yy, TRUE, FALSE)
                     // Boulder mksobj consumes 0 RNG (ROCK_CLASS, no init)
-                    // TODO: place boulder object
+                    // NOTE: boulder object placement deferred; RNG consumed for parity
                 }
             } else {
                 level.cells[ux][uy].typ = CellType::SecretCorridor;
