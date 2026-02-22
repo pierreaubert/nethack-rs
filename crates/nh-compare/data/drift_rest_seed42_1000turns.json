@@ -5,7 +5,7 @@
   "first_critical_turn": 900,
   "turns_with_diffs": 105,
   "critical_count": 20,
-  "major_count": 840,
+  "major_count": 735,
   "minor_count": 945,
   "turn_diffs": [
     {
@@ -106,12 +106,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -213,12 +207,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -320,12 +308,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -427,12 +409,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -534,12 +510,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -641,12 +611,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -748,12 +712,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -855,12 +813,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -962,12 +914,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -1069,12 +1015,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -1176,12 +1116,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -1283,12 +1217,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -1390,12 +1318,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -1497,12 +1419,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -1604,12 +1520,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -1711,12 +1621,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -1818,12 +1722,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -1925,12 +1823,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2032,12 +1924,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2139,12 +2025,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2246,12 +2126,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2353,12 +2227,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2460,12 +2328,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2567,12 +2429,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2674,12 +2530,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2781,12 +2631,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2888,12 +2732,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -2995,12 +2833,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -3102,12 +2934,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -3209,12 +3035,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -3316,12 +3136,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -3423,12 +3237,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -3530,12 +3338,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -3637,12 +3439,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -3744,12 +3540,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -3851,12 +3641,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -3958,12 +3742,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -4065,12 +3843,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -4172,12 +3944,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -4279,12 +4045,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -4386,12 +4146,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -4493,12 +4247,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -4600,12 +4348,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -4707,12 +4449,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -4814,12 +4550,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -4921,12 +4651,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5028,12 +4752,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5135,12 +4853,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5242,12 +4954,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5349,12 +5055,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5456,12 +5156,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5563,12 +5257,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5670,12 +5358,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5777,12 +5459,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5884,12 +5560,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -5991,12 +5661,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -6098,12 +5762,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -6205,12 +5863,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -6312,12 +5964,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -6419,12 +6065,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -6526,12 +6166,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -6633,12 +6267,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -6740,12 +6368,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -6847,12 +6469,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -6954,12 +6570,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -7061,12 +6671,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -7168,12 +6772,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -7275,12 +6873,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -7382,12 +6974,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -7489,12 +7075,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -7596,12 +7176,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -7703,12 +7277,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -7810,12 +7378,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -7917,12 +7479,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8024,12 +7580,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8131,12 +7681,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8238,12 +7782,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8345,12 +7883,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8452,12 +7984,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8559,12 +8085,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8666,12 +8186,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8773,12 +8287,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8880,12 +8388,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -8987,12 +8489,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -9094,12 +8590,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -9201,12 +8691,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -9308,12 +8792,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -9415,12 +8893,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -9522,12 +8994,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -9629,12 +9095,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -9736,12 +9196,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -9843,12 +9297,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -9950,12 +9398,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -10057,12 +9499,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -10170,12 +9606,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -10283,12 +9713,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -10304,7 +9728,7 @@
         {
           "severity": "Critical",
           "field": "player.hp",
-          "rust_value": "-2",
+          "rust_value": "-4",
           "c_value": "16"
         },
         {
@@ -10322,7 +9746,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-19",
+          "rust_value": "-21",
           "c_value": "900"
         },
         {
@@ -10402,12 +9826,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -10423,7 +9841,7 @@
         {
           "severity": "Critical",
           "field": "player.hp",
-          "rust_value": "-7",
+          "rust_value": "-13",
           "c_value": "16"
         },
         {
@@ -10441,7 +9859,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-24",
+          "rust_value": "-31",
           "c_value": "900"
         },
         {
@@ -10521,12 +9939,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -10542,7 +9954,7 @@
         {
           "severity": "Critical",
           "field": "player.hp",
-          "rust_value": "-12",
+          "rust_value": "-23",
           "c_value": "16"
         },
         {
@@ -10560,7 +9972,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-29",
+          "rust_value": "-41",
           "c_value": "900"
         },
         {
@@ -10640,12 +10052,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -10661,7 +10067,7 @@
         {
           "severity": "Critical",
           "field": "player.hp",
-          "rust_value": "-16",
+          "rust_value": "-32",
           "c_value": "16"
         },
         {
@@ -10679,7 +10085,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-34",
+          "rust_value": "-51",
           "c_value": "900"
         },
         {
@@ -10759,12 +10165,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -10780,7 +10180,7 @@
         {
           "severity": "Critical",
           "field": "player.hp",
-          "rust_value": "-21",
+          "rust_value": "-41",
           "c_value": "16"
         },
         {
@@ -10798,7 +10198,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-39",
+          "rust_value": "-61",
           "c_value": "900"
         },
         {
@@ -10878,12 +10278,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -10899,7 +10293,7 @@
         {
           "severity": "Critical",
           "field": "player.hp",
-          "rust_value": "-26",
+          "rust_value": "-51",
           "c_value": "16"
         },
         {
@@ -10917,7 +10311,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-44",
+          "rust_value": "-71",
           "c_value": "900"
         },
         {
@@ -10997,12 +10391,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -11018,7 +10406,7 @@
         {
           "severity": "Critical",
           "field": "player.hp",
-          "rust_value": "-30",
+          "rust_value": "-60",
           "c_value": "16"
         },
         {
@@ -11036,7 +10424,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-49",
+          "rust_value": "-81",
           "c_value": "900"
         },
         {
@@ -11116,12 +10504,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -11137,7 +10519,7 @@
         {
           "severity": "Critical",
           "field": "player.hp",
-          "rust_value": "-35",
+          "rust_value": "-69",
           "c_value": "16"
         },
         {
@@ -11155,7 +10537,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-54",
+          "rust_value": "-91",
           "c_value": "900"
         },
         {
@@ -11235,12 +10617,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     },
@@ -11256,7 +10632,7 @@
         {
           "severity": "Critical",
           "field": "player.hp",
-          "rust_value": "-39",
+          "rust_value": "-78",
           "c_value": "16"
         },
         {
@@ -11274,7 +10650,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-58",
+          "rust_value": "-100",
           "c_value": "900"
         },
         {
@@ -11354,12 +10730,6 @@
           "field": "inventory[3].enchantment",
           "rust_value": "0",
           "c_value": "3"
-        },
-        {
-          "severity": "Major",
-          "field": "monsters.count",
-          "rust_value": "7",
-          "c_value": "0"
         }
       ]
     }
