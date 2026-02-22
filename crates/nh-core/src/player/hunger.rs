@@ -62,6 +62,7 @@ impl HungerState {
     }
 
     /// Calculate hunger state from nutrition value
+    /// C thresholds: Satiated>=2000, NotHungry>=1000, Hungry>=500, Weak>=150, Fainting>=50, Starved<50
     pub fn from_nutrition(nutrition: i32) -> Self {
         if nutrition >= 2000 {
             HungerState::Satiated
@@ -73,7 +74,7 @@ impl HungerState {
             HungerState::Weak
         } else if nutrition >= 50 {
             HungerState::Fainting
-        } else if nutrition >= 0 {
+        } else if nutrition > 0 {
             HungerState::Fainted
         } else {
             HungerState::Starved
@@ -89,7 +90,10 @@ impl HungerState {
     pub const fn has_penalty(&self) -> bool {
         matches!(
             self,
-            HungerState::Satiated | HungerState::Weak | HungerState::Fainting
+            HungerState::Satiated
+                | HungerState::Hungry
+                | HungerState::Weak
+                | HungerState::Fainting
         )
     }
 

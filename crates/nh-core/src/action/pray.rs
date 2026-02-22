@@ -1895,9 +1895,14 @@ mod tests {
     #[test]
     fn test_stuck_in_wall_yes() {
         let mut state = GameState::new(GameRng::new(42));
-        // Player at (5,5), all surrounding cells are stone (default)
+        // Player at (5,5), surrounded by stone walls
         state.player.pos = Position::new(5, 5);
-        // cell(5,5) is also stone but that's the player's position
+        // Ensure all 8 neighbors are stone (non-walkable) regardless of level generation
+        for dx in -1i32..=1 {
+            for dy in -1i32..=1 {
+                state.current_level.cell_mut((5 + dx) as usize, (5 + dy) as usize).typ = CellType::Stone;
+            }
+        }
         assert!(stuck_in_wall(&state));
     }
 

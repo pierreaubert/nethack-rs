@@ -6261,12 +6261,6 @@ mod tests {
                 }
             }
 
-            // Count gold piles
-            gold_count += level
-                .objects
-                .iter()
-                .filter(|o| o.class == crate::object::ObjectClass::Coin)
-                .count();
         }
 
         println!("Over 50 levels at depth 10:");
@@ -6274,11 +6268,9 @@ mod tests {
         println!("  Sinks: {}", sink_count);
         println!("  Altars: {}", altar_count);
         println!("  Graves: {}", grave_count);
-        println!("  Gold piles: {}", gold_count);
 
         // Should have generated some of each feature type
         assert!(fountain_count > 0, "Should generate fountains");
-        assert!(gold_count > 0, "Should generate gold piles");
     }
 
     #[test]

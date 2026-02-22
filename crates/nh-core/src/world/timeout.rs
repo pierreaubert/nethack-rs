@@ -1049,9 +1049,9 @@ mod tests {
     fn test_do_storms() {
         let mut rng = crate::rng::GameRng::new(42);
 
-        // Run many times to test randomness
+        // Run many times to test randomness (1% chance per call, need enough trials)
         let mut got_message = false;
-        for _ in 0..200 {
+        for _ in 0..1000 {
             let messages = do_storms(&mut rng, false);
             if !messages.is_empty() {
                 got_message = true;
