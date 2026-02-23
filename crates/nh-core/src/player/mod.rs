@@ -40,5 +40,6 @@ pub use you::{adjabil, check_level_gain, exp_percentage, experience, losehp, los
 pub use you::{heal_legs, is_fainted, nomul, reset_faint, reset_utrap, set_utrap, set_wounded_legs, um_dist, unfaint, unconscious, unmul, wake_up};
 pub use you::{u_on_dnstairs, u_on_newpos, u_on_rndspot, u_on_sstairs, u_on_upstairs};
 pub use attributes::format_strength;
+pub use attributes::{exercise_message, record_exercise};
 pub use skills::weapon_descr;
 pub use alignment::{adjalign, noncoalignment};

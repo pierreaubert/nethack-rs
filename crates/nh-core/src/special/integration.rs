@@ -154,6 +154,7 @@
 ///         state.player.pos.x,
 ///         state.player.pos.y,
 ///         &mut state.rng,
+///         false, // is_hallucinating
 ///     );
 ///     for sound in ambient {
 ///         state.message(sound);

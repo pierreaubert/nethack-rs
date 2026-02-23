@@ -120,6 +120,11 @@ pub struct You {
     // Attributes
     pub attr_current: Attributes,
     pub attr_max: Attributes,
+    /// Exercise accumulation for each attribute (C: AEXE array from attrib.c)
+    /// Positive = exercise toward gain, negative = abuse toward loss.
+    /// Capped at |AVAL| = 50.
+    #[serde(default)]
+    pub exercise: [i8; 6],
 
     // Alignment
     pub alignment: Alignment,
@@ -250,6 +255,10 @@ pub struct You {
     // Turns
     pub turns_played: u64,
 
+    // Exercise check scheduling (C: context.next_attrib_check)
+    #[serde(default)]
+    pub next_attrib_check: u64,
+
     // Spell casting state (for interruption tracking)
     pub casting_spell: Option<u32>, // Spell ID being cast, None if not casting
     pub casting_turns_remaining: u32, // Turns left to cast
@@ -292,6 +301,7 @@ impl Default for You {
 
             attr_current: Attributes::default(),
             attr_max: Attributes::default(),
+            exercise: [0; 6],
 
             alignment: Alignment::default(),
             original_alignment: AlignmentType::default(),
@@ -387,6 +397,8 @@ impl Default for You {
             casting_spell: None,
             casting_turns_remaining: 0,
             casting_interrupted: false,
+
+            next_attrib_check: 0,
         }
     }
 }
@@ -1045,14 +1057,6 @@ impl You {
         old_value != new_value
     }
 
-    /// Exercise an attribute (from eating, practicing, etc.)
-    /// Might increase the attribute over time
-    pub fn exercise_attr(&mut self, attr: super::Attribute, _amount: i8) {
-        // In full implementation, this would track exercise points
-        // and potentially increase the attribute after enough exercise
-        // For now, stub implementation
-        let _ = attr;
-    }
 
     /// Restore attribute to max value (from restore ability effects)
     pub fn restore_attr(&mut self, attr: super::Attribute) {
@@ -1763,33 +1767,6 @@ impl You {
     // Attribute exercise functions (attrib.c)
     // ========================================================================
 
-    /// Exercise an attribute (exercise equivalent)
-    /// Called when player does something that might improve an attribute.
-    /// For now, this is a simplified version.
-    pub fn exercise(&mut self, attr: super::Attribute, positive: bool) {
-        // In full implementation, this would track exercise points
-        // and potentially increase/decrease attributes over time
-        // For simplicity, we just make small immediate changes occasionally
-        if positive {
-            // Small chance to increase attribute (would be much rarer in real game)
-            // This is a stub - real implementation tracks exercise over time
-        } else {
-            // Small chance to decrease attribute (would be much rarer in real game)
-        }
-        let _ = attr;
-    }
-
-    /// Check and apply exercise effects (exerchk equivalent)
-    /// Called periodically to process accumulated exercise.
-    pub fn exerchk(&mut self, rng: &mut crate::GameRng) {
-        // In full implementation, this would:
-        // 1. Check accumulated exercise points for each attribute
-        // 2. Potentially increase/decrease attributes based on points
-        // 3. Reset exercise counters
-        // For now, just a stub
-        let _ = rng;
-    }
-
     /// Restore a single attribute to max (restore_attrib equivalent concept)
     /// Different from restore_attr in that it handles messages and checks
     pub fn restore_attrib(&mut self, attr: super::Attribute) -> bool {
@@ -1803,13 +1780,6 @@ impl You {
         false
     }
 
-    /// Abuse an attribute (from illness, bad actions, etc.)
-    /// This is the inverse of exercise
-    pub fn abuse_attr(&mut self, attr: super::Attribute) {
-        // Would track negative exercise points
-        // For now, stub
-        let _ = attr;
-    }
 
     /// Calculate total armor class from worn equipment and modifiers
     ///

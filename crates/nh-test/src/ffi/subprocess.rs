@@ -10,6 +10,7 @@ enum CommandMsg {
     Reset { seed: u64 },
     ResetRng { seed: u64 },
     GenerateLevel,
+    GenerateAndPlace,
     GenerateMaze,
     GetHp,
     GetMaxHp,
@@ -43,6 +44,8 @@ enum CommandMsg {
     GetGenderString,
     GetAlignmentString,
     GetResultMessage,
+    GetRngCallCount,
+    SetSkipMovemon { skip: bool },
     RngRn2 { limit: i32 },
     CalcBaseDamage { weapon_id: i32, small_monster: bool },
     GetAc,
@@ -175,6 +178,14 @@ impl CGameEngineSubprocess {
 
     pub fn generate_level(&self) -> Result<(), String> {
         match self.send_command(CommandMsg::GenerateLevel).map_err(|e| e.to_string())? {
+            ResponseMsg::Ok => Ok(()),
+            ResponseMsg::Error(e) => Err(e),
+            _ => Err("Unexpected response".to_string()),
+        }
+    }
+
+    pub fn generate_and_place(&self) -> Result<(), String> {
+        match self.send_command(CommandMsg::GenerateAndPlace).map_err(|e| e.to_string())? {
             ResponseMsg::Ok => Ok(()),
             ResponseMsg::Error(e) => Err(e),
             _ => Err("Unexpected response".to_string()),
@@ -405,6 +416,17 @@ impl CGameEngineSubprocess {
             ResponseMsg::String(s) => s,
             _ => panic!("Unexpected response"),
         }
+    }
+
+    pub fn rng_call_count(&self) -> u64 {
+        match self.send_command(CommandMsg::GetRngCallCount).unwrap() {
+            ResponseMsg::Int(i) => i as u64,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    pub fn set_skip_movemon(&self, skip: bool) {
+        self.send_command(CommandMsg::SetSkipMovemon { skip }).unwrap();
     }
 
     pub fn rng_rn2(&self, limit: i32) -> i32 {

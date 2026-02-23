@@ -177,36 +177,143 @@ pub fn random_monster_sound(
     }
 }
 
-/// Generate ambient level sounds (dosounds equivalent - simplified)
+/// Generate ambient level sounds (dosounds equivalent from sounds.c:24-250)
+///
+/// C's dosounds() only calls rn2() for room types that exist on the level.
+/// If there are no fountains, rn2(400) is never called. This is critical
+/// for RNG parity — no flags means no RNG consumed.
 pub fn generate_ambient_sounds(
     level: &crate::dungeon::Level,
-    player_x: i8,
-    player_y: i8,
+    _player_x: i8,
+    _player_y: i8,
     rng: &mut GameRng,
+    is_hallucinating: bool,
 ) -> Vec<String> {
     let mut messages = Vec::new();
+    let hallu = if is_hallucinating { 1 } else { 0 };
 
-    // 1 in 400 chance for fountain sounds
-    if rng.one_in(400) {
-        if !rng.one_in(2) {
-            messages.push("You hear a bubbling sound coming from a fountain.".to_string());
-        } else {
-            messages.push("Someone is splashing at a fountain.".to_string());
+    // C: if (level.flags.nfountains && !rn2(400))
+    if level.flags.fountain_count > 0 && rng.rn2(400) == 0 {
+        let fountain_msgs = [
+            "You hear bubbling water.",
+            "You hear water falling on coins.",
+            "You hear the splashing of a naiad.",
+            "You hear a soda fountain!",
+        ];
+        messages.push(fountain_msgs[rng.rn2(3) as usize + hallu].to_string());
+    }
+
+    // C: if (level.flags.nsinks && !rn2(300))
+    if level.flags.sink_count > 0 && rng.rn2(300) == 0 {
+        let sink_msgs = [
+            "You hear a slow drip.",
+            "You hear a gurgling noise.",
+            "You hear dishes being washed!",
+        ];
+        messages.push(sink_msgs[rng.rn2(2) as usize + hallu].to_string());
+    }
+
+    // C: if (level.flags.has_court && !rn2(200))
+    if level.flags.has_court && rng.rn2(200) == 0 {
+        let throne_msgs = [
+            "You hear the tones of courtly conversation.",
+            "You hear a sceptre pounded in judgment.",
+            "Someone shouts \"Off with your head!\"",
+            "You hear Queen Beruthiel's cats!",
+        ];
+        let which = rng.rn2(3) as usize + hallu;
+        messages.push(throne_msgs[which].to_string());
+        return messages; // C returns early after court sound
+    }
+
+    // C: if (level.flags.has_swamp && !rn2(200))
+    if level.flags.has_swamp && rng.rn2(200) == 0 {
+        let swamp_msgs = [
+            "You hear mosquitoes!",
+            "You smell marsh gas!",
+            "You hear Donald Duck!",
+        ];
+        messages.push(swamp_msgs[rng.rn2(2) as usize + hallu].to_string());
+        return messages; // C returns early
+    }
+
+    // C: if (level.flags.has_vault && !rn2(200))
+    if level.flags.has_vault && rng.rn2(200) == 0 {
+        let vault_which = rng.rn2(2) as usize + hallu;
+        match vault_which {
+            0 => {
+                messages.push("You hear the footsteps of a guard on patrol.".to_string());
+            }
+            1 => {
+                messages.push("You hear someone counting money.".to_string());
+            }
+            _ => {
+                messages.push("You hear Ebenezer Scrooge!".to_string());
+            }
         }
     }
 
-    // 1 in 300 chance for sink sounds
-    if rng.one_in(300) {
-        messages.push("You hear water dripping from somewhere.".to_string());
+    // C: if (level.flags.has_beehive && !rn2(200))
+    if level.flags.has_beehive && rng.rn2(200) == 0 {
+        let bee_msgs = [
+            "You hear a low buzzing.",
+            "You hear an angry drone.",
+            "You hear bees in your bonnet!",
+        ];
+        messages.push(bee_msgs[rng.rn2(2) as usize + hallu].to_string());
     }
 
-    // 1 in 200 chance for vault/money sounds
-    if rng.one_in(200) {
-        if !rng.one_in(3) {
-            messages.push("You hear the sound of coins jingling.".to_string());
-        } else {
-            messages.push("You hear footsteps, as if someone is patrolling nearby.".to_string());
-        }
+    // C: if (level.flags.has_morgue && !rn2(200))
+    if level.flags.has_morgue && rng.rn2(200) == 0 {
+        let morgue_msgs = [
+            "You suddenly realize it is unnervingly quiet.",
+            "The hair on the back of your neck stands up.",
+            "You hear the ugly laughter of a trickster god!",
+        ];
+        messages.push(morgue_msgs[rng.rn2(2) as usize + hallu].to_string());
+    }
+
+    // C: if (level.flags.has_barracks && !rn2(200))
+    if level.flags.has_barracks && rng.rn2(200) == 0 {
+        let barracks_msgs = [
+            "You hear blades being honed.",
+            "You hear loud snoring.",
+            "You hear dice being thrown!",
+        ];
+        messages.push(barracks_msgs[rng.rn2(2) as usize + hallu].to_string());
+    }
+
+    // C: if (level.flags.has_zoo && !rn2(200))
+    if level.flags.has_zoo && rng.rn2(200) == 0 {
+        let zoo_msgs = [
+            "You hear a sound reminiscent of an stranded zoo.",
+            "You hear a sound reminiscent of a stranded circus.",
+            "You hear a sound reminiscent of Donald Duck!",
+        ];
+        messages.push(zoo_msgs[rng.rn2(2) as usize + hallu].to_string());
+    }
+
+    // C: if (level.flags.has_shop && !rn2(200))
+    if level.flags.has_shop && rng.rn2(200) == 0 {
+        let shop_msgs = [
+            "You hear someone cursing shoplifters.",
+            "You hear the chime of a cash register.",
+            "You hear Neiman and Marcus arguing!",
+        ];
+        messages.push(shop_msgs[rng.rn2(2) as usize + hallu].to_string());
+        return messages; // C returns early after shop
+    }
+
+    // C: if (level.flags.has_temple && !rn2(200))
+    if level.flags.has_temple && rng.rn2(200) == 0 {
+        // C checks for a priest in the temple; simplified here
+        let temple_msgs = [
+            "You hear someone praising a deity.",
+            "You hear someone beseeching a deity.",
+            "You hear an animal carcass being offered in sacrifice.",
+            "You hear a strident plea for donations.",
+        ];
+        messages.push(temple_msgs[rng.rn2(3) as usize + hallu].to_string());
     }
 
     messages
@@ -457,7 +564,7 @@ pub fn noises(
     }
 
     // Add ambient dungeon sounds
-    messages.extend(generate_ambient_sounds(level, player_x, player_y, rng));
+    messages.extend(generate_ambient_sounds(level, player_x, player_y, rng, false));
 
     messages
 }
@@ -735,7 +842,7 @@ mod tests {
         let level = crate::dungeon::Level::new(dlevel);
         let mut rng = GameRng::new(42);
 
-        let sounds = generate_ambient_sounds(&level, 10, 10, &mut rng);
+        let sounds = generate_ambient_sounds(&level, 10, 10, &mut rng, false);
         // Should be a vector (possibly empty or with sounds)
         assert!(sounds.is_empty() || sounds.len() > 0);
     }

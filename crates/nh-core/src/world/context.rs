@@ -21,6 +21,9 @@ pub struct Context {
 
     // Monster state
     pub monsters_moving: bool,
+    /// Skip monster AI (movemon/dochug) for RNG comparison testing
+    #[serde(default)]
+    pub skip_movemon: bool,
 
     // Menu state
     pub menu_active: bool,

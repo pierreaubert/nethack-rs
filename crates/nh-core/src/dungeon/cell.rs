@@ -57,6 +57,12 @@ impl CellType {
         ((*self as u8) >= 1 && (*self as u8) <= 12) || *self as u8 == 36
     }
 
+    /// C's IS_ROCK(typ): typ < POOL — absolutely nonaccessible terrain
+    /// Includes Stone, all wall types, DBWall, Tree, SecretDoor, SecretCorridor (0-15)
+    pub const fn is_rock(&self) -> bool {
+        (*self as u8) < 16
+    }
+
     /// Check if this is a door
     pub const fn is_door(&self) -> bool {
         matches!(self, CellType::Door | CellType::SecretDoor)
@@ -415,8 +421,11 @@ impl Cell {
         }
         if self.typ == CellType::Door {
             let state = self.door_state();
-            // Can walk through open or broken doors
-            return state.contains(DoorState::OPEN) || state.contains(DoorState::BROKEN);
+            // D_NODOOR (0) = doorway (passable), D_ISOPEN (2) = open door, D_BROKEN (1) = broken door
+            // Closed (4) and Locked (8) doors block movement
+            return state.is_empty()  // D_NODOOR = 0 = doorway (passable)
+                || state.contains(DoorState::OPEN)
+                || state.contains(DoorState::BROKEN);
         }
         true
     }

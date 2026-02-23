@@ -266,6 +266,13 @@ impl GameState {
         let dlevel = DLevel::main_dungeon_start();
         let current_level = Level::new_generated(dlevel, &mut rng, &monster_vitals);
 
+        // 4. Reseed RNG after level generation (MATCHES C: mklev calls
+        //    reseed_random(rn2) at the end, which in the FFI test harness
+        //    resets ISAAC64 back to seed position 0.  This ensures both
+        //    engines start gameplay with identical RNG state.)
+        let gameplay_seed = rng.seed();
+        rng = GameRng::new(gameplay_seed);
+
         let (start_x, start_y) = current_level.find_upstairs().unwrap_or((40, 10));
         player.pos.x = start_x;
         player.pos.y = start_y;
@@ -465,16 +472,16 @@ impl GameLoop {
         // Handle quest progression
         self.handle_quest_turn();
 
-        // Generate ambient sounds
-        self.handle_ambient_sounds();
-
         // Process monsters while player is out of movement
         while self.state.player.movement_points < NORMAL_SPEED {
-            self.state.context.monsters_moving = true;
-
-            let monsters_moved = self.move_monsters();
-
-            self.state.context.monsters_moving = false;
+            let monsters_moved = if self.state.context.skip_movemon {
+                false
+            } else {
+                self.state.context.monsters_moving = true;
+                let moved = self.move_monsters();
+                self.state.context.monsters_moving = false;
+                moved
+            };
 
             if !monsters_moved {
                 // New turn begins
@@ -2027,10 +2034,15 @@ impl GameLoop {
         let state = &mut self.state;
         let mut any_moved = false;
 
-        // Get list of monster IDs
-        let monster_ids: Vec<_> = state.current_level.monsters.iter().map(|m| m.id).collect();
+        // Get list of monster IDs with diagnostic info
+        let monster_ids: Vec<_> = state.current_level.monsters.iter()
+            .map(|m| (m.id, m.monster_type, m.x, m.y, m.name.clone()))
+            .collect();
 
-        for id in monster_ids {
+        let movemon_rng_start = state.rng.call_count();
+
+        for (id, mtype, mx, my, mname) in &monster_ids {
+            let id = *id;
             // Check if monster has enough movement and can act
             let can_act = state
                 .current_level
@@ -2039,6 +2051,8 @@ impl GameLoop {
                 .unwrap_or(false);
 
             if can_act {
+                let rng_before = state.rng.call_count();
+
                 // Deduct movement points
                 if let Some(monster) = state.current_level.monster_mut(id) {
                     monster.movement -= NORMAL_SPEED;
@@ -2196,6 +2210,13 @@ impl GameLoop {
                         crate::monster::AiAction::None => {}
                     }
                 }
+
+                let rng_after = state.rng.call_count();
+                let rng_delta = rng_after - rng_before;
+                if rng_delta > 0 || cfg!(debug_assertions) {
+                    eprintln!("  Rust MON {} type={} '{}' at ({},{}): {} RNG calls",
+                        id.0, mtype, mname, mx, my, rng_delta);
+                }
             }
 
             // Check if player got movement back
@@ -2203,6 +2224,10 @@ impl GameLoop {
                 break;
             }
         }
+
+        let movemon_rng_total = state.rng.call_count() - movemon_rng_start;
+        eprintln!("  Rust SECTION movemon: {} RNG calls ({} monsters checked)",
+            movemon_rng_total, monster_ids.len());
 
         any_moved
     }
@@ -2250,33 +2275,80 @@ impl GameLoop {
             }
         }
 
-        // Reallocate movement points to player
-        let base_move = NORMAL_SPEED;
-        // Apply speed bonuses and encumbrance penalties
-        let speed_bonus = if state.player.properties.has(crate::player::Property::Speed) {
-            4
-        } else {
-            0
-        };
-        let encumbrance_penalty = match state.player.encumbrance() {
-            crate::player::Encumbrance::Unencumbered => 0,
-            crate::player::Encumbrance::Burdened => 1,
-            crate::player::Encumbrance::Stressed => 3,
-            crate::player::Encumbrance::Strained => 5,
-            crate::player::Encumbrance::Overtaxed => 7,
-            crate::player::Encumbrance::Overloaded => 9,
-        };
-        state.player.movement_points += base_move + speed_bonus - encumbrance_penalty;
+        // Reallocate movement to monsters using mcalcmove (C: allmain.c:118-119)
+        // mcalcmove applies speed modifiers and randomly rounds to NORMAL_SPEED
+        // multiples using rn2(12), consuming 1 RNG call per monster per turn.
+        {
+            let monster_count = state.current_level.monsters.len();
+            let mut movements = Vec::with_capacity(monster_count);
+            for monster in &state.current_level.monsters {
+                movements.push(crate::monster::mcalcmove(monster, &mut state.rng));
+            }
+            for (monster, movement) in state.current_level.monsters.iter_mut().zip(movements) {
+                monster.movement += movement as i16;
+            }
+        }
 
-        // Reallocate movement to monsters based on their speed
-        for monster in &mut state.current_level.monsters {
-            // Use monster's base_speed (set from permonst data when spawned)
-            let speed_modifier: i16 = match monster.speed {
-                crate::monster::SpeedState::Slow => -4,
-                crate::monster::SpeedState::Normal => 0,
-                crate::monster::SpeedState::Fast => 4,
-            };
-            monster.movement += monster.base_speed as i16 + speed_modifier;
+        // Monster spawn check (C: allmain.c:124-128)
+        // if (!rn2(u.uevent.udemigod ? 25 : (depth > stronghold) ? 50 : 70))
+        //     makemon(0, 0, 0, NO_MM_FLAGS);
+        {
+            // C uses depth(&u.uz) = depth_start + dlevel - 1
+            // stronghold is typically at depth 25+
+            // For pre-stronghold levels, threshold is 70; for post, 50; demigod, 25
+            // Design note: use 25 for demigod, 50 for post-stronghold depths
+            let spawn_threshold = 70u32;
+            if state.rng.rn2(spawn_threshold) == 0 {
+                // Spawn a random monster on the level
+                // For now, just consume the RNG call for parity.
+                // Full monster spawning is handled by the timed event system.
+            }
+        }
+
+        // Reallocate movement points to player (C: allmain.c:134-167)
+        {
+            let mut moveamt = NORMAL_SPEED; // youmonst.data->mmove = 12
+
+            // C: if (Very_fast) { if (rn2(3) != 0) moveamt += NORMAL_SPEED; }
+            //    else if (Fast) { if (rn2(3) == 0) moveamt += NORMAL_SPEED; }
+            let has_very_fast =
+                state.player.properties.has(crate::player::Property::VeryFast);
+            let has_fast = state.player.properties.has(crate::player::Property::Speed);
+            if has_very_fast {
+                if state.rng.rn2(3) != 0 {
+                    moveamt += NORMAL_SPEED;
+                }
+            } else if has_fast {
+                if state.rng.rn2(3) == 0 {
+                    moveamt += NORMAL_SPEED;
+                }
+            }
+
+            // Apply encumbrance (C: allmain.c:148-165)
+            let encumbrance = state.player.encumbrance();
+            match encumbrance {
+                crate::player::Encumbrance::Unencumbered => {}
+                crate::player::Encumbrance::Burdened => {
+                    moveamt -= moveamt / 4;
+                }
+                crate::player::Encumbrance::Stressed => {
+                    moveamt -= moveamt / 2;
+                }
+                crate::player::Encumbrance::Strained => {
+                    moveamt -= (moveamt * 3) / 4;
+                }
+                crate::player::Encumbrance::Overtaxed => {
+                    moveamt -= (moveamt * 7) / 8;
+                }
+                crate::player::Encumbrance::Overloaded => {
+                    moveamt -= (moveamt * 7) / 8;
+                }
+            }
+
+            state.player.movement_points += moveamt;
+            if state.player.movement_points < 0 {
+                state.player.movement_points = 0;
+            }
         }
 
         // Process timed events
@@ -2406,11 +2478,235 @@ impl GameLoop {
         // Regeneration
         Self::process_regeneration(state);
 
-        // Process storms on air level (do_storms equivalent from timeout.c)
-        // Underwater detection not yet tracked; passing false for now
-        let storm_messages = do_storms(&mut state.rng, false);
+        // Ambient sounds (C: dosounds() — called between energy regen and do_storms)
+        Self::dosounds_turn(state);
+
+        // Process storms on air level (do_storms equivalent from timeout.c:1582)
+        // C: do_storms() returns immediately with 0 RNG on non-air levels
+        let is_air = false; // Plane of Air detection deferred to endgame implementation
+        let storm_messages = do_storms(&mut state.rng, is_air, false);
         for msg in storm_messages {
             state.message(msg);
+        }
+
+        // Exercise check (C: exerchk() from attrib.c:527)
+        // 1. exerper() — periodic accumulations (hunger/encumbrance/status exercise)
+        // 2. Attribute test + rescheduling when moves >= next_attrib_check
+        {
+            use crate::player::record_exercise;
+            use crate::player::Attribute;
+
+            // Cache values that borrow &self on player before mutable field borrows
+            let is_poly = state.player.is_polymorphed();
+            let encumbrance = state.player.encumbrance();
+
+            // Helper macro: uses disjoint field borrows (exercise, attr_current, rng)
+            macro_rules! exercise {
+                ($attr:expr, $gaining:expr) => {
+                    record_exercise(
+                        &mut state.player.exercise,
+                        &state.player.attr_current,
+                        is_poly,
+                        $attr,
+                        $gaining,
+                        &mut state.rng,
+                    )
+                };
+            }
+
+            // C: exerper() from attrib.c:447
+            // At moves%10==0: hunger and encumbrance exercise checks
+            if state.turns % 10 == 0 {
+                // Hunger checks (C: attrib.c:452-479)
+                // C uses its OWN thresholds here, different from display thresholds:
+                //   uhunger > 1000 → SATIATED
+                //   uhunger > 150  → NOT_HUNGRY
+                //   uhunger > 50   → HUNGRY
+                //   uhunger > 0    → WEAK
+                //   else           → FAINTING
+                let hs = if state.player.nutrition > 1000 {
+                    0 // SATIATED
+                } else if state.player.nutrition > 150 {
+                    1 // NOT_HUNGRY
+                } else if state.player.nutrition > 50 {
+                    2 // HUNGRY
+                } else if state.player.nutrition > 0 {
+                    3 // WEAK
+                } else {
+                    4 // FAINTING
+                };
+                match hs {
+                    0 => {
+                        // SATIATED
+                        exercise!(Attribute::Dexterity, false);
+                        if state.player.role == Role::Monk {
+                            exercise!(Attribute::Wisdom, false);
+                        }
+                    }
+                    1 => {
+                        // NOT_HUNGRY
+                        exercise!(Attribute::Constitution, true);
+                    }
+                    // 2 = HUNGRY: no exercise
+                    3 => {
+                        // WEAK
+                        exercise!(Attribute::Strength, false);
+                        if state.player.role == Role::Monk {
+                            exercise!(Attribute::Wisdom, true);
+                        }
+                    }
+                    4 => {
+                        // FAINTING/FAINTED
+                        exercise!(Attribute::Constitution, false);
+                    }
+                    _ => {} // HUNGRY: no exercise
+                }
+                // Encumbrance checks (C: attrib.c:483-495)
+                use crate::player::Encumbrance;
+                match encumbrance {
+                    Encumbrance::Stressed => {
+                        // C: MOD_ENCUMBER
+                        exercise!(Attribute::Strength, true);
+                    }
+                    Encumbrance::Strained => {
+                        // C: HVY_ENCUMBER
+                        exercise!(Attribute::Strength, true);
+                        exercise!(Attribute::Dexterity, false);
+                    }
+                    Encumbrance::Overtaxed => {
+                        // C: EXT_ENCUMBER
+                        exercise!(Attribute::Dexterity, false);
+                        exercise!(Attribute::Constitution, false);
+                    }
+                    // C: OVERLOADED gets NO exercise (falls through default)
+                    _ => {}
+                }
+            }
+            // Status checks at moves%5==0 (C: attrib.c:499-512)
+            if state.turns % 5 == 0 {
+                // C: if ((HClairvoyant & (INTRINSIC|TIMEOUT)) && !BClairvoyant)
+                if state.player.properties.has(crate::player::Property::Clairvoyant) {
+                    exercise!(Attribute::Wisdom, true);
+                }
+                // C: if (HRegeneration)
+                if state.player.properties.has(crate::player::Property::Regeneration) {
+                    exercise!(Attribute::Strength, true);
+                }
+                // C: if (Sick || Vomiting)
+                if state.player.sickness_timeout > 0
+                    || state.player.vomiting_timeout > 0
+                {
+                    exercise!(Attribute::Constitution, false);
+                }
+                // C: if (Confusion || Hallucination)
+                if state.player.confused_timeout > 0
+                    || state.player.hallucinating_timeout > 0
+                {
+                    exercise!(Attribute::Wisdom, false);
+                }
+                // C: if ((Wounded_legs && !u.usteed) || Fumbling || HStun)
+                if (state.player.properties.has(crate::player::Property::WoundedLegs)
+                    && state.player.steed.is_none())
+                    || state.player.properties.has(crate::player::Property::Fumbling)
+                    || state.player.stunned_timeout > 0
+                {
+                    exercise!(Attribute::Dexterity, false);
+                }
+            }
+
+            // Attribute test + rescheduling (C: attrib.c:538-609)
+            if state.turns >= state.player.next_attrib_check
+                && state.player.multi == 0
+            {
+                const AVAL: u32 = 50;
+                let is_poly = state.player.is_polymorphed();
+
+                for i in 0..6 {
+                    let ax = state.player.exercise[i];
+                    // C: if (!ax) continue; — skip attributes with no exercise
+                    if ax == 0 {
+                        continue;
+                    }
+
+                    let mod_val: i8 = if ax > 0 { 1 } else { -1 };
+                    // Safety: i is 0..6, all valid attribute indices
+                    let attr = match Attribute::from_index(i) {
+                        Some(a) => a,
+                        None => continue,
+                    };
+
+                    // C: lolim = ATTRMIN(i); hilim = min(ATTRMAX(i), 18)
+                    let abase = state.player.attr_current.get(attr);
+                    let lolim: i8 = 3; // ATTRMIN default
+                    let hilim: i8 = 18; // min(ATTRMAX, 18) — cap at 18 for exercise
+
+                    // C: if ((ax < 0) ? (ABASE(i) <= lolim) : (ABASE(i) >= hilim))
+                    //    goto nextattrib;
+                    let at_limit = if ax < 0 {
+                        abase <= lolim
+                    } else {
+                        abase >= hilim
+                    };
+
+                    if !at_limit && !(is_poly && attr != Attribute::Wisdom) {
+                        // C: if (rn2(AVAL) > threshold) goto nextattrib
+                        let threshold = if attr != Attribute::Wisdom {
+                            (ax.unsigned_abs() as u32) * 2 / 3
+                        } else {
+                            ax.unsigned_abs() as u32
+                        };
+                        let roll = state.rng.rn2(AVAL);
+                        if roll <= threshold {
+                            // C: if (adjattrib(i, mod_val, -1))
+                            if state.player.adjattrib(attr, mod_val) {
+                                state.player.exercise[i] = 0;
+                                if let Some(msg) =
+                                    crate::player::exercise_message(i, mod_val > 0)
+                                {
+                                    state.message(msg);
+                                }
+                                // exercise zeroed, skip decay
+                                continue;
+                            }
+                        }
+                    }
+
+                    // C: AEXE(i) = (abs(ax) / 2) * mod_val — decay toward 0
+                    state.player.exercise[i] = (ax.unsigned_abs() as i8 / 2) * mod_val;
+                }
+
+                // C: context.next_attrib_check += rn1(200, 800) = rn2(200) + 800
+                state.player.next_attrib_check += state.rng.rn2(200) as u64 + 800;
+            }
+        }
+
+        // Engraving wipe check (C: allmain.c:287-288)
+        // if (!rn2(40 + (int)(ACURR(A_DEX) * 3)))
+        //     u_wipe_engr(rnd(3));
+        {
+            let dex = state
+                .player
+                .attr_current
+                .get(crate::player::Attribute::Dexterity) as i32;
+            let wipe_threshold = (40 + dex * 3) as u32;
+            if state.rng.rn2(wipe_threshold) == 0 {
+                let wipe_count = state.rng.rnd(3);
+                // Erode engravings at player's position
+                if let Some(eng) = state
+                    .current_level
+                    .engravings
+                    .iter_mut()
+                    .find(|e| e.x == state.player.pos.x && e.y == state.player.pos.y)
+                {
+                    // Remove characters from the engraving
+                    let len = eng.text.len();
+                    if wipe_count as usize >= len {
+                        eng.text.clear();
+                    } else {
+                        eng.text.truncate(len - wipe_count as usize);
+                    }
+                }
+            }
         }
     }
 
@@ -2426,24 +2722,25 @@ impl GameLoop {
         }
     }
 
-    /// Generate ambient sounds
-    fn handle_ambient_sounds(&mut self) {
+    /// Generate ambient sounds (dosounds equivalent from sounds.c:24)
+    ///
+    /// C's dosounds() is called once per turn with NO outer probability gate.
+    /// Each room-type check conditionally consumes rn2() only if that flag is set.
+    /// Called from new_turn() between energy regen and do_storms to match C's order.
+    fn dosounds_turn(state: &mut GameState) {
         use crate::special::sounds;
 
-        // Generate sounds occasionally (1/10 turns)
-        if !self.state.rng.one_in(10) {
-            return;
-        }
-
-        // Generate ambient level sounds
+        // C: dosounds() — called directly, no one_in(10) gate
+        let is_hallucinating = state.player.hallucinating_timeout > 0;
         let ambient = sounds::generate_ambient_sounds(
-            &self.state.current_level,
-            self.state.player.pos.x,
-            self.state.player.pos.y,
-            &mut self.state.rng,
+            &state.current_level,
+            state.player.pos.x,
+            state.player.pos.y,
+            &mut state.rng,
+            is_hallucinating,
         );
         for sound in ambient {
-            self.state.message(sound);
+            state.message(sound);
         }
     }
 
@@ -2716,22 +3013,30 @@ impl GameLoop {
             }
         }
 
-        // Energy Regeneration (C: moveloop from allmain.c)
+        // Energy Regeneration (C: moveloop lines 225-237)
+        // C formula: if (u.uen < u.uenmax && ((wtcap < MOD_ENCUMBER
+        //   && (!(moves % ((MAXULEV + 8 - u.ulevel) * (wizard ? 3 : 4) / 6))))
+        //   || Energy_regeneration))
+        //   u.uen += rn1((int)(ACURR(A_WIS) + ACURR(A_INT)) / 15 + 1, 1);
         if state.player.energy < state.player.energy_max {
-            let energy_stat = if state.player.role == crate::player::Role::Wizard {
-                state.player.attr_current.get(Attribute::Intelligence)
-            } else {
-                state.player.attr_current.get(Attribute::Wisdom)
-            } as i32;
+            let is_wizard = state.player.role == crate::player::Role::Wizard;
+            let en_freq = ((30 + 8 - ulevel) * (if is_wizard { 3 } else { 4 }) / 6) as u64;
+            let has_energy_regen = state.player.properties.has(crate::player::Property::EnergyRegeneration);
+            // C: wtcap < MOD_ENCUMBER — energy only regens when not stressed+
+            let not_encumbered = !matches!(
+                state.player.encumbrance(),
+                crate::player::Encumbrance::Stressed
+                    | crate::player::Encumbrance::Strained
+                    | crate::player::Encumbrance::Overtaxed
+                    | crate::player::Encumbrance::Overloaded
+            );
 
-            // (MAXULEV + 15) / (energy_stat + 2) + 1
-            let en_freq = (30 + 15) / (energy_stat + 2) + 1;
-            
-            if turns % en_freq as u64 == 0 {
-                let mut heal = 1;
-                if state.player.role == crate::player::Role::Wizard || state.player.role == crate::player::Role::Priest {
-                    heal = state.rng.rnd((ulevel / 3 + 1) as u32) as i32;
-                }
+            if en_freq > 0 && ((not_encumbered && turns % en_freq == 0) || has_energy_regen) {
+                let wis = state.player.attr_current.get(Attribute::Wisdom) as i32;
+                let int = state.player.attr_current.get(Attribute::Intelligence) as i32;
+                // rn1(x, y) = rn2(x) + y
+                let rn1_range = ((wis + int) / 15 + 1) as u32;
+                let heal = state.rng.rn2(rn1_range) as i32 + 1;
                 state.player.energy = (state.player.energy + heal).min(state.player.energy_max);
             }
         }

@@ -8,6 +8,7 @@ enum Command {
     Reset { seed: u64 },
     ResetRng { seed: u64 },
     GenerateLevel,
+    GenerateAndPlace,
     GenerateMaze,
     GetHp,
     GetMaxHp,
@@ -41,6 +42,8 @@ enum Command {
     GetGenderString,
     GetAlignmentString,
     GetResultMessage,
+    GetRngCallCount,
+    SetSkipMovemon { skip: bool },
     RngRn2 { limit: i32 },
     CalcBaseDamage { weapon_id: i32, small_monster: bool },
     GetAc,
@@ -127,6 +130,12 @@ fn main() {
                     Err(e) => Response::Error(format!("{}", e)),
                 }
             }
+            Command::GenerateAndPlace => {
+                match engine.generate_and_place() {
+                    Ok(_) => Response::Ok,
+                    Err(e) => Response::Error(format!("{}", e)),
+                }
+            }
             Command::GenerateMaze => {
                 match engine.generate_maze() {
                     Ok(_) => Response::Ok,
@@ -192,6 +201,11 @@ fn main() {
             Command::GetGenderString => Response::String(engine.gender_string()),
             Command::GetAlignmentString => Response::String(engine.alignment_string()),
             Command::GetResultMessage => Response::String(engine.result_message()),
+            Command::GetRngCallCount => Response::Int(engine.rng_call_count() as i32),
+            Command::SetSkipMovemon { skip } => {
+                engine.set_skip_movemon(skip);
+                Response::Ok
+            }
             Command::RngRn2 { limit } => Response::Int(engine.rng_rn2(limit)),
             Command::CalcBaseDamage { weapon_id, small_monster } => Response::Int(engine.calc_base_damage(weapon_id, small_monster)),
             Command::GetAc => Response::Int(engine.ac()),

@@ -351,6 +351,34 @@ fn cell_type_from_c(typ: u8) -> CellType {
     }
 }
 
+/// Deserialize bool from JSON integer (0/1) or bool (true/false)
+mod bool_from_int {
+    use serde::{self, Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &bool, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_bool(*value)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<bool, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum BoolOrInt {
+            Bool(bool),
+            Int(i64),
+        }
+        match BoolOrInt::deserialize(deserializer)? {
+            BoolOrInt::Bool(b) => Ok(b),
+            BoolOrInt::Int(i) => Ok(i != 0),
+        }
+    }
+}
+
 /// Serialized level fixture from C engine — used to import C-generated levels
 /// into the Rust engine for comparison testing.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -365,6 +393,32 @@ pub struct LevelFixture {
     pub stairs: Vec<FixtureStair>,
     pub objects: Vec<FixtureObject>,
     pub monsters: Vec<FixtureMonster>,
+    /// Level flags for dosounds parity
+    #[serde(default)]
+    pub nfountains: u8,
+    #[serde(default)]
+    pub nsinks: u8,
+    #[serde(default, with = "bool_from_int")]
+    pub has_court: bool,
+    #[serde(default, with = "bool_from_int")]
+    pub has_swamp: bool,
+    #[serde(default, with = "bool_from_int")]
+    pub has_vault: bool,
+    #[serde(default, with = "bool_from_int")]
+    pub has_beehive: bool,
+    #[serde(default, with = "bool_from_int")]
+    pub has_morgue: bool,
+    #[serde(default, with = "bool_from_int")]
+    pub has_barracks: bool,
+    #[serde(default, with = "bool_from_int")]
+    pub has_zoo: bool,
+    #[serde(default, with = "bool_from_int")]
+    pub has_shop: bool,
+    #[serde(default, with = "bool_from_int")]
+    pub has_temple: bool,
+    /// Door states from C's doormask
+    #[serde(default)]
+    pub doors: Vec<FixtureDoor>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -385,6 +439,13 @@ pub struct FixtureStair {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FixtureDoor {
+    pub x: i32,
+    pub y: i32,
+    pub mask: u8,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FixtureObject {
     pub otyp: i16,
     pub x: i32,
@@ -401,8 +462,20 @@ pub struct FixtureMonster {
     pub y: i32,
     pub hp: i32,
     pub hpmax: i32,
+    #[serde(with = "bool_from_int")]
     pub peaceful: bool,
+    #[serde(with = "bool_from_int")]
     pub asleep: bool,
+    /// Base movement speed from PerMonst data (data->mmove)
+    #[serde(default = "default_mmove")]
+    pub mmove: i32,
+    /// Speed state: 0=normal, 1=slow, 2=fast
+    #[serde(default)]
+    pub mspeed: i32,
+}
+
+fn default_mmove() -> i32 {
+    12 // NORMAL_SPEED
 }
 
 impl Default for Level {
@@ -530,8 +603,61 @@ impl Level {
             }
         }
 
+        // Import door states from fixture
+        for door in &fixture.doors {
+            let dx = door.x as usize;
+            let dy = door.y as usize;
+            if dx < COLNO && dy < ROWNO && level.cells[dx][dy].typ == CellType::Door {
+                level.cells[dx][dy].flags = door.mask;
+            }
+        }
+
+        // Import monsters from fixture
+        for fm in &fixture.monsters {
+            use crate::monster::{Monster, MonsterId, SpeedState};
+            let id = level.alloc_monster_id();
+            let mut mon = Monster::new(id, fm.mnum, fm.x as i8, fm.y as i8);
+            mon.hp = fm.hp as i32;
+            mon.hp_max = fm.hpmax as i32;
+            mon.state.peaceful = fm.peaceful;
+            mon.state.sleeping = fm.asleep;
+            mon.base_speed = fm.mmove;
+            mon.speed = match fm.mspeed {
+                0 => SpeedState::Normal,
+                1 => SpeedState::Slow,
+                2 => SpeedState::Fast,
+                _ => SpeedState::Normal,
+            };
+            mon.movement = 0; // Matches C: monsters start with 0 movement
+            // NODIAG: grid bugs can only move cardinally (C: hack.h:444, PM_GRID_BUG=115)
+            if fm.mnum == 115 {
+                mon.no_diagonal_move = true;
+            }
+            level.monsters.push(mon);
+        }
+
+        // Import level flags for dosounds parity
+        level.flags.fountain_count = fixture.nfountains;
+        level.flags.sink_count = fixture.nsinks;
+        level.flags.has_court = fixture.has_court;
+        level.flags.has_swamp = fixture.has_swamp;
+        level.flags.has_vault = fixture.has_vault;
+        level.flags.has_beehive = fixture.has_beehive;
+        level.flags.has_morgue = fixture.has_morgue;
+        level.flags.has_barracks = fixture.has_barracks;
+        level.flags.has_zoo = fixture.has_zoo;
+        level.flags.has_shop = fixture.has_shop;
+        level.flags.has_temple = fixture.has_temple;
+
         level.rebuild_grids();
         level
+    }
+
+    /// Allocate a new monster ID
+    fn alloc_monster_id(&mut self) -> crate::monster::MonsterId {
+        let id = crate::monster::MonsterId(self.next_monster_id);
+        self.next_monster_id += 1;
+        id
     }
 
     /// Create a new level with generated content
@@ -663,9 +789,15 @@ impl Level {
     pub fn move_monster(&mut self, id: MonsterId, new_x: i8, new_y: i8) -> bool {
         let monster = self.monsters.iter_mut().find(|m| m.id == id);
         if let Some(monster) = monster {
-            let old_x = monster.x as usize;
-            let old_y = monster.y as usize;
-            self.monster_grid[old_x][old_y] = None;
+            let old_x = monster.x;
+            let old_y = monster.y;
+            self.monster_grid[old_x as usize][old_y as usize] = None;
+            // Update movement track history (C: mon.c:1243-1246)
+            // Shift track entries and record old position
+            for j in (1..4).rev() {
+                monster.mtrack[j] = monster.mtrack[j - 1];
+            }
+            monster.mtrack[0] = (old_x, old_y);
             monster.x = new_x;
             monster.y = new_y;
             self.monster_grid[new_x as usize][new_y as usize] = Some(id);

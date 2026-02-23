@@ -807,15 +807,25 @@ impl TimerQueue {
     }
 }
 
-/// Generate random weather events (do_storms equivalent)
+/// Generate random weather events (do_storms equivalent from timeout.c:1582)
 ///
-/// Called periodically to potentially trigger lightning strikes, thunder, etc.
-/// Returns messages to display to the player.
-pub fn do_storms(rng: &mut crate::rng::GameRng, player_underwater: bool) -> Vec<String> {
+/// Called once per turn. On non-air levels, returns immediately with no RNG consumption.
+/// On the Plane of Air, triggers lightning storms with rn2(8) gating.
+pub fn do_storms(
+    rng: &mut crate::rng::GameRng,
+    is_air_level: bool,
+    player_underwater: bool,
+) -> Vec<String> {
     let mut messages = Vec::new();
 
-    // 1 in 100 chance of a storm event each call
-    if rng.rn2(100) != 0 {
+    // C: if (!Is_airlevel(&u.uz) || rn2(8)) return;
+    // On non-air levels, return immediately — NO RNG consumed
+    if !is_air_level {
+        return messages;
+    }
+
+    // 1 in 8 chance of storm on the Plane of Air
+    if rng.rn2(8) != 0 {
         return messages;
     }
 
@@ -1049,21 +1059,27 @@ mod tests {
     fn test_do_storms() {
         let mut rng = crate::rng::GameRng::new(42);
 
-        // Run many times to test randomness (1% chance per call, need enough trials)
+        // Non-air levels should never produce storms and consume 0 RNG
+        for _ in 0..100 {
+            let messages = do_storms(&mut rng, false, false);
+            assert!(messages.is_empty());
+        }
+
+        // Air level: run many times to test randomness (1/8 chance per call)
         let mut got_message = false;
         for _ in 0..1000 {
-            let messages = do_storms(&mut rng, false);
+            let messages = do_storms(&mut rng, true, false);
             if !messages.is_empty() {
                 got_message = true;
                 break;
             }
         }
-        // Should eventually get a storm message
+        // Should eventually get a storm message on air level
         assert!(got_message);
 
-        // Underwater should never get messages
+        // Air level + underwater should never get messages
         for _ in 0..100 {
-            let messages = do_storms(&mut rng, true);
+            let messages = do_storms(&mut rng, true, true);
             assert!(messages.is_empty());
         }
     }

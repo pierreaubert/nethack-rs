@@ -3,6 +3,25 @@
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <signal.h>
+#include <execinfo.h>
+
+static void ffi_crash_handler(int sig) {
+    void *array[30];
+    int size = backtrace(array, 30);
+    fprintf(stderr, "\n=== FFI CRASH: signal %d ===\n", sig);
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
+    fprintf(stderr, "=== END CRASH ===\n");
+    fflush(stderr);
+    _exit(128 + sig);
+}
+
+__attribute__((constructor))
+static void install_crash_handler(void) {
+    signal(SIGSEGV, ffi_crash_handler);
+    signal(SIGBUS, ffi_crash_handler);
+    signal(SIGABRT, ffi_crash_handler);
+}
 
 #ifdef REAL_NETHACK
 #include "hack.h"
@@ -17,6 +36,9 @@ extern int FDECL(str2race, (const char *));
 
 /* ISAAC64 seed function from isaac64_standalone.c */
 extern void set_random_generator_seed(unsigned long seed);
+
+/* Forward declaration for level cleanup */
+static void nh_ffi_pre_generate_cleanup(void);
 
 /* NetHack initialization functions */
 extern void NDECL(init_objects);
@@ -33,6 +55,24 @@ void status_initialize(int reassessment) {
    hope our stub 'status_initialize' is linked instead of the real one. 
    Actually, the real one is in botl.o which is in the library. 
    To override it, we need to make sure our symbol is stronger. */
+
+/* Override nh_terminate to prevent exit() during test — player may die from
+   starvation or monster attacks during the post-turn processing loop. */
+#include <setjmp.h>
+static jmp_buf ffi_terminate_jmp;
+static volatile int ffi_in_post_command = 0;
+static volatile int ffi_player_died = 0;
+
+void nh_terminate(int status) {
+    fprintf(stderr, "FFI: nh_terminate(%d) called — player died or game ended\n", status);
+    fflush(stderr);
+    ffi_player_died = 1;
+    if (ffi_in_post_command) {
+        longjmp(ffi_terminate_jmp, 1);
+    }
+    /* If not in post_command, we can't longjmp — just abort cleanly */
+    _exit(status);
+}
 
 /* Missing symbols from unixmain.c that we need to provide since we skip it */
 short ospeed = 0;
@@ -74,6 +114,8 @@ static int dummy_select_menu(winid window, int how, MENU_ITEM_P** selected) { (v
 static void dummy_update_inventory(void) {}
 static void dummy_mark_synch(void) {}
 static void dummy_wait_synch(void) {}
+static char dummy_message_menu(int let, int def, const char* msg) { (void)let; (void)msg; return (char)def; }
+static void dummy_print_glyph(winid window, int x, int y, int glyph, int bkglyph) { (void)window; (void)x; (void)y; (void)glyph; (void)bkglyph; }
 static void dummy_raw_print(const char* str) { (void)str; }
 static void dummy_raw_print_bold(const char* str) { (void)str; }
 static int dummy_nhgetch(void) { return 0; }
@@ -119,9 +161,11 @@ static struct window_procs dummy_procs = {
     .win_add_menu = dummy_add_menu,
     .win_end_menu = dummy_end_menu,
     .win_select_menu = dummy_select_menu,
+    .win_message_menu = dummy_message_menu,
     .win_update_inventory = dummy_update_inventory,
     .win_mark_synch = dummy_mark_synch,
     .win_wait_synch = dummy_wait_synch,
+    .win_print_glyph = dummy_print_glyph,
     .win_raw_print = dummy_raw_print,
     .win_raw_print_bold = dummy_raw_print_bold,
     .win_nhgetch = dummy_nhgetch,
@@ -306,6 +350,15 @@ void nh_ffi_cleanup_globals(void) {
     invent = (struct obj *)0;
     fmon = (struct monst *)0;
     fobj = (struct obj *)0;
+    migrating_objs = (struct obj *)0;
+    billobjs = (struct obj *)0;
+
+    /* Clear equipment pointers — these are separate globals, NOT part of
+       struct u, so memset(&u, 0, ...) does not zero them.  Stale pointers
+       cause u_init→ini_inv to misbehave on repeated init calls. */
+    uarm = uarmc = uarmh = uarms = uarmg = uarmf = (struct obj *)0;
+    uarmu = uskin = uamul = uleft = uright = ublindf = (struct obj *)0;
+    uwep = uswapwep = uquiver = (struct obj *)0;
     
     /* 2. Reset rooms */
     nroom = 0;
@@ -397,6 +450,9 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
     fprintf(stderr, "C FFI Rolled: Role=%s Race=%s HP=%d, Energy=%d\n", role, race, u.uhp, u.uen);
     fflush(stderr);
 
+    fprintf(stderr, "C FFI: Init complete, player at (%d,%d)\n", u.ux, u.uy);
+    fflush(stderr);
+
     return 0;
 #else
     if (g_initialized) {
@@ -444,12 +500,21 @@ void nh_ffi_free(void) {
 /* Reset game to initial state */
 int nh_ffi_reset(unsigned long seed) {
 #ifdef REAL_NETHACK
-    /* For reset, we should ideally re-init everything, but for now simple re-init suffices */
-    /* Set RNG seed before initialization to ensure deterministic rolls */
+    /* Reseed the RNG and re-initialize character creation.
+       We call cleanup_globals then u_init to get fresh character stats
+       from the new seed. */
     g_seed = seed;
     init_isaac64(seed, rn2);
     init_isaac64(seed, rn2_on_display_rng);
-    return nh_ffi_init(g_last_role, g_last_race, g_last_gender, g_last_alignment);
+    { extern unsigned long rng_call_counter; rng_call_counter = 0; }
+
+    /* Don't re-call u_init() — calling it twice causes massive inventory
+       duplication due to stale C global state that leaks between u_init calls.
+       Instead, just reseed RNG and keep the character from init().
+       Tests sync stats from Rust via set_state() anyway. */
+    moves = 1L;
+    multi = 0;
+    return 0;
 #else
     (void)seed;
     if (!g_initialized) {
@@ -497,6 +562,53 @@ static void nh_ffi_pre_generate_cleanup(void) {
         extern mapseen *mapseenchn;
         mapseenchn = (mapseen *)0;
     }
+}
+
+/* Generate level and place player on stairs (full newgame-like init) */
+int nh_ffi_generate_and_place(void) {
+#ifdef REAL_NETHACK
+    fprintf(stderr, "FFI: nh_ffi_generate_and_place() dnum=%d, dlevel=%d...\n",
+            u.uz.dnum, u.uz.dlevel);
+    fflush(stderr);
+
+    nh_ffi_pre_generate_cleanup();
+    mklev();
+
+    /* Place player on stairs or first walkable room cell.
+       Avoids u_on_upstairs() which calls cliparound()/place_lregion()
+       that can crash with dummy window procs. */
+    if (xupstair) {
+        u.ux = xupstair;
+        u.uy = yupstair;
+    } else if (xdnstair) {
+        u.ux = xdnstair;
+        u.uy = ydnstair;
+    } else {
+        /* Find first room cell as fallback */
+        int found = 0;
+        int fx, fy;
+        for (fy = 0; fy < ROWNO && !found; fy++)
+            for (fx = 1; fx < COLNO && !found; fx++)
+                if (levl[fx][fy].typ == ROOM) {
+                    u.ux = fx;
+                    u.uy = fy;
+                    found = 1;
+                }
+    }
+
+    /* Initialize hero movement points (matches C moveloop line 79) */
+    youmonst.movement = NORMAL_SPEED;
+
+    /* Initialize monstermoves (matches C moveloop) */
+    monstermoves = 1L;
+
+    fprintf(stderr, "FFI: nh_ffi_generate_and_place() complete. Player at (%d,%d), upstair=(%d,%d), dnstair=(%d,%d)\n",
+            u.ux, u.uy, xupstair, yupstair, xdnstair, ydnstair);
+    fflush(stderr);
+    return 0;
+#else
+    return 0;
+#endif
 }
 
 /* Generate a new level */
@@ -821,27 +933,357 @@ static void nh_ffi_set_message(const char* msg) {
 }
 #endif
 
+/* Inline regen_hp (static in allmain.c, can't call directly) */
+static void ffi_regen_hp(int wtcap) {
+    int heal = 0;
+    boolean reached_full = FALSE;
+    boolean encumbrance_ok = (wtcap < MOD_ENCUMBER || !u.umoved);
+
+    if (Upolyd) {
+        if (u.mh < 1) {
+            rehumanize();
+        } else if (youmonst.data->mlet == S_EEL
+                   && !is_pool(u.ux, u.uy) && !Is_waterlevel(&u.uz)) {
+            if (u.mh > 1 && !Regeneration && rn2(u.mh) > rn2(8)
+                && (!Half_physical_damage || !(moves % 2L)))
+                heal = -1;
+        } else if (u.mh < u.mhmax) {
+            if (Regeneration || (encumbrance_ok && !(moves % 20L)))
+                heal = 1;
+        }
+        if (heal) {
+            context.botl = TRUE;
+            u.mh += heal;
+            reached_full = (u.mh == u.mhmax);
+        }
+    } else {
+        if (u.uhp < u.uhpmax && (encumbrance_ok || Regeneration)) {
+            if (u.ulevel > 9) {
+                if (!(moves % 3L)) {
+                    int Con = (int) ACURR(A_CON);
+                    if (Con <= 12) {
+                        heal = 1;
+                    } else {
+                        heal = rnd(Con);
+                        if (heal > u.ulevel - 9)
+                            heal = u.ulevel - 9;
+                    }
+                }
+            } else {
+                if (!(moves % (long) ((MAXULEV + 12) / (u.ulevel + 2) + 1)))
+                    heal = 1;
+            }
+            if (Regeneration && !heal)
+                heal = 1;
+            if (heal) {
+                context.botl = TRUE;
+                u.uhp += heal;
+                if (u.uhp > u.uhpmax)
+                    u.uhp = u.uhpmax;
+                reached_full = (u.uhp == u.uhpmax);
+            }
+        }
+    }
+
+    if (reached_full) {
+        /* interrupt_multi is static in allmain.c, inline it */
+        if (multi > 0 && !context.travel && !context.run) {
+            nomul(0);
+        }
+    }
+}
+
+/* Global flag: when set, skip movemon() in post-command processing.
+   This allows comparing non-AI per-turn RNG consumption between C and Rust. */
+static int ffi_skip_movemon = 0;
+
+void nh_ffi_set_skip_movemon(int skip) {
+    ffi_skip_movemon = skip;
+}
+
+/* Post-command processing: replicates C moveloop after player takes an action.
+   This runs monster turns, new-turn bookkeeping, and per-turn effects.
+   Matches allmain.c:93-318 */
+static void ffi_post_command(void) {
+    int moveamt = 0, wtcap = 0;
+    boolean monscanmove = FALSE;
+    int change = 0;
+
+    /* Hero spends movement (C moveloop line 95) */
+    youmonst.movement -= NORMAL_SPEED;
+
+    do { /* hero can't move this turn loop */
+        wtcap = encumber_msg();
+
+        context.mon_moving = TRUE;
+        if (!ffi_skip_movemon) {
+            extern unsigned long rng_call_counter;
+            unsigned long rng_movemon_start = rng_call_counter;
+            int movemon_rounds = 0;
+            do {
+                monscanmove = movemon();
+                movemon_rounds++;
+                if (youmonst.movement >= NORMAL_SPEED)
+                    break; /* hero gained movement from speed */
+            } while (monscanmove);
+            fprintf(stderr, "  C SECTION movemon: %lu RNG calls (%d rounds)\n",
+                rng_call_counter - rng_movemon_start, movemon_rounds);
+        }
+        context.mon_moving = FALSE;
+
+        if (!monscanmove && youmonst.movement < NORMAL_SPEED) {
+            /* Both hero and monsters are out of steam — new turn */
+            struct monst *mtmp;
+            extern unsigned long rng_call_counter;
+            unsigned long rng_sect;
+
+            rng_sect = rng_call_counter;
+            mcalcdistress(); /* adjust monsters' trap, blind, etc */
+            fprintf(stderr, "  C SECTION mcalcdistress: %lu RNG calls\n", rng_call_counter - rng_sect);
+
+            /* Reallocate movement to monsters */
+            rng_sect = rng_call_counter;
+            for (mtmp = fmon; mtmp; mtmp = mtmp->nmon)
+                mtmp->movement += mcalcmove(mtmp);
+            fprintf(stderr, "  C SECTION mcalcmove: %lu RNG calls\n", rng_call_counter - rng_sect);
+
+            /* Occasionally add another monster (C moveloop lines 124-128) */
+            rng_sect = rng_call_counter;
+            if (!rn2(u.uevent.udemigod ? 25
+                     : (depth(&u.uz) > depth(&stronghold_level)) ? 50
+                       : 70))
+                (void) makemon((struct permonst *) 0, 0, 0, NO_MM_FLAGS);
+            fprintf(stderr, "  C SECTION spawn: %lu RNG calls\n", rng_call_counter - rng_sect);
+
+            /* Calculate hero movement for this turn (C moveloop lines 131-169) */
+            rng_sect = rng_call_counter;
+            if (u.usteed && u.umoved) {
+                moveamt = mcalcmove(u.usteed);
+            } else {
+                moveamt = youmonst.data->mmove;
+
+                if (Very_fast) {
+                    if (rn2(3) != 0)
+                        moveamt += NORMAL_SPEED;
+                } else if (Fast) {
+                    if (rn2(3) == 0)
+                        moveamt += NORMAL_SPEED;
+                }
+            }
+            fprintf(stderr, "  C SECTION speed: %lu RNG calls (Fast=%d VFast=%d)\n", rng_call_counter - rng_sect, (int)(!!Fast), (int)(!!Very_fast));
+
+            switch (wtcap) {
+            case UNENCUMBERED: break;
+            case SLT_ENCUMBER: moveamt -= (moveamt / 4); break;
+            case MOD_ENCUMBER: moveamt -= (moveamt / 2); break;
+            case HVY_ENCUMBER: moveamt -= ((moveamt * 3) / 4); break;
+            case EXT_ENCUMBER: moveamt -= ((moveamt * 7) / 8); break;
+            }
+
+            youmonst.movement += moveamt;
+            if (youmonst.movement < 0)
+                youmonst.movement = 0;
+            settrack();
+
+            monstermoves++;
+            moves++;
+
+            /********************************/
+            /* once-per-turn things go here */
+            /********************************/
+
+            rng_sect = rng_call_counter;
+            if (Glib)
+                glibr();
+            nh_timeout();
+            run_regions();
+            fprintf(stderr, "  C SECTION timeout+regions: %lu RNG calls\n", rng_call_counter - rng_sect);
+
+            if (u.ublesscnt)
+                u.ublesscnt--;
+
+            /* HP regeneration (C moveloop lines 200-205) */
+            rng_sect = rng_call_counter;
+            if (!u.uinvulnerable) {
+                if (!Upolyd ? (u.uhp < u.uhpmax)
+                            : (u.mh < u.mhmax
+                               || youmonst.data->mlet == S_EEL)) {
+                    ffi_regen_hp(wtcap);
+                }
+            }
+            fprintf(stderr, "  C SECTION hp_regen: %lu RNG calls (hp=%d/%d)\n", rng_call_counter - rng_sect, u.uhp, u.uhpmax);
+
+            /* Moving while encumbered costs HP (C moveloop lines 208-223) */
+            if (wtcap > MOD_ENCUMBER && u.umoved) {
+                if (!(wtcap < EXT_ENCUMBER ? moves % 30
+                                           : moves % 10)) {
+                    if (Upolyd && u.mh > 1) {
+                        u.mh--;
+                    } else if (!Upolyd && u.uhp > 1) {
+                        u.uhp--;
+                    }
+                }
+            }
+
+            /* Energy regeneration (C moveloop lines 225-237) */
+            rng_sect = rng_call_counter;
+            if (u.uen < u.uenmax
+                && ((wtcap < MOD_ENCUMBER
+                     && (!(moves % ((MAXULEV + 8 - u.ulevel)
+                                    * (Role_if(PM_WIZARD) ? 3 : 4)
+                                    / 6)))) || Energy_regeneration)) {
+                u.uen += rn1(
+                    (int) (ACURR(A_WIS) + ACURR(A_INT)) / 15 + 1, 1);
+                if (u.uen > u.uenmax)
+                    u.uen = u.uenmax;
+            }
+            fprintf(stderr, "  C SECTION energy_regen: %lu RNG calls (en=%d/%d moves=%ld freq=%d)\n",
+                rng_call_counter - rng_sect, u.uen, u.uenmax, moves,
+                (int)((MAXULEV + 8 - u.ulevel) * (Role_if(PM_WIZARD) ? 3 : 4) / 6));
+
+            /* Teleportation check (C moveloop line 240) */
+            rng_sect = rng_call_counter;
+            if (!u.uinvulnerable) {
+                if (Teleportation && !rn2(85)) {
+                    xchar old_ux = u.ux, old_uy = u.uy;
+                    tele();
+                    if (u.ux != old_ux || u.uy != old_uy) {
+                        if (!next_to_u()) {
+                            check_leash(old_ux, old_uy);
+                        }
+                    }
+                }
+                /* Polymorph check (C moveloop lines 257-261) */
+                if ((change == 1 && !Polymorph)
+                    || (change == 2 && u.ulycn == NON_PM))
+                    change = 0;
+                if (Polymorph && !rn2(100))
+                    change = 1;
+                else if (u.ulycn >= LOW_PM && !Upolyd
+                         && !rn2(80 - (20 * night())))
+                    change = 2;
+                if (change && !Unchanging) {
+                    if (multi >= 0) {
+                        stop_occupation();
+                        if (change == 1)
+                            polyself(0);
+                        else
+                            you_were();
+                        change = 0;
+                    }
+                }
+            }
+            fprintf(stderr, "  C SECTION tele+poly: %lu RNG calls\n", rng_call_counter - rng_sect);
+
+            rng_sect = rng_call_counter;
+            if (Searching && multi >= 0)
+                (void) dosearch0(1);
+            fprintf(stderr, "  C SECTION search: %lu RNG calls\n", rng_call_counter - rng_sect);
+            rng_sect = rng_call_counter;
+            dosounds();
+            fprintf(stderr, "  C SECTION dosounds: %lu RNG calls\n", rng_call_counter - rng_sect);
+            rng_sect = rng_call_counter;
+            do_storms();
+            fprintf(stderr, "  C SECTION do_storms: %lu RNG calls\n", rng_call_counter - rng_sect);
+            rng_sect = rng_call_counter;
+            gethungry();
+            fprintf(stderr, "  C SECTION gethungry: %lu RNG calls\n", rng_call_counter - rng_sect);
+            rng_sect = rng_call_counter;
+            age_spells();
+            fprintf(stderr, "  C SECTION age_spells: %lu RNG calls\n", rng_call_counter - rng_sect);
+            rng_sect = rng_call_counter;
+            exerchk();
+            fprintf(stderr, "  C SECTION exerchk: %lu RNG calls\n", rng_call_counter - rng_sect);
+            rng_sect = rng_call_counter;
+            invault();
+            if (u.uhave.amulet)
+                amulet();
+            fprintf(stderr, "  C SECTION invault+amulet: %lu RNG calls\n", rng_call_counter - rng_sect);
+
+            rng_sect = rng_call_counter;
+            if (!rn2(40 + (int) (ACURR(A_DEX) * 3)))
+                u_wipe_engr(rnd(3));
+            fprintf(stderr, "  C SECTION engrave: %lu RNG calls (dex=%d threshold=%d)\n",
+                rng_call_counter - rng_sect, (int)ACURR(A_DEX), 40 + (int)(ACURR(A_DEX) * 3));
+            if (u.uevent.udemigod && !u.uinvulnerable) {
+                if (u.udg_cnt)
+                    u.udg_cnt--;
+                if (!u.udg_cnt) {
+                    intervene();
+                    u.udg_cnt = rn1(200, 50);
+                }
+            }
+            restore_attrib();
+
+            /* Immobile count */
+            if (multi < 0) {
+                if (++multi == 0) {
+                    unmul((char *) 0);
+                    if (u.utotype)
+                        deferred_goto();
+                }
+            }
+        }
+    } while (youmonst.movement < NORMAL_SPEED);
+}
+
 /* Execute a game command */
 int nh_ffi_exec_cmd(char cmd) {
 #ifdef REAL_NETHACK
-    /* Simplified movement for testing to avoid full engine state requirements */
     fprintf(stderr, "C FFI Exec: '%c' Start Pos: (%d,%d)\n", cmd, u.ux, u.uy);
     fflush(stderr);
+
+    int is_movement = 1;
+
+    /* Set direction for movement commands */
     switch (cmd) {
-        case 'h': u.ux--; break;
-        case 'j': u.uy++; break;
-        case 'k': u.uy--; break;
-        case 'l': u.ux++; break;
-        case '.': break;
-        default: 
+        case 'h': u.dx = -1; u.dy =  0; u.dz = 0; break; /* West */
+        case 'j': u.dx =  0; u.dy =  1; u.dz = 0; break; /* South */
+        case 'k': u.dx =  0; u.dy = -1; u.dz = 0; break; /* North */
+        case 'l': u.dx =  1; u.dy =  0; u.dz = 0; break; /* East */
+        case 'y': u.dx = -1; u.dy = -1; u.dz = 0; break; /* NW */
+        case 'u': u.dx =  1; u.dy = -1; u.dz = 0; break; /* NE */
+        case 'b': u.dx = -1; u.dy =  1; u.dz = 0; break; /* SW */
+        case 'n': u.dx =  1; u.dy =  1; u.dz = 0; break; /* SE */
+        case '.': case '5':
+            /* Rest/wait: time passes but no movement */
+            is_movement = 0;
+            break;
+        default:
             fprintf(stderr, "FFI: Unsupported command '%c'\n", cmd);
             fflush(stderr);
             return -1;
     }
-    moves++;
-    fprintf(stderr, "C FFI Exec: '%c' End Pos: (%d,%d)\n", cmd, u.ux, u.uy);
+
+    if (is_movement) {
+        /* Call real domove() for movement commands */
+        context.run = 0;  /* Normal walk, not running */
+        context.nopick = 0;
+        domove_attempting |= DOMOVE_WALK;
+        u.umoved = TRUE;
+        domove();
+    } else {
+        u.umoved = FALSE;
+    }
+
+    /* Post-command processing: monster turns, new turn, per-turn effects.
+       This matches C's moveloop after the player takes an action.
+       We use setjmp/longjmp to catch nh_terminate (player death) gracefully. */
+    ffi_player_died = 0;
+    ffi_in_post_command = 1;
+    if (setjmp(ffi_terminate_jmp) == 0) {
+        ffi_post_command();
+    } else {
+        /* Returned via longjmp from nh_terminate — player died */
+        fprintf(stderr, "C FFI Exec: '%c' — player died during post-turn processing\n", cmd);
+        fflush(stderr);
+    }
+    ffi_in_post_command = 0;
+
+    fprintf(stderr, "C FFI Exec: '%c' End Pos: (%d,%d) moves=%ld died=%d\n",
+            cmd, u.ux, u.uy, moves, ffi_player_died);
     fflush(stderr);
-    return 0;
+    return ffi_player_died ? -2 : 0;
 #else
     if (!g_initialized) {
         return -1;
@@ -1218,6 +1660,16 @@ void reseed_random(int (*fn)(int)) {
 /* Forward declaration for rng_trace_record (defined below) */
 static void rng_trace_record(const char *func, unsigned long arg, unsigned long result);
 
+/* Return the total number of RNG calls made since last reset */
+unsigned long nh_ffi_get_rng_call_count(void) {
+#ifdef REAL_NETHACK
+    extern unsigned long rng_call_counter;
+    return rng_call_counter;
+#else
+    return 0;
+#endif
+}
+
 int nh_ffi_rng_rn2(int limit) {
 #ifdef REAL_NETHACK
     int r = rn2(limit);
@@ -1371,6 +1823,23 @@ char* nh_ffi_export_level(void) {
     }
     p += sprintf(p, "], ");
 
+    /* Door states: array of {x, y, mask} for all door cells */
+    p += sprintf(p, "\"doors\": [");
+    {
+        int first = 1;
+        for (int y = 0; y < ROWNO && p < end; y++) {
+            for (int x = 0; x < COLNO && p < end; x++) {
+                if (level.locations[x][y].typ == DOOR) {
+                    if (!first) p += sprintf(p, ",");
+                    p += sprintf(p, "{\"x\":%d,\"y\":%d,\"mask\":%d}",
+                        x, y, level.locations[x][y].doormask);
+                    first = 0;
+                }
+            }
+        }
+    }
+    p += sprintf(p, "], ");
+
     /* Rooms */
     p += sprintf(p, "\"rooms\": [");
     for (int i = 0; rooms[i].hx >= 0 && i < MAXNROFROOMS && p < end; i++) {
@@ -1411,17 +1880,30 @@ char* nh_ffi_export_level(void) {
     p += sprintf(p, "], ");
 
     /* Monsters */
+    /* Level flags for dosounds parity */
+    p += sprintf(p, "\"nfountains\": %d, \"nsinks\": %d, ", level.flags.nfountains, level.flags.nsinks);
+    p += sprintf(p, "\"has_court\": %d, \"has_swamp\": %d, \"has_vault\": %d, ",
+        level.flags.has_court ? 1 : 0, level.flags.has_swamp ? 1 : 0, level.flags.has_vault ? 1 : 0);
+    p += sprintf(p, "\"has_beehive\": %d, \"has_morgue\": %d, \"has_barracks\": %d, \"has_zoo\": %d, ",
+        level.flags.has_beehive ? 1 : 0, level.flags.has_morgue ? 1 : 0,
+        level.flags.has_barracks ? 1 : 0, level.flags.has_zoo ? 1 : 0);
+    p += sprintf(p, "\"has_shop\": %d, \"has_temple\": %d, ",
+        level.flags.has_shop ? 1 : 0, level.flags.has_temple ? 1 : 0);
+
+    /* Monsters */
     p += sprintf(p, "\"monsters\": [");
     {
         struct monst *mtmp;
         int first = 1;
         for (mtmp = fmon; mtmp && p < end; mtmp = mtmp->nmon) {
             if (!first) p += sprintf(p, ",");
-            p += sprintf(p, "{\"mnum\":%d,\"x\":%d,\"y\":%d,\"hp\":%d,\"hpmax\":%d,\"peaceful\":%d,\"asleep\":%d}",
+            p += sprintf(p, "{\"mnum\":%d,\"x\":%d,\"y\":%d,\"hp\":%d,\"hpmax\":%d,\"peaceful\":%d,\"asleep\":%d,\"mmove\":%d,\"mspeed\":%d}",
                 mtmp->mnum, mtmp->mx, mtmp->my,
                 mtmp->mhp, mtmp->mhpmax,
                 mtmp->mpeaceful ? 1 : 0,
-                mtmp->msleeping ? 1 : 0);
+                mtmp->msleeping ? 1 : 0,
+                mtmp->data->mmove,
+                (int)mtmp->mspeed);
             first = 0;
         }
     }

@@ -362,6 +362,12 @@ pub struct Monster {
 
     /// Eating timeout (meating in C)
     pub eating_timeout: u16,
+
+    /// Movement track history (C: mtrack[MTSZ=4])
+    /// Stores previous positions to avoid backtracking.
+    /// mtrack[0] is most recent, mtrack[3] is oldest.
+    #[serde(default)]
+    pub mtrack: [(i8, i8); 4],
 }
 
 impl Monster {
@@ -428,6 +434,7 @@ impl Monster {
             can_fly: false,
             spec_used: 0,
             eating_timeout: 0,
+            mtrack: [(0, 0); 4],
         }
     }
 

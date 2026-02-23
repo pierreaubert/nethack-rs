@@ -70,6 +70,7 @@ unsafe extern "C" {
     pub fn nh_ffi_reset(seed: c_ulong) -> c_int;
     pub fn nh_ffi_reset_rng(seed: c_ulong);
     pub fn nh_ffi_generate_level() -> c_int;
+    pub fn nh_ffi_generate_and_place() -> c_int;
     pub fn nh_ffi_generate_maze();
 
     // Command Execution
@@ -123,6 +124,12 @@ unsafe extern "C" {
     pub fn nh_ffi_is_game_over() -> c_int;
     pub fn nh_ffi_is_game_won() -> c_int;
     pub fn nh_ffi_get_result_message() -> *mut c_char;
+
+    // RNG
+    pub fn nh_ffi_get_rng_call_count() -> c_ulong;
+
+    // Monster AI control
+    pub fn nh_ffi_set_skip_movemon(skip: c_int);
 
     // Logic/Calculation Wrappers
     pub fn nh_ffi_rng_rn2(limit: c_int) -> c_int;
@@ -235,6 +242,19 @@ impl CGameEngine {
         Ok(())
     }
 
+    pub fn generate_and_place(&self) -> Result<(), String> {
+        if !self.initialized {
+            return Err("Game not initialized".to_string());
+        }
+
+        let result = unsafe { nh_ffi_generate_and_place() };
+        if result < 0 {
+            return Err("Failed to generate level and place player".to_string());
+        }
+
+        Ok(())
+    }
+
     pub fn generate_maze(&self) -> Result<(), String> {
         if !self.initialized {
             return Err("Game not initialized".to_string());
@@ -251,10 +271,11 @@ impl CGameEngine {
 
         let result = unsafe { nh_ffi_exec_cmd(cmd as c_char) };
         if result == -2 {
-            return Err(format!("Unknown command: {}", cmd));
+            // Player died during post-turn processing (starvation, monster kill, etc.)
+            return Err("Player died".to_string());
         }
         if result < 0 {
-            return Err("Command failed".to_string());
+            return Err(format!("Command failed: {}", cmd));
         }
 
         Ok(())
@@ -460,6 +481,16 @@ impl CGameEngine {
         let result = unsafe { CStr::from_ptr(msg_ptr).to_string_lossy().into_owned() };
         unsafe { nh_ffi_free_string(msg_ptr as *mut c_void) };
         result
+    }
+
+    pub fn rng_call_count(&self) -> u64 {
+        unsafe { nh_ffi_get_rng_call_count() as u64 }
+    }
+
+    /// Set skip_movemon flag: when true, ffi_post_command skips movemon()
+    /// (monster AI), so only infrastructure RNG calls are made.
+    pub fn set_skip_movemon(&self, skip: bool) {
+        unsafe { nh_ffi_set_skip_movemon(if skip { 1 } else { 0 }) }
     }
 
     pub fn rng_rn2(&self, limit: i32) -> i32 {

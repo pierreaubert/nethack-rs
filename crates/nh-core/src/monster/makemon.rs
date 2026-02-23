@@ -484,6 +484,12 @@ fn init_monster(
         mon.female = rng.rn2(2) == 0;
     }
 
+    // NODIAG: grid bugs can only move cardinally (C: hack.h:444)
+    // PM_GRID_BUG = 115
+    if monster_type == 115 {
+        mon.no_diagonal_move = true;
+    }
+
     // Equip weapons and inventory
     if !mm_flags.contains(MakeMonFlags::NO_MINVENT) {
         m_initweap(&mut mon, pm, rng);

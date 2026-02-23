@@ -353,12 +353,13 @@ pub fn dochug(
         }
     }
 
-    // Line 1938-1942: Handle confusion removal (mon.c:1938-1942)
-    // Confused monsters gradually lose confusion
-    if rng.one_in(50) {
-        let mon_name = level.monster(monster_id).map(|m| m.name.clone());
-        if let Some(m) = level.monster_mut(monster_id) {
-            if m.state.confused {
+    // Line 414-416 (monmove.c): confused monsters get unconfused with small probability
+    // C: if (mtmp->mconf && !rn2(50)) — short-circuits: RNG only called if confused
+    {
+        let is_confused = level.monster(monster_id).map_or(false, |m| m.state.confused);
+        if is_confused && rng.one_in(50) {
+            let mon_name = level.monster(monster_id).map(|m| m.name.clone());
+            if let Some(m) = level.monster_mut(monster_id) {
                 m.state.confused = false;
                 if let Some(name) = mon_name {
                     level.pline(format!("{} is no longer confused.", name));
@@ -367,12 +368,13 @@ pub fn dochug(
         }
     }
 
-    // Line 1944-1948: Handle stun removal (mon.c:1944-1948)
-    // Stunned monsters wake up faster than confused
-    if rng.one_in(10) {
-        let mon_name = level.monster(monster_id).map(|m| m.name.clone());
-        if let Some(m) = level.monster_mut(monster_id) {
-            if m.state.stunned {
+    // Line 418-420 (monmove.c): stunned monsters get un-stunned with larger probability
+    // C: if (mtmp->mstun && !rn2(10)) — short-circuits: RNG only called if stunned
+    {
+        let is_stunned = level.monster(monster_id).map_or(false, |m| m.state.stunned);
+        if is_stunned && rng.one_in(10) {
+            let mon_name = level.monster(monster_id).map(|m| m.name.clone());
+            if let Some(m) = level.monster_mut(monster_id) {
                 m.state.stunned = false;
                 if let Some(name) = mon_name {
                     level.pline(format!("{} is no longer stunned.", name));
@@ -398,6 +400,10 @@ pub fn dochug(
     }
 
     // ========== SECTION B: DISTANCE AND ITEM USAGE CHECKS ==========
+
+    // distfleeck() (monmove.c:314-349): check distance and scariness of attacks
+    // C always calls rn2(5) for bravegremlin check, even when result is unused
+    let _brave_gremlin = rng.rn2(5) == 0;
 
     // Line 1962-1972: Calculate distance-based decisions (mon.c:1962-1972)
     let (in_range, nearby, can_use_healing) = {
@@ -478,9 +484,17 @@ pub fn dochug(
 
     // ========== SECTION C: NORMAL MOVEMENT DECISION ==========
 
-    // Line 1997-2000: Main movement decision (mon.c:1997-2000)
-    // This delegates to the core movement logic based on distance
-    dochug_movement(monster_id, level, player, nearby, in_range, rng)
+    // Line 601 (monmove.c): Main movement decision via m_move
+    let result = dochug_movement(monster_id, level, player, nearby, in_range, rng);
+
+    // Line 602-603 (monmove.c): if (tmp != 2) distfleeck(mtmp, &inrange, &nearby, &scared)
+    // Second distfleeck call after movement — always calls rn2(5) for bravegremlin
+    // tmp==2 means monster died; AiAction::Died is our equivalent
+    if !matches!(result, AiAction::Died) {
+        let _brave_gremlin_2 = rng.rn2(5) == 0;
+    }
+
+    result
 }
 
 /// Check if monster should wake up (disturb function from monmove.c)
@@ -897,46 +911,142 @@ fn move_towards(
     let monster = level.monster(monster_id).unwrap();
     let mx = monster.x;
     let my = monster.y;
+    let mtrack = monster.mtrack;
+    let no_diagonal = monster.no_diagonal_move;
 
     // Calculate direction to target
     let dx = (target_x - mx).signum();
     let dy = (target_y - my).signum();
 
     // Confused monsters move randomly
-    let (move_dx, move_dy) = if monster.state.confused {
-        random_direction(rng)
-    } else {
-        (dx, dy)
-    };
+    if monster.state.confused {
+        let (cdx, cdy) = random_direction(rng);
+        let new_x = mx + cdx;
+        let new_y = my + cdy;
+        if level.is_valid_pos(new_x, new_y)
+            && level.is_walkable(new_x, new_y)
+            && level.monster_at(new_x, new_y).is_none()
+        {
+            level.move_monster(monster_id, new_x, new_y);
+            return AiAction::Moved(new_x, new_y);
+        }
+        return AiAction::Waited;
+    }
 
-    let new_x = mx + move_dx;
-    let new_y = my + move_dy;
+    // Precompute current-cell diagonal door blocking (C: mon.c:1430)
+    // Diagonal movement is blocked from/to doors unless doorway (D_NODOOR) or broken (D_BROKEN)
+    use crate::dungeon::{CellType, DoorState};
+    let now_door_blocks_diag = level.cells[mx as usize][my as usize].typ == CellType::Door
+        && (level.cells[mx as usize][my as usize].flags & !DoorState::BROKEN.bits()) != 0;
 
-    // Check if target position is valid and walkable
-    if level.is_valid_pos(new_x, new_y) && level.is_walkable(new_x, new_y) {
-        // Check if there's another monster there
-        if level.monster_at(new_x, new_y).is_some() {
-            // Can't move there, try alternative direction
-            let alt_action = try_alternative_move(monster_id, level, dx, dy, rng);
-            return alt_action;
+    // Enumerate all valid adjacent positions (C: mfndpos)
+    // C iterates x-major, y-minor: for(nx=x-1..x+1) for(ny=y-1..y+1)
+    let mut valid_positions: Vec<(i8, i8)> = Vec::new();
+    for adj_dx in -1..=1_i8 {
+        for adj_dy in -1..=1_i8 {
+            if adj_dx == 0 && adj_dy == 0 {
+                continue;
+            }
+            // Skip diagonal moves for grid bugs etc. (C: mon.c:1429)
+            if no_diagonal && adj_dx != 0 && adj_dy != 0 {
+                continue;
+            }
+            let nx = mx + adj_dx;
+            let ny = my + adj_dy;
+            if !level.is_valid_pos(nx, ny) {
+                continue;
+            }
+            // Diagonal door check (C: mon.c:1428-1431)
+            // Cannot move diagonally from/to a door unless it's a doorway or broken
+            if adj_dx != 0 && adj_dy != 0 {
+                if now_door_blocks_diag {
+                    continue;
+                }
+                let target_cell = &level.cells[nx as usize][ny as usize];
+                if target_cell.typ == CellType::Door
+                    && (target_cell.flags & !DoorState::BROKEN.bits()) != 0
+                {
+                    continue;
+                }
+                // Tight squeeze check (C: mon.c:1523-1525)
+                // Cannot move diagonally if both adjacent cardinal cells are rock
+                // and the monster is too large to squeeze through
+                let corner1_rock = level.cells[mx as usize][ny as usize].typ.is_rock();
+                let corner2_rock = level.cells[nx as usize][my as usize].typ.is_rock();
+                if corner1_rock && corner2_rock {
+                    // cant_squeeze_thru: verysmall() is always false for Large+
+                    // For simple monsters (tiny/small/medium) this never triggers
+                    // TODO: check monster size >= Large when needed
+                }
+            }
+            if level.is_walkable(nx, ny)
+                && level.monster_at(nx, ny).is_none()
+            {
+                valid_positions.push((nx, ny));
+            }
+        }
+    }
+
+    let cnt = valid_positions.len();
+    if cnt == 0 {
+        return AiAction::Waited;
+    }
+
+    // Track avoidance (C: monmove.c:1142-1148)
+    // jcnt = min(MTSZ=4, cnt-1)
+    let jcnt = 4.min(cnt.saturating_sub(1));
+
+    // Diagnostic logging (enable for debugging convergence issues)
+    // eprintln!("    move_towards: mon {} at ({},{}) target ({},{}) cnt={} jcnt={} mtrack={:?}",
+    //     monster_id.0, mx, my, target_x, target_y, cnt, jcnt, mtrack);
+
+    let mut best_pos: Option<(i8, i8)> = None;
+    let mut best_dist = i32::MAX;
+
+    for &(nx, ny) in &valid_positions {
+        // Track avoidance: skip positions that match recent track entries
+        // C: if (appr != 0) { for j in 0..jcnt: if match, rn2(4*(cnt-j)) -> skip }
+        let mut skip = false;
+        for j in 0..jcnt {
+            let (tx, ty) = mtrack[j];
+            if nx == tx && ny == ty {
+                let rng_arg = 4 * (cnt - j) as u32;
+                let rng_val = rng.rn2(rng_arg);
+                if rng_val != 0 {
+                    skip = true;
+                    break; // C: goto nxti — only break on skip
+                }
+                // C: when rn2 returns 0 (keep), loop continues to check remaining track entries
+                // The position might match a later track entry and get skipped there
+            }
+        }
+        if skip {
+            continue;
         }
 
-        // Move the monster
-        level.move_monster(monster_id, new_x, new_y);
-        AiAction::Moved(new_x, new_y)
+        // For appr==1 (approaching), pick closest to target (deterministic, no RNG)
+        let dist = (nx as i32 - target_x as i32).pow(2) + (ny as i32 - target_y as i32).pow(2);
+        if dist < best_dist {
+            best_dist = dist;
+            best_pos = Some((nx, ny));
+        }
+    }
+
+    if let Some((nx, ny)) = best_pos {
+        level.move_monster(monster_id, nx, ny);
+        AiAction::Moved(nx, ny)
     } else {
-        // Can't move in desired direction, try alternative
-        try_alternative_move(monster_id, level, dx, dy, rng)
+        AiAction::Waited
     }
 }
 
-/// Try to find an alternative movement direction
+/// Try to find an alternative movement direction (used by non-approach movement)
 fn try_alternative_move(
     monster_id: MonsterId,
     level: &mut Level,
     preferred_dx: i8,
     preferred_dy: i8,
-    rng: &mut GameRng,
+    _rng: &mut GameRng,
 ) -> AiAction {
     let monster = level.monster(monster_id).unwrap();
     let mx = monster.x;
@@ -944,21 +1054,12 @@ fn try_alternative_move(
 
     // Try diagonal movements if moving straight
     let alternatives: Vec<(i8, i8)> = if preferred_dx == 0 && preferred_dy != 0 {
-        // Moving vertically, try diagonals
         vec![(1, preferred_dy), (-1, preferred_dy)]
     } else if preferred_dy == 0 && preferred_dx != 0 {
-        // Moving horizontally, try diagonals
         vec![(preferred_dx, 1), (preferred_dx, -1)]
     } else {
-        // Already diagonal, try cardinal directions
         vec![(preferred_dx, 0), (0, preferred_dy)]
     };
-
-    // Shuffle alternatives for variety
-    let mut alternatives = alternatives;
-    if rng.one_in(2) {
-        alternatives.reverse();
-    }
 
     for (dx, dy) in alternatives {
         let new_x = mx + dx;
@@ -973,7 +1074,6 @@ fn try_alternative_move(
         }
     }
 
-    // Couldn't move anywhere
     AiAction::Waited
 }
 

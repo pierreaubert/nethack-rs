@@ -4,6 +4,7 @@
 use crate::compat::*;
 
 use crate::consts::NUM_ATTRS;
+use crate::rng::GameRng;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
@@ -378,31 +379,6 @@ impl AttributeModifiers {
         self.current(attr) != old_current
     }
 
-    /// Record attribute exercise (exercise equivalent - simplified)
-    ///
-    /// Tracks practice toward attribute improvement based on activity.
-    pub fn record_exercise(&mut self, attr: Attribute, gaining: bool) {
-        let idx = attr.index();
-
-        // Can't exercise Int or Cha; physical attrs only when not polymorphed
-        if matches!(attr, Attribute::Intelligence | Attribute::Charisma) {
-            return;
-        }
-
-        // Law of diminishing returns:
-        // - Gaining is harder at higher values (0% at 18)
-        // - Loss is even at all levels (50%)
-        let val = self.current(attr);
-        if gaining {
-            // Higher attributes make exercise less likely
-            // Probability inversely related to current value
-            if (val as i32 + (idx as i32 * 10)) % 19 > val as i32 {
-                self.exercise[idx] = self.exercise[idx].saturating_add(1);
-            }
-        } else {
-            self.exercise[idx] = self.exercise[idx].saturating_sub(1);
-        }
-    }
 
     /// Redistribute attributes (redist_attr equivalent - simplified)
     ///
@@ -577,45 +553,69 @@ pub fn apply_attribute_curse(rng: &mut crate::GameRng) -> Option<&'static str> {
     Some(curses[idx])
 }
 
-/// Perform periodic attribute exercise (exerper equivalent - stub)
+/// Record attribute exercise (C: exercise() from attrib.c:413)
 ///
-/// Called every 10 turns to apply exercise based on hunger and encumbrance.
-/// Full implementation requires player state and hunger tracking.
-pub fn periodic_exercise(
-    modifiers: &mut AttributeModifiers,
-    hunger_state: &str,
-    encumbrance_level: i32,
+/// Free function to avoid borrow conflicts in gameloop.
+/// Consumes rn2(19) for gains (harder at higher attribute values),
+/// rn2(2) for losses (50% chance). Capped at |AVAL|=50.
+pub fn record_exercise(
+    exercise: &mut [i8; 6],
+    attr_current: &Attributes,
+    is_polymorphed: bool,
+    attr: Attribute,
+    gaining: bool,
+    rng: &mut GameRng,
 ) {
-    // Simplified version - real one checks hunger state and encumbrance
-    match hunger_state {
-        "satiated" => {
-            modifiers.record_exercise(Attribute::Dexterity, false);
-        }
-        "normal" => {
-            modifiers.record_exercise(Attribute::Constitution, true);
-        }
-        "weak" => {
-            modifiers.record_exercise(Attribute::Strength, false);
-        }
-        _ => {}
+    const AVAL: i8 = 50;
+
+    // C: if (i == A_INT || i == A_CHA) return;
+    if matches!(attr, Attribute::Intelligence | Attribute::Charisma) {
+        return;
     }
 
-    // Encumbrance effects
-    match encumbrance_level {
-        1 => {
-            // Moderately encumbered
-            modifiers.record_exercise(Attribute::Strength, true);
+    // C: if (Upolyd && i != A_WIS) return;
+    if is_polymorphed && attr != Attribute::Wisdom {
+        return;
+    }
+
+    let idx = attr.index();
+    // C: if (abs(AEXE(i)) < AVAL)
+    if exercise[idx].abs() < AVAL {
+        // C: AEXE(i) += (inc_or_dec) ? (rn2(19) > ACURR(i)) : -rn2(2);
+        if gaining {
+            let roll = rng.rn2(19) as i8;
+            let cur = attr_current.get(attr);
+            if roll > cur {
+                exercise[idx] = exercise[idx].saturating_add(1);
+            }
+        } else {
+            let roll = rng.rn2(2) as i8;
+            exercise[idx] = exercise[idx].saturating_sub(roll);
         }
-        2 => {
-            // Heavily encumbered
-            modifiers.record_exercise(Attribute::Strength, true);
-            modifiers.record_exercise(Attribute::Dexterity, false);
-        }
-        3 => {
-            // Extremely encumbered
-            modifiers.record_exercise(Attribute::Dexterity, false);
-            modifiers.record_exercise(Attribute::Constitution, false);
-        }
-        _ => {}
+    }
+}
+
+/// Exercise/abuse flavor text (C: exertext from attrib.c:517-524)
+///
+/// Returns the message shown when an attribute changes due to exercise/abuse.
+pub fn exercise_message(attr_idx: usize, gained: bool) -> Option<String> {
+    let texts: [(Option<&str>, Option<&str>); 6] = [
+        (Some("exercising diligently"), Some("exercising properly")),           // Str
+        (None, None),                                                           // Int
+        (Some("very observant"), Some("paying attention")),                     // Wis
+        (Some("working on your reflexes"), Some("working on reflexes lately")), // Dex
+        (Some("leading a healthy life-style"), Some("watching your health")),   // Con
+        (None, None),                                                           // Cha
+    ];
+
+    if attr_idx >= 6 {
+        return None;
+    }
+
+    let (gain_text, loss_text) = texts[attr_idx];
+    if gained {
+        gain_text.map(|t| format!("You must have been {}.", t))
+    } else {
+        loss_text.map(|t| format!("You haven't been {}.", t))
     }
 }
