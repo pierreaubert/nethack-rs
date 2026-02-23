@@ -940,9 +940,8 @@ fn test_rng_with_movemon_diagnostic() {
 
     let mut cumulative_delta: i64 = 0;
 
-    // Run 65 turns with movemon enabled — assert delta=0 per turn
-    // (Turn 65 diverges due to monster spawning RNG, not movement)
-    for turn in 0..65 {
+    // Run 500 turns with movemon enabled — assert delta=0 per turn
+    for turn in 0..500 {
         let c_before = c_engine.rng_call_count();
         let rust_before = rust_loop.state().rng.call_count();
 
@@ -964,6 +963,15 @@ fn test_rng_with_movemon_diagnostic() {
             }
             Err(e) => panic!("C rest failed: {}", e),
         }
+
+        // Sync C's viz_array into Rust's level.visible and couldsee so spawn position
+        // selection uses identical visibility (C: ray-casting vs Rust: Bresenham)
+        // and lined_up() boulder checks match C's couldsee() in m_move
+        let viz = c_engine.get_visibility();
+        rust_loop.state_mut().current_level.visible = viz;
+        let cs = c_engine.get_couldsee();
+        rust_loop.state_mut().current_level.couldsee = cs;
+
         // Rust's move_monsters() will print per-monster RNG to stderr
         rust_loop.tick(Command::Rest);
 
@@ -995,7 +1003,7 @@ fn test_rng_with_movemon_diagnostic() {
     }
 
     eprintln!("\n=== Movemon Summary ===");
-    eprintln!("  Cumulative |delta| over 65 turns: {}", cumulative_delta);
+    eprintln!("  Cumulative |delta| over 500 turns: {}", cumulative_delta);
     assert_eq!(cumulative_delta, 0,
-        "RNG delta must be 0 per turn with movemon enabled (65 turns)");
+        "RNG delta must be 0 per turn with movemon enabled (500 turns)");
 }

@@ -107,7 +107,9 @@ bitflags! {
         const NOTAKE = 0x00000800;
         const NOEYES = 0x00001000;
         const NOHANDS = 0x00002000;
-        const NOLIMBS = 0x00004000;
+        // C: M1_NOLIMBS = 0x00006000L = NOHANDS | 0x4000
+        // NOLIMBS is a SUPERSET of NOHANDS: monsters with no limbs also have no hands.
+        const NOLIMBS = 0x00006000;
         const NOHEAD = 0x00008000;
         const MINDLESS = 0x00010000;
         const HUMANOID = 0x00020000;

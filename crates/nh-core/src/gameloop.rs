@@ -2213,9 +2213,13 @@ impl GameLoop {
 
                 let rng_after = state.rng.call_count();
                 let rng_delta = rng_after - rng_before;
+                // Get post-movement position for comparison with C
+                let (post_x, post_y) = state.current_level.monster(id)
+                    .map(|m| (m.x, m.y))
+                    .unwrap_or((*mx, *my));
                 if rng_delta > 0 || cfg!(debug_assertions) {
-                    eprintln!("  Rust MON {} type={} '{}' at ({},{}): {} RNG calls",
-                        id.0, mtype, mname, mx, my, rng_delta);
+                    eprintln!("  Rust MON {} type={} '{}' ({},{})→({},{}): {} RNG calls",
+                        id.0, mtype, mname, mx, my, post_x, post_y, rng_delta);
                 }
             }
 
@@ -2299,9 +2303,21 @@ impl GameLoop {
             // Design note: use 25 for demigod, 50 for post-stronghold depths
             let spawn_threshold = 70u32;
             if state.rng.rn2(spawn_threshold) == 0 {
-                // Spawn a random monster on the level
-                // For now, just consume the RNG call for parity.
-                // Full monster spawning is handled by the timed event system.
+                // Spawn a random monster on the level — match C's makemon(0,0,0,NO_MM_FLAGS)
+                let depth = state.current_level.dlevel.depth();
+                let player_level = state.player.exp_level as i32;
+                let player_alignment = state.player.alignment.typ.value();
+                let align_record = state.player.alignment.record;
+                let in_hell = false; // TODO: check actual hell status
+                crate::dungeon::generation::makemon_runtime_c_rng(
+                    &mut state.current_level,
+                    player_level,
+                    player_alignment,
+                    align_record,
+                    depth,
+                    in_hell,
+                    &mut state.rng,
+                );
             }
         }
 
@@ -2690,20 +2706,64 @@ impl GameLoop {
                 .get(crate::player::Attribute::Dexterity) as i32;
             let wipe_threshold = (40 + dex * 3) as u32;
             if state.rng.rn2(wipe_threshold) == 0 {
-                let wipe_count = state.rng.rnd(3);
-                // Erode engravings at player's position
-                if let Some(eng) = state
-                    .current_level
-                    .engravings
-                    .iter_mut()
-                    .find(|e| e.x == state.player.pos.x && e.y == state.player.pos.y)
-                {
-                    // Remove characters from the engraving
-                    let len = eng.text.len();
-                    if wipe_count as usize >= len {
-                        eng.text.clear();
-                    } else {
-                        eng.text.truncate(len - wipe_count as usize);
+                let cnt = state.rng.rnd(3);
+
+                // C: u_wipe_engr calls wipe_engr_at with can_reach_floor(TRUE)
+                // can_reach_floor returns FALSE when swallowed → skip entirely
+                if !state.player.swallowed {
+                    let px = state.player.pos.x;
+                    let py = state.player.pos.y;
+                    let eng_idx = state
+                        .current_level
+                        .engravings
+                        .iter()
+                        .position(|e| e.x == px && e.y == py);
+
+                    if let Some(idx) = eng_idx {
+                        let engr_type = state.current_level.engravings[idx].engr_type;
+                        // C: skip HEADSTONE (indelible) and BURN when magical=FALSE
+                        // u_wipe_engr always passes magical=FALSE
+                        if engr_type != crate::dungeon::EngravingType::Headstone
+                            && engr_type != crate::dungeon::EngravingType::Burn
+                        {
+                            // C: extra rn2 for hard engravings (ENGRAVE, MARK)
+                            // if (ep->engr_type != DUST && ep->engr_type != ENGR_BLOOD)
+                            //     cnt = rn2(1 + 50/(cnt+1)) ? 0 : 1;
+                            let actual_cnt = if engr_type
+                                != crate::dungeon::EngravingType::Dust
+                                && engr_type != crate::dungeon::EngravingType::BloodStain
+                            {
+                                // rn2(1 + 50/(cnt+1)): usually nonzero → actual_cnt=0
+                                if state.rng.rn2(1 + 50 / (cnt + 1)) != 0 {
+                                    0usize
+                                } else {
+                                    1usize
+                                }
+                            } else {
+                                cnt as usize
+                            };
+
+                            if actual_cnt > 0 {
+                                let text = state.current_level.engravings[idx]
+                                    .text
+                                    .as_bytes()
+                                    .to_vec();
+                                crate::dungeon::generation::wipeout_text_rng(
+                                    &text,
+                                    actual_cnt,
+                                    &mut state.rng,
+                                );
+                                let len =
+                                    state.current_level.engravings[idx].text.len();
+                                if actual_cnt >= len {
+                                    state.current_level.engravings.remove(idx);
+                                } else {
+                                    state.current_level.engravings[idx]
+                                        .text
+                                        .truncate(len - actual_cnt);
+                                }
+                            }
+                        }
                     }
                 }
             }

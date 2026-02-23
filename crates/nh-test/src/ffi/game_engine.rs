@@ -146,6 +146,14 @@ unsafe extern "C" {
     pub fn nh_ffi_get_attributes_json() -> *mut c_char;
     pub fn nh_ffi_export_level() -> *mut c_char;
 
+    // Visibility sync (convergence framework)
+    pub fn nh_ffi_get_visibility(out: *mut c_char);
+    pub fn nh_ffi_get_couldsee(out: *mut c_char);
+
+    // Debug: cell state and mfndpos diagnostics (return static buffer pointers)
+    pub fn nh_ffi_debug_cell(x: c_int, y: c_int) -> *const c_char;
+    pub fn nh_ffi_debug_mfndpos(mon_index: c_int) -> *const c_char;
+
     // RNG tracing (convergence framework)
     pub fn nh_ffi_enable_rng_tracing();
     pub fn nh_ffi_disable_rng_tracing();
@@ -559,6 +567,46 @@ impl CGameEngine {
         let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
         unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
         result
+    }
+
+    /// Get C's viz_array as a Rust-ordered [x][y] visibility grid (80×21)
+    pub fn get_visibility(&self) -> Vec<Vec<bool>> {
+        let mut buf = vec![0u8; 80 * 21]; // COLNO * ROWNO
+        unsafe { nh_ffi_get_visibility(buf.as_mut_ptr() as *mut c_char) };
+        let mut visible = vec![vec![false; 21]; 80];
+        for x in 0..80 {
+            for y in 0..21 {
+                visible[x][y] = buf[x * 21 + y] != 0;
+            }
+        }
+        visible
+    }
+
+    /// Get C's viz_array COULD_SEE as a Rust-ordered [x][y] grid (80×21)
+    pub fn get_couldsee(&self) -> Vec<Vec<bool>> {
+        let mut buf = vec![0u8; 80 * 21]; // COLNO * ROWNO
+        unsafe { nh_ffi_get_couldsee(buf.as_mut_ptr() as *mut c_char) };
+        let mut couldsee = vec![vec![false; 21]; 80];
+        for x in 0..80 {
+            for y in 0..21 {
+                couldsee[x][y] = buf[x * 21 + y] != 0;
+            }
+        }
+        couldsee
+    }
+
+    /// Debug: get C cell state at (x,y) as string
+    pub fn debug_cell(&self, x: i32, y: i32) -> String {
+        let ptr = unsafe { nh_ffi_debug_cell(x as c_int, y as c_int) };
+        if ptr.is_null() { return String::new(); }
+        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
+    }
+
+    /// Debug: get C mfndpos results for monster at given index as string
+    pub fn debug_mfndpos(&self, mon_index: i32) -> String {
+        let ptr = unsafe { nh_ffi_debug_mfndpos(mon_index as c_int) };
+        if ptr.is_null() { return String::new(); }
+        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
     }
 
     pub fn enable_rng_tracing(&self) {

@@ -35,6 +35,11 @@ fn default_visible() -> Vec<Vec<bool>> {
     vec![vec![false; ROWNO]; COLNO]
 }
 
+/// Create default couldsee grid (all false)
+fn default_couldsee() -> Vec<Vec<bool>> {
+    vec![vec![false; ROWNO]; COLNO]
+}
+
 /// Engraving types (from engrave.c)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[repr(u8)]
@@ -278,6 +283,10 @@ pub struct Level {
     #[serde(skip, default = "default_visible")]
     pub visible: Vec<Vec<bool>>,
 
+    /// Cells the player could see if they were lit (C: viz_array & COULD_SEE)
+    #[serde(skip, default = "default_couldsee")]
+    pub couldsee: Vec<Vec<bool>>,
+
     /// Rooms on this level
     #[serde(default)]
     pub rooms: Vec<super::room::Room>,
@@ -419,6 +428,9 @@ pub struct LevelFixture {
     /// Door states from C's doormask
     #[serde(default)]
     pub doors: Vec<FixtureDoor>,
+    /// Engravings on the dungeon floor
+    #[serde(default)]
+    pub engravings: Vec<FixtureEngraving>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -478,6 +490,15 @@ fn default_mmove() -> i32 {
     12 // NORMAL_SPEED
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FixtureEngraving {
+    pub x: i32,
+    pub y: i32,
+    /// Raw C type: DUST=1, ENGRAVE=2, BURN=3, MARK=4, ENGR_BLOOD=5, HEADSTONE=6
+    pub typ: u8,
+    pub txt: String,
+}
+
 impl Default for Level {
     fn default() -> Self {
         Self::new(DLevel::default())
@@ -503,6 +524,7 @@ impl Level {
             flags: LevelFlags::default(),
             explored: default_explored(),
             visible: default_visible(),
+            couldsee: default_couldsee(),
             rooms: Vec::new(),
             next_object_id: 1,
             next_monster_id: 1,
@@ -615,8 +637,13 @@ impl Level {
         // Import monsters from fixture
         for fm in &fixture.monsters {
             use crate::monster::{Monster, MonsterId, SpeedState};
+            use crate::dungeon::generation::C_TO_RUST_MONS;
             let id = level.alloc_monster_id();
-            let mut mon = Monster::new(id, fm.mnum, fm.x as i8, fm.y as i8);
+            // Convert C mnum to Rust MONSTERS index for correct permonst() lookup
+            let rust_mndx = C_TO_RUST_MONS.get(fm.mnum as usize)
+                .copied()
+                .unwrap_or(0) as i16;
+            let mut mon = Monster::new(id, rust_mndx, fm.x as i8, fm.y as i8);
             mon.hp = fm.hp as i32;
             mon.hp_max = fm.hpmax as i32;
             mon.state.peaceful = fm.peaceful;
@@ -648,6 +675,27 @@ impl Level {
         level.flags.has_zoo = fixture.has_zoo;
         level.flags.has_shop = fixture.has_shop;
         level.flags.has_temple = fixture.has_temple;
+
+        // Import engravings — C types are 1-indexed; Rust EngravingType is 0-indexed
+        for fe in &fixture.engravings {
+            let engr_type = match fe.typ {
+                1 => EngravingType::Dust,
+                2 => EngravingType::Engrave,
+                3 => EngravingType::Burn,
+                4 => EngravingType::Mark,
+                5 => EngravingType::BloodStain,
+                6 => EngravingType::Headstone,
+                _ => EngravingType::Dust,
+            };
+            if !fe.txt.is_empty() {
+                level.engravings.push(Engraving::new(
+                    fe.x as i8,
+                    fe.y as i8,
+                    fe.txt.clone(),
+                    engr_type,
+                ));
+            }
+        }
 
         level.rebuild_grids();
         level
@@ -748,6 +796,34 @@ impl Level {
         let y = monster.y as usize;
         self.monster_grid[x][y] = Some(id);
         self.monsters.push(monster);
+        id
+    }
+
+    /// Add a monster to the front of the level's monster list (LIFO order).
+    ///
+    /// Matches C's behavior where new monsters are linked at the head of `fmon`.
+    /// This ensures mcalcmove and movemon process newer monsters first, matching
+    /// C's RNG call order.
+    pub fn add_monster_front(&mut self, mut monster: Monster) -> MonsterId {
+        let id = MonsterId(self.next_monster_id);
+        self.next_monster_id += 1;
+        monster.id = id;
+
+        // Initialize combat resources based on level
+        monster.resources.initialize(monster.level);
+
+        // Extensions: Initialize personality and combat systems on monster spawn
+        #[cfg(feature = "extensions")]
+        {
+            use crate::monster::{assign_personality, monster_intelligence};
+            let intelligence = monster_intelligence(monster.monster_type);
+            monster.personality = assign_personality(intelligence, id.0);
+        }
+
+        let x = monster.x as usize;
+        let y = monster.y as usize;
+        self.monster_grid[x][y] = Some(id);
+        self.monsters.insert(0, monster);
         id
     }
 

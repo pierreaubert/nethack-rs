@@ -56,6 +56,8 @@ enum Command {
     DisableRngTracing,
     GetRngTrace,
     ClearRngTrace,
+    GetVisibility,
+    GetCouldsee,
     // Function-level isolation testing (Phase 1)
     TestFinddpos { xl: i32, yl: i32, xh: i32, yh: i32 },
     TestDigCorridor { sx: i32, sy: i32, dx: i32, dy: i32, nxcor: bool },
@@ -69,6 +71,8 @@ enum Command {
     AddRoom { lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32 },
     CarveRoom { lx: i32, ly: i32, hx: i32, hy: i32 },
     GetRectJson,
+    DebugCell { x: i32, y: i32 },
+    DebugMfndpos { mon_index: i32 },
     Exit,
 }
 
@@ -235,6 +239,15 @@ fn main() {
                 engine.clear_rng_trace();
                 Response::Ok
             }
+            Command::GetVisibility => {
+                let viz = engine.get_visibility();
+                // Serialize as JSON array of arrays of bools
+                Response::String(serde_json::to_string(&viz).unwrap_or_default())
+            }
+            Command::GetCouldsee => {
+                let cs = engine.get_couldsee();
+                Response::String(serde_json::to_string(&cs).unwrap_or_default())
+            }
             // Function-level isolation testing (Phase 1)
             Command::TestFinddpos { xl, yl, xh, yh } => {
                 let (x, y) = engine.test_finddpos(xl, yl, xh, yh);
@@ -276,6 +289,12 @@ fn main() {
                 Response::Ok
             }
             Command::GetRectJson => Response::String(engine.rect_json()),
+            Command::DebugCell { x, y } => {
+                Response::String(engine.debug_cell(x, y))
+            }
+            Command::DebugMfndpos { mon_index } => {
+                Response::String(engine.debug_mfndpos(mon_index))
+            }
             Command::Exit => break,
         };
 

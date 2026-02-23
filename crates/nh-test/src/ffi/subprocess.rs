@@ -58,6 +58,8 @@ enum CommandMsg {
     DisableRngTracing,
     GetRngTrace,
     ClearRngTrace,
+    GetVisibility,
+    GetCouldsee,
     // Function-level isolation testing (Phase 1)
     TestFinddpos { xl: i32, yl: i32, xh: i32, yh: i32 },
     TestDigCorridor { sx: i32, sy: i32, dx: i32, dy: i32, nxcor: bool },
@@ -71,6 +73,8 @@ enum CommandMsg {
     AddRoom { lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32 },
     CarveRoom { lx: i32, ly: i32, hx: i32, hy: i32 },
     GetRectJson,
+    DebugCell { x: i32, y: i32 },
+    DebugMfndpos { mon_index: i32 },
     Exit,
 }
 
@@ -500,6 +504,41 @@ impl CGameEngineSubprocess {
 
     pub fn clear_rng_trace(&self) {
         let _ = self.send_command(CommandMsg::ClearRngTrace);
+    }
+
+    /// Get C's viz_array as a Rust-ordered [x][y] visibility grid (80×21)
+    /// Debug: get C cell state at (x,y) as string
+    pub fn debug_cell(&self, x: i32, y: i32) -> String {
+        match self.send_command(CommandMsg::DebugCell { x, y }).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => String::new(),
+        }
+    }
+
+    /// Debug: get C mfndpos results for monster at given index as string
+    pub fn debug_mfndpos(&self, mon_index: i32) -> String {
+        match self.send_command(CommandMsg::DebugMfndpos { mon_index }).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => String::new(),
+        }
+    }
+
+    pub fn get_visibility(&self) -> Vec<Vec<bool>> {
+        match self.send_command(CommandMsg::GetVisibility).unwrap() {
+            ResponseMsg::String(s) => {
+                serde_json::from_str(&s).unwrap_or_else(|_| vec![vec![false; 21]; 80])
+            }
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    pub fn get_couldsee(&self) -> Vec<Vec<bool>> {
+        match self.send_command(CommandMsg::GetCouldsee).unwrap() {
+            ResponseMsg::String(s) => {
+                serde_json::from_str(&s).unwrap_or_else(|_| vec![vec![false; 21]; 80])
+            }
+            _ => panic!("Unexpected response"),
+        }
     }
 
     // ========================================================================

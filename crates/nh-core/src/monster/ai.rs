@@ -487,10 +487,13 @@ pub fn dochug(
     // Line 601 (monmove.c): Main movement decision via m_move
     let result = dochug_movement(monster_id, level, player, nearby, in_range, rng);
 
-    // Line 602-603 (monmove.c): if (tmp != 2) distfleeck(mtmp, &inrange, &nearby, &scared)
-    // Second distfleeck call after movement — always calls rn2(5) for bravegremlin
-    // tmp==2 means monster died; AiAction::Died is our equivalent
-    if !matches!(result, AiAction::Died) {
+    // Line 612-613 (monmove.c): if (tmp != 2) distfleeck(mtmp, &inrange, &nearby, &scared)
+    // Second distfleeck call after m_move — calls rn2(5) for bravegremlin
+    // This is INSIDE the if(!nearby || ...) block at line 582, so it's only reached
+    // when the monster goes through m_move (not when it takes the nearby attack path).
+    // C: nearby hostile monsters skip the entire m_move+distfleeck2 block.
+    // AttackedPlayer = nearby attack path; Died = monster died (tmp==2)
+    if !matches!(result, AiAction::Died | AiAction::AttackedPlayer) {
         let _brave_gremlin_2 = rng.rn2(5) == 0;
     }
 
@@ -913,6 +916,12 @@ fn move_towards(
     let my = monster.y;
     let mtrack = monster.mtrack;
     let no_diagonal = monster.no_diagonal_move;
+    // C: can_open = !(nohands(ptr) || verysmall(ptr)) (monmove.c:780)
+    // Monsters with hands that aren't very small can open closed doors.
+    let pm = monster.permonst();
+    let nohands = pm.flags.contains(MonsterFlags::NOHANDS);
+    let verysmall = pm.size == crate::monster::MonsterSize::Tiny;
+    let can_open = !nohands && !verysmall;
 
     // Calculate direction to target
     let dx = (target_x - mx).signum();
@@ -932,6 +941,15 @@ fn move_towards(
         }
         return AiAction::Waited;
     }
+
+    // C: monmove.c:956-978 — lined_up check for item pickup decision
+    // if ((!mtmp->mpeaceful || !rn2(10)) && (!Is_rogue_level(&u.uz)))
+    //     boolean in_line = (lined_up(mtmp) && distmin(...))
+    // For hostile monsters (move_towards is only called for hostile), !mpeaceful is TRUE
+    // so rn2(10) is short-circuited. We always call lined_up_with_player.
+    // The result determines item pickup interest, but the RNG side effect matters for parity.
+    // NOTE: Is_rogue_level check omitted (we don't implement Rogue level yet)
+    let _in_line = lined_up_with_player(monster_id, level, target_x, target_y, rng);
 
     // Precompute current-cell diagonal door blocking (C: mon.c:1430)
     // Diagonal movement is blocked from/to doors unless doorway (D_NODOOR) or broken (D_BROKEN)
@@ -979,9 +997,21 @@ fn move_towards(
                     // TODO: check monster size >= Large when needed
                 }
             }
-            if level.is_walkable(nx, ny)
-                && level.monster_at(nx, ny).is_none()
-            {
+            let walkable = level.is_walkable(nx, ny);
+            // C: mfndpos allows closed doors if OPENDOOR flag is set (monster can open doors)
+            // (mon.c:1417-1421). OPENDOOR only helps with D_CLOSED (0x04), NOT D_LOCKED (0x08).
+            // A locked door requires UNLOCKDOOR (key/wizard/rider) which we don't implement yet.
+            let closed_door_ok = if !walkable && can_open {
+                let cell = &level.cells[nx as usize][ny as usize];
+                // Only D_CLOSED doors, NOT D_LOCKED
+                cell.typ == CellType::Door
+                    && cell.door_state().contains(DoorState::CLOSED)
+                    && !cell.door_state().contains(DoorState::LOCKED)
+            } else {
+                false
+            };
+            let no_mon = level.monster_at(nx, ny).is_none();
+            if (walkable || closed_door_ok) && no_mon {
                 valid_positions.push((nx, ny));
             }
         }
@@ -996,9 +1026,9 @@ fn move_towards(
     // jcnt = min(MTSZ=4, cnt-1)
     let jcnt = 4.min(cnt.saturating_sub(1));
 
-    // Diagnostic logging (enable for debugging convergence issues)
-    // eprintln!("    move_towards: mon {} at ({},{}) target ({},{}) cnt={} jcnt={} mtrack={:?}",
-    //     monster_id.0, mx, my, target_x, target_y, cnt, jcnt, mtrack);
+    // Diagnostic logging for convergence debugging
+    eprintln!("    move_towards: mon {} at ({},{}) target ({},{}) cnt={} jcnt={} valid={:?} mtrack={:?}",
+        monster_id.0, mx, my, target_x, target_y, cnt, jcnt, valid_positions, mtrack);
 
     let mut best_pos: Option<(i8, i8)> = None;
     let mut best_dist = i32::MAX;
@@ -1033,6 +1063,17 @@ fn move_towards(
     }
 
     if let Some((nx, ny)) = best_pos {
+        // C: monmove.c:1304-1368 — open closed door after moving to it
+        // Only D_CLOSED doors (not D_LOCKED) can be opened by can_open monsters
+        if can_open {
+            let cell = &level.cells[nx as usize][ny as usize];
+            if cell.typ == CellType::Door
+                && cell.door_state().contains(DoorState::CLOSED)
+                && !cell.door_state().contains(DoorState::LOCKED)
+            {
+                level.cells[nx as usize][ny as usize].set_door_state(DoorState::OPEN);
+            }
+        }
         level.move_monster(monster_id, nx, ny);
         AiAction::Moved(nx, ny)
     } else {
@@ -2543,6 +2584,116 @@ pub fn mcureblindness(monster_id: MonsterId, level: &mut Level) -> bool {
         }
     }
     false
+}
+
+/// C: mthrowu.c:linedup() — check if two points are in a straight line
+/// with clear path (or path only blocked by boulders).
+/// ax,ay = target (player position), bx,by = source (monster position).
+/// boulder_handling: 0=block, 1=ignore boulders, 2=probabilistic (rn2)
+/// Returns true if the positions are lined up with a clear-enough path.
+fn linedup(
+    ax: i8, ay: i8,
+    bx: i8, by: i8,
+    boulder_handling: i32,
+    level: &Level,
+    rng: &mut GameRng,
+) -> bool {
+    use crate::dungeon::{CellType, DoorState};
+
+    let tbx = ax as i32 - bx as i32;
+    let tby = ay as i32 - by as i32;
+
+    // C: if (!tbx && !tby) return FALSE
+    if tbx == 0 && tby == 0 {
+        return false;
+    }
+
+    // Must be on same row, column, or diagonal, within BOLT_LIM (8)
+    let is_line = tbx == 0 || tby == 0 || tbx.abs() == tby.abs();
+    let dist = tbx.abs().max(tby.abs()); // distmin to 0,0
+    const BOLT_LIM: i32 = 8;
+
+    if is_line && dist < BOLT_LIM {
+        // C: if ((ax == u.ux && ay == u.uy) ? couldsee(bx,by) : clear_path(ax,ay,bx,by))
+        // For lined_up_with_player, ax/ay is always the player position,
+        // so we use couldsee(bx, by) from the level's synced data.
+        let clear = level.couldsee[bx as usize][by as usize];
+        if clear {
+            return true;
+        }
+
+        // Not clear — check for boulders blocking the line
+        if boulder_handling == 0 {
+            return false;
+        }
+
+        let dx = tbx.signum(); // from b towards a
+        let dy = tby.signum();
+        let mut cx = bx as i32;
+        let mut cy = by as i32;
+        let mut boulder_spots: u32 = 0;
+
+        loop {
+            cx += dx;
+            cy += dy;
+            // C: if (IS_ROCK(levl[bx][by].typ) || closed_door(bx, by)) return FALSE
+            let cell = &level.cells[cx as usize][cy as usize];
+            if cell.typ.is_rock() {
+                return false;
+            }
+            // closed_door: IS_DOOR && (D_LOCKED | D_CLOSED)
+            if cell.typ == CellType::Door
+                && (cell.door_state().contains(DoorState::CLOSED)
+                    || cell.door_state().contains(DoorState::LOCKED))
+            {
+                return false;
+            }
+            // Count boulders
+            if level.boulder_at(cx as i8, cy as i8) {
+                boulder_spots += 1;
+            }
+            if cx == ax as i32 && cy == ay as i32 {
+                break;
+            }
+        }
+
+        // C: if (boulderhandling == 1 || rn2(2 + boulderspots) < 2) return TRUE
+        if boulder_handling == 1 || rng.rn2(2 + boulder_spots) < 2 {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// C: mthrowu.c:lined_up() — check if monster is lined up with the player
+/// for ranged attack purposes. Called from m_move() to determine if the
+/// monster should try to pick up items vs attack.
+/// This function may consume RNG (rn2(25) for polymorph concealment,
+/// rn2(2+boulders) for boulder-blocked paths).
+fn lined_up_with_player(
+    monster_id: MonsterId,
+    level: &Level,
+    player_x: i8,
+    player_y: i8,
+    rng: &mut GameRng,
+) -> bool {
+    let monster = level.monster(monster_id).unwrap();
+    let pm = monster.permonst();
+
+    // C: lined_up() in mthrowu.c:1090
+    // Upolyd && rn2(25) && (u.uundetected || mimicking) → return FALSE
+    // We skip this since Upolyd is false in our test (player not polymorphed)
+    // For full C parity: would need player polymorph state
+
+    // C: ignore_boulders = throws_rocks(ptr) || m_carrying(mtmp, WAN_STRIKING)
+    let ignore_boulders = pm.throws_rocks();
+    // TODO: also check m_carrying(WAN_STRIKING) when inventory is fully tracked
+    let boulder_handling = if ignore_boulders { 1 } else { 2 };
+
+    // C: linedup(mtmp->mux, mtmp->muy, mtmp->mx, mtmp->my, ignore_boulders ? 1 : 2)
+    // mux/muy is where the monster thinks the player is (= player pos for aware monsters)
+    linedup(player_x, player_y, monster.x, monster.y, boulder_handling, level, rng)
 }
 
 /// Check if two monsters are lined up (for ranged attacks)

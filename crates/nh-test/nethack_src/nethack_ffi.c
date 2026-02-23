@@ -27,12 +27,14 @@ static void install_crash_handler(void) {
 #include "hack.h"
 #include "dlb.h"
 #include "func_tab.h"
+#include "mfndpos.h"
 
 /* External declarations for role and race tables and lookup functions */
 extern const struct Role roles[];
 extern const struct Race races[];
 extern int FDECL(str2role, (const char *));
 extern int FDECL(str2race, (const char *));
+
 
 /* ISAAC64 seed function from isaac64_standalone.c */
 extern void set_random_generator_seed(unsigned long seed);
@@ -1028,6 +1030,18 @@ static void ffi_post_command(void) {
             } while (monscanmove);
             fprintf(stderr, "  C SECTION movemon: %lu RNG calls (%d rounds)\n",
                 rng_call_counter - rng_movemon_start, movemon_rounds);
+            /* Print per-monster positions after movemon for debugging */
+            {
+                struct monst *mtmp;
+                int mi = 0;
+                for (mtmp = fmon; mtmp; mtmp = mtmp->nmon, mi++) {
+                    if (DEADMONSTER(mtmp)) continue;
+                    fprintf(stderr, "    C MON %d mnum=%d at (%d,%d) mux=(%d,%d) movement=%d sleeping=%d\n",
+                        mi, mtmp->mnum, mtmp->mx, mtmp->my,
+                        mtmp->mux, mtmp->muy, mtmp->movement,
+                        (int)mtmp->msleeping);
+                }
+            }
         }
         context.mon_moving = FALSE;
 
@@ -1801,6 +1815,33 @@ char* nh_ffi_get_attributes_json(void) {
 #endif
 }
 
+/* Export C's viz_array as flat COLNO*ROWNO byte array (Rust [x][y] order) */
+void nh_ffi_get_visibility(char* out) {
+#ifdef REAL_NETHACK
+    int x, y;
+    for (x = 0; x < COLNO; x++) {
+        for (y = 0; y < ROWNO; y++) {
+            out[x * ROWNO + y] = (viz_array[y][x] & IN_SIGHT) ? 1 : 0;
+        }
+    }
+#else
+    memset(out, 0, COLNO * ROWNO);
+#endif
+}
+
+void nh_ffi_get_couldsee(char* out) {
+#ifdef REAL_NETHACK
+    int x, y;
+    for (x = 0; x < COLNO; x++) {
+        for (y = 0; y < ROWNO; y++) {
+            out[x * ROWNO + y] = (viz_array[y][x] & COULD_SEE) ? 1 : 0;
+        }
+    }
+#else
+    memset(out, 0, COLNO * ROWNO);
+#endif
+}
+
 /* Export current level as JSON (cells, rooms, stairs, objects, monsters) */
 char* nh_ffi_export_level(void) {
 #ifdef REAL_NETHACK
@@ -1907,11 +1948,38 @@ char* nh_ffi_export_level(void) {
             first = 0;
         }
     }
+    p += sprintf(p, "]");
+
+    /* Engravings — iterate all cells via engr_at() since head_engr is static */
+    p += sprintf(p, ", \"engravings\": [");
+    {
+        int ex, ey, first = 1;
+        for (ex = 0; ex < COLNO && p < end; ex++) {
+            for (ey = 0; ey < ROWNO && p < end; ey++) {
+                struct engr *ep = engr_at(ex, ey);
+                if (ep) {
+                    char safe_txt[512];
+                    int si = 0, di = 0;
+                    /* Escape quotes and backslashes */
+                    while (ep->engr_txt[si] && di < 510) {
+                        char c = ep->engr_txt[si++];
+                        if (c == '"' || c == '\\') safe_txt[di++] = '\\';
+                        safe_txt[di++] = c;
+                    }
+                    safe_txt[di] = '\0';
+                    if (!first) p += sprintf(p, ",");
+                    p += sprintf(p, "{\"x\":%d,\"y\":%d,\"typ\":%d,\"txt\":\"%s\"}",
+                        ex, ey, (int)ep->engr_type, safe_txt);
+                    first = 0;
+                }
+            }
+        }
+    }
     p += sprintf(p, "]}");
 
     return strdup(g_json_buffer);
 #else
-    return strdup("{\"width\":80,\"height\":21,\"dnum\":0,\"dlevel\":1,\"cells\":[],\"rooms\":[],\"stairs\":[],\"objects\":[],\"monsters\":[]}");
+    return strdup("{\"width\":80,\"height\":21,\"dnum\":0,\"dlevel\":1,\"cells\":[],\"rooms\":[],\"stairs\":[],\"objects\":[],\"monsters\":[],\"engravings\":[]}");
 #endif
 }
 
@@ -2026,6 +2094,90 @@ void nh_ffi_set_cell(int x, int y, int typ) {
     }
 #else
     (void)x; (void)y; (void)typ;
+#endif
+}
+
+/* Debug: query cell state at (x,y) - returns JSON string with typ and doormask */
+char* nh_ffi_debug_cell(int x, int y) {
+#ifdef REAL_NETHACK
+    static char buf[256];
+    if (x >= 0 && x < COLNO && y >= 0 && y < ROWNO) {
+        int typ = level.locations[x][y].typ;
+        int mask = level.locations[x][y].doormask;
+        snprintf(buf, sizeof(buf), "C_CELL(%d,%d) typ=%d (DOOR=%d) mask=0x%02x (D_CLOSED=%d D_LOCKED=%d D_ISOPEN=%d)",
+            x, y, typ, (typ == DOOR), mask,
+            (mask & D_CLOSED) != 0, (mask & D_LOCKED) != 0, (mask & D_ISOPEN) != 0);
+    } else {
+        snprintf(buf, sizeof(buf), "C_CELL(%d,%d) out of bounds", x, y);
+    }
+    return buf;
+#else
+    static char buf[64];
+    snprintf(buf, sizeof(buf), "C_CELL_NOOP(%d,%d)", x, y);
+    return buf;
+#endif
+}
+
+/* Debug: dump mfndpos results for monster at given index - returns string */
+char* nh_ffi_debug_mfndpos(int mon_index) {
+#ifdef REAL_NETHACK
+    static char buf[1024];
+    char *p = buf;
+    char *end = buf + sizeof(buf) - 64;
+    struct monst *mtmp;
+    int idx = 0;
+    for (mtmp = fmon; mtmp; mtmp = mtmp->nmon, idx++) {
+        if (idx == mon_index && !DEADMONSTER(mtmp)) {
+            coord poss[9];
+            long info[9];
+            long flag = 0L;
+            struct permonst *ptr = mtmp->data;
+            boolean can_open = !(nohands(ptr) || verysmall(ptr));
+            boolean can_unlock = ((can_open && monhaskey(mtmp, TRUE)) || mtmp->iswiz || is_rider(ptr));
+            boolean doorbuster = is_giant(ptr);
+
+            if (!mtmp->mpeaceful)
+                flag |= ALLOW_U;
+            if (can_open)
+                flag |= OPENDOOR;
+            if (can_unlock)
+                flag |= UNLOCKDOOR;
+            if (doorbuster)
+                flag |= BUSTDOOR;
+
+            int cnt = mfndpos(mtmp, poss, info, flag);
+            p += snprintf(p, end - p, "C_MFNDPOS: mon %d '%s' at (%d,%d) can_open=%d nohands=%d verysmall=%d flag=0x%lx cnt=%d positions=[",
+                mon_index, ptr->mname, mtmp->mx, mtmp->my, can_open,
+                nohands(ptr) != 0, verysmall(ptr) != 0, flag, cnt);
+            for (int i = 0; i < cnt && p < end; i++) {
+                if (i > 0) p += snprintf(p, end - p, ", ");
+                p += snprintf(p, end - p, "(%d,%d)", poss[i].x, poss[i].y);
+            }
+            p += snprintf(p, end - p, "]");
+            /* Also show adjacent door cells */
+            for (int dx = -1; dx <= 1 && p < end; dx++) {
+                for (int dy = -1; dy <= 1 && p < end; dy++) {
+                    if (dx == 0 && dy == 0) continue;
+                    int nx = mtmp->mx + dx;
+                    int ny = mtmp->my + dy;
+                    if (nx >= 1 && nx < COLNO && ny >= 0 && ny < ROWNO) {
+                        int typ = level.locations[nx][ny].typ;
+                        if (IS_DOOR(typ)) {
+                            int mask = level.locations[nx][ny].doormask;
+                            p += snprintf(p, end - p, " adj(%d,%d)=DOOR mask=0x%02x", nx, ny, mask);
+                        }
+                    }
+                }
+            }
+            return buf;
+        }
+    }
+    snprintf(buf, sizeof(buf), "C_MFNDPOS: mon %d not found", mon_index);
+    return buf;
+#else
+    static char buf[64];
+    snprintf(buf, sizeof(buf), "C_MFNDPOS_NOOP(%d)", mon_index);
+    return buf;
 #endif
 }
 
