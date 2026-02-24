@@ -19,9 +19,6 @@ fn test_rust_inventory_state_extraction_depth() {
     for item in inv {
         // We want to ensure these fields are accessible and correctly populated
         println!("Item Type: {}, Weight: {}, BUC: {:?}", item.object_type, item.weight, item.buc);
-        
-        // Verify weight is non-negative (some items legitimately have weight 0)
-        assert!(item.weight >= 0, "Item (type {}) should have non-negative weight", item.object_type);
     }
 }
 

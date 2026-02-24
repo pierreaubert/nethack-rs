@@ -438,7 +438,138 @@ fn test_zero_todos_in_source() {
 }
 
 // ============================================================================
-// Test 5: Deterministic Turn Replay
+// Test 5: No Direct Monster x/y Mutation (Grid Desync Prevention)
+// ============================================================================
+
+/// Scan nh-core/src/ for direct monster `.x = ` / `.y = ` assignments that
+/// bypass `Level::move_monster()`, which causes monster_grid desync bugs
+/// (monsters become invisible, stale grid entries, etc.).
+///
+/// Allowed exceptions:
+/// - Test code (`#[cfg(test)]` / `mod tests` blocks)
+/// - `level.rs` `move_monster` implementation (the safe API itself)
+/// - Pre-add assignments: setting x/y on a monster struct BEFORE it's been
+///   added to a level (e.g., `create_starting_pet` sets pet.x before push)
+///   — these are tagged with `// pre-add: not yet in level grid`
+/// - Struct initialization (inside `Self { x: ..., y: ... }` blocks)
+#[test]
+fn test_no_direct_monster_xy_mutation() {
+    let rs_files = collect_rs_files(NH_CORE_SRC);
+    assert!(!rs_files.is_empty());
+
+    // Variable names commonly used for monsters
+    let monster_vars = [
+        "pet.", "monster.", "mon.", "m.", "mtmp.", "guard.", "shkp.",
+        "worm.", "mdef.", "magr.", "attacker.", "defender.", "victim.",
+    ];
+
+    let mut violations: Vec<(String, usize, String)> = Vec::new();
+
+    for file_path in &rs_files {
+        let content = fs::read_to_string(file_path).unwrap_or_default();
+        let file_name = file_path.display().to_string();
+
+        let mut in_test_block = false;
+        let mut brace_depth_at_test_start: Option<usize> = None;
+        let mut brace_depth: usize = 0;
+
+        for (line_num_0, line) in content.lines().enumerate() {
+            let line_num = line_num_0 + 1;
+            let trimmed = line.trim();
+
+            // Track brace depth for test block detection
+            for ch in line.chars() {
+                match ch {
+                    '{' => brace_depth += 1,
+                    '}' => {
+                        if brace_depth > 0 {
+                            brace_depth -= 1;
+                        }
+                        if let Some(test_depth) = brace_depth_at_test_start {
+                            if brace_depth < test_depth {
+                                in_test_block = false;
+                                brace_depth_at_test_start = None;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            // Detect test module or test function entry
+            if trimmed.starts_with("#[cfg(test)]")
+                || trimmed.starts_with("#[test]")
+                || trimmed.starts_with("mod tests")
+            {
+                in_test_block = true;
+                brace_depth_at_test_start = Some(brace_depth);
+            }
+
+            // Skip test code
+            if in_test_block {
+                continue;
+            }
+
+            // Skip comments
+            if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with("*") {
+                continue;
+            }
+
+            // Skip annotated safe patterns
+            if trimmed.contains("pre-add") || trimmed.contains("not yet in level")
+                || trimmed.contains("grid-safe:")
+            {
+                continue;
+            }
+
+            // Check for dangerous pattern: <monster_var>.x = or <monster_var>.y =
+            for var in &monster_vars {
+                // Check for `.x = <value>` (not `.x == ` comparison, not `.x_something`)
+                for field in ["x = ", "y = "] {
+                    let pattern = format!("{}{}", var, field);
+                    if let Some(pos) = trimmed.find(&pattern) {
+                        // Make sure this isn't a comparison (==)
+                        let after_eq = pos + pattern.len();
+                        if after_eq < trimmed.len() {
+                            let next_char = trimmed.as_bytes().get(after_eq);
+                            if next_char == Some(&b'=') {
+                                continue; // This is == comparison, not assignment
+                            }
+                        }
+                        violations.push((
+                            file_name.clone(),
+                            line_num,
+                            trimmed.to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    println!("\n=== Monster x/y Direct Mutation Audit ===");
+    println!("  {} .rs files scanned", rs_files.len());
+
+    if violations.is_empty() {
+        println!("  No direct monster x/y mutations found outside tests. Clean!");
+    } else {
+        println!("  VIOLATIONS (use Level::move_monster() instead):");
+        for (file, line, code) in &violations {
+            println!("    {}:{}: {}", file, line, code);
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Found {} direct monster x/y mutation(s) that bypass Level::move_monster(). \
+         Use level.move_monster(id, x, y) instead, or add '// pre-add: not yet in level grid' \
+         comment if the monster hasn't been added to a level yet.",
+        violations.len()
+    );
+}
+
+// ============================================================================
+// Test 6: Deterministic Turn Replay
 // ============================================================================
 
 /// Verify that the same seed produces identical state after N turns.

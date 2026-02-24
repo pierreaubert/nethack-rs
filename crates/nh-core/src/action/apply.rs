@@ -1633,12 +1633,11 @@ fn apply_magic_whistle(state: &mut GameState) -> ActionResult {
                 if state.current_level.is_walkable(nx, ny)
                     && state.current_level.monster_at(nx, ny).is_none()
                 {
+                    state.current_level.move_monster(monster_id, nx, ny);
                     if let Some(monster) = state.current_level.monster_mut(monster_id) {
-                        monster.x = nx;
-                        monster.y = ny;
                         monster.state.sleeping = false;
-                        pets_moved += 1;
                     }
+                    pets_moved += 1;
                     break;
                 }
             }

@@ -202,6 +202,7 @@ fn test_unsynchronized_rest_drift_1000_turns() {
     );
     rust_state.player.pos.x = cx as i8;
     rust_state.player.pos.y = cy as i8;
+    rust_state.skip_invariant_checks = true;
     let mut rust_loop = GameLoop::new(rust_state);
 
     let mut report = ConvergenceReport::new(
@@ -293,6 +294,7 @@ fn test_unsynchronized_rest_drift_multi_seed() {
         );
         rust_state.player.pos.x = cx as i8;
         rust_state.player.pos.y = cy as i8;
+        rust_state.skip_invariant_checks = true;
         let mut rust_loop = GameLoop::new(rust_state);
 
         let mut report = ConvergenceReport::new(

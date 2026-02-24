@@ -516,3 +516,108 @@ fn test_healer_tourist_gold() {
         tourist_state.player.gold
     );
 }
+
+// ============================================================================
+// Invariant fuzz tests
+// ============================================================================
+
+/// Generate a wider variety of commands including combat-triggering ones.
+fn generate_fuzz_commands(n: usize, seed: u64) -> Vec<Command> {
+    let mut rng = GameRng::new(seed);
+    let mut commands = Vec::with_capacity(n);
+
+    let directions = [
+        Direction::North,
+        Direction::South,
+        Direction::East,
+        Direction::West,
+        Direction::NorthEast,
+        Direction::NorthWest,
+        Direction::SouthEast,
+        Direction::SouthWest,
+    ];
+
+    for _ in 0..n {
+        let dir = directions[rng.rn2(8) as usize];
+        let cmd = match rng.rn2(20) {
+            0..=7 => Command::Move(dir),      // 40% movement
+            8 => Command::Run(dir),            // running
+            9 => Command::Fight(dir),          // force-attack
+            10 => Command::Search,
+            11 => Command::Rest,
+            12 => Command::Pickup,
+            13 => Command::Look,
+            14 => Command::GoUp,
+            15 => Command::GoDown,
+            16 => Command::Kick(dir),
+            17 => Command::Open(dir),
+            18 => Command::Close(dir),
+            _ => Command::WhatsHere,
+        };
+        commands.push(cmd);
+    }
+
+    commands
+}
+
+/// Fuzz test: run random commands across all roles and verify invariants
+/// after every tick.
+///
+/// The `debug_assert_invariants()` call inside `tick()` catches:
+/// - monster_grid desync (direct x/y mutation without move_monster)
+/// - player on unwalkable cell
+/// - object_grid desync (stale references)
+/// - out-of-bounds positions
+///
+/// If any invariant is violated, the test panics with a descriptive message
+/// identifying the exact turn and violation.
+#[test]
+fn test_invariant_fuzz_all_roles() {
+    for role in ALL_ROLES {
+        for seed in 0..5u64 {
+            let commands = generate_fuzz_commands(500, seed + role as u64 * 100);
+            let rng = GameRng::new(seed);
+            let state = GameState::new_with_identity(
+                rng,
+                "Fuzzer".into(),
+                role,
+                Race::Human,
+                Gender::Male,
+                role.default_alignment(),
+            );
+
+            // Verify invariants at start
+            let violations = state.check_invariants();
+            assert!(
+                violations.is_empty(),
+                "seed={} role={:?} — invariant violation BEFORE first tick:\n  {}",
+                seed,
+                role,
+                violations.join("\n  ")
+            );
+
+            let mut gl = GameLoop::new(state);
+            for (i, cmd) in commands.iter().enumerate() {
+                let result = gl.tick(cmd.clone());
+
+                // tick() already calls debug_assert_invariants() internally,
+                // but we also do an explicit check here so failures report
+                // the seed/role/turn for reproduction.
+                let violations = gl.state().check_invariants();
+                assert!(
+                    violations.is_empty(),
+                    "seed={} role={:?} turn={} cmd={:?} — invariant violation:\n  {}",
+                    seed,
+                    role,
+                    i,
+                    cmd,
+                    violations.join("\n  ")
+                );
+
+                if matches!(result, GameLoopResult::PlayerDied(_)) {
+                    break;
+                }
+            }
+        }
+    }
+}

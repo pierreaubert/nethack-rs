@@ -1041,6 +1041,14 @@ pub fn award_monster_loot(player: &mut You, monster: &Monster, rng: &mut GameRng
     }
 }
 
+/// Calculate gold dropped by a dead monster (C: mkgold amount in mondead).
+///
+/// Uses the same formula as `LootGenerator::generate_gold()` but is called
+/// from the death handler to place a physical gold pile on the floor.
+pub fn calculate_monster_gold(monster: &Monster, rng: &mut GameRng) -> i32 {
+    LootGenerator::generate_gold(monster.level, rng)
+}
+
 /// Check if monster drops treasure hoard (for boss/unique monsters)
 pub fn should_drop_hoard(monster_level: u8) -> bool {
     // Boss-type monsters (level 15+) may have hoards

@@ -1046,12 +1046,11 @@ fn cast_teleport_away(
             let ny = rng.rn2(crate::ROWNO as u32) as i8;
 
             if level.is_walkable(nx, ny) && level.monster_at(nx, ny).is_none() {
-                if let Some(m) = level.monster_mut(monster_id) {
-                    let name = m.name.clone();
-                    m.x = nx;
-                    m.y = ny;
-                    result.messages.push(format!("The {} vanishes!", name));
-                }
+                let name = level.monster(monster_id)
+                    .map(|m| m.name.clone())
+                    .unwrap_or_default();
+                level.move_monster(monster_id, nx, ny);
+                result.messages.push(format!("The {} vanishes!", name));
                 return;
             }
         }

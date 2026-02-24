@@ -874,8 +874,8 @@ impl Level {
                 monster.mtrack[j] = monster.mtrack[j - 1];
             }
             monster.mtrack[0] = (old_x, old_y);
-            monster.x = new_x;
-            monster.y = new_y;
+            monster.x = new_x; // grid-safe: inside move_monster implementation
+            monster.y = new_y; // grid-safe: inside move_monster implementation
             self.monster_grid[new_x as usize][new_y as usize] = Some(id);
             true
         } else {
@@ -951,6 +951,61 @@ impl Level {
     /// Find downstairs
     pub fn find_downstairs(&self) -> Option<(i8, i8)> {
         self.stairs.iter().find(|s| !s.up).map(|s| (s.x, s.y))
+    }
+
+    /// Find a suitable starting position for the player.
+    ///
+    /// In C NetHack, the player starts at `xupstair, yupstair` via
+    /// `u_on_upstairs()`.  On dungeon level 1, there are no upstairs
+    /// so C falls back to the starting room.  This method replicates
+    /// that logic:
+    /// 1. upstairs (levels > 1)
+    /// 2. a room floor cell near the downstairs (level 1)
+    /// 3. any walkable cell
+    pub fn find_player_start(&self) -> (i8, i8) {
+        // 1. Prefer upstairs (normal case for deeper levels)
+        if let Some(pos) = self.find_upstairs() {
+            return pos;
+        }
+
+        // 2. On level 1, place in a room.  Pick a room cell near downstairs.
+        if let Some((dx, dy)) = self.find_downstairs() {
+            // Find the room containing the downstairs and pick a floor cell
+            for room in &self.rooms {
+                if room.contains(dx as usize, dy as usize) {
+                    // Use the room center as starting position
+                    let cx = room.x + room.width / 2;
+                    let cy = room.y + room.height / 2;
+                    if self.is_valid_pos(cx as i8, cy as i8)
+                        && self.cells[cx][cy].is_walkable()
+                        && !(cx as i8 == dx && cy as i8 == dy)
+                    {
+                        return (cx as i8, cy as i8);
+                    }
+                }
+            }
+        }
+
+        // 3. Pick a room center from the first available room
+        for room in &self.rooms {
+            let cx = room.x + room.width / 2;
+            let cy = room.y + room.height / 2;
+            if self.is_valid_pos(cx as i8, cy as i8) && self.cells[cx][cy].is_walkable() {
+                return (cx as i8, cy as i8);
+            }
+        }
+
+        // 4. Last resort: scan the entire map for any walkable cell
+        for x in 1..COLNO - 1 {
+            for y in 1..ROWNO - 1 {
+                if self.cells[x][y].typ == CellType::Room {
+                    return (x as i8, y as i8);
+                }
+            }
+        }
+
+        // Absolute fallback (should never happen on a valid level)
+        (40, 10)
     }
 
     /// Check if level has upstairs (has_upstairs equivalent)
@@ -1738,6 +1793,114 @@ impl Level {
                 }
             }
         }
+    }
+
+    // ========================================================================
+    // Invariant checker — catches grid-desync and stale-reference bugs early
+    // ========================================================================
+
+    /// Verify internal consistency of the level data structures.
+    ///
+    /// This checks the invariants that **must** hold at all times:
+    ///
+    /// 1. Every monster in `self.monsters` has a matching `monster_grid` entry
+    ///    at `(monster.x, monster.y)` pointing back to `monster.id`.
+    /// 2. Every non-`None` `monster_grid` cell points to a monster that
+    ///    actually exists in `self.monsters` at that position.
+    /// 3. Every object in `self.objects` appears in `object_grid` at
+    ///    `(object.x, object.y)`.
+    /// 4. Every `object_grid` entry points to an object that exists.
+    /// 5. All monster/object positions are within map bounds.
+    ///
+    /// Returns a list of violation descriptions (empty = healthy).
+    pub fn check_invariants(&self) -> Vec<String> {
+        let mut violations = Vec::new();
+
+        // --- Monster grid invariants ---
+        for monster in &self.monsters {
+            let mx = monster.x;
+            let my = monster.y;
+
+            // Bounds check
+            if !self.is_valid_pos(mx, my) {
+                violations.push(format!(
+                    "monster {} '{}' at ({},{}) is out of bounds",
+                    monster.id.0, monster.name, mx, my
+                ));
+                continue;
+            }
+
+            // Grid must point to this monster
+            match self.monster_grid[mx as usize][my as usize] {
+                Some(grid_id) if grid_id == monster.id => {} // OK
+                Some(grid_id) => {
+                    violations.push(format!(
+                        "monster_grid[{},{}] = {:?} but monster {} '{}' claims to be there",
+                        mx, my, grid_id, monster.id.0, monster.name
+                    ));
+                }
+                None => {
+                    violations.push(format!(
+                        "monster_grid[{},{}] = None but monster {} '{}' claims to be there (grid desync)",
+                        mx, my, monster.id.0, monster.name
+                    ));
+                }
+            }
+        }
+
+        // Reverse check: every grid entry must have a matching monster
+        for x in 0..COLNO {
+            for y in 0..ROWNO {
+                if let Some(grid_id) = self.monster_grid[x][y] {
+                    let found = self.monsters.iter().any(|m| m.id == grid_id && m.x == x as i8 && m.y == y as i8);
+                    if !found {
+                        violations.push(format!(
+                            "monster_grid[{},{}] = {:?} but no such monster at that position",
+                            x, y, grid_id
+                        ));
+                    }
+                }
+            }
+        }
+
+        // --- Object grid invariants ---
+        for obj in &self.objects {
+            let ox = obj.x;
+            let oy = obj.y;
+
+            if !self.is_valid_pos(ox, oy) {
+                violations.push(format!(
+                    "object {} at ({},{}) is out of bounds",
+                    obj.id.0, ox, oy
+                ));
+                continue;
+            }
+
+            let in_grid = self.object_grid[ox as usize][oy as usize].contains(&obj.id);
+            if !in_grid {
+                violations.push(format!(
+                    "object {} '{}' at ({},{}) not found in object_grid",
+                    obj.id.0, obj.display_name(), ox, oy
+                ));
+            }
+        }
+
+        // Reverse check: every grid entry must have a matching object
+        for x in 0..COLNO {
+            for y in 0..ROWNO {
+                for oid in &self.object_grid[x][y] {
+                    let found = self.objects.iter().any(|o| o.id == *oid);
+                    if !found {
+                        violations.push(format!(
+                            "object_grid[{},{}] contains {:?} but no such object exists",
+                            x, y, oid
+                        ));
+                    }
+                }
+            }
+        }
+
+        violations
     }
 }
 

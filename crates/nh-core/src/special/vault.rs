@@ -251,23 +251,31 @@ pub fn should_play_vault_sound(level: &Level, player: &You) -> bool {
 }
 
 /// Move vault guard (gd_move equivalent - simplified version)
-pub fn move_vault_guard(guard: &mut Monster, level: &mut Level, player: &You) -> bool {
-    if let Some(ext) = get_guard_ext_mut(guard) {
-        // Calculate distance to goal
+///
+/// Uses `Level::move_monster()` to keep monster_grid in sync.
+pub fn move_vault_guard(guard_id: MonsterId, level: &mut Level, _player: &You) -> bool {
+    // Read guard position and goal from immutable borrow first
+    let (gx, gy, new_x, new_y) = {
+        let guard = match level.monster(guard_id) {
+            Some(g) => g,
+            None => return false,
+        };
+        let ext = match get_guard_ext(guard) {
+            Some(e) => e,
+            None => return false,
+        };
         let goal_x = ext.goal_pos.0;
         let goal_y = ext.goal_pos.1;
         let dx = (goal_x - guard.x).signum();
         let dy = (goal_y - guard.y).signum();
+        (guard.x, guard.y, guard.x + dx, guard.y + dy)
+    };
 
-        let new_x = guard.x + dx;
-        let new_y = guard.y + dy;
+    let _ = (gx, gy); // original position, unused but shows intent
 
-        // Check if position is walkable
-        if level.is_valid_pos(new_x, new_y) {
-            guard.x = new_x;
-            guard.y = new_y;
-            return true;
-        }
+    // Check if position is walkable, then move via grid-safe API
+    if level.is_valid_pos(new_x, new_y) {
+        return level.move_monster(guard_id, new_x, new_y);
     }
     false
 }

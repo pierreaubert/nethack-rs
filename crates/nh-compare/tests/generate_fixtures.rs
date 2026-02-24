@@ -15,7 +15,7 @@ const FIXTURE_DIR: &str = "data/fixtures";
 /// This test is ignored by default — run manually to regenerate fixtures.
 #[test]
 #[serial]
-#[ignore]
+
 fn generate_level_fixtures() {
     let seeds = [1u64, 2, 3, 4, 5, 10, 42, 100, 12345, 99999];
     let roles = [

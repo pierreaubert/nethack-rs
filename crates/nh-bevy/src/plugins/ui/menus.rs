@@ -614,15 +614,36 @@ fn render_character_creation(
                             state.player.alignment =
                                 nh_core::player::Alignment::new(alignment);
 
-                            // Welcome messages
-                            let title = state.player.rank_title();
+                            // Post-creation setup matching C's newgame() in allmain.c
+                            state.spawn_starting_pet();           // C: makedog()
+                            state.player.next_attrib_check = 600; // C: context.next_attrib_check = 600L
+                            state.flags.started = true;
+
+                            // Welcome and intro messages (matching nh-tui)
+                            let rank = role.rank_title(1, gender);
                             state.message(format!(
-                                "Welcome to NetHack, {} the {} {} {}!",
-                                state.player.name, alignment, race, title,
+                                "Welcome to NetHack! You are a {} {} {} {}.",
+                                alignment, race, gender, role,
                             ));
-                            state.message(
-                                "Be careful! You are about to enter the Dungeons of Doom...",
-                            );
+                            state.message(format!("You are a {}.", rank));
+
+                            // Role-specific intro
+                            match role {
+                                nh_core::player::Role::Valkyrie => state.message("You must prove yourself worthy to enter Valhalla."),
+                                nh_core::player::Role::Wizard => state.message("You seek the secrets of the Mazes of Menace."),
+                                nh_core::player::Role::Archeologist => state.message("You seek ancient treasures and lost artifacts."),
+                                nh_core::player::Role::Barbarian => state.message("You seek glory through conquest and battle."),
+                                nh_core::player::Role::Caveman => state.message("You seek to survive in this hostile world."),
+                                nh_core::player::Role::Healer => state.message("You seek to cure the sick and aid the wounded."),
+                                nh_core::player::Role::Knight => state.message("You seek to uphold honor and chivalry."),
+                                nh_core::player::Role::Monk => state.message("You seek enlightenment through discipline."),
+                                nh_core::player::Role::Priest => state.message("You seek to spread the faith of your deity."),
+                                nh_core::player::Role::Ranger => state.message("You seek to protect the wilderness."),
+                                nh_core::player::Role::Rogue => state.message("You seek fortune through cunning and stealth."),
+                                nh_core::player::Role::Samurai => state.message("You seek to restore honor to your family."),
+                                nh_core::player::Role::Tourist => state.message("You seek adventure and souvenirs."),
+                            }
+                            state.message("Be careful! The dungeon is full of monsters.");
 
                             game_state.0 = state;
                             next_state.set(AppState::Playing);

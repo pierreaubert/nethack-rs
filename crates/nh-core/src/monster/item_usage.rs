@@ -402,11 +402,7 @@ pub fn execute_monster_teleport(
         let ny = rng.rn2(crate::ROWNO as u32) as i8;
 
         if level.is_walkable(nx, ny) && level.monster_at(nx, ny).is_none() {
-            if let Some(m) = level.monster_mut(monster_id) {
-                m.x = nx;
-                m.y = ny;
-                return true;
-            }
+            return level.move_monster(monster_id, nx, ny);
         }
     }
     false

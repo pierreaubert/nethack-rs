@@ -414,13 +414,10 @@ pub fn pet_move(
         }
     }
 
-    // Move toward player
+    // Move toward player (use move_monster to keep monster_grid in sync)
     let pet = level.monster(pet_id)?;
     if let Some((tx, ty)) = pet_target_position(pet, player, level) {
-        if let Some(pet) = level.monster_mut(pet_id) {
-            pet.x = tx;
-            pet.y = ty;
-        }
+        level.move_monster(pet_id, tx, ty);
     }
 
     None
@@ -769,8 +766,8 @@ pub fn losedogs(level: &mut Level, player: &You, pets: Vec<Monster>, game_turn: 
                 let ny = py + dy;
 
                 if level.is_walkable(nx, ny) && level.monster_at(nx, ny).is_none() {
-                    pet.x = nx;
-                    pet.y = ny;
+                    pet.x = nx; // pre-add: not yet in level grid
+                    pet.y = ny; // pre-add: not yet in level grid
                     placed = true;
                     break;
                 }
@@ -782,8 +779,8 @@ pub fn losedogs(level: &mut Level, player: &You, pets: Vec<Monster>, game_turn: 
 
         // If couldn't place adjacent, try random nearby spot
         if !placed {
-            pet.x = px;
-            pet.y = py;
+            pet.x = px; // pre-add: not yet in level grid
+            pet.y = py; // pre-add: not yet in level grid
         }
 
         // Update pet time tracking

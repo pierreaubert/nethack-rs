@@ -62,6 +62,8 @@ fn test_rng_trace_per_turn_rest() {
     );
     rust_state.player.pos.x = cx as i8;
     rust_state.player.pos.y = cy as i8;
+    // C FFI places player at (0,0) on Stone — skip invariant checks
+    rust_state.skip_invariant_checks = true;
     let mut rust_loop = GameLoop::new(rust_state);
 
     // Enable tracing on both

@@ -137,13 +137,83 @@ pub fn extract_race_names() -> Vec<String> {
     names
 }
 
-/// Extract rank titles from role definitions (simplified version)
+/// Extract rank titles from role definitions in C role.c.
+///
+/// Parses the `roles[]` array, matching each known role name to the 9 rank
+/// entries that follow it.  Rank lines look like `{ "Title", 0 }` or
+/// `{ "Male", "Female" }`.
 pub fn extract_role_ranks() -> Vec<(String, Vec<String>)> {
-    // This is a simplified extraction that pairs known roles with their ranks
-    KNOWN_ROLES
-        .iter()
-        .map(|&role| (role.to_string(), Vec::new()))
-        .collect()
+    let role_c = Path::new(super::NETHACK_SRC).join("src/role.c");
+    if !role_c.exists() {
+        return Vec::new();
+    }
+
+    let content = fs::read_to_string(&role_c).unwrap_or_default();
+    let mut results: Vec<(String, Vec<String>)> = Vec::new();
+    let mut current_role: Option<String> = None;
+    let mut current_ranks: Vec<String> = Vec::new();
+    let mut in_roles_array = false;
+
+    for line in content.lines() {
+        if line.contains("const struct Role roles[]") {
+            in_roles_array = true;
+            continue;
+        }
+        if !in_roles_array {
+            continue;
+        }
+        let trimmed = line.trim();
+        // Stop at races array or end of roles
+        if trimmed.contains("const struct Race races[]") {
+            break;
+        }
+
+        // Detect role header: `    { { "RoleName",` at 4-space indent.
+        // First rank starts at 6-space indent: `      { { "Digger",`.
+        // We distinguish them by checking if the extracted name is a known role.
+        if trimmed.starts_with("{ { \"") {
+            if let Some(name) = extract_first_quoted(trimmed) {
+                if KNOWN_ROLES.contains(&name.as_str()) {
+                    // Save previous role if any
+                    if let Some(prev) = current_role.take() {
+                        results.push((prev, std::mem::take(&mut current_ranks)));
+                    }
+                    current_role = Some(name);
+                    current_ranks.clear();
+                    continue;
+                }
+                // Not a known role — must be the first rank title (e.g. "Digger")
+                if current_role.is_some() && current_ranks.len() < 9 {
+                    current_ranks.push(name);
+                    continue;
+                }
+            }
+        }
+
+        // Collect remaining rank entries: `{ "Title", 0 }` or `{ "Male", "Female" }`
+        if current_role.is_some()
+            && trimmed.starts_with("{ \"")
+            && current_ranks.len() < 9
+        {
+            if let Some(rank) = extract_first_quoted(trimmed) {
+                current_ranks.push(rank);
+            }
+        }
+    }
+
+    // Push final role
+    if let Some(role) = current_role {
+        results.push((role, current_ranks));
+    }
+
+    results
+}
+
+/// Helper: extract the first double-quoted string from a line.
+fn extract_first_quoted(s: &str) -> Option<String> {
+    let start = s.find('"')? + 1;
+    let end = start + s[start..].find('"')?;
+    Some(s[start..end].to_string())
 }
 
 #[cfg(test)]
@@ -252,7 +322,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Rank extraction not yet implemented
     fn test_role_rank_count() {
         let roles_with_ranks = extract_role_ranks();
 

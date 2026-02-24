@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Global game flags
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Flags {
     // Game mode
     pub wizard: bool,
@@ -23,6 +23,9 @@ pub struct Flags {
     pub autopickup: bool,
     pub verbose: bool,
     pub silent: bool,
+    /// Show legacy intro text (C: flags.legacy, default TRUE)
+    #[serde(default = "default_true")]
+    pub legacy: bool,
 
     // Gameplay options
     pub safe_pet: bool,
@@ -43,10 +46,59 @@ pub struct Flags {
     // Travel
     pub travel_debug: bool,
 
+    // Real-world effects (C: flags.moonphase, flags.friday13)
+    /// Phase of the moon at game start (0-7; 0=new, 4=full)
+    #[serde(default)]
+    pub moonphase: i32,
+    /// Whether the game started on Friday the 13th
+    #[serde(default)]
+    pub friday13: bool,
+
     // End game
     pub ascended: bool,
     pub made_amulet: bool,
     pub invoked: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for Flags {
+    /// Default flags matching C's initoptions() defaults.
+    ///
+    /// C: verbose=TRUE, confirm=TRUE, safe_pet=TRUE, pickup_thrown=TRUE,
+    ///    legacy=TRUE, autopickup=TRUE (many players disable this).
+    fn default() -> Self {
+        Self {
+            wizard: false,
+            explore: false,
+            debug: false,
+            started: false,
+            panic: false,
+            show_room: false,
+            show_corridor: false,
+            show_objects: false,
+            autopickup: true,
+            verbose: true,
+            silent: false,
+            legacy: true,
+            safe_pet: true,
+            safe_peaceful: true,
+            confirm: true,
+            pickup_thrown: true,
+            pushweapon: false,
+            num_pad: false,
+            run: 0,
+            soundlib: false,
+            travel_debug: false,
+            moonphase: 0,
+            friday13: false,
+            ascended: false,
+            made_amulet: false,
+            invoked: false,
+        }
+    }
 }
 
 // --- System options (std-only, uses Mutex/OnceLock) ---

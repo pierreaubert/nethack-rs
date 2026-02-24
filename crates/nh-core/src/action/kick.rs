@@ -404,15 +404,8 @@ pub fn mhurtle_step(
         return false;
     }
 
-    // Move the monster
-    if let Some(monster) = state.current_level.monster_mut(monster_id) {
-        monster.x = new_x;
-        monster.y = new_y;
-    }
-
-    // Update monster grid
-    state.current_level.monster_grid[cur_x as usize][cur_y as usize] = None;
-    state.current_level.monster_grid[new_x as usize][new_y as usize] = Some(monster_id);
+    // Move the monster (use move_monster to keep grid + mtrack in sync)
+    state.current_level.move_monster(monster_id, new_x, new_y);
 
     true
 }

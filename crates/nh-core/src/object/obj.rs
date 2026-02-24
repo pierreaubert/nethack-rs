@@ -311,6 +311,17 @@ impl Object {
         }
     }
 
+    /// Create a gold pile (C: mkgold).
+    ///
+    /// The returned object has a placeholder ID; `Level::add_object()` will
+    /// assign the real one.
+    pub fn new_gold(amount: i32) -> Self {
+        let mut obj = Self::new(ObjectId(0), 0, ObjectClass::Coin);
+        obj.quantity = amount.max(1);
+        obj.name = Some("gold piece".to_string());
+        obj
+    }
+
     /// Check if object is blessed
     pub const fn is_blessed(&self) -> bool {
         matches!(self.buc, BucStatus::Blessed)

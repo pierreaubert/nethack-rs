@@ -16,7 +16,8 @@ use super::{
     effect_severity_from_skill, execute_ranged_attack, should_trigger_special_effect,
 };
 use crate::NATTK;
-use crate::monster::Monster;
+use crate::dungeon::Level;
+use crate::monster::{Monster, MonsterId};
 use crate::rng::GameRng;
 
 /// Result flags for monster-vs-monster combat (MM_* in C)
@@ -1109,55 +1110,65 @@ pub fn mm_displacement(attacker: &Monster, defender: &Monster) -> bool {
 /// Execute monster displacement (mdisplacem in C).
 ///
 /// Moves the defender out of the way and places the attacker in their position.
+/// Uses `Level::move_monster()` to keep monster_grid in sync.
 /// Returns the result including any petrification effects.
 ///
 /// # Arguments
-/// * `attacker` - The displacing monster
-/// * `defender` - The displaced monster
+/// * `attacker_id` - ID of the displacing monster
+/// * `defender_id` - ID of the displaced monster
+/// * `level` - Level containing both monsters
 /// * `rng` - Random number generator
-pub fn mdisplacem(attacker: &mut Monster, defender: &mut Monster, rng: &mut GameRng) -> MmResult {
+pub fn mdisplacem(
+    attacker_id: MonsterId,
+    defender_id: MonsterId,
+    level: &mut Level,
+    rng: &mut GameRng,
+) -> MmResult {
     // 1 in 7 chance of failure
     if rng.rn2(7) == 0 {
         return MmResult::MISS;
     }
 
-    // Grid bugs can't displace diagonally
-    // In real implementation, would check monster species
+    // Read positions and check petrification from immutable borrows
+    let attacker = match level.monster(attacker_id) {
+        Some(m) => m,
+        None => return MmResult::MISS,
+    };
+    let defender = match level.monster(defender_id) {
+        Some(m) => m,
+        None => return MmResult::MISS,
+    };
 
-    // Check for petrification - touching cockatrice without gloves
+    let (ax, ay) = (attacker.x, attacker.y);
+    let (dx, dy) = (defender.x, defender.y);
     let defender_petrifies = defender
         .attacks
         .iter()
         .any(|a| a.damage_type == DamageType::Stone && matches!(a.attack_type, AttackType::None));
+    let attacker_resists_stone = attacker.resists_stone();
+    let attacker_has_gloves = (attacker.worn_mask & 0x100) != 0; // W_ARMG approximation
+    // Drop immutable borrows before mutable access below
+    drop(attacker);
+    drop(defender);
 
-    if defender_petrifies && !attacker.resists_stone() {
-        // Check for gloves protection (simplified - would check worn_mask for gloves)
-        let has_gloves = (attacker.worn_mask & 0x100) != 0; // W_ARMG approximation
+    // Check for petrification - touching cockatrice without gloves
+    if defender_petrifies && !attacker_resists_stone && !attacker_has_gloves {
+        return MmResult::MISS.with_agr_died();
+    }
 
-        if !has_gloves {
-            // Attacker turns to stone
-            return MmResult::MISS.with_agr_died();
+    // Wake up and reveal the displaced defender
+    if let Some(defender) = level.monster_mut(defender_id) {
+        if defender.state.sleeping {
+            defender.state.sleeping = false;
+        }
+        if defender.state.hiding {
+            defender.state.hiding = false;
         }
     }
 
-    // Wake up the displaced defender
-    if defender.state.sleeping {
-        defender.state.sleeping = false;
-    }
-
-    // Reveal hidden defender
-    if defender.state.hiding {
-        defender.state.hiding = false;
-    }
-
-    // Swap positions
-    let (ax, ay) = (attacker.x, attacker.y);
-    let (dx, dy) = (defender.x, defender.y);
-
-    attacker.x = dx;
-    attacker.y = dy;
-    defender.x = ax;
-    defender.y = ay;
+    // Swap positions via grid-safe API
+    level.move_monster(attacker_id, dx, dy);
+    level.move_monster(defender_id, ax, ay);
 
     MmResult::HIT
 }
@@ -1837,6 +1848,17 @@ mod tests {
         assert!(!result, "Smaller monster cannot displace larger");
     }
 
+    fn make_test_level_with_monsters(m1: Monster, m2: Monster) -> (Level, MonsterId, MonsterId) {
+        use crate::dungeon::{DLevel, Level};
+        let mut level = Level::new(DLevel::default());
+        // Ensure positions are walkable
+        level.cells[m1.x as usize][m1.y as usize].typ = crate::dungeon::CellType::Room;
+        level.cells[m2.x as usize][m2.y as usize].typ = crate::dungeon::CellType::Room;
+        let id1 = level.add_monster(m1);
+        let id2 = level.add_monster(m2);
+        (level, id1, id2)
+    }
+
     #[test]
     fn test_mdisplacem_swaps_positions() {
         let mut m1 = test_monster(10, 5);
@@ -1849,13 +1871,16 @@ mod tests {
         m2.y = 5;
         m2.state.tame = true;
 
+        let (mut level, id1, id2) = make_test_level_with_monsters(m1, m2);
         let mut rng = GameRng::new(123); // Seed that won't fail
 
-        let result = mdisplacem(&mut m1, &mut m2, &mut rng);
+        let result = mdisplacem(id1, id2, &mut level, &mut rng);
 
         if result.hit {
-            assert_eq!(m1.x, 6, "Attacker should move to defender position");
-            assert_eq!(m2.x, 5, "Defender should move to attacker position");
+            let atk = level.monster(id1).unwrap();
+            let def = level.monster(id2).unwrap();
+            assert_eq!(atk.x, 6, "Attacker should move to defender position");
+            assert_eq!(def.x, 5, "Defender should move to attacker position");
         }
         // If miss, positions unchanged - that's OK too (1/7 chance)
     }
@@ -1873,12 +1898,14 @@ mod tests {
         m2.state.tame = true;
         m2.state.sleeping = true;
 
+        let (mut level, id1, id2) = make_test_level_with_monsters(m1, m2);
         let mut rng = GameRng::new(123);
 
-        let result = mdisplacem(&mut m1, &mut m2, &mut rng);
+        let result = mdisplacem(id1, id2, &mut level, &mut rng);
 
         if result.hit {
-            assert!(!m2.state.sleeping, "Displaced defender should wake up");
+            let def = level.monster(id2).unwrap();
+            assert!(!def.state.sleeping, "Displaced defender should wake up");
         }
     }
 }

@@ -57,6 +57,28 @@ pub fn midnight() -> bool {
     Local::now().hour() == 0
 }
 
+/// Moon phase constants
+pub const NEW_MOON: i32 = 0;
+pub const FULL_MOON: i32 = 4;
+
+/// Calculate the phase of the moon (0-7, with 0: new, 4: full)
+/// Ported from C hacklib.c:1106
+pub fn phase_of_the_moon() -> i32 {
+    let lt = getlt();
+    // Day of year (0-based, like C's tm_yday)
+    let diy = {
+        let date = chrono::NaiveDate::from_ymd_opt(lt.year, lt.month, lt.day).unwrap();
+        date.ordinal0() as i32
+    };
+    // Golden number (C: (tm_year % 19) + 1; tm_year = year - 1900)
+    let goldn = ((lt.year - 1900) % 19) + 1;
+    let mut epact = (11 * goldn + 18) % 30;
+    if (epact == 25 && goldn > 11) || epact == 24 {
+        epact += 1;
+    }
+    ((((diy + epact) * 6) + 11) % 177) / 22 & 7
+}
+
 /// Check if today is Friday the 13th
 pub fn friday_13th() -> bool {
     let now = Local::now();

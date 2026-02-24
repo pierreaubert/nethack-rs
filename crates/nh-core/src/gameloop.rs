@@ -173,6 +173,12 @@ pub struct GameState {
     /// Active multi-monster encounter tracking
     #[serde(default)]
     pub active_encounter: Option<crate::combat::EncounterState>,
+
+    /// When true, skip invariant checking in debug_assert_invariants().
+    /// Used by FFI comparison tests where the state may be initialized
+    /// with invalid positions (e.g., C FFI places player at (0,0) on Stone).
+    #[serde(skip)]
+    pub skip_invariant_checks: bool,
 }
 
 #[cfg(feature = "std")]
@@ -191,8 +197,8 @@ impl GameState {
         let dlevel = DLevel::main_dungeon_start();
         let current_level = Level::new_generated(dlevel, &mut rng, &monster_vitals);
 
-        // Find upstairs to place player
-        let (start_x, start_y) = current_level.find_upstairs().unwrap_or((40, 10)); // Default fallback position
+        // Find a suitable starting position for the player
+        let (start_x, start_y) = current_level.find_player_start();
 
         let mut player = You::default();
         player.pos.x = start_x;
@@ -236,6 +242,7 @@ impl GameState {
             shops: Vec::new(),
             vaults: Vec::new(),
             active_encounter: None,
+            skip_invariant_checks: false,
         }
     }
 
@@ -273,21 +280,43 @@ impl GameState {
         let gameplay_seed = rng.seed();
         rng = GameRng::new(gameplay_seed);
 
-        let (start_x, start_y) = current_level.find_upstairs().unwrap_or((40, 10));
+        // 5. Place player at starting position (C: u_on_upstairs / u_on_newpos)
+        //    On level 1 there are no upstairs, so find_player_start() picks a room.
+        let (start_x, start_y) = current_level.find_player_start();
         player.pos.x = start_x;
         player.pos.y = start_y;
         player.prev_pos = player.pos;
 
-        // 4. Initialize visibility from starting position
+        // 6. Displace any monster on the player's starting position (C: mnexto)
         let mut current_level = current_level;
+        {
+            let monster_on_start: Option<crate::monster::MonsterId> = current_level
+                .monsters
+                .iter()
+                .find(|m| m.x == start_x && m.y == start_y)
+                .map(|m| m.id);
+            if let Some(mid) = monster_on_start {
+                crate::action::teleport::mnexto(&mut current_level, mid, start_x, start_y);
+            }
+        }
+
+        // 7. Initialize visibility from starting position (C: vision_reset)
         current_level.update_visibility(start_x, start_y, SIGHT_RANGE);
+
+        // 9. Moon phase and Friday 13th (C: moveloop lines 47-57)
+        let mut flags = Flags::default();
+        #[cfg(feature = "std")]
+        {
+            flags.moonphase = crate::world::time::phase_of_the_moon();
+            flags.friday13 = crate::world::time::friday_13th();
+        }
 
         let mut state = Self {
             player,
             inventory,
             current_level,
             levels: HashMap::new(),
-            flags: Flags::default(),
+            flags,
             context: Context::default(),
             rng,
             timeouts: TimeoutManager::new(),
@@ -307,12 +336,43 @@ impl GameState {
             shops: Vec::new(),
             vaults: Vec::new(),
             active_encounter: None,
+            skip_invariant_checks: false,
         };
 
         // Calculate AC from auto-equipped starting items
         state.update_armor_class();
 
+        // 10. Moon phase / Friday 13th luck adjustments (C: moveloop lines 47-57)
+        #[cfg(feature = "std")]
+        {
+            use crate::world::time::{FULL_MOON, NEW_MOON};
+            if state.flags.moonphase == FULL_MOON {
+                state.message("You are lucky!  Full moon tonight.");
+                state.player.change_luck(1);
+            } else if state.flags.moonphase == NEW_MOON {
+                state.message("Be careful!  New moon tonight.");
+            }
+            if state.flags.friday13 {
+                state.message("Watch out!  Bad things can happen on Friday the 13th.");
+                state.player.change_luck(-1);
+            }
+        }
+
+        // 11. Check for special room at starting position (C: check_special_room)
+        crate::action::movement::check_special_room(&mut state);
+
         state
+    }
+
+    /// Spawn the starting pet near the player (C: makedog).
+    ///
+    /// Called separately from `new_with_identity()` so that RNG-synchronized
+    /// comparison tests can skip pet creation (the C test harness also skips
+    /// makedog).  The TUI binary should call this after state creation.
+    pub fn spawn_starting_pet(&mut self) {
+        if let Some(pet) = crate::special::dog::create_starting_pet(&self.player, &mut self.rng) {
+            self.current_level.add_monster(pet);
+        }
     }
 
     /// Add a message to display
@@ -325,6 +385,50 @@ impl GameState {
     /// Clear messages
     pub fn clear_messages(&mut self) {
         self.messages.clear();
+    }
+
+    /// Verify all internal invariants of the game state.
+    ///
+    /// Returns a list of violation descriptions (empty = healthy).
+    /// Called automatically via `debug_assert_invariants()` after each tick
+    /// in debug builds, and available for fuzz/integration tests in release.
+    pub fn check_invariants(&self) -> Vec<String> {
+        let mut violations = Vec::new();
+
+        // Player must be on a valid, walkable cell
+        let px = self.player.pos.x;
+        let py = self.player.pos.y;
+        if !self.current_level.is_valid_pos(px, py) {
+            violations.push(format!("player at ({},{}) is out of bounds", px, py));
+        } else if !self.current_level.cells[px as usize][py as usize].is_walkable() {
+            let cell_type = self.current_level.cells[px as usize][py as usize].typ;
+            violations.push(format!(
+                "player at ({},{}) is on unwalkable cell {:?}",
+                px, py, cell_type
+            ));
+        }
+
+        // Delegate to Level's structural checks
+        let level_violations = self.current_level.check_invariants();
+        violations.extend(level_violations);
+
+        violations
+    }
+
+    /// Assert invariants in debug builds.  Called after every `tick()`.
+    ///
+    /// In release builds this is a no-op.  In debug/test builds a violation
+    /// panics with a descriptive message so the bug is caught immediately.
+    pub fn debug_assert_invariants(&self) {
+        if cfg!(debug_assertions) && !self.skip_invariant_checks {
+            let violations = self.check_invariants();
+            assert!(
+                violations.is_empty(),
+                "GameState invariant violation(s) at turn {}:\n  {}",
+                self.turns,
+                violations.join("\n  ")
+            );
+        }
     }
 
     /// Transfer pending messages from the current level to the game state
@@ -503,6 +607,12 @@ impl GameLoop {
                 return GameLoopResult::PlayerDied(death_msg);
             }
         }
+
+        // Verify state invariants after every tick (debug builds only).
+        // This catches grid-desync, out-of-bounds, and stale-reference bugs
+        // immediately at the point they occur rather than as mysterious
+        // rendering glitches later.
+        self.state.debug_assert_invariants();
 
         GameLoopResult::Continue
     }
@@ -1615,14 +1725,17 @@ impl GameLoop {
                             );
                             crate::player::check_level_gain(&mut state.player, &mut state.rng);
 
-                            // Award loot drops
-                            let loot_value = crate::combat::award_monster_loot(&mut state.player, monster, &mut state.rng);
-                            if loot_value > 0 {
-                                state.message(format!("You find {} gold pieces.", loot_value));
-                            }
-                            let hoard_value = crate::combat::award_boss_hoard(&mut state.player, monster, &mut state.rng);
-                            if hoard_value > 0 {
-                                state.message(format!("You discover a treasure hoard worth {} gold!", hoard_value));
+                            // Drop gold on the floor at monster's position (C: mkgold in mondead)
+                            let gold_amount = crate::combat::calculate_monster_gold(monster, &mut state.rng);
+                            if gold_amount > 0 {
+                                let gold = crate::object::Object::new_gold(gold_amount);
+                                state.current_level.add_object(gold, new_x, new_y);
+                                state.message(format!(
+                                    "{} gold piece{} {} here.",
+                                    gold_amount,
+                                    if gold_amount == 1 { "" } else { "s" },
+                                    if gold_amount == 1 { "drops" } else { "drop" },
+                                ));
                             }
                         }
                         // Alignment reward for killing hostile monster
@@ -1653,12 +1766,9 @@ impl GameLoop {
                 }
                 return ActionResult::Success;
             } else {
-                // Swap positions with peaceful monster
+                // Swap positions with peaceful monster (use move_monster for grid sync)
                 let player_pos = state.player.pos;
-                if let Some(m) = state.current_level.monster_mut(monster_id) {
-                    m.x = player_pos.x;
-                    m.y = player_pos.y;
-                }
+                state.current_level.move_monster(monster_id, player_pos.x, player_pos.y);
                 state.player.prev_pos = state.player.pos;
                 state.player.pos.x = new_x;
                 state.player.pos.y = new_y;
@@ -1789,6 +1899,44 @@ impl GameLoop {
                 state.message(format!("\"{}\"", greeting));
             }
             state.player.in_shop = new_shop;
+        }
+
+        // Auto-pickup: gold is always picked up, other items if autopickup is on
+        // (C: pickup(1) in moveloop / domove_core)
+        {
+            let px = state.player.pos.x;
+            let py = state.player.pos.y;
+            let gold_ids: Vec<_> = state
+                .current_level
+                .objects_at(px, py)
+                .iter()
+                .filter(|o| o.class == crate::object::ObjectClass::Coin)
+                .map(|o| o.id)
+                .collect();
+            for id in gold_ids {
+                if let Some(obj) = state.current_level.remove_object(id) {
+                    let amount = obj.quantity;
+                    state.player.gold += amount;
+                    state.message(format!(
+                        "You pick up {} gold piece{}.",
+                        amount,
+                        if amount == 1 { "" } else { "s" }
+                    ));
+                }
+            }
+
+            // Report non-gold items on the floor
+            let items_here: Vec<String> = state
+                .current_level
+                .objects_at(px, py)
+                .iter()
+                .map(|o| o.display_name())
+                .collect();
+            if items_here.len() == 1 {
+                state.message(format!("You see here {}.", items_here[0]));
+            } else if items_here.len() > 1 {
+                state.message("There are several objects here.");
+            }
         }
 
         ActionResult::Success
@@ -1930,14 +2078,14 @@ impl GameLoop {
 
         // ENTERING LEVEL - Place migrated pets near player
         for mut pet in migrating_pets {
-            pet.x = self.state.player.pos.x;
-            pet.y = self.state.player.pos.y;
+            pet.x = self.state.player.pos.x; // pre-add: not yet in level grid
+            pet.y = self.state.player.pos.y; // pre-add: not yet in level grid
             // Try to find an adjacent open spot
             if let Some((px, py)) = crate::dungeon::enexto(
                 pet.x, pet.y, &self.state.current_level,
             ) {
-                pet.x = px;
-                pet.y = py;
+                pet.x = px; // pre-add: not yet in level grid
+                pet.y = py; // pre-add: not yet in level grid
             }
             self.state.current_level.add_monster(pet);
         }
@@ -2101,55 +2249,48 @@ impl GameLoop {
                     if let Some((npc_type, shrine_pos)) = npc_type_and_data {
                         match npc_type {
                             "priest" => {
-                                // Clone monster to avoid borrow conflict with level
+                                // Clone monster to compute new position, then move via grid-safe API
                                 if let Some(mut monster) = state.current_level.monster(id).cloned()
                                 {
+                                    let (old_x, old_y) = (monster.x, monster.y);
                                     crate::special::priest::move_priest_to_shrine(
                                         &mut monster,
                                         shrine_pos,
                                         &state.current_level,
                                     );
-                                    // Update monster back in level
-                                    if let Some(m) = state.current_level.monster_mut(id) {
-                                        m.x = monster.x;
-                                        m.y = monster.y;
+                                    let (new_x, new_y) = (monster.x, monster.y);
+                                    if new_x != old_x || new_y != old_y {
+                                        state.current_level.move_monster(id, new_x, new_y);
                                     }
                                     any_moved = true;
                                 }
                             }
                             "shopkeeper" => {
-                                // Clone monster to avoid borrow conflict with level
+                                // Clone monster to compute new position, then move via grid-safe API
                                 let player_ref = &state.player;
                                 if let Some(mut monster) = state.current_level.monster(id).cloned()
                                 {
+                                    let (old_x, old_y) = (monster.x, monster.y);
                                     crate::special::shk::move_shopkeeper_to_shop(
                                         &mut monster,
                                         &state.current_level,
                                         player_ref,
                                     );
-                                    // Update monster back in level
-                                    if let Some(m) = state.current_level.monster_mut(id) {
-                                        m.x = monster.x;
-                                        m.y = monster.y;
+                                    let (new_x, new_y) = (monster.x, monster.y);
+                                    if new_x != old_x || new_y != old_y {
+                                        state.current_level.move_monster(id, new_x, new_y);
                                     }
                                     any_moved = true;
                                 }
                             }
                             "guard" => {
                                 let player_clone = state.player.clone();
-                                if let Some(mut monster) = state.current_level.monster(id).cloned()
-                                {
-                                    crate::special::vault::move_vault_guard(
-                                        &mut monster,
-                                        &mut state.current_level,
-                                        &player_clone,
-                                    );
-                                    // Update the monster in the level
-                                    if let Some(m) = state.current_level.monster_mut(id) {
-                                        *m = monster;
-                                    }
-                                    any_moved = true;
-                                }
+                                crate::special::vault::move_vault_guard(
+                                    id,
+                                    &mut state.current_level,
+                                    &player_clone,
+                                );
+                                any_moved = true;
                             }
                             "pet" => {
                                 let player_clone = state.player.clone();
@@ -3402,6 +3543,12 @@ mod tests {
         state.player.grabbed_by = Some(fake_grabber_id);
         state.player.pos.x = 6;
         state.player.pos.y = 5;
+        // Ensure test position and adjacent cells are walkable for invariant checker
+        for dx in 0..3 {
+            for dy in 0..3 {
+                state.current_level.cells[5 + dx][4 + dy].typ = crate::dungeon::CellType::Room;
+            }
+        }
 
         // Create game loop and try to move
         let mut game_loop = GameLoop::new(state);
@@ -3503,5 +3650,49 @@ mod tests {
         assert!(result.is_ok());
         let entry = result.unwrap();
         assert_eq!(entry.death_reason, "test death");
+    }
+
+    /// Regression test: player must start on a walkable cell with visibility.
+    ///
+    /// On dungeon level 1 there are no upstairs, so the player is placed in a
+    /// room via `find_player_start()`.  Previously the fallback placed the
+    /// player inside solid stone, causing an empty map and no movement.
+    #[test]
+    fn test_player_starts_on_walkable_cell() {
+        use crate::player::{Gender, Race, Role, AlignmentType};
+        use crate::rng::GameRng;
+
+        let rng = GameRng::new(42);
+        let state = GameState::new_with_identity(
+            rng,
+            "TestPlayer".to_string(),
+            Role::Valkyrie,
+            Race::Human,
+            Gender::Female,
+            AlignmentType::Neutral,
+        );
+
+        let px = state.player.pos.x;
+        let py = state.player.pos.y;
+        let cell = &state.current_level.cells[px as usize][py as usize];
+
+        // Player must be on a walkable cell
+        assert!(
+            cell.is_walkable(),
+            "Player on unwalkable cell: {:?} at ({}, {})", cell.typ, px, py
+        );
+
+        // Player cell must be explored and visible
+        assert!(state.current_level.is_explored(px, py), "Player cell not explored");
+        assert!(state.current_level.is_visible(px, py), "Player cell not visible");
+
+        // Must have reasonable visibility (more than just the 3x3 area)
+        let mut explored = 0;
+        for x in 0..80i8 {
+            for y in 0..21i8 {
+                if state.current_level.is_explored(x, y) { explored += 1; }
+            }
+        }
+        assert!(explored > 10, "Too few explored cells: {}", explored);
     }
 }

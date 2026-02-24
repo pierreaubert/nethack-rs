@@ -9,6 +9,10 @@ use nh_assets::registry::AssetRegistry;
 use nh_assets::mapping::AssetMapping;
 
 fn main() {
+    // Early system initialization (C: sys_early_init + decl_init)
+    nh_core::world::sys_early_init();
+    nh_core::world::decl_init();
+
     // Load asset mapping
     let assets_path = "assets/mapping.json";
     let registry = AssetRegistry::load_from_file(assets_path).unwrap_or_else(|_| {

@@ -62,7 +62,7 @@ pub use uhitm::{
     special_dmgval, special_weapon_effects, sticks, throw_damage, throwing_weapon,
     two_weapon_hit, weapon_dam_bonus, weapon_hit_bonus, weapon_skill_type,
     // Loot system
-    award_monster_loot, award_boss_hoard, generate_monster_loot, should_drop_hoard,
+    award_monster_loot, award_boss_hoard, calculate_monster_gold, generate_monster_loot, should_drop_hoard,
     // Combat spells
     can_player_cast_in_combat, player_cast_spell, get_player_combat_spells,
     // Encounter system
@@ -3769,7 +3769,7 @@ impl LootGenerator {
             LootCategory::Gold => "gold coins".to_string(),
             LootCategory::Wand => {
                 let wands = ["wand of fireball", "wand of lightning", "wand of healing"];
-                wands[rng.rnd(wands.len() as u32) as usize].to_string()
+                wands[rng.rn2(wands.len() as u32) as usize].to_string()
             }
         }
     }

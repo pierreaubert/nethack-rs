@@ -90,9 +90,20 @@ pub fn do_pickup(state: &mut GameState) -> ActionResult {
     // Remove each object from the level and add to inventory
     for id in object_ids {
         if let Some(obj) = state.current_level.remove_object(id) {
-            let name = obj.display_name();
-            state.add_to_inventory(obj);
-            picked_up.push(name);
+            // Gold goes to player.gold, not inventory (C: dopickup / pickup_object)
+            if obj.class == crate::object::ObjectClass::Coin {
+                let amount = obj.quantity;
+                state.player.gold += amount;
+                picked_up.push(format!(
+                    "{} gold piece{}",
+                    amount,
+                    if amount == 1 { "" } else { "s" }
+                ));
+            } else {
+                let name = obj.display_name();
+                state.add_to_inventory(obj);
+                picked_up.push(name);
+            }
         }
     }
 

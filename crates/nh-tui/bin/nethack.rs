@@ -425,6 +425,10 @@ fn create_new_game_with_choices(
         alignment,
     );
 
+    // Post-creation setup matching C's newgame() in allmain.c
+    state.spawn_starting_pet();          // C: makedog()
+    state.player.next_attrib_check = 600; // C: context.next_attrib_check = 600L
+
     state.flags.started = true;
 
     // Wizard mode overrides for debugging
@@ -435,7 +439,11 @@ fn create_new_game_with_choices(
         state.player.energy_max = 100;
     }
 
-    let _ = discover_mode; // TODO: implement discover mode effects
+    // Discover mode (C: flags.explore = TRUE in enter_explore_mode)
+    if discover_mode {
+        state.flags.explore = true;
+        state.message("You are in explore mode.");
+    }
 
     // Add welcome and intro messages
     let rank = role.rank_title(1, gender);

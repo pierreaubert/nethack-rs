@@ -969,13 +969,11 @@ fn teleport_monster(
         let y = rng.rn2(crate::ROWNO as u32) as i8;
 
         if level.is_walkable(x, y) && level.monster_at(x, y).is_none() {
-            if let Some(monster) = level.monster_mut(monster_id) {
-                monster.x = x;
-                monster.y = y;
-                result
-                    .messages
-                    .push(format!("The {} vanishes!", monster.name));
+            if let Some(monster) = level.monster(monster_id) {
+                let msg = format!("The {} vanishes!", monster.name);
+                result.messages.push(msg);
             }
+            level.move_monster(monster_id, x, y);
             return;
         }
     }
