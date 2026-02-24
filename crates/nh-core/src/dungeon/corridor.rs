@@ -274,10 +274,8 @@ fn dosdoor(level: &mut Level, x: usize, y: usize, mut door_type: CellType, rng: 
             if depth >= 9 && rng.rn2(5) == 0 {
                 // C: levl[x][y].doormask = D_NODOOR;
                 //    mtmp = makemon(mkclass(S_MIMIC, 0), x, y, NO_MM_FLAGS);
-                eprintln!("RS dosdoor: MIMIC at ({},{}) rng={}", x, y, rng.call_count());
                 level.cells[x][y].set_door_state(DoorState::NO_DOOR);
                 super::generation::mimic_door_c_rng(depth, rng);
-                eprintln!("RS dosdoor: MIMIC done rng={}", rng.call_count());
             }
         }
 
@@ -481,7 +479,6 @@ pub fn join_rooms(
 
     let croom = &rooms[room_a];
     let troom = &rooms[room_b];
-    eprintln!("RS join: a={} b={} nxcor={} rng={}", room_a, room_b, nxcor, rng.call_count());
 
     // Room bounds (C's lx, ly, hx, hy)
     let c_lx = croom.x;
@@ -538,7 +535,6 @@ pub fn join_rooms(
     let yy = cc.1 as i32;
     let tx = tt.0 as i32 - dx;
     let ty = tt.1 as i32 - dy;
-    eprintln!("RS join: cc=({},{}) tt=({},{}) dx={} dy={} rng={}", cc.0, cc.1, tt.0, tt.1, dx, dy, rng.call_count());
 
     // Early exit check for nxcor: if cell beyond door already has terrain
     if nxcor {
@@ -550,7 +546,6 @@ pub fn join_rooms(
             && (check_y as usize) < ROWNO
             && level.cells[check_x as usize][check_y as usize].typ != CellType::Stone
         {
-            eprintln!("RS join: nxcor early exit, cell ({},{})={:?} rng={}", check_x, check_y, level.cells[check_x as usize][check_y as usize].typ, rng.call_count());
             return;
         }
     }
@@ -559,7 +554,6 @@ pub fn join_rooms(
     if okdoor(level, xx, yy) || !nxcor {
         dodoor(level, cc.0, cc.1, room_a, rng);
     }
-    eprintln!("RS join: after first dodoor rng={}", rng.call_count());
 
     // C: dig_corridor(&org, &dest, nxcor, level.flags.arboreal ? ROOM : CORR, STONE)
     // For standard levels, ftyp=CORR, btyp=STONE
@@ -574,16 +568,13 @@ pub fn join_rooms(
         CellType::Stone,
         rng,
     ) {
-        eprintln!("RS join: dig_corridor FAILED rng={}", rng.call_count());
         return;
     }
-    eprintln!("RS join: after dig_corridor rng={}", rng.call_count());
 
     // Place door on troom wall
     if okdoor(level, tt.0 as i32, tt.1 as i32) || !nxcor {
         dodoor(level, tt.0, tt.1, room_b, rng);
     }
-    eprintln!("RS join: done rng={}", rng.call_count());
 
     // C: if (smeq[a] < smeq[b]) smeq[b] = smeq[a]; else smeq[a] = smeq[b];
     tracker.merge(room_a, room_b);

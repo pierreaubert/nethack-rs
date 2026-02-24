@@ -1,0 +1,1203 @@
+{
+  "label": "rest-only-rogue-seed12345",
+  "seed": 12345,
+  "total_turns": 200,
+  "first_critical_turn": null,
+  "turns_with_diffs": 21,
+  "critical_count": 0,
+  "major_count": 34,
+  "minor_count": 147,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "899",
+          "c_value": "898"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "889",
+          "c_value": "888"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "879",
+          "c_value": "878"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "869",
+          "c_value": "868"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "859",
+          "c_value": "858"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 50,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "849",
+          "c_value": "848"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 60,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "839",
+          "c_value": "838"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 70,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "829",
+          "c_value": "828"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 80,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "819",
+          "c_value": "818"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "1",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 90,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "809",
+          "c_value": "808"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "1",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 100,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "799",
+          "c_value": "798"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "2",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 110,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "789",
+          "c_value": "788"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "2",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 120,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "779",
+          "c_value": "778"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "2",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 130,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "769",
+          "c_value": "768"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "3",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 140,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "759",
+          "c_value": "758"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "3",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 150,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "749",
+          "c_value": "748"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "3",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 160,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "739",
+          "c_value": "738"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "3",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 170,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "729",
+          "c_value": "728"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "3",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 180,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "719",
+          "c_value": "718"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "3",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 190,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "709",
+          "c_value": "708"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "3",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 199,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.armor_class",
+          "rust_value": "5",
+          "c_value": "7"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "700",
+          "c_value": "699"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "15",
+          "c_value": "19"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "10",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "11",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "14",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "7",
+          "c_value": "12"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "3",
+          "c_value": "0"
+        }
+      ]
+    }
+  ]
+}

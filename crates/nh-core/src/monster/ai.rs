@@ -991,10 +991,10 @@ fn move_towards(
                 // and the monster is too large to squeeze through
                 let corner1_rock = level.cells[mx as usize][ny as usize].typ.is_rock();
                 let corner2_rock = level.cells[nx as usize][my as usize].typ.is_rock();
-                if corner1_rock && corner2_rock {
-                    // cant_squeeze_thru: verysmall() is always false for Large+
-                    // For simple monsters (tiny/small/medium) this never triggers
-                    // TODO: check monster size >= Large when needed
+                if corner1_rock && corner2_rock && pm.is_big() {
+                    // cant_squeeze_thru: Large+ monsters cannot squeeze diagonally
+                    // between two rock walls (C: mon.c:1523-1525, bigmonst check)
+                    continue;
                 }
             }
             let walkable = level.is_walkable(nx, ny);
@@ -1027,8 +1027,6 @@ fn move_towards(
     let jcnt = 4.min(cnt.saturating_sub(1));
 
     // Diagnostic logging for convergence debugging
-    eprintln!("    move_towards: mon {} at ({},{}) target ({},{}) cnt={} jcnt={} valid={:?} mtrack={:?}",
-        monster_id.0, mx, my, target_x, target_y, cnt, jcnt, valid_positions, mtrack);
 
     let mut best_pos: Option<(i8, i8)> = None;
     let mut best_dist = i32::MAX;
@@ -2687,8 +2685,8 @@ fn lined_up_with_player(
     // For full C parity: would need player polymorph state
 
     // C: ignore_boulders = throws_rocks(ptr) || m_carrying(mtmp, WAN_STRIKING)
-    let ignore_boulders = pm.throws_rocks();
-    // TODO: also check m_carrying(WAN_STRIKING) when inventory is fully tracked
+    let has_wan_striking = monster.inventory.iter().any(|o| o.object_type == 120);
+    let ignore_boulders = pm.throws_rocks() || has_wan_striking;
     let boulder_handling = if ignore_boulders { 1 } else { 2 };
 
     // C: linedup(mtmp->mux, mtmp->muy, mtmp->mx, mtmp->my, ignore_boulders ? 1 : 2)

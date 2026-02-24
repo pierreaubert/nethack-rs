@@ -282,7 +282,7 @@ impl GameState {
         let mut current_level = current_level;
         current_level.update_visibility(start_x, start_y, SIGHT_RANGE);
 
-        Self {
+        let mut state = Self {
             player,
             inventory,
             current_level,
@@ -307,7 +307,12 @@ impl GameState {
             shops: Vec::new(),
             vaults: Vec::new(),
             active_encounter: None,
-        }
+        };
+
+        // Calculate AC from auto-equipped starting items
+        state.update_armor_class();
+
+        state
     }
 
     /// Add a message to display
@@ -2218,8 +2223,6 @@ impl GameLoop {
                     .map(|m| (m.x, m.y))
                     .unwrap_or((*mx, *my));
                 if rng_delta > 0 || cfg!(debug_assertions) {
-                    eprintln!("  Rust MON {} type={} '{}' ({},{})→({},{}): {} RNG calls",
-                        id.0, mtype, mname, mx, my, post_x, post_y, rng_delta);
                 }
             }
 
@@ -2230,8 +2233,6 @@ impl GameLoop {
         }
 
         let movemon_rng_total = state.rng.call_count() - movemon_rng_start;
-        eprintln!("  Rust SECTION movemon: {} RNG calls ({} monsters checked)",
-            movemon_rng_total, monster_ids.len());
 
         any_moved
     }
@@ -2308,7 +2309,7 @@ impl GameLoop {
                 let player_level = state.player.exp_level as i32;
                 let player_alignment = state.player.alignment.typ.value();
                 let align_record = state.player.alignment.record;
-                let in_hell = false; // TODO: check actual hell status
+                let in_hell = crate::dungeon::in_hell(&state.current_level.dlevel);
                 crate::dungeon::generation::makemon_runtime_c_rng(
                     &mut state.current_level,
                     player_level,
@@ -2423,15 +2424,11 @@ impl GameLoop {
         // Regenerate mana
         crate::magic::spell::regenerate_mana(&mut state.player);
 
-        // Process hunger
-        state.player.digest(1);
-        if matches!(
-            state.player.hunger_state,
-            crate::player::HungerState::Starved
-        ) {
-            state.player.take_damage(1);
-            if state.player.is_dead() {
-                state.message("You die from starvation.");
+        // Process hunger (C: gethungry from eat.c:2790-2843)
+        {
+            let hunger_msgs = crate::action::eat::gethungry(state);
+            for msg in hunger_msgs {
+                state.message(msg);
             }
         }
 

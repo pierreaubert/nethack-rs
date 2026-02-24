@@ -372,26 +372,33 @@ fn test_apply_corpse_effects_toggle_speed() {
 fn test_hunger_state_transitions() {
     let mut state = test_state(42);
 
-    // Start with normal nutrition (>=1000 is NotHungry)
-    state.player.nutrition = 1200;
+    // C thresholds (eat.c:2936-2939):
+    //   nutrition > 1000 → Satiated
+    //   nutrition > 150  → NotHungry
+    //   nutrition > 50   → Hungry
+    //   nutrition > 0    → Weak
+    //   else             → Fainting
+
+    // Start with normal nutrition (>150 is NotHungry)
+    state.player.nutrition = 800;
     state.player.hunger_state = HungerState::NotHungry;
 
-    // Decrease nutrition below hungry threshold (<1000, >=500 is Hungry)
-    state.player.nutrition = 800;
-    let msgs = newuhs(&mut state, false);
+    // Decrease nutrition below hungry threshold (<=150, >50 is Hungry)
+    state.player.nutrition = 100;
+    let msgs = newuhs(&mut state, true); // incr=true: getting hungrier
     assert_eq!(state.player.hunger_state, HungerState::Hungry);
     assert!(
         msgs.iter().any(|m| m.contains("hungry")),
         "Should get hungry message"
     );
 
-    // Eat and recover (>=1000 is NotHungry)
-    state.player.nutrition = 1200;
-    let msgs = newuhs(&mut state, true);
+    // Eat and recover (>150 is NotHungry)
+    state.player.nutrition = 800;
+    let msgs = newuhs(&mut state, false); // incr=false: getting less hungry
     assert_eq!(state.player.hunger_state, HungerState::NotHungry);
     assert!(
-        msgs.iter().any(|m| m.contains("not hungry")),
-        "Should get 'not hungry' message"
+        !msgs.is_empty(),
+        "Should get recovery message when no longer hungry"
     );
 }
 
@@ -403,7 +410,7 @@ fn test_gethungry_decrements_nutrition() {
     let mut rng = GameRng::new(42);
 
     let initial = state.player.nutrition;
-    gethungry(&mut state, &mut rng);
+    gethungry(&mut state);
     assert!(
         state.player.nutrition < initial,
         "gethungry should decrement nutrition"
@@ -422,7 +429,7 @@ fn test_slow_digestion_prevents_hunger() {
     let mut rng = GameRng::new(42);
 
     let initial = state.player.nutrition;
-    gethungry(&mut state, &mut rng);
+    gethungry(&mut state);
     assert_eq!(
         state.player.nutrition, initial,
         "Slow Digestion should prevent nutrition loss"

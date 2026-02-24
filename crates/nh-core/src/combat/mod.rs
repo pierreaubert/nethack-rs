@@ -3729,7 +3729,7 @@ impl LootGenerator {
                     "spear",
                     "bow",
                 ];
-                weapons[rng.rnd(weapons.len() as u32) as usize].to_string()
+                weapons[rng.rn2(weapons.len() as u32) as usize].to_string()
             }
             LootCategory::Armor => {
                 let armors = [
@@ -3740,15 +3740,15 @@ impl LootGenerator {
                     "helmet",
                     "gloves",
                 ];
-                armors[rng.rnd(armors.len() as u32) as usize].to_string()
+                armors[rng.rn2(armors.len() as u32) as usize].to_string()
             }
             LootCategory::Jewelry => {
                 let jewelry = ["ring of protection", "amulet of health", "bracers"];
-                jewelry[rng.rnd(jewelry.len() as u32) as usize].to_string()
+                jewelry[rng.rn2(jewelry.len() as u32) as usize].to_string()
             }
             LootCategory::Potion => {
                 let potions = ["potion of healing", "potion of strength", "potion of speed"];
-                potions[rng.rnd(potions.len() as u32) as usize].to_string()
+                potions[rng.rn2(potions.len() as u32) as usize].to_string()
             }
             LootCategory::Scroll => {
                 let scrolls = [
@@ -3756,13 +3756,13 @@ impl LootGenerator {
                     "scroll of teleport",
                     "scroll of enchant",
                 ];
-                scrolls[rng.rnd(scrolls.len() as u32) as usize].to_string()
+                scrolls[rng.rn2(scrolls.len() as u32) as usize].to_string()
             }
             LootCategory::Gem => {
                 let gems = ["ruby", "sapphire", "emerald", "diamond"];
                 format!(
                     "{} ({} carats)",
-                    gems[rng.rnd(gems.len() as u32) as usize],
+                    gems[rng.rn2(gems.len() as u32) as usize],
                     monster_level * 10
                 )
             }

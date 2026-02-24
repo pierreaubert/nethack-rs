@@ -886,7 +886,6 @@ fn test_rng_with_movemon_diagnostic() {
             e, &level_json[..level_json.len().min(500)]));
 
     let (cx, cy) = c_engine.position();
-    eprintln!("=== Movemon Diagnostic (NO delta assertion) ===");
     eprintln!("  C level: {} monsters, {} rooms, shop={}, temple={}",
              fixture.monsters.len(), fixture.rooms.len(),
              fixture.has_shop, fixture.has_temple);
@@ -923,8 +922,6 @@ fn test_rng_with_movemon_diagnostic() {
 
     eprintln!("  Rust level: {} monsters", rust_loop.state().current_level.monsters.len());
     for m in &rust_loop.state().current_level.monsters {
-        eprintln!("  Rust Monster id={} type={} at ({},{}) sleeping={} peaceful={} movement={}",
-            m.id.0, m.monster_type, m.x, m.y, m.state.sleeping, m.state.peaceful, m.movement);
     }
 
     // Sync C's stats to match Rust's initial state
@@ -949,7 +946,6 @@ fn test_rng_with_movemon_diagnostic() {
         sync_stats_to_c(rs, &c_engine, rs.turns as i64);
 
         eprintln!("\n--- Turn {} (moves={}) ---", turn, rs.turns + 1);
-        eprintln!("  C RNG before: {}, Rust RNG before: {}", c_before, rust_before);
 
         // Clear and re-enable RNG trace for this turn
         c_engine.clear_rng_trace();
@@ -988,7 +984,6 @@ fn test_rng_with_movemon_diagnostic() {
         // Print C RNG trace for first divergent turn
         if delta != 0 {
             let trace = c_engine.rng_trace_json();
-            eprintln!("  C RNG trace len={} (turn {}):", trace.len(), turn);
             if trace.len() > 2 {
                 eprintln!("  {}", &trace[..trace.len().min(4000)]);
             }
@@ -1003,7 +998,6 @@ fn test_rng_with_movemon_diagnostic() {
     }
 
     eprintln!("\n=== Movemon Summary ===");
-    eprintln!("  Cumulative |delta| over 500 turns: {}", cumulative_delta);
     assert_eq!(cumulative_delta, 0,
         "RNG delta must be 0 per turn with movemon enabled (500 turns)");
 }

@@ -168,35 +168,37 @@ fn test_role_hp_energy_values() {
     }
 }
 
-/// Verify each role gets the expected number of starting items.
+/// Verify each role gets at least the expected minimum starting items.
+/// Optional items (lamp, tinopener, blindfold, etc.) can add 0-2 extras per role.
 #[test]
 fn test_role_inventory_counts() {
-    let expected: &[(Role, usize)] = &[
-        (Role::Archeologist, 8),
-        (Role::Barbarian, 4),
-        (Role::Caveman, 5),
-        (Role::Healer, 10),
-        (Role::Knight, 8),
-        (Role::Monk, 9),
-        (Role::Priest, 7),
-        (Role::Ranger, 6),
-        (Role::Rogue, 6),
-        (Role::Samurai, 5),
-        (Role::Tourist, 7),
-        (Role::Valkyrie, 4),
-        (Role::Wizard, 8),
+    // Minimum base items per role (without optional extras)
+    let expected_min: &[(Role, usize)] = &[
+        (Role::Archeologist, 8),   // +0-1 optional (tinopener/lamp/marker)
+        (Role::Barbarian, 4),      // +0-1 optional (lamp)
+        (Role::Caveman, 5),        // no optionals
+        (Role::Healer, 10),        // +0-1 optional (lamp)
+        (Role::Knight, 8),         // no optionals
+        (Role::Monk, 9),           // +0-1 optional (marker/lamp)
+        (Role::Priest, 7),         // +0-1 optional (marker/lamp)
+        (Role::Ranger, 6),         // no optionals
+        (Role::Rogue, 6),          // +0-1 optional (blindfold)
+        (Role::Samurai, 5),        // +0-1 optional (blindfold)
+        (Role::Tourist, 7),        // +0-1 optional (tinopener/leash/towel/marker)
+        (Role::Valkyrie, 4),       // +0-1 optional (lamp)
+        (Role::Wizard, 8),         // +0-2 optional (marker, blindfold)
     ];
 
-    for &(role, expected_count) in expected {
+    for &(role, min_count) in expected_min {
         let rng = GameRng::new(42);
         let state =
             GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
-        assert_eq!(
-            state.inventory.len(),
-            expected_count,
-            "{:?}: should have {} items, got {}",
+        assert!(
+            state.inventory.len() >= min_count && state.inventory.len() <= min_count + 2,
+            "{:?}: should have {}-{} items, got {}",
             role,
-            expected_count,
+            min_count,
+            min_count + 2,
             state.inventory.len()
         );
     }

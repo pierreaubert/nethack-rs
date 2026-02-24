@@ -175,7 +175,6 @@ impl RectManager {
         // trycnt starts at 0, body runs first, then checks ++trycnt <= 100
         // This means 101 iterations (trycnt 0..=100)
         loop {
-            eprintln!("RS create_room: try={} rng={}", trycnt, rng.call_count());
             let r1 = match self.rnd_rect(rng) {
                 Some(r) => r,
                 None => return None, // No more free rectangles
@@ -196,7 +195,6 @@ impl RectManager {
             let yborder = if ly > 0 && hy < crate::ROWNO as u8 - 1 { 2 * ylim } else { ylim + 1 };
 
             if hx - lx < dx + 3 + xborder || hy - ly < dy + 3 + yborder {
-                eprintln!("RS create_room: too small, skip rng={}", rng.call_count());
                 // C: r1 = 0; continue; — then while (++trycnt <= 100 && !r1)
                 trycnt += 1;
                 if trycnt > 100 { break; }
@@ -217,15 +215,12 @@ impl RectManager {
                 }
             }
 
-            eprintln!("RS create_room: pos xabs={} yabs={} dx={} dy={} rng={}", xabs, yabs, dx, dy, rng.call_count());
             if !self.check_room(level, &mut xabs, &mut dx, &mut yabs, &mut dy, false, rng) {
-                eprintln!("RS create_room: check_room FAIL rng={}", rng.call_count());
                 // C: r1 = 0; continue; — then while (++trycnt <= 100 && !r1)
                 trycnt += 1;
                 if trycnt > 100 { break; }
                 continue;
             }
-            eprintln!("RS create_room: check_room OK rng={}", rng.call_count());
 
             let wtmp = dx + 1;
             let htmp = dy + 1;
@@ -307,8 +302,6 @@ impl RectManager {
     /// Split rectangles when a room is placed
     /// Matches NetHack's split_rects() in rect.c exactly.
     pub fn split_rects(&mut self, r1: NhRect, r2: &NhRect) {
-        eprintln!("RS split_rects: remove r1=({},{},{},{}) for r2=({},{},{},{}), list_len={}",
-            r1.lx, r1.ly, r1.hx, r1.hy, r2.lx, r2.ly, r2.hx, r2.hy, self.rects.len());
         if let Some(idx) = get_rect_ind(&self.rects, &r1) {
             self.rects.swap_remove(idx);
 
@@ -322,9 +315,6 @@ impl RectManager {
                 if self.rects[i].intersects(r2) {
                     let intersecting = self.rects[i];
                     if let Some(intersection) = intersecting.intersection(r2) {
-                        eprintln!("RS split_rects: recursive intersect rect[{}]=({},{},{},{}) with r2 -> ({},{},{},{})",
-                            i, intersecting.lx, intersecting.ly, intersecting.hx, intersecting.hy,
-                            intersection.lx, intersection.ly, intersection.hx, intersection.hy);
                         self.split_rects(intersecting, &intersection);
                     }
                 }
@@ -333,31 +323,24 @@ impl RectManager {
             if r2.ly as i16 - r1.ly as i16 - 1 > (if r1.hy < crate::ROWNO as u8 - 1 { 2 * YLIM } else { YLIM + 1 }) as i16 + 4 {
                 let mut r = r1;
                 r.hy = r2.ly.saturating_sub(2);
-                eprintln!("RS split_rects: add TOP ({},{},{},{})", r.lx, r.ly, r.hx, r.hy);
                 self.add_rect(r);
             }
             if r2.lx as i16 - r1.lx as i16 - 1 > (if r1.hx < crate::COLNO as u8 - 1 { 2 * XLIM } else { XLIM + 1 }) as i16 + 4 {
                 let mut r = r1;
                 r.hx = r2.lx.saturating_sub(2);
-                eprintln!("RS split_rects: add LEFT ({},{},{},{})", r.lx, r.ly, r.hx, r.hy);
                 self.add_rect(r);
             }
             if r1.hy as i16 - r2.hy as i16 - 1 > (if r1.ly > 0 { 2 * YLIM } else { YLIM + 1 }) as i16 + 4 {
                 let mut r = r1;
                 r.ly = r2.hy.saturating_add(2);
-                eprintln!("RS split_rects: add BOTTOM ({},{},{},{})", r.lx, r.ly, r.hx, r.hy);
                 self.add_rect(r);
             }
             if r1.hx as i16 - r2.hx as i16 - 1 > (if r1.lx > 0 { 2 * XLIM } else { XLIM + 1 }) as i16 + 4 {
                 let mut r = r1;
                 r.lx = r2.hx.saturating_add(2);
-                eprintln!("RS split_rects: add RIGHT ({},{},{},{})", r.lx, r.ly, r.hx, r.hy);
                 self.add_rect(r);
             }
-            eprintln!("RS split_rects: after split, list_len={}, rects={:?}",
-                self.rects.len(), self.rects.iter().map(|r| (r.lx, r.ly, r.hx, r.hy)).collect::<Vec<_>>());
         } else {
-            eprintln!("RS split_rects: r1 NOT FOUND in list!");
         }
     }
 
@@ -428,8 +411,6 @@ impl RectManager {
 
             let xarg = (hx - (if lx > 0 { lx } else { 3 }) - dx - xborder + 1) as u32;
             let yarg = (hy - (if ly > 0 { ly } else { 2 }) - dy - yborder + 1) as u32;
-            eprintln!("RS vault_pos: lx={} ly={} hx={} hy={} dx={} dy={} xlim={} ylim={} xborder={} yborder={} xarg={} yarg={} rng={}",
-                lx, ly, hx, hy, dx, dy, xlim, ylim, xborder, yborder, xarg, yarg, rng.call_count());
             let mut xabs = lx + (if lx > 0 { xlim } else { 3 })
                 + rng.rn2(xarg) as u8;
             let mut yabs = ly + (if ly > 0 { ylim } else { 2 })

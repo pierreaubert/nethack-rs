@@ -101,17 +101,13 @@ pub fn generate_rooms_and_corridors(
 
     // make rooms until satisfied (makerooms() in C)
     while level.rooms.len() < super::mapseen::MAXNROFROOMS && rect_mgr.rnd_rect(rng).is_some() {
-        eprintln!("RS makerooms: iter nroom={} rng={}", level.rooms.len(), rng.call_count());
         // Vault check logic (mklev.c:229-240)
         if level.rooms.len() >= (super::mapseen::MAXNROFROOMS / 6) && rng.rn2(2) != 0 && !tried_vault {
             tried_vault = true;
-            eprintln!("RS makerooms: vault attempt rng={}", rng.call_count());
             // C: if (create_vault()) { vault_x = ...; vault_y = ...; rooms[nroom].hx = -1; }
             if let Some(vault_room) = rect_mgr.create_room_vault(level, rng, level.rooms.len()) {
                 vault_position = Some((vault_room.x, vault_room.y));
-                eprintln!("RS makerooms: vault OK rng={}", rng.call_count());
             } else {
-                eprintln!("RS makerooms: vault FAIL rng={}", rng.call_count());
             }
             // Whether vault creation succeeds or fails, skip OROOM this iteration
             continue;
@@ -142,9 +138,7 @@ pub fn generate_rooms_and_corridors(
             level.rooms[new_idx] = old_rooms[old_idx].clone();
         }
     }
-    eprintln!("RS: after makerooms+sort rng={} nroom={}", rng.call_count(), level.rooms.len());
     for (ri, rm) in level.rooms.iter().enumerate() {
-        eprintln!("RS: room[{}] lx={} ly={} hx={} hy={}", ri, rm.x, rm.y, rm.x + rm.width - 1, rm.y + rm.height - 1);
     }
 
     // C places stairs BEFORE corridors (makelevel lines 710-728)
@@ -153,10 +147,8 @@ pub fn generate_rooms_and_corridors(
         place_stairs(level, &rooms_clone, rng);
     }
 
-    eprintln!("RS: after stairs rng={}", rng.call_count());
     // Connect rooms with corridors (doors are placed inside join() per C's algorithm)
     generate_corridors(level, &rooms_clone, rng);
-    eprintln!("RS: after corridors rng={}", rng.call_count());
 
     // Door counts and positions are now tracked in dodoor/dosdoor_public
     // (matching C's add_door in dosdoor)
@@ -166,7 +158,6 @@ pub fn generate_rooms_and_corridors(
     let niche_objects = OBJECTS;
     let niche_bases = ClassBases::compute(niche_objects);
     make_niches(level, &rooms_with_doors, niche_objects, &niche_bases, rng);
-    eprintln!("RS: after niches rng={}", rng.call_count());
     // C: branchp = Is_branchlev(&u.uz); room_threshold = branchp ? 4 : 3;
     let is_branch_level = {
         use super::topology::DungeonSystem;
@@ -175,22 +166,17 @@ pub fn generate_rooms_and_corridors(
     let mut room_threshold: i32 = if is_branch_level { 4 } else { 3 };
 
     // make a secret treasure vault, not connected to the rest (mklev.c:759-784)
-    eprintln!("RS: vault_position={:?}", vault_position);
     if let Some((vx, vy)) = vault_position {
         let mut vault_x = vx as i32;
         let mut vault_y = vy as i32;
         let mut w: i32 = 1;
         let mut h: i32 = 1;
 
-        eprintln!("RS: before vault check_room rng={}", rng.call_count());
         if check_room(level, &mut vault_x, &mut w, &mut vault_y, &mut h, true, rng) {
-            eprintln!("RS: vault check_room OK rng={}", rng.call_count());
             create_vault_room(level, vault_x as usize, vault_y as usize, w as usize, h as usize, rng, is_branch_level);
             room_threshold += 1;
         } else {
-            eprintln!("RS: vault check_room FAIL rng={}", rng.call_count());
             if rect_mgr.rnd_rect(rng).is_some() {
-                eprintln!("RS: vault fallback rnd_rect rng={}", rng.call_count());
                 // Fallback: try creating vault at a new location
                 if let Some(fallback_room) = rect_mgr.create_room_vault(level, rng, level.rooms.len()) {
                     vault_x = fallback_room.x as i32;
@@ -211,15 +197,11 @@ pub fn generate_rooms_and_corridors(
     // and shop type selection (rnd(100)) only happens if a room is found.
     let depth = level.dlevel.depth();
     let nroom = level.rooms.len() as i32;
-    eprintln!("RS: before special_room_cascade rng={} depth={} nroom={} room_threshold={}", rng.call_count(), depth, nroom, room_threshold);
     mkroom_cascade(level, rng, depth, nroom, room_threshold);
-    eprintln!("RS: after special_room_cascade rng={}", rng.call_count());
 
     // C: place_branch(branchp, 0, 0) — after special room cascade, before per-room loop
     let final_rooms = level.rooms.clone();
-    eprintln!("RS: before place_branch rng={}", rng.call_count());
     place_branch_c(level, &final_rooms, rng);
-    eprintln!("RS: after place_branch rng={}", rng.call_count());
 
     // C: per-room loop (mklev.c:802-893) — populate each ordinary room
     populate_ordinary_rooms(level, &final_rooms, rng);
@@ -597,7 +579,6 @@ fn mktemple_c_rng(
     // 5. robe check: rn2(2)
     rng.rn2(2);
 
-    eprintln!("RS: mktemple_c_rng done rng={}", rng.call_count());
 }
 
 /// C's fill_zoo(sroom) RNG consumption.
@@ -628,21 +609,16 @@ fn fill_zoo_c_rng(
     let (mut tx, mut ty) = (0usize, 0usize);
     match room_type {
         RoomType::Court => {
-            eprintln!("RS COURT: before somexy rng={}", rng.call_count());
             tx = rng.rn2((hx - lx + 1) as u32) as usize + lx; // somex
             ty = rng.rn2((hy - ly + 1) as u32) as usize + ly; // somey
-            eprintln!("RS COURT: after somexy tx={} ty={} rng={}", tx, ty, rng.call_count());
             let _throne_i = rng.rnd(depth.max(1) as u32) as i32;
             // C: PM_OGRE_KING=202, PM_ELVENKING=265, PM_DWARF_KING=46, PM_GNOME_KING=165
             let king_pm = if _throne_i > 9 { 202 }
                 else if _throne_i > 5 { 265 }
                 else if _throne_i > 2 { 46 }
                 else { 165 };
-            eprintln!("RS COURT: throne_i={} king_pm={} rng={}", _throne_i, king_pm, rng.call_count());
             makemon_specific_c_rng(king_pm, depth, objects, bases, rng);
-            eprintln!("RS COURT: after makemon_king rng={}", rng.call_count());
             mongets_c_rng(objects, bases, R_MACE, ObjectClass::Weapon, depth, rng);
-            eprintln!("RS COURT: after mongets_MACE rng={}", rng.call_count());
         }
         RoomType::Beehive => {
             // Center of room
@@ -661,7 +637,6 @@ fn fill_zoo_c_rng(
 
     // Log fill_zoo start
     let door_info = if has_door { let (dx,dy) = door_pos.unwrap(); format!("({},{})", dx, dy) } else { "none".to_string() };
-    eprintln!("RS fill_zoo: type={:?} room=({},{}-{},{}) door={} doorct={} rng={}", room_type, lx, ly, hx, hy, door_info, room.door_count, rng.call_count());
     let mut cell_count = 0usize;
 
     // Main cell iteration: sx = lx..=hx, sy = ly..=hy
@@ -817,11 +792,9 @@ fn fill_zoo_c_rng(
                 _ => {}
             }
             if matches!(room_type, RoomType::LeprechaunHall | RoomType::Zoo | RoomType::Anthole | RoomType::Court) {
-                eprintln!("RS fill_zoo cell[{}] ({},{}) rng_delta={} rng={}", cell_count, sx, sy, rng.call_count() - _cell_rng_start, rng.call_count());
             }
         }
     }
-    eprintln!("RS fill_zoo: done, cell_count={} rng={}", cell_count, rng.call_count());
 
     // Post-loop switch
     match room_type {
@@ -840,7 +813,6 @@ fn fill_zoo_c_rng(
         _ => {}
     }
 
-    eprintln!("RS: fill_zoo {:?} rng={}", room_type, rng.call_count());
 }
 
 
@@ -911,7 +883,6 @@ fn stock_room_c_rng(
         }
     }
 
-    eprintln!("RS: stock_room shp_indx={} {} cells rng={}", shp_indx, cell_count, rng.call_count());
 }
 
 /// C's stock_room_goodpos: check if a cell is a valid shop item placement.
@@ -1130,12 +1101,10 @@ fn mkroom_cascade(
                 }
             }
             level.flags.has_shop = true;
-            eprintln!("RS: cascade: SHOP {:?} shp_indx={} room_idx={} rng={}", shop_type, shp_indx, idx, rng.call_count());
             // C: stock_room(i, sroom) — populates shop with items/shopkeeper
             let room = level.rooms[idx].clone();
             stock_room_c_rng(level, &room, shp_indx, depth, objects, &bases, rng);
         } else {
-            eprintln!("RS: cascade: SHOP selected but no suitable room rng={}", rng.call_count());
         }
         return;
     }
@@ -1153,7 +1122,6 @@ fn mkroom_cascade(
         if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
             level.rooms[idx].room_type = RoomType::Court;
             level.flags.has_court = true;
-            eprintln!("RS: cascade: COURT room_idx={} rng={}", idx, rng.call_count());
             fill_zoo_for!(idx, RoomType::Court);
         }
         return;
@@ -1163,7 +1131,6 @@ fn mkroom_cascade(
     if depth > 5 && rng.one_in(8) {
         if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
             level.rooms[idx].room_type = RoomType::LeprechaunHall;
-            eprintln!("RS: cascade: LEPREHALL room_idx={} rng={}", idx, rng.call_count());
             fill_zoo_for!(idx, RoomType::LeprechaunHall);
         }
         return;
@@ -1174,7 +1141,6 @@ fn mkroom_cascade(
         if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
             level.rooms[idx].room_type = RoomType::Zoo;
             level.flags.has_zoo = true;
-            eprintln!("RS: cascade: ZOO room_idx={} rng={}", idx, rng.call_count());
             fill_zoo_for!(idx, RoomType::Zoo);
         }
         return;
@@ -1185,7 +1151,6 @@ fn mkroom_cascade(
         if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
             level.rooms[idx].room_type = RoomType::Temple;
             level.flags.has_temple = true;
-            eprintln!("RS: cascade: TEMPLE room_idx={} rng={}", idx, rng.call_count());
             let room = level.rooms[idx].clone();
             mktemple_c_rng(level, &room, depth, objects, &bases, rng);
         }
@@ -1197,7 +1162,6 @@ fn mkroom_cascade(
         if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
             level.rooms[idx].room_type = RoomType::Beehive;
             level.flags.has_beehive = true;
-            eprintln!("RS: cascade: BEEHIVE room_idx={} rng={}", idx, rng.call_count());
             fill_zoo_for!(idx, RoomType::Beehive);
         }
         return;
@@ -1216,7 +1180,6 @@ fn mkroom_cascade(
                     level.cells[x][y].lit = false;
                 }
             }
-            eprintln!("RS: cascade: MORGUE room_idx={} rng={}", idx, rng.call_count());
             fill_zoo_for!(idx, RoomType::Morgue);
         }
         return;
@@ -1226,7 +1189,6 @@ fn mkroom_cascade(
     if depth > 12 && rng.one_in(8) {
         if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
             level.rooms[idx].room_type = RoomType::Anthole;
-            eprintln!("RS: cascade: ANTHOLE room_idx={} rng={}", idx, rng.call_count());
             fill_zoo_for!(idx, RoomType::Anthole);
         }
         return;
@@ -1237,7 +1199,6 @@ fn mkroom_cascade(
         if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
             level.rooms[idx].room_type = RoomType::Barracks;
             level.flags.has_barracks = true;
-            eprintln!("RS: cascade: BARRACKS room_idx={} rng={}", idx, rng.call_count());
             fill_zoo_for!(idx, RoomType::Barracks);
         }
         return;
@@ -1248,7 +1209,6 @@ fn mkroom_cascade(
         if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
             level.rooms[idx].room_type = RoomType::Swamp;
             level.flags.has_swamp = true;
-            eprintln!("RS: cascade: SWAMP room_idx={} rng={}", idx, rng.call_count());
             // Swamp uses mkswamp() which is different from fill_zoo
             // NOTE: mkswamp_c_rng is a stub; swamp fill uses separate C-parity path
         }
@@ -1259,13 +1219,11 @@ fn mkroom_cascade(
     if depth > 16 && rng.one_in(8) {
         if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
             level.rooms[idx].room_type = RoomType::CockatriceNest;
-            eprintln!("RS: cascade: COCKNEST room_idx={} rng={}", idx, rng.call_count());
             fill_zoo_for!(idx, RoomType::CockatriceNest);
         }
         return;
     }
 
-    eprintln!("RS: cascade: no special room rng={}", rng.call_count());
 }
 
 /// Find a room suitable for a shop (C's mkshop room search).
@@ -1854,7 +1812,6 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
             continue;
         }
 
-        eprintln!("RS ROOM[{}]: start rng={}", room_idx, rng.call_count());
 
         // --- Monster: C mklev.c:813-820 ---
         // if (u.uhave.amulet || !rn2(3)) { somex + somey + makemon }
@@ -1865,7 +1822,6 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
             // makemon((struct permonst *) 0, x, y, MM_NOGRP)
             makemon_c_rng(level, objects, &bases, depth, rng);
         }
-        eprintln!("RS ROOM[{}]: after_monster rng={}", room_idx, rng.call_count());
 
         // --- Traps: C mklev.c:822-826 ---
         // x = 8 - (level_difficulty() / 6); while (!rn2(x)) mktrap(...)
@@ -1876,7 +1832,6 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
             mktrap_c_rng(level, room, depth, rng);
         }
 
-        eprintln!("RS ROOM[{}]: after_traps rng={}", room_idx, rng.call_count());
 
         // --- Gold: C mklev.c:827-828 ---
         // if (!rn2(3)) mkgold(0L, somex(croom), somey(croom))
@@ -1889,7 +1844,6 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
                 * rng.rnd(30) as i64
                 + 1;
         }
-        eprintln!("RS ROOM[{}]: after_gold rng={}", room_idx, rng.call_count());
 
         // --- Fountain: C mklev.c:831-832 ---
         // if (!rn2(10)) mkfount(0, croom)
@@ -1902,60 +1856,49 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
             }
         }
 
-        eprintln!("RS ROOM[{}]: after_fountain rng={}", room_idx, rng.call_count());
 
         // --- Sink: C mklev.c:833-834 ---
         // if (!rn2(60)) mksink(croom)
         let sink_roll = rng.rn2(60);
         if sink_roll == 0 {
-            eprintln!("RS ROOM[{}]: SINK branch taken", room_idx);
             // mksink: do { somexy(croom, &m) } while (occupied || bydoor); set SINK
             if let Some((sx, sy)) = somexy_unoccupied(level, room, rng) {
                 level.cells[sx][sy].typ = CellType::Sink;
                 level.flags.sink_count += 1;
             }
         }
-        eprintln!("RS ROOM[{}]: after_sink rng={}", room_idx, rng.call_count());
 
         // --- Altar: C mklev.c:835-836 ---
         // if (!rn2(60)) mkaltar(croom)
         let altar_roll = rng.rn2(60);
         if altar_roll == 0 {
-            eprintln!("RS ROOM[{}]: ALTAR branch taken", room_idx);
             // mkaltar: do { somexy } while (occupied || bydoor); rn2(3) alignment
             if let Some((ax, ay)) = somexy_unoccupied(level, room, rng) {
                 let _alignment = rng.rn2(3);
                 level.cells[ax][ay].typ = CellType::Altar;
             }
         }
-        eprintln!("RS ROOM[{}]: after_altar rng={}", room_idx, rng.call_count());
 
         // --- Grave: C mklev.c:837-841 + mklev.c:1808-1857 ---
         // x = 80 - (depth(&u.uz) * 2); if (!rn2(x)) mkgrave(croom)
         let grave_threshold = (80 - depth * 2).max(2);
         let grave_roll = rng.rn2(grave_threshold as u32);
         if grave_roll == 0 {
-            eprintln!("RS ROOM[{}]: GRAVE branch taken", room_idx);
             // mkgrave: FIRST thing is dobell = !rn2(10), THEN somexy + items
             let dobell = rng.rn2(10) == 0;
             mkgrave_rng(level, room, dobell, depth, rng);
         }
-        eprintln!("RS ROOM[{}]: after_grave rng={}", room_idx, rng.call_count());
 
         // --- Statue: C mklev.c:844-847 ---
         // if (!rn2(20)) mkcorpstat(STATUE, ..., somex, somey, ...)
         let statue_roll = rng.rn2(20);
-        eprintln!("RS ROOM[{}]: statue rn2(20)={} (before_mksobj={})", room_idx, statue_roll, rng.call_count());
         if statue_roll == 0 {
             let _sx = super::room::somex(room, rng);
             let _sy = super::room::somey(room, rng);
-            eprintln!("RS ROOM[{}]: STATUE branch taken, before mksobj rng={}", room_idx, rng.call_count());
             // mkcorpstat(STATUE, NULL, NULL, x, y, CORPSTAT_INIT)
             // → mksobj_at(STATUE, x, y, TRUE, FALSE) → mksobj(STATUE, TRUE, FALSE)
             mksobj_c_rng(objects, &bases, R_STATUE, ObjectClass::Rock, true, false, depth, rng);
-            eprintln!("RS ROOM[{}]: STATUE after mksobj rng={}", room_idx, rng.call_count());
         }
-        eprintln!("RS ROOM[{}]: after_statue rng={}", room_idx, rng.call_count());
 
         // --- Box/Chest: C mklev.c:853-855 ---
         // if (!rn2(nroom * 5 / 2)) mksobj_at(rn2(3) ? LARGE_BOX : CHEST, ...)
@@ -1965,7 +1908,6 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
             let _by = super::room::somey(room, rng);
             mksobj_c_rng(objects, &bases, box_otyp, ObjectClass::Tool, true, true, depth, rng);
         }
-        eprintln!("RS ROOM[{}]: after_box rng={}", room_idx, rng.call_count());
 
         // --- Graffiti: C mklev.c:858-871 ---
         // if (!rn2(27 + 3 * abs(depth(&u.uz)))) { random_engraving + somex+somey loop }
@@ -1984,7 +1926,6 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
             }
         }
 
-        eprintln!("RS ROOM[{}]: before_objects rng={}", room_idx, rng.call_count());
         // --- Objects: C mklev.c:874-884 ---
         // if (!rn2(3)) { mkobj_at(0, somex, somey, TRUE) + while(!rn2(5)) mkobj_at }
         if rng.rn2(3) == 0 {
@@ -2002,9 +1943,7 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
                 mkobj_c_rng(objects, &bases, depth, rng);
             }
         }
-        eprintln!("RS ROOM[{}]: end rng={}", room_idx, rng.call_count());
     }
-    eprintln!("RS: after all rooms rng={}", rng.call_count());
 }
 
 // ============================================================================
@@ -3424,7 +3363,6 @@ pub fn mimic_door_c_rng(depth: i32, rng: &mut GameRng) {
     }
 
     // rnd(num) to select among candidates
-    eprintln!("  RS mkclass: num={} count={} rng={}", num, count, rng.call_count());
     let mut pick = rng.rnd(num as u32) as i32;
     let mut chosen_mlevel = mimics[0].mlevel;
     let mut chosen_idx = 0;
@@ -3436,7 +3374,6 @@ pub fn mimic_door_c_rng(depth: i32, rng: &mut GameRng) {
             break;
         }
     }
-    eprintln!("  RS mkclass: chose mimic[{}] mlevel={} rng={}", chosen_idx, chosen_mlevel, rng.call_count());
 
     // --- makemon(ptr, x, y, NO_MM_FLAGS) with specific ptr ---
     // ptr is not NULL → anymon=false, no rndmonst call, no group check
@@ -3444,7 +3381,6 @@ pub fn mimic_door_c_rng(depth: i32, rng: &mut GameRng) {
     // newmonhp: d(adj_lev, 8)
     // All mimics have mlevel > 5, so adj_lev = mlevel + level_difficulty/2
     let m_lev = adj_lev_c_from_raw(chosen_mlevel, depth, player_level);
-    eprintln!("  RS makemon: m_lev={} rng={}", m_lev, rng.call_count());
     if m_lev == 0 {
         rng.rnd(4);
     } else {
@@ -3452,11 +3388,9 @@ pub fn mimic_door_c_rng(depth: i32, rng: &mut GameRng) {
             rng.rn2(8);
         }
     }
-    eprintln!("  RS makemon: after_newmonhp rng={}", rng.call_count());
 
     // gender: mimics have no fixed gender → rn2(2)
     rng.rn2(2);
-    eprintln!("  RS makemon: after_gender rng={}", rng.call_count());
 
     // peace_minded: mimics are M2_HOSTILE → always hostile, no RNG
 
@@ -3591,8 +3525,6 @@ fn makemon_specific_c_rng(
 
     // saddle
     rng.rn2(100);
-    eprintln!("  RS MAKEMON_SPEC {}: weap_delta={} inv_delta={} rng={}",
-        mon.name, _rng_after_weap - _rng_before_weap, _rng_after_inv - _rng_after_weap, rng.call_count());
 }
 
 /// Full makemon(NULL, x, y, MM_NOGRP) RNG consumption during in_mklev.
@@ -3614,8 +3546,6 @@ fn makemon_c_rng(
     let mndx = rndmonst_c_rng(depth, player_level, in_hell, rng);
     let mon = &monsters[mndx];
 
-    eprintln!("  RS MAKEMON {}: mndx={} mlet='{}' mlevel={} rng={}",
-        mon.name, mndx, mon.symbol, mon.level, rng.call_count());
 
     // 2. newmonhp: d(adj_lev, 8) or special cases
     let m_lev = adj_lev_c(mon, depth, player_level);
@@ -3629,7 +3559,6 @@ fn makemon_c_rng(
         }
     }
 
-    eprintln!("  RS MAKEMON {}: after_newmonhp m_lev={}", mon.name, m_lev);
 
     // 3. Gender
     let is_female = mon.flags.contains(MonsterFlags::FEMALE);
@@ -3851,15 +3780,11 @@ pub(crate) fn makemon_runtime_c_rng(
 
         // !in_mklev && cansee(nx,ny) → reject
         if valid && !vis && walk && no_mon {
-            eprintln!("  RUST SPAWN: try={} pos=({},{}) ACCEPTED (vis={} walk={} no_mon={})",
-                _try, nx, ny, vis, walk, no_mon);
             pos_x = nx;
             pos_y = ny;
             found_pos = true;
             break;
         } else {
-            eprintln!("  RUST SPAWN: try={} pos=({},{}) rejected (valid={} vis={} walk={} no_mon={})",
-                _try, nx, ny, valid, vis, walk, no_mon);
         }
     }
 
@@ -5144,7 +5069,6 @@ fn makeniche(
         let room_type = level.rooms[room_idx].room_type;
         let door_count = level.rooms[room_idx].door_count;
         let room = &rooms[room_idx];
-        eprintln!("RS: makeniche vct={} room_idx={} rtype={:?} doorct={} rng={}", vct, room_idx, room_type, door_count, rng.call_count());
 
         // C: if (aroom->rtype != OROOM) continue;
         if room_type != RoomType::Ordinary {
@@ -5153,7 +5077,6 @@ fn makeniche(
 
         // C: if (aroom->doorct == 1 && rn2(5)) continue;
         if door_count == 1 && rng.rn2(5) != 0 {
-            eprintln!("RS: makeniche skip doorct=1 rng={}", rng.call_count());
             continue;
         }
 
@@ -5274,9 +5197,7 @@ pub fn make_niches(
     // C: vamp = (dep > 5 && dep < 25) — "vamp" is just the variable name
     let mut vamp = dep > 5 && dep < 25;
 
-    eprintln!("RS: make_niches ct={} dep={} ltptr={} vamp={} rng={}", ct, dep, ltptr, vamp, rng.call_count());
     for i in (0..ct).rev() {
-        eprintln!("RS: niche iter ct={} rng={}", i, rng.call_count());
         if ltptr && rng.rn2(6) == 0 {
             ltptr = false;
             makeniche(level, rooms, LEVEL_TELEP, objects, bases, depth, rng);
@@ -5286,7 +5207,6 @@ pub fn make_niches(
         } else {
             makeniche(level, rooms, NO_TRAP, objects, bases, depth, rng);
         }
-        eprintln!("RS: niche done ct={} rng={}", i, rng.call_count());
     }
 }
 
@@ -5795,7 +5715,6 @@ fn create_vault_room(
             // NOTE: gold object creation deferred; RNG calls consumed for parity
         }
     }
-    eprintln!("RS: after vault fill_room rng={}", rng.call_count());
 
     // C: mk_knox_portal(vault_x + w, vault_y + h)
     // mk_knox_portal returns immediately (0 RNG) if Is_branchlev is true.
@@ -5804,11 +5723,8 @@ fn create_vault_room(
     if !is_branch_level {
         // mk_knox_portal calls rn2(3) — 2/3 chance of returning early
         let _knox_rn = rng.rn2(3);
-        eprintln!("RS: mk_knox_portal rn2(3)={} rng={}", _knox_rn, rng.call_count());
     } else {
-        eprintln!("RS: mk_knox_portal skipped (branch level) rng={}", rng.call_count());
     }
-    eprintln!("RS: after mk_knox_portal rng={}", rng.call_count());
 
     // C: if (!level.flags.noteleport && !rn2(3)) makevtele()
     if rng.rn2(3) == 0 {
@@ -5819,7 +5735,6 @@ fn create_vault_room(
         let vt_depth = level.dlevel.depth();
         makeniche(level, &rooms_snapshot, 15, vt_objects, &vt_bases, vt_depth, rng);
     }
-    eprintln!("RS: after makevtele_check rng={}", rng.call_count());
 }
 
 /// Fill a room with floor cells (fill_room equivalent)

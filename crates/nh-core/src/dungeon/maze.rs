@@ -350,10 +350,8 @@ pub fn generate_maze(level: &mut Level, is_invocation: bool, rng: &mut GameRng) 
     if !is_invocation && rng.rn2(2) != 0 {
         let corrwid = rng.rnd(4) as i32;
         let wallthick = rng.rnd(4) as i32 - corrwid;
-        eprintln!("Rust generate_maze: scaled maze corrwid={}, wallthick={}", corrwid, wallthick);
         create_maze(level, corrwid, wallthick, rng);
     } else {
-        eprintln!("Rust generate_maze: 1x1 maze");
         create_maze(level, 1, 1, rng);
     }
 

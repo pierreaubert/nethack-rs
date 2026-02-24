@@ -414,29 +414,40 @@ pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mu
     if item.spe != UNDEF_SPE {
         obj.enchantment = item.spe;
     } else {
-        // Random enchantment based on class
+        // Random enchantment based on class (C: mksobj init=TRUE, then ini_inv
+        // keeps mksobj value when trspe == UNDEF_SPE)
         obj.enchantment = match item.class {
-            ObjectClass::Wand => rng.rn2(5) as i8 + 3,  // 3-7 charges
-            ObjectClass::Tool => rng.rn2(5) as i8 + 1,  // 1-5
+            ObjectClass::Wand => {
+                // C wand init: spe = rn1(5, 4) = rnd(5)+3 = 4..8 for most wands
+                // But specific wands like WAN_SLEEP use this range
+                (rng.rnd(5) + 3) as i8
+            }
+            ObjectClass::Tool => {
+                // C tool init: MAGIC_MARKER/TINNING_KIT/EXPENSIVE_CAMERA: rn1(70,30) = 30..99
+                // Other tools like PICK_AXE: no special init (0)
+                use crate::data::objects::ObjectType;
+                let otyp = item.otyp;
+                if otyp == ObjectType::TinningKit as i16
+                    || otyp == ObjectType::ExpensiveCamera as i16
+                    || otyp == ObjectType::MagicMarker as i16
+                {
+                    (rng.rnd(70) + 29) as i8
+                } else {
+                    0
+                }
+            }
             _ => 0,
         };
     }
 
     // Set BUC status
+    // In C, ini_inv always sets obj->cursed = 0, and only overrides blessed
+    // if trbless != UNDEF_BLESS. Since mksobj starts objects uncursed by default,
+    // UNDEF_BLESS effectively means "uncursed" in C.
     obj.buc = match item.bless {
         0 => BucStatus::Uncursed,
         1 => BucStatus::Blessed,
-        _ => {
-            // Random BUC: 80% uncursed, 10% blessed, 10% cursed
-            let roll = rng.rn2(10);
-            if roll == 0 {
-                BucStatus::Blessed
-            } else if roll == 1 {
-                BucStatus::Cursed
-            } else {
-                BucStatus::Uncursed
-            }
-        }
+        _ => BucStatus::Uncursed, // UNDEF_BLESS = uncursed (C: obj->cursed = 0)
     };
 
     obj
@@ -505,11 +516,19 @@ fn roll_attributes(player: &mut You, rng: &mut GameRng) {
     player.attr_current = Attributes::new(values);
     player.attr_max = Attributes::new(values);
 
-    // Biased variation (C: u_init loop with rn2(20))
+    // Biased variation (C: u_init.c:887-894)
     for i in 0..6 {
         if rng.rn2(20) == 0 {
             let xd = rng.rn2(7) as i8 - 2;
-            player.adjattrib(Attribute::from_index(i).unwrap(), xd);
+            let attr = Attribute::from_index(i).unwrap();
+            player.adjattrib(attr, xd);
+            // C: if (ABASE(i) < AMAX(i)) AMAX(i) = ABASE(i);
+            // Cap AMAX to ABASE if the adjustment reduced the base
+            let base = player.attr_current.get(attr);
+            let max = player.attr_max.get(attr);
+            if base < max {
+                player.attr_max.set(attr, base);
+            }
         }
     }
 }
@@ -545,67 +564,333 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
     player.nutrition = 900;
     player.hunger_state = crate::player::HungerState::NotHungry;
 
-    // Initialize gold for certain roles (C: rn1(x,y) = rnd(x)+y-1)
-    match role {
-        Role::Healer => player.gold = (rng.rnd(1000) + 1000) as i32, // rn1(1000, 1001) = 1001..2000
-        Role::Tourist => player.gold = rng.rnd(1000) as i32,
-        _ => {}
-    }
-
-    // Initialize inventory (MATCHES C: role-specific ini_inv calls)
+    // Initialize inventory (C: role-specific setup + ini_inv calls)
     let mut inventory = Vec::new();
     let mut next_id: u32 = 1;
     let mut letter = b'a';
 
-    let base_items = starting_inventory(role);
-    for item in base_items {
-        let mut obj = make_starting_object(item, rng, &mut next_id);
-        obj.inv_letter = letter as char;
-        if letter < b'z' {
-            letter += 1;
+    // Helper closure to add an item
+    let mut add_item = |inv: &mut Vec<Object>, item: &StartingItem, rng: &mut GameRng, next_id: &mut u32, letter: &mut u8| {
+        let mut obj = make_starting_object(item, rng, next_id);
+        obj.inv_letter = *letter as char;
+        if *letter < b'z' {
+            *letter += 1;
         }
-        inventory.push(obj);
-    }
+        inv.push(obj);
+    };
 
-    // Role-specific extra items
+    use crate::data::objects::ObjectType;
+
+    // Role-specific pre-init, variable quantities, and ini_inv (C: u_init.c:662-800)
     match role {
         Role::Archeologist => {
+            let base_items = starting_inventory(role);
+            for item in base_items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+            // Optional extras (C: u_init.c:669-674)
             if rng.rn2(10) == 0 {
-                // Tinopener
-                let item = StartingItem::new(crate::data::objects::ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
-                let mut obj = make_starting_object(&item, rng, &mut next_id);
-                obj.inv_letter = letter as char;
-                if letter < b'z' {
-                    letter += 1;
-                }
-                inventory.push(obj);
+                let item = StartingItem::new(ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             } else if rng.rn2(4) == 0 {
-                // Lamp
-                let item = StartingItem::new(crate::data::objects::ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
-                let mut obj = make_starting_object(&item, rng, &mut next_id);
-                obj.inv_letter = letter as char;
-                if letter < b'z' {
-                    letter += 1;
-                }
-                inventory.push(obj);
+                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             } else if rng.rn2(10) == 0 {
-                // Magic marker
-                let item = StartingItem::new(crate::data::objects::ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
-                let mut obj = make_starting_object(&item, rng, &mut next_id);
-                obj.inv_letter = letter as char;
-                if letter < b'z' {
-                    letter += 1;
-                }
-                inventory.push(obj);
+                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
-        _ => {}
+        Role::Barbarian => {
+            // C: 50% chance of battle-axe/short-sword swap (u_init.c:680-683)
+            if rng.rn2(100) >= 50 {
+                // Use battle-axe + short-sword instead of two-handed sword + axe
+                let items: &[StartingItem] = &[
+                    StartingItem::new(ObjectType::BattleAxe as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                    StartingItem::new(ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                    StartingItem::new(ObjectType::RingMail as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),
+                    StartingItem::new(ObjectType::FoodRation as i16, 0, ObjectClass::Food, 1, 0),
+                ];
+                for item in items {
+                    add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                }
+            } else {
+                let base_items = starting_inventory(role);
+                for item in base_items {
+                    add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                }
+            }
+            // Optional lamp (C: u_init.c:685-686)
+            if rng.rn2(6) == 0 {
+                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Caveman => {
+            // C: variable flint quantity rn1(11,10) = 10..20 (u_init.c:692)
+            let flint_qty = (rng.rnd(11) + 9) as u8; // rn1(11,10) = rnd(11)+10-1 = 10..20
+            let items: &[StartingItem] = &[
+                StartingItem::new(ObjectType::Club as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Sling as i16, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Flint as i16, 0, ObjectClass::Gem, flint_qty, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Rock as i16, 0, ObjectClass::Gem, 3, 0),
+                StartingItem::new(ObjectType::LeatherArmor as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),
+            ];
+            for item in items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Healer => {
+            // C: gold set before ini_inv (u_init.c:697)
+            player.gold = (rng.rnd(1000) + 1000) as i32; // rn1(1000, 1001) = 1001..2000
+            let base_items = starting_inventory(role);
+            for item in base_items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+            // Optional lamp (C: u_init.c:699-700)
+            if rng.rn2(25) == 0 {
+                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Knight => {
+            let base_items = starting_inventory(role);
+            for item in base_items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Monk => {
+            // C: select spellbook type rn2(90)/30 → [0..2] (u_init.c:715)
+            let spell_choices = [ObjectType::Healing, ObjectType::Protection, ObjectType::Sleep];
+            let spell_idx = (rng.rn2(90) / 30) as usize;
+            let spell_type = spell_choices[spell_idx.min(2)];
+            let items: &[StartingItem] = &[
+                StartingItem::new(ObjectType::LeatherGloves as i16, 2, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Robe as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(spell_type as i16, UNDEF_SPE, ObjectClass::Spellbook, 1, 1),
+                StartingItem::new(ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Scroll, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Healing as i16, 0, ObjectClass::Potion, 3, UNDEF_BLESS),
+                StartingItem::new(ObjectType::FoodRation as i16, 0, ObjectClass::Food, 3, 0),
+                StartingItem::new(ObjectType::Apple as i16, 0, ObjectClass::Food, 5, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Orange as i16, 0, ObjectClass::Food, 5, UNDEF_BLESS),
+                StartingItem::new(ObjectType::FortuneCookie as i16, 0, ObjectClass::Food, 3, UNDEF_BLESS),
+            ];
+            for item in items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+            // Optional extras (C: u_init.c:717-720)
+            if rng.rn2(5) == 0 {
+                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            } else if rng.rn2(10) == 0 {
+                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Priest => {
+            let base_items = starting_inventory(role);
+            for item in base_items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+            // Optional extras (C: u_init.c:729-732)
+            if rng.rn2(10) == 0 {
+                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            } else if rng.rn2(10) == 0 {
+                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Ranger => {
+            // C: variable arrow quantities (u_init.c:744-745)
+            let arrow2_qty = (rng.rnd(10) + 49) as u8; // rn1(10, 50) = 50..59
+            let arrow0_qty = (rng.rnd(10) + 29) as u8; // rn1(10, 30) = 30..39
+            let items: &[StartingItem] = &[
+                StartingItem::new(ObjectType::Dagger as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Bow as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Arrow as i16, 2, ObjectClass::Weapon, arrow2_qty, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Arrow as i16, 0, ObjectClass::Weapon, arrow0_qty, UNDEF_BLESS),
+                StartingItem::new(ObjectType::CloakOfDisplacement as i16, 2, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::CramRation as i16, 0, ObjectClass::Food, 4, 0),
+            ];
+            for item in items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Rogue => {
+            // C: variable dagger quantity rn1(10,6) = 6..15 (u_init.c:750)
+            let dagger_qty = (rng.rnd(10) + 5) as u8; // rn1(10,6) = rnd(10)+6-1 = 6..15
+            let items: &[StartingItem] = &[
+                StartingItem::new(ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Dagger as i16, 0, ObjectClass::Weapon, dagger_qty, 0),
+                StartingItem::new(ObjectType::LeatherArmor as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Sickness as i16, 0, ObjectClass::Potion, 1, 0),
+                StartingItem::new(ObjectType::LockPick as i16, 0, ObjectClass::Tool, 1, 0),
+                StartingItem::new(ObjectType::Sack as i16, 0, ObjectClass::Tool, 1, 0),
+            ];
+            for item in items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+            // Optional blindfold (C: u_init.c:753-754)
+            if rng.rn2(5) == 0 {
+                let item = StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Samurai => {
+            // C: variable ya quantity rn1(20,26) = 26..45 (u_init.c:759)
+            let ya_qty = (rng.rnd(20) + 25) as u8; // rn1(20,26) = rnd(20)+26-1 = 26..45
+            let items: &[StartingItem] = &[
+                StartingItem::new(ObjectType::Katana as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Yumi as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::Ya as i16, 0, ObjectClass::Weapon, ya_qty, UNDEF_BLESS),
+                StartingItem::new(ObjectType::SplintMail as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),
+            ];
+            for item in items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+            // Optional blindfold (C: u_init.c:761-762)
+            if rng.rn2(5) == 0 {
+                let item = StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Tourist => {
+            // C: variable dart quantity rn1(20,21) = 21..40 (u_init.c:768)
+            let dart_qty = (rng.rnd(20) + 20) as u8; // rn1(20,21) = rnd(20)+21-1 = 21..40
+            // C: gold rnd(1000) (u_init.c:769)
+            player.gold = rng.rnd(1000) as i32;
+            let items: &[StartingItem] = &[
+                StartingItem::new(ObjectType::Dart as i16, 2, ObjectClass::Weapon, dart_qty, UNDEF_BLESS),
+                StartingItem::new(ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Food, 10, 0),
+                StartingItem::new(ObjectType::ExtraHealing as i16, 0, ObjectClass::Potion, 2, UNDEF_BLESS),
+                StartingItem::new(ObjectType::MagicMapping as i16, 0, ObjectClass::Scroll, 4, UNDEF_BLESS),
+                StartingItem::new(ObjectType::HawaiianShirt as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(ObjectType::ExpensiveCamera as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0),
+                StartingItem::new(ObjectType::CreditCard as i16, 0, ObjectClass::Tool, 1, 0),
+            ];
+            for item in items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+            // Optional extras (C: u_init.c:771-778)
+            if rng.rn2(25) == 0 {
+                let item = StartingItem::new(ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            } else if rng.rn2(25) == 0 {
+                let item = StartingItem::new(ObjectType::Leash as i16, 0, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            } else if rng.rn2(25) == 0 {
+                let item = StartingItem::new(ObjectType::Towel as i16, 0, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            } else if rng.rn2(25) == 0 {
+                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Valkyrie => {
+            let base_items = starting_inventory(role);
+            for item in base_items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+            // Optional lamp (C: u_init.c:783-784)
+            if rng.rn2(6) == 0 {
+                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+        }
+        Role::Wizard => {
+            let base_items = starting_inventory(role);
+            for item in base_items {
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+            }
+            // Optional extras (C: u_init.c:791-794)
+            if rng.rn2(5) == 0 {
+                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+            if rng.rn2(5) == 0 {
+                let item = StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+            }
+        }
     }
 
     // Roll attributes (C: init_attr(75)) - happens after inventory in C
     roll_attributes(player, rng);
 
+    // Auto-equip starting items (C: u_init.c:1114-1146)
+    auto_equip_starting_inventory(&mut inventory);
+
     inventory
+}
+
+/// Auto-equip starting inventory items (C: u_init.c:1114-1146).
+///
+/// Sets worn_mask on inventory items based on their type:
+/// - Armor: equipped to appropriate slot (shield, helmet, gloves, etc.)
+/// - Weapons: first weapon wielded, second becomes swap weapon, ammo quivered
+fn auto_equip_starting_inventory(inventory: &mut [Object]) {
+    use crate::action::wear::worn_mask::*;
+    use crate::data::objects::OBJECTS;
+    use crate::object::ArmorCategory;
+
+    let mut has_wep = false;
+    let mut has_swapwep = false;
+    let mut has_quiver = false;
+    let mut has_shield = false;
+
+    for obj in inventory.iter_mut() {
+        let otyp = obj.object_type as usize;
+        if otyp >= OBJECTS.len() {
+            continue;
+        }
+        let def = &OBJECTS[otyp];
+
+        // Armor auto-equip (C: u_init.c:1114-1133)
+        if obj.class == ObjectClass::Armor {
+            if let Some(cat) = def.armor_category {
+                let mask = match cat {
+                    ArmorCategory::Shield => {
+                        if !has_shield {
+                            has_shield = true;
+                            W_ARMS
+                        } else {
+                            0
+                        }
+                    }
+                    ArmorCategory::Helm => W_ARMH,
+                    ArmorCategory::Gloves => W_ARMG,
+                    ArmorCategory::Shirt => W_ARMU,
+                    ArmorCategory::Cloak => W_ARMC,
+                    ArmorCategory::Boots => W_ARMF,
+                    ArmorCategory::Suit => W_ARM,
+                };
+                if mask != 0 {
+                    obj.worn_mask = mask;
+                }
+            }
+            continue;
+        }
+
+        // Weapon auto-equip (C: u_init.c:1136-1146)
+        if obj.class == ObjectClass::Weapon {
+            // Check if this is ammo (negative skill value in C means ammo for that launcher)
+            // Simplified: arrows, bolts, darts, sling bullets, shuriken, boomerangs = quiver
+            let is_ammo_like = def.skill < 0; // Negative skill = ammo type
+            if is_ammo_like {
+                if !has_quiver {
+                    obj.worn_mask = W_QUIVER;
+                    has_quiver = true;
+                }
+            } else if !has_wep {
+                obj.worn_mask = W_WEP;
+                has_wep = true;
+            } else if !has_swapwep {
+                obj.worn_mask = W_SWAPWEP;
+                has_swapwep = true;
+            }
+        }
+    }
 }
 
 /// Check if a spell discipline is restricted for the player's role (C: restricted_spell_discipline)

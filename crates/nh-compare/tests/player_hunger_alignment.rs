@@ -9,65 +9,78 @@ use nh_core::player::*;
 // HungerState
 // ============================================================================
 
+// C thresholds (eat.c:2936-2939):
+//   nutrition > 1000 → Satiated
+//   nutrition > 150  → NotHungry
+//   nutrition > 50   → Hungry
+//   nutrition > 0    → Weak
+//   else             → Fainting
+
 #[test]
 fn test_hunger_satiated_threshold() {
-    assert!(HungerState::Satiated.threshold() >= 2000);
+    assert_eq!(HungerState::Satiated.threshold(), 1000);
 }
 
 #[test]
 fn test_hunger_not_hungry_threshold() {
-    assert!(HungerState::NotHungry.threshold() >= 1000);
+    assert_eq!(HungerState::NotHungry.threshold(), 150);
 }
 
 #[test]
 fn test_hunger_hungry_threshold() {
-    assert!(HungerState::Hungry.threshold() >= 500);
+    assert_eq!(HungerState::Hungry.threshold(), 50);
 }
 
 #[test]
 fn test_hunger_weak_threshold() {
-    assert!(HungerState::Weak.threshold() >= 150);
+    assert_eq!(HungerState::Weak.threshold(), 0);
 }
 
 #[test]
 fn test_hunger_fainting_threshold() {
-    assert!(HungerState::Fainting.threshold() >= 50);
+    assert_eq!(HungerState::Fainting.threshold(), -1);
 }
 
 #[test]
 fn test_hunger_from_nutrition_satiated() {
-    let state = HungerState::from_nutrition(2500);
+    let state = HungerState::from_nutrition(1500);
     assert_eq!(state, HungerState::Satiated);
 }
 
 #[test]
 fn test_hunger_from_nutrition_not_hungry() {
-    let state = HungerState::from_nutrition(1500);
+    // nutrition > 150 but <= 1000 → NotHungry
+    let state = HungerState::from_nutrition(500);
     assert_eq!(state, HungerState::NotHungry);
 }
 
 #[test]
 fn test_hunger_from_nutrition_hungry() {
-    let state = HungerState::from_nutrition(700);
+    // nutrition > 50 but <= 150 → Hungry
+    let state = HungerState::from_nutrition(100);
     assert_eq!(state, HungerState::Hungry);
 }
 
 #[test]
 fn test_hunger_from_nutrition_weak() {
-    let state = HungerState::from_nutrition(200);
+    // nutrition > 0 but <= 50 → Weak
+    let state = HungerState::from_nutrition(25);
     assert_eq!(state, HungerState::Weak);
 }
 
 #[test]
 fn test_hunger_from_nutrition_fainting() {
-    let state = HungerState::from_nutrition(75);
+    // nutrition <= 0 → Fainting
+    let state = HungerState::from_nutrition(0);
     assert_eq!(state, HungerState::Fainting);
 }
 
 #[test]
 fn test_hunger_from_nutrition_starved() {
-    let state = HungerState::from_nutrition(0);
-    assert_eq!(state, HungerState::Starved);
+    // Starved is handled separately by newuhs when nutrition < -(100 + 10*CON)
+    // from_nutrition doesn't directly return Starved
+    let state = HungerState::from_nutrition(-200);
+    assert_eq!(state, HungerState::Fainting);
 }
 
 #[test]

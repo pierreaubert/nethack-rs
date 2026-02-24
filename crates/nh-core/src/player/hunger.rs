@@ -48,36 +48,35 @@ pub enum HungerState {
 }
 
 impl HungerState {
-    /// Get the nutrition threshold for this state
+    /// Get the nutrition threshold for this state (C: newuhs eat.c:2936-2939)
     pub const fn threshold(&self) -> i32 {
         match self {
-            HungerState::Satiated => 2000,
-            HungerState::NotHungry => 1000,
-            HungerState::Hungry => 500,
-            HungerState::Weak => 150,
-            HungerState::Fainting => 50,
-            HungerState::Fainted => 0,
-            HungerState::Starved => -1,
+            HungerState::Satiated => 1000,  // C: h > 1000 → SATIATED
+            HungerState::NotHungry => 150,  // C: h > 150 → NOT_HUNGRY
+            HungerState::Hungry => 50,      // C: h > 50 → HUNGRY
+            HungerState::Weak => 0,         // C: h > 0 → WEAK
+            HungerState::Fainting => -1,    // C: else → FAINTING
+            HungerState::Fainted => -1,     // Set by newuhs logic, not threshold
+            HungerState::Starved => -1,     // Set by newuhs logic, not threshold
         }
     }
 
-    /// Calculate hunger state from nutrition value
-    /// C thresholds: Satiated>=2000, NotHungry>=1000, Hungry>=500, Weak>=150, Fainting>=50, Starved<50
+    /// Calculate hunger state from nutrition value (C: newuhs in eat.c:2936-2939)
+    ///
+    /// C thresholds: h > 1000 → SATIATED, h > 150 → NOT_HUNGRY,
+    ///               h > 50 → HUNGRY, h > 0 → WEAK, else → FAINTING
+    /// Note: FAINTED and STARVED are set by special logic in newuhs(), not thresholds
     pub fn from_nutrition(nutrition: i32) -> Self {
-        if nutrition >= 2000 {
+        if nutrition > 1000 {
             HungerState::Satiated
-        } else if nutrition >= 1000 {
+        } else if nutrition > 150 {
             HungerState::NotHungry
-        } else if nutrition >= 500 {
+        } else if nutrition > 50 {
             HungerState::Hungry
-        } else if nutrition >= 150 {
-            HungerState::Weak
-        } else if nutrition >= 50 {
-            HungerState::Fainting
         } else if nutrition > 0 {
-            HungerState::Fainted
+            HungerState::Weak
         } else {
-            HungerState::Starved
+            HungerState::Fainting
         }
     }
 
