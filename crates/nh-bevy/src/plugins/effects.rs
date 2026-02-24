@@ -194,7 +194,7 @@ fn animate_water_ripples(
         let alpha = 0.6 * (1.0 - t);
         color.0 = Color::srgba(0.3, 0.5, 0.8, alpha);
 
-        if ripple.timer.finished() {
+        if ripple.timer.is_finished() {
             commands.entity(entity).despawn();
         }
     }
@@ -263,7 +263,7 @@ fn animate_lava_bubbles(
         let intensity = 0.8 + (t * 10.0).sin() * 0.2;
         color.0 = Color::srgba(1.0, 0.4 * intensity, 0.1, 0.8 * (1.0 - t * 0.5));
 
-        if bubble.timer.finished() {
+        if bubble.timer.is_finished() {
             commands.entity(entity).despawn();
         }
     }
@@ -327,7 +327,7 @@ fn animate_fountain_spray(
         let alpha = 0.8 * (1.0 - t);
         color.0 = Color::srgba(0.6, 0.8, 1.0, alpha);
 
-        if spray.timer.finished() {
+        if spray.timer.is_finished() {
             commands.entity(entity).despawn();
         }
     }

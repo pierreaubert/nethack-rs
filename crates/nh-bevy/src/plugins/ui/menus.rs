@@ -103,7 +103,7 @@ impl Default for GameSettings {
 fn render_main_menu(
     mut contexts: EguiContexts,
     mut next_state: ResMut<NextState<AppState>>,
-    mut exit: EventWriter<AppExit>,
+    mut exit: MessageWriter<AppExit>,
     mut menu_state: ResMut<MenuState>,
     mut settings: ResMut<GameSettings>,
     mut save_state: ResMut<SaveLoadState>,
@@ -114,25 +114,25 @@ fn render_main_menu(
     egui::Area::new(egui::Id::new("main_menu_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
         .interactable(false)
-        .show(contexts.ctx_mut(), |ui| {
-            let screen_rect = ui.ctx().screen_rect();
+        .show(contexts.ctx_mut().unwrap(), |ui| {
+            let screen_rect = ui.ctx().content_rect();
             ui.painter().rect_filled(
                 screen_rect,
-                egui::Rounding::ZERO,
+                egui::CornerRadius::ZERO,
                 egui::Color32::from_rgba_unmultiplied(0, 0, 0, 220),
             );
         });
 
     // Show settings if open
     if menu_state.show_settings {
-        render_settings_panel(contexts.ctx_mut(), &mut menu_state, &mut settings);
+        render_settings_panel(contexts.ctx_mut().unwrap(), &mut menu_state, &mut settings);
         return;
     }
 
     // Show load browser if open
     if menu_state.show_load_browser {
         render_load_browser(
-            contexts.ctx_mut(),
+            contexts.ctx_mut().unwrap(),
             &mut menu_state,
             &mut save_state,
             &mut game_state,
@@ -147,7 +147,7 @@ fn render_main_menu(
         .resizable(false)
         .collapsible(false)
         .title_bar(false)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.set_min_width(300.0);
 
             ui.vertical_centered(|ui| {
@@ -207,7 +207,7 @@ fn render_main_menu(
                     .add_sized(button_size, egui::Button::new("Quit"))
                     .clicked()
                 {
-                    exit.send(AppExit::Success);
+                    exit.write(AppExit::Success);
                 }
 
                 ui.add_space(20.0);
@@ -225,7 +225,7 @@ fn render_main_menu(
 fn render_pause_menu(
     mut contexts: EguiContexts,
     mut next_state: ResMut<NextState<AppState>>,
-    mut exit: EventWriter<AppExit>,
+    mut exit: MessageWriter<AppExit>,
     input: Res<ButtonInput<KeyCode>>,
     mut menu_state: ResMut<MenuState>,
     mut settings: ResMut<GameSettings>,
@@ -245,25 +245,25 @@ fn render_pause_menu(
     egui::Area::new(egui::Id::new("pause_menu_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
         .interactable(false)
-        .show(contexts.ctx_mut(), |ui| {
-            let screen_rect = ui.ctx().screen_rect();
+        .show(contexts.ctx_mut().unwrap(), |ui| {
+            let screen_rect = ui.ctx().content_rect();
             ui.painter().rect_filled(
                 screen_rect,
-                egui::Rounding::ZERO,
+                egui::CornerRadius::ZERO,
                 egui::Color32::from_rgba_unmultiplied(0, 0, 0, 180),
             );
         });
 
     // Show settings if open
     if menu_state.show_settings {
-        render_settings_panel(contexts.ctx_mut(), &mut menu_state, &mut settings);
+        render_settings_panel(contexts.ctx_mut().unwrap(), &mut menu_state, &mut settings);
         return;
     }
 
     // Show save browser if open
     if menu_state.show_save_browser {
         render_save_browser(
-            contexts.ctx_mut(),
+            contexts.ctx_mut().unwrap(),
             &mut menu_state,
             &mut save_state,
             &game_state,
@@ -276,7 +276,7 @@ fn render_pause_menu(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.set_min_width(250.0);
 
             ui.vertical_centered(|ui| {
@@ -322,7 +322,7 @@ fn render_pause_menu(
                     if let Err(e) = nh_core::save::save_game(&game_state.0, &path) {
                         eprintln!("Failed to save game: {}", e);
                     }
-                    exit.send(AppExit::Success);
+                    exit.write(AppExit::Success);
                 }
 
                 ui.add_space(8.0);
@@ -331,7 +331,7 @@ fn render_pause_menu(
                     .add_sized(button_size, egui::Button::new("Quit Without Saving"))
                     .clicked()
                 {
-                    exit.send(AppExit::Success);
+                    exit.write(AppExit::Success);
                 }
 
                 ui.add_space(10.0);
@@ -355,11 +355,11 @@ fn render_character_creation(
     egui::Area::new(egui::Id::new("cc_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
         .interactable(false)
-        .show(contexts.ctx_mut(), |ui| {
-            let screen_rect = ui.ctx().screen_rect();
+        .show(contexts.ctx_mut().unwrap(), |ui| {
+            let screen_rect = ui.ctx().content_rect();
             ui.painter().rect_filled(
                 screen_rect,
-                egui::Rounding::ZERO,
+                egui::CornerRadius::ZERO,
                 egui::Color32::from_rgba_unmultiplied(0, 0, 0, 230),
             );
         });
@@ -369,7 +369,7 @@ fn render_character_creation(
         .resizable(false)
         .collapsible(false)
         .min_width(400.0)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(10.0);
                 ui.label(
@@ -638,7 +638,7 @@ fn render_character_creation(
 fn render_game_over_screen(
     mut contexts: EguiContexts,
     mut next_state: ResMut<NextState<AppState>>,
-    mut exit: EventWriter<AppExit>,
+    mut exit: MessageWriter<AppExit>,
     game_state: Res<GameStateResource>,
     game_over_info: Res<GameOverInfo>,
     mut cc_state: ResMut<CharacterCreationState>,
@@ -647,11 +647,11 @@ fn render_game_over_screen(
     egui::Area::new(egui::Id::new("game_over_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
         .interactable(false)
-        .show(contexts.ctx_mut(), |ui| {
-            let screen_rect = ui.ctx().screen_rect();
+        .show(contexts.ctx_mut().unwrap(), |ui| {
+            let screen_rect = ui.ctx().content_rect();
             ui.painter().rect_filled(
                 screen_rect,
-                egui::Rounding::ZERO,
+                egui::CornerRadius::ZERO,
                 egui::Color32::from_rgba_unmultiplied(50, 0, 0, 200),
             );
         });
@@ -660,7 +660,7 @@ fn render_game_over_screen(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.set_min_width(450.0);
 
             ui.vertical_centered(|ui| {
@@ -857,7 +857,7 @@ fn render_game_over_screen(
                     .add_sized(button_size, egui::Button::new("Quit"))
                     .clicked()
                 {
-                    exit.send(AppExit::Success);
+                    exit.write(AppExit::Success);
                 }
 
                 ui.add_space(10.0);
@@ -868,18 +868,18 @@ fn render_game_over_screen(
 fn render_victory_screen(
     mut contexts: EguiContexts,
     mut next_state: ResMut<NextState<AppState>>,
-    mut exit: EventWriter<AppExit>,
+    mut exit: MessageWriter<AppExit>,
     game_state: Res<GameStateResource>,
 ) {
     // Dark overlay with gold tint
     egui::Area::new(egui::Id::new("victory_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
         .interactable(false)
-        .show(contexts.ctx_mut(), |ui| {
-            let screen_rect = ui.ctx().screen_rect();
+        .show(contexts.ctx_mut().unwrap(), |ui| {
+            let screen_rect = ui.ctx().content_rect();
             ui.painter().rect_filled(
                 screen_rect,
-                egui::Rounding::ZERO,
+                egui::CornerRadius::ZERO,
                 egui::Color32::from_rgba_unmultiplied(10, 10, 40, 220),
             );
         });
@@ -888,7 +888,7 @@ fn render_victory_screen(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.set_min_width(450.0);
 
             ui.vertical_centered(|ui| {
@@ -1048,7 +1048,7 @@ fn render_victory_screen(
                     .add_sized(button_size, egui::Button::new("Quit"))
                     .clicked()
                 {
-                    exit.send(AppExit::Success);
+                    exit.write(AppExit::Success);
                 }
 
                 ui.add_space(10.0);

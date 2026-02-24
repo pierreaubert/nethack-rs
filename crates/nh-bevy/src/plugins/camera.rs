@@ -2,7 +2,7 @@
 
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
-use bevy::render::camera::ScalingMode;
+use bevy::camera::ScalingMode;
 use bevy_egui::EguiContexts;
 
 use crate::components::{CameraMode, PlayerMarker};
@@ -144,7 +144,7 @@ fn handle_mouse_input(
     mut control: ResMut<CameraControl>,
     mut egui_contexts: EguiContexts,
 ) {
-    let egui_wants_pointer = egui_contexts.ctx_mut().wants_pointer_input();
+    let egui_wants_pointer = egui_contexts.ctx_mut().unwrap().wants_pointer_input();
 
     // Handle zoom with scroll wheel (unless egui wants it)
     if !egui_wants_pointer {
@@ -201,7 +201,7 @@ fn update_camera_projection(
         return;
     }
 
-    let Ok(mut projection) = camera_query.get_single_mut() else {
+    let Ok(mut projection) = camera_query.single_mut() else {
         return;
     };
 
@@ -243,13 +243,13 @@ fn update_camera_position(
     player_query: Query<&Transform, (With<PlayerMarker>, Without<MainCamera>)>,
     mut camera_query: Query<&mut Transform, With<MainCamera>>,
 ) {
-    let Ok(mut camera_transform) = camera_query.get_single_mut() else {
+    let Ok(mut camera_transform) = camera_query.single_mut() else {
         return;
     };
 
     // Get player position or use map center as default
     let player_pos = player_query
-        .get_single()
+        .single()
         .map(|t| t.translation)
         .unwrap_or(Vec3::new(40.0, 0.0, 10.5));
 

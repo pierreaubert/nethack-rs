@@ -78,7 +78,7 @@ fn render_character_sheet(
         .resizable(false)
         .collapsible(false)
         .min_width(450.0)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             // Header with name and class
             ui.horizontal(|ui| {
                 ui.label(

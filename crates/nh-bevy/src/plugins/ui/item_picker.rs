@@ -98,7 +98,7 @@ impl PickerAction {
 fn handle_picker_input(
     input: Res<ButtonInput<KeyCode>>,
     mut picker_state: ResMut<ItemPickerState>,
-    mut commands: EventWriter<GameCommand>,
+    mut commands: MessageWriter<GameCommand>,
     mut dir_state: ResMut<DirectionSelectState>,
     game_state: Res<GameStateResource>,
 ) {
@@ -147,7 +147,7 @@ fn handle_picker_input(
 
 fn confirm_selection(
     picker_state: &mut ItemPickerState,
-    commands: &mut EventWriter<GameCommand>,
+    commands: &mut MessageWriter<GameCommand>,
     dir_state: &mut ResMut<DirectionSelectState>,
     inventory: &[Object],
 ) {
@@ -166,34 +166,34 @@ fn confirm_selection(
     if let Some(action) = picker_state.action {
         match action {
             PickerAction::Eat => {
-                commands.send(GameCommand(Command::Eat(item_char)));
+                commands.write(GameCommand(Command::Eat(item_char)));
             }
             PickerAction::Quaff => {
-                commands.send(GameCommand(Command::Quaff(item_char)));
+                commands.write(GameCommand(Command::Quaff(item_char)));
             }
             PickerAction::Read => {
-                commands.send(GameCommand(Command::Read(item_char)));
+                commands.write(GameCommand(Command::Read(item_char)));
             }
             PickerAction::Wield => {
-                commands.send(GameCommand(Command::Wield(Some(item_char))));
+                commands.write(GameCommand(Command::Wield(Some(item_char))));
             }
             PickerAction::Wear => {
-                commands.send(GameCommand(Command::Wear(item_char)));
+                commands.write(GameCommand(Command::Wear(item_char)));
             }
             PickerAction::TakeOff => {
-                commands.send(GameCommand(Command::TakeOff(item_char)));
+                commands.write(GameCommand(Command::TakeOff(item_char)));
             }
             PickerAction::PutOn => {
-                commands.send(GameCommand(Command::PutOn(item_char)));
+                commands.write(GameCommand(Command::PutOn(item_char)));
             }
             PickerAction::Remove => {
-                commands.send(GameCommand(Command::Remove(item_char)));
+                commands.write(GameCommand(Command::Remove(item_char)));
             }
             PickerAction::Drop => {
-                commands.send(GameCommand(Command::Drop(item_char)));
+                commands.write(GameCommand(Command::Drop(item_char)));
             }
             PickerAction::Apply => {
-                commands.send(GameCommand(Command::Apply(item_char)));
+                commands.write(GameCommand(Command::Apply(item_char)));
             }
 
             // Actions requiring direction next
@@ -230,7 +230,7 @@ fn render_picker(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.set_min_width(300.0);
 
             if picker_state.filtered_indices.is_empty() {

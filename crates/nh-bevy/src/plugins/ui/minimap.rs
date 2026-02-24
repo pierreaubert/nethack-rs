@@ -84,14 +84,14 @@ fn render_minimap(
         .collapsible(false)
         .title_bar(false)
         .frame(
-            egui::Frame::none().fill(egui::Color32::from_rgba_unmultiplied(
+            egui::Frame::NONE.fill(egui::Color32::from_rgba_unmultiplied(
                 0,
                 0,
                 0,
                 settings.background_opacity,
             )),
         )
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.set_min_size(egui::vec2(settings.size, settings.size * 0.5));
 
             let (response, painter) = ui.allocate_painter(
@@ -129,7 +129,7 @@ fn render_minimap(
                                 egui::pos2(px, py),
                                 egui::vec2(tile_size, tile_size),
                             ),
-                            egui::Rounding::ZERO,
+                            egui::CornerRadius::ZERO,
                             color,
                         );
                     }

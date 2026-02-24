@@ -97,11 +97,11 @@ fn update_player_light(
     mut light_query: Query<&mut Transform, (With<PlayerLight>, Without<PlayerMarker>)>,
     game_state: Res<GameStateResource>,
     settings: Res<LightingSettings>,
-    mut ambient: ResMut<AmbientLight>,
+    mut ambient: ResMut<GlobalAmbientLight>,
 ) {
     // Update player light position
-    if let Ok(player_transform) = player_query.get_single() {
-        if let Ok(mut light_transform) = light_query.get_single_mut() {
+    if let Ok(player_transform) = player_query.single() {
+        if let Ok(mut light_transform) = light_query.single_mut() {
             light_transform.translation = player_transform.translation + Vec3::Y * 1.5; // Light above player
         }
     }

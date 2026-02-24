@@ -105,7 +105,7 @@ fn render_inventory(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.set_min_width(350.0);
             ui.set_min_height(300.0);
 

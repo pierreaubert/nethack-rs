@@ -18,7 +18,7 @@ impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AnimationSettings>()
             .init_resource::<CombatTracker>()
-            .add_event::<AnimationEvent>()
+            .add_message::<AnimationEvent>()
             .add_systems(Startup, setup_environmental_animations)
             .add_systems(
                 Update,
@@ -60,7 +60,7 @@ impl Default for AnimationSettings {
 }
 
 /// Animation events that can be triggered
-#[derive(Event)]
+#[derive(Message)]
 pub enum AnimationEvent {
     /// Entity moved from one position to another
     EntityMoved {
@@ -120,7 +120,7 @@ pub struct BumpAnimation {
 
 fn handle_animation_events(
     mut commands: Commands,
-    mut events: EventReader<AnimationEvent>,
+    mut events: MessageReader<AnimationEvent>,
     settings: Res<AnimationSettings>,
     materials: Res<Assets<StandardMaterial>>,
     mesh_query: Query<&MeshMaterial3d<StandardMaterial>>,
@@ -128,7 +128,7 @@ fn handle_animation_events(
     for event in events.read() {
         match event {
             AnimationEvent::EntityMoved { entity, from, to } => {
-                if let Some(mut entity_commands) = commands.get_entity(*entity) {
+                if let Ok(mut entity_commands) = commands.get_entity(*entity) {
                     entity_commands.insert(MovementAnimation {
                         start_pos: *from,
                         end_pos: *to,
@@ -142,7 +142,7 @@ fn handle_animation_events(
                 position,
             } => {
                 // Add flash to hit entity (3D mesh)
-                if let Some(mut entity_commands) = commands.get_entity(*entity) {
+                if let Ok(mut entity_commands) = commands.get_entity(*entity) {
                     let original_color = mesh_query
                         .get(*entity)
                         .ok()
@@ -163,7 +163,7 @@ fn handle_animation_events(
                 spawn_floating_miss(&mut commands, *position, &settings);
             }
             AnimationEvent::EntityDied { entity } => {
-                if let Some(mut entity_commands) = commands.get_entity(*entity) {
+                if let Ok(mut entity_commands) = commands.get_entity(*entity) {
                     entity_commands.insert(DeathAnimation {
                         timer: Timer::from_seconds(settings.death_duration, TimerMode::Once),
                     });
@@ -349,21 +349,21 @@ fn cleanup_finished_animations(
 ) {
     // Remove finished movement animations
     for (entity, anim) in movement_query.iter() {
-        if anim.timer.finished() {
+        if anim.timer.is_finished() {
             commands.entity(entity).remove::<MovementAnimation>();
         }
     }
 
     // Remove finished flash effects and restore material color
     for (entity, flash, mat_handle) in flash_query.iter() {
-        if flash.timer.finished() {
+        if flash.timer.is_finished() {
             // Restore original material color for 3D mesh entities
             if let Some(mat_handle) = mat_handle
                 && let Some(material) = materials.get_mut(&mat_handle.0)
             {
                 material.base_color = flash.original_color;
             }
-            if let Some(mut entity_commands) = commands.get_entity(entity) {
+            if let Ok(mut entity_commands) = commands.get_entity(entity) {
                 entity_commands.remove::<CombatFlash>();
             }
         }
@@ -371,15 +371,15 @@ fn cleanup_finished_animations(
 
     // Despawn finished floating text
     for (entity, floating) in floating_query.iter() {
-        if floating.timer.finished() {
-            commands.entity(entity).despawn_recursive();
+        if floating.timer.is_finished() {
+            commands.entity(entity).despawn();
         }
     }
 
     // Despawn dead entities after death animation
     for (entity, death) in death_query.iter() {
-        if death.timer.finished() {
-            commands.entity(entity).despawn_recursive();
+        if death.timer.is_finished() {
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -388,7 +388,7 @@ fn cleanup_finished_animations(
 fn track_combat(
     game_state: Res<GameStateResource>,
     mut tracker: ResMut<CombatTracker>,
-    mut events: EventWriter<AnimationEvent>,
+    mut events: MessageWriter<AnimationEvent>,
     player_query: Query<(Entity, &Transform), With<PlayerMarker>>,
     monster_query: Query<(Entity, &MonsterMarker, &Transform)>,
 ) {
@@ -413,8 +413,8 @@ fn track_combat(
     let player_hp = state.player.hp;
     if player_hp < tracker.prev_player_hp {
         let damage = tracker.prev_player_hp - player_hp;
-        if let Ok((entity, transform)) = player_query.get_single() {
-            events.send(AnimationEvent::CombatHit {
+        if let Ok((entity, transform)) = player_query.single() {
+            events.write(AnimationEvent::CombatHit {
                 entity,
                 damage,
                 position: transform.translation,
@@ -427,8 +427,8 @@ fn track_combat(
     let inventory_count = state.inventory.len();
     if inventory_count > tracker.prev_inventory_count {
         // Items were picked up - show sparkle at player position
-        if let Ok((_, transform)) = player_query.get_single() {
-            events.send(AnimationEvent::ItemPickedUp {
+        if let Ok((_, transform)) = player_query.single() {
+            events.write(AnimationEvent::ItemPickedUp {
                 from: transform.translation - Vec3::Y * 0.3,
                 to: transform.translation,
             });
@@ -448,7 +448,7 @@ fn track_combat(
                 // Find the monster entity
                 for (entity, marker, transform) in monster_query.iter() {
                     if marker.monster_id == monster.id {
-                        events.send(AnimationEvent::CombatHit {
+                        events.write(AnimationEvent::CombatHit {
                             entity,
                             damage,
                             position: transform.translation,

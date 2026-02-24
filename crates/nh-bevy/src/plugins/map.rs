@@ -169,7 +169,7 @@ fn check_level_change(
 
         // Despawn old map
         for entity in map_query.iter() {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
 
         // Spawn new map
@@ -511,9 +511,10 @@ fn spawn_map_internal(
     }
 
     // Add ambient light
-    commands.insert_resource(AmbientLight {
+    commands.insert_resource(GlobalAmbientLight {
         color: Color::WHITE,
         brightness: 500.0,
+        affects_lightmapped_meshes: false,
     });
 
     // Add directional light for shadows
@@ -751,7 +752,7 @@ fn animate_doors(
 
         transform.rotation = anim.start_rotation.slerp(anim.target_rotation, t);
 
-        if anim.timer.finished() {
+        if anim.timer.is_finished() {
             commands.entity(entity).remove::<DoorAnimation>();
         }
     }

@@ -135,7 +135,7 @@ fn handle_picker_input(
     input: Res<ButtonInput<KeyCode>>,
     mut picker_state: ResMut<MonsterPickerState>,
     game_state: Res<GameStateResource>,
-    mut game_commands: EventWriter<GameCommand>,
+    mut game_commands: MessageWriter<GameCommand>,
 ) {
     if !picker_state.active {
         return;
@@ -183,7 +183,7 @@ fn handle_picker_input(
                         }
                     };
 
-                    game_commands.send(GameCommand(command));
+                    game_commands.write(GameCommand(command));
                 }
             }
 
@@ -206,7 +206,7 @@ fn render_picker(mut contexts: EguiContexts, picker_state: Res<MonsterPickerStat
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.set_min_width(400.0);
 
             if picker_state.monsters.is_empty() {

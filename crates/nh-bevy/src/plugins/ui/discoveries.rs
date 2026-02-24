@@ -42,7 +42,7 @@ fn render_discoveries(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(true)
         .default_width(400.0)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.label(egui::RichText::new("Identified Items").strong());
             ui.separator();
 

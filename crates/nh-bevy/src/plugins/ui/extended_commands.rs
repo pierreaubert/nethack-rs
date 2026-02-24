@@ -68,7 +68,7 @@ impl CommandCategory {
 fn handle_extended_commands_input(
     input: Res<ButtonInput<KeyCode>>,
     mut state: ResMut<ExtendedCommandsState>,
-    mut commands: Commands,
+    mut game_commands: MessageWriter<GameCommand>,
     mut dir_state: ResMut<DirectionSelectState>,
 ) {
     // Toggle with '#' key (Shift+3 on most keyboards)
@@ -103,7 +103,7 @@ fn handle_extended_commands_input(
             && state.selected_index < state.filtered_commands.len()
         {
             let cmd_name = &state.filtered_commands[state.selected_index].name;
-            dispatch_extended_command(cmd_name, &mut commands, &mut dir_state);
+            dispatch_extended_command(cmd_name, &mut game_commands, &mut dir_state);
             state.open = false;
         }
     }
@@ -112,7 +112,7 @@ fn handle_extended_commands_input(
 /// Dispatch an extended command by name to the proper Command enum variant
 fn dispatch_extended_command(
     name: &str,
-    commands: &mut Commands,
+    commands: &mut MessageWriter<GameCommand>,
     dir_state: &mut ResMut<DirectionSelectState>,
 ) {
     let lower = name.to_lowercase();
@@ -153,7 +153,7 @@ fn dispatch_extended_command(
     };
 
     if let Some(cmd) = cmd {
-        commands.send_event(GameCommand(cmd));
+        commands.write(GameCommand(cmd));
         return;
     }
 
@@ -191,7 +191,7 @@ fn render_extended_commands(
         .resizable(true)
         .default_width(600.0)
         .default_height(450.0)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.label(
                 egui::RichText::new("Extended Commands - Use # prefix to execute")
                     .strong()

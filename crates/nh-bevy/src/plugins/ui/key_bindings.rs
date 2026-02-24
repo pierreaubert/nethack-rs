@@ -78,7 +78,7 @@ fn render_key_bindings(mut contexts: EguiContexts, mut state: ResMut<KeyBindings
         .resizable(true)
         .default_width(700.0)
         .default_height(500.0)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.label(
                 egui::RichText::new("Key Bindings Reference")
                     .strong()

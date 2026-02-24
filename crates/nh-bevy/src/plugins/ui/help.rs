@@ -65,7 +65,7 @@ fn render_help(mut contexts: EguiContexts, mut help_state: ResMut<HelpState>) {
         .resizable(false)
         .collapsible(false)
         .min_width(640.0)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.label(
                 egui::RichText::new("NetHack-RS Help")
                     .size(20.0)

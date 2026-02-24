@@ -22,7 +22,7 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "NetHack-rs".to_string(),
-                        resolution: (1280.0, 720.0).into(),
+                        resolution: (1280u32, 720u32).into(),
                         ..default()
                     }),
                     ..default()

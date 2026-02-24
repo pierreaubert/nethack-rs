@@ -129,11 +129,11 @@ fn render_messages(
     // Bottom message area
     egui::Area::new(egui::Id::new("message_log"))
         .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(10.0, -40.0))
-        .show(contexts.ctx_mut(), |ui| {
-            egui::Frame::none()
+        .show(contexts.ctx_mut().unwrap(), |ui| {
+            egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 180))
-                .inner_margin(egui::Margin::same(8.0))
-                .rounding(egui::Rounding::same(4.0))
+                .inner_margin(egui::Margin::same(8))
+                .corner_radius(egui::CornerRadius::same(4))
                 .show(ui, |ui| {
                     ui.set_min_width(500.0);
                     ui.set_max_width(600.0);

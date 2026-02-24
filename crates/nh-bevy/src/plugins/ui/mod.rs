@@ -65,7 +65,7 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(EguiPlugin).add_plugins((
+        app.add_plugins(EguiPlugin::default()).add_plugins((
             hud::HudPlugin,
             messages::MessagesPlugin,
             inventory::InventoryPlugin,

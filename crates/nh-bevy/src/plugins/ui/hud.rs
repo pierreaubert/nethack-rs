@@ -25,11 +25,11 @@ fn render_hud(
     // Top-left status panel
     egui::Area::new(egui::Id::new("status_hud"))
         .fixed_pos(egui::pos2(10.0, 10.0))
-        .show(contexts.ctx_mut(), |ui| {
-            egui::Frame::none()
+        .show(contexts.ctx_mut().unwrap(), |ui| {
+            egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200))
-                .inner_margin(egui::Margin::same(8.0))
-                .rounding(egui::Rounding::same(4.0))
+                .inner_margin(egui::Margin::same(8))
+                .corner_radius(egui::CornerRadius::same(4))
                 .show(ui, |ui| {
                     ui.set_min_width(200.0);
 
@@ -227,11 +227,11 @@ fn render_hud(
     // Bottom-right help hint
     egui::Area::new(egui::Id::new("help_hint"))
         .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -10.0))
-        .show(contexts.ctx_mut(), |ui| {
-            egui::Frame::none()
+        .show(contexts.ctx_mut().unwrap(), |ui| {
+            egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 150))
-                .inner_margin(egui::Margin::same(6.0))
-                .rounding(egui::Rounding::same(4.0))
+                .inner_margin(egui::Margin::same(6))
+                .corner_radius(egui::CornerRadius::same(4))
                 .show(ui, |ui| {
                     ui.label(
                         egui::RichText::new(

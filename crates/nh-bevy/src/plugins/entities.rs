@@ -132,19 +132,19 @@ fn check_level_change(
 
         // Despawn all entities
         for entity in player_query.iter() {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
         for entity in monster_query.iter() {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
         for entity in object_query.iter() {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
         for entity in pile_query.iter() {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
         for entity in indicator_query.iter() {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
 
         // Spawn new entities (3D model → billboard sprite → procedural fallback)
@@ -466,7 +466,7 @@ fn spawn_health_indicator(
         TextColor(bar_color),
         Transform::from_translation(world_pos + Vec3::new(0.0, -0.35, 0.0))
             .with_scale(Vec3::splat(0.01)),
-        Anchor::Center,
+        Anchor::CENTER,
     ));
 }
 
@@ -514,7 +514,7 @@ fn spawn_status_indicator(
         TextColor(Color::srgb(1.0, 0.8, 0.2)), // Yellow for status
         Transform::from_translation(world_pos + Vec3::new(0.0, 0.5, 0.0))
             .with_scale(Vec3::splat(0.012)),
-        Anchor::Center,
+        Anchor::CENTER,
     ));
 }
 
@@ -543,7 +543,7 @@ fn spawn_allegiance_indicator(
         TextColor(color),
         Transform::from_translation(world_pos + Vec3::new(0.25, 0.4, 0.0))
             .with_scale(Vec3::splat(0.012)),
-        Anchor::Center,
+        Anchor::CENTER,
     ));
 }
 
@@ -620,7 +620,7 @@ fn billboard_face_camera(
     camera_mode: Res<State<CameraMode>>,
     mut billboards: Query<&mut Transform, (With<Billboard>, Without<MainCamera>)>,
 ) {
-    let Ok(camera_transform) = camera_query.get_single() else {
+    let Ok(camera_transform) = camera_query.single() else {
         return;
     };
 
@@ -669,7 +669,7 @@ fn sync_entity_positions(
         (Entity, &MonsterMarker, &Transform, &mut MapPosition),
         Without<PlayerMarker>,
     >,
-    mut animation_events: EventWriter<AnimationEvent>,
+    mut animation_events: MessageWriter<AnimationEvent>,
 ) {
     // Only sync when game state changes
     if !game_state.is_changed() {
@@ -679,7 +679,7 @@ fn sync_entity_positions(
     let state = &game_state.0;
 
     // Update player position
-    if let Ok((entity, transform, mut map_pos)) = player_query.get_single_mut() {
+    if let Ok((entity, transform, mut map_pos)) = player_query.single_mut() {
         let new_x = state.player.pos.x;
         let new_y = state.player.pos.y;
 
@@ -689,7 +689,7 @@ fn sync_entity_positions(
             let new_world_pos = new_map_pos.to_world() + Vec3::Y * 0.5;
 
             // Send animation event
-            animation_events.send(AnimationEvent::EntityMoved {
+            animation_events.write(AnimationEvent::EntityMoved {
                 entity,
                 from: old_world_pos,
                 to: new_world_pos,
@@ -714,7 +714,7 @@ fn sync_entity_positions(
                 let new_world_pos = new_map_pos.to_world() + Vec3::Y * 0.5;
 
                 // Send animation event
-                animation_events.send(AnimationEvent::EntityMoved {
+                animation_events.write(AnimationEvent::EntityMoved {
                     entity,
                     from: old_world_pos,
                     to: new_world_pos,
@@ -726,7 +726,7 @@ fn sync_entity_positions(
             }
         } else {
             // Monster no longer exists - send death animation
-            animation_events.send(AnimationEvent::EntityDied { entity });
+            animation_events.write(AnimationEvent::EntityDied { entity });
         }
     }
 }
@@ -749,10 +749,10 @@ fn sync_floor_objects(
     }
 
     for entity in existing_objects.iter() {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
     for entity in existing_piles.iter() {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
 
     spawn_floor_objects(

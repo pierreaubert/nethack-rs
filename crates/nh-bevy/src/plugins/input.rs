@@ -14,7 +14,7 @@ pub struct InputPlugin;
 
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<GameCommand>().add_systems(
+        app.add_message::<GameCommand>().add_systems(
             Update,
             (keyboard_to_command, process_game_command)
                 .chain()
@@ -23,13 +23,13 @@ impl Plugin for InputPlugin {
     }
 }
 
-/// Game command event
-#[derive(Event)]
+/// Game command message
+#[derive(Message)]
 pub struct GameCommand(pub nh_core::action::Command);
 
 fn keyboard_to_command(
     input: Res<ButtonInput<KeyCode>>,
-    mut commands: EventWriter<GameCommand>,
+    mut commands: MessageWriter<GameCommand>,
     inv_state: Res<InventoryState>,
     mut dir_state: ResMut<DirectionSelectState>,
     mut picker_state: ResMut<ItemPickerState>,
@@ -125,9 +125,9 @@ fn keyboard_to_command(
 
     if let Some(dir) = direction {
         if input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight) {
-            commands.send(GameCommand(Command::Run(dir)));
+            commands.write(GameCommand(Command::Run(dir)));
         } else {
-            commands.send(GameCommand(Command::Move(dir)));
+            commands.write(GameCommand(Command::Move(dir)));
         }
         return;
     }
@@ -135,25 +135,25 @@ fn keyboard_to_command(
     // Other commands
     if input.just_pressed(KeyCode::Period) && !input.pressed(KeyCode::ShiftLeft) {
         // '.' - rest/wait
-        commands.send(GameCommand(Command::Rest));
+        commands.write(GameCommand(Command::Rest));
     } else if input.just_pressed(KeyCode::Comma) && !input.pressed(KeyCode::ShiftLeft) {
         // ',' - pickup
-        commands.send(GameCommand(Command::Pickup));
+        commands.write(GameCommand(Command::Pickup));
     } else if input.just_pressed(KeyCode::KeyS)
         && !input.pressed(KeyCode::ShiftLeft)
         && !input.pressed(KeyCode::ShiftRight)
     {
         // 's' - search
-        commands.send(GameCommand(Command::Search));
+        commands.write(GameCommand(Command::Search));
     } else if input.just_pressed(KeyCode::Semicolon) && input.pressed(KeyCode::ShiftLeft) {
         // ':' - look at floor
-        commands.send(GameCommand(Command::WhatsHere));
+        commands.write(GameCommand(Command::WhatsHere));
     } else if input.just_pressed(KeyCode::Comma) && input.pressed(KeyCode::ShiftLeft) {
         // '<' - go up stairs
-        commands.send(GameCommand(Command::GoUp));
+        commands.write(GameCommand(Command::GoUp));
     } else if input.just_pressed(KeyCode::Period) && input.pressed(KeyCode::ShiftLeft) {
         // '>' - go down stairs
-        commands.send(GameCommand(Command::GoDown));
+        commands.write(GameCommand(Command::GoDown));
     } else if input.just_pressed(KeyCode::KeyO) {
         // 'o' - open (needs direction)
         dir_state.active = true;
@@ -184,7 +184,7 @@ fn keyboard_to_command(
         && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
     {
         // 'V' - history
-        commands.send(GameCommand(Command::History));
+        commands.write(GameCommand(Command::History));
     }
     // Simple action keys (no extra input needed)
     else if input.just_pressed(KeyCode::KeyP)
@@ -193,54 +193,54 @@ fn keyboard_to_command(
         && !input.pressed(KeyCode::ControlLeft)
     {
         // 'p' - pay shopkeeper
-        commands.send(GameCommand(Command::Pay));
+        commands.write(GameCommand(Command::Pay));
     } else if input.just_pressed(KeyCode::KeyX)
         && !input.pressed(KeyCode::ShiftLeft)
         && !input.pressed(KeyCode::ShiftRight)
         && !input.pressed(KeyCode::ControlLeft)
     {
         // 'x' - swap weapons
-        commands.send(GameCommand(Command::SwapWeapon));
+        commands.write(GameCommand(Command::SwapWeapon));
     } else if input.just_pressed(KeyCode::KeyX)
         && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
     {
         // 'X' - two-weapon mode
-        commands.send(GameCommand(Command::TwoWeapon));
+        commands.write(GameCommand(Command::TwoWeapon));
     } else if input.just_pressed(KeyCode::KeyZ)
         && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
     {
         // 'Z' - cast spell
-        commands.send(GameCommand(Command::ShowSpells));
+        commands.write(GameCommand(Command::ShowSpells));
     } else if input.just_pressed(KeyCode::Digit4) && input.pressed(KeyCode::ShiftLeft) {
         // '$' - count gold
-        commands.send(GameCommand(Command::CountGold));
+        commands.write(GameCommand(Command::CountGold));
     } else if input.just_pressed(KeyCode::Minus) {
         // '_' on most keyboards is Shift+Minus, but crossterm/bevy may vary
         if input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight) {
             // '_' - travel
-            commands.send(GameCommand(Command::Travel));
+            commands.write(GameCommand(Command::Travel));
         }
     } else if input.just_pressed(KeyCode::Equal)
         && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
     {
         // '+' - enhance weapon skill
-        commands.send(GameCommand(Command::EnhanceSkill));
+        commands.write(GameCommand(Command::EnhanceSkill));
     } else if input.just_pressed(KeyCode::KeyS)
         && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
     {
         // 'S' - save game
-        commands.send(GameCommand(Command::Save));
+        commands.write(GameCommand(Command::Save));
     }
     // Ctrl key combos
     else if input.just_pressed(KeyCode::KeyP) && input.pressed(KeyCode::ControlLeft) {
         // Ctrl+P - message history
-        commands.send(GameCommand(Command::History));
+        commands.write(GameCommand(Command::History));
     } else if input.just_pressed(KeyCode::KeyR) && input.pressed(KeyCode::ControlLeft) {
         // Ctrl+R - redraw
-        commands.send(GameCommand(Command::Redraw));
+        commands.write(GameCommand(Command::Redraw));
     } else if input.just_pressed(KeyCode::KeyX) && input.pressed(KeyCode::ControlLeft) {
         // Ctrl+X - show attributes
-        commands.send(GameCommand(Command::ShowAttributes));
+        commands.write(GameCommand(Command::ShowAttributes));
     }
     // Item commands
     else if input.just_pressed(KeyCode::KeyE) {
@@ -274,11 +274,11 @@ fn keyboard_to_command(
 }
 
 fn process_game_command(
-    mut commands: EventReader<GameCommand>,
+    mut commands: MessageReader<GameCommand>,
     mut game_state: ResMut<GameStateResource>,
     mut next_app_state: ResMut<NextState<AppState>>,
     mut game_over_info: ResMut<crate::resources::GameOverInfo>,
-    mut exit: EventWriter<AppExit>,
+    mut exit: MessageWriter<AppExit>,
 ) {
     for GameCommand(command) in commands.read() {
         // Clear previous messages
@@ -308,7 +308,7 @@ fn process_game_command(
                 next_app_state.set(AppState::GameOver);
             }
             nh_core::GameLoopResult::PlayerQuit => {
-                exit.send(AppExit::Success);
+                exit.write(AppExit::Success);
             }
             nh_core::GameLoopResult::PlayerWon => {
                 info!("YOU ASCENDED!");
@@ -326,7 +326,7 @@ fn process_game_command(
                 if let Err(e) = nh_core::save::save_game(&game_state.0, &path) {
                     error!("Failed to save game: {}", e);
                 }
-                exit.send(AppExit::Success);
+                exit.write(AppExit::Success);
             }
         }
     }

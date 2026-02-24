@@ -235,11 +235,11 @@ fn handle_mouse_click(
         return;
     }
 
-    let Ok(window) = window_query.get_single() else {
+    let Ok(window) = window_query.single() else {
         return;
     };
 
-    let Ok((camera, camera_transform)) = camera_query.get_single() else {
+    let Ok((camera, camera_transform)) = camera_query.single() else {
         return;
     };
 
@@ -309,7 +309,7 @@ fn handle_mouse_click(
 fn process_navigation_queue(
     mut nav_state: ResMut<NavigationState>,
     game_state: Res<GameStateResource>,
-    mut commands: EventWriter<GameCommand>,
+    mut commands: MessageWriter<GameCommand>,
 ) {
     if !nav_state.active || nav_state.path.is_empty() {
         nav_state.active = false;
@@ -366,7 +366,7 @@ fn process_navigation_queue(
 
     // Convert position to direction and send move command
     if let Some(direction) = pos_to_direction((player_x, player_y), next_pos) {
-        commands.send(GameCommand(nh_core::action::Command::Move(direction)));
+        commands.write(GameCommand(nh_core::action::Command::Move(direction)));
         nav_state.path.remove(0);
 
         if nav_state.path.is_empty() {

@@ -19,7 +19,7 @@ impl Plugin for GamepadPlugin {
 
 fn gamepad_input(
     gamepads: Query<(Entity, &Gamepad)>,
-    mut commands: EventWriter<GameCommand>,
+    mut commands: MessageWriter<GameCommand>,
     mut inv_state: ResMut<InventoryState>,
     mut dir_state: ResMut<DirectionSelectState>,
     picker_state: Res<ItemPickerState>,
@@ -74,9 +74,9 @@ fn gamepad_input(
             if gamepad.pressed(GamepadButton::RightTrigger2)
                 || gamepad.pressed(GamepadButton::RightTrigger)
             {
-                commands.send(GameCommand(Command::Run(dir)));
+                commands.write(GameCommand(Command::Run(dir)));
             } else {
-                commands.send(GameCommand(Command::Move(dir)));
+                commands.write(GameCommand(Command::Move(dir)));
             }
         }
 
@@ -84,7 +84,7 @@ fn gamepad_input(
 
         // A / Cross - Pickup
         if gamepad.just_pressed(GamepadButton::South) {
-            commands.send(GameCommand(Command::Pickup));
+            commands.write(GameCommand(Command::Pickup));
         }
 
         // X / Square - Open Inventory
@@ -94,12 +94,12 @@ fn gamepad_input(
 
         // B / Circle - Rest / Wait
         if gamepad.just_pressed(GamepadButton::East) {
-            commands.send(GameCommand(Command::Rest));
+            commands.write(GameCommand(Command::Rest));
         }
 
         // Y / Triangle - Search
         if gamepad.just_pressed(GamepadButton::North) {
-            commands.send(GameCommand(Command::Search));
+            commands.write(GameCommand(Command::Search));
         }
 
         // Start - Pause Menu
@@ -109,7 +109,7 @@ fn gamepad_input(
 
         // Select - Discoveries (placeholder for help)
         if gamepad.just_pressed(GamepadButton::Select) {
-            commands.send(GameCommand(Command::Discoveries));
+            commands.write(GameCommand(Command::Discoveries));
         }
 
         // L1 / LB - Open (needs direction)

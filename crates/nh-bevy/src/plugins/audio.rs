@@ -16,7 +16,7 @@ pub struct AudioPlugin;
 impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AudioState>()
-            .add_event::<SoundEffect>()
+            .add_message::<SoundEffect>()
             .add_systems(
                 Update,
                 play_sound_effects.run_if(in_state(AppState::Playing)),
@@ -49,7 +49,7 @@ pub enum MusicTrack {
 }
 
 /// Sound effect events
-#[derive(Event, Clone, Debug)]
+#[derive(Message, Clone, Debug)]
 pub enum SoundEffect {
     // Movement
     Footstep,
@@ -126,7 +126,7 @@ impl SoundEffect {
 
 /// Play sound effects when events are triggered
 fn play_sound_effects(
-    mut sound_events: EventReader<SoundEffect>,
+    mut sound_events: MessageReader<SoundEffect>,
     asset_server: Res<AssetServer>,
     settings: Res<GameSettings>,
     mut commands: Commands,
@@ -155,7 +155,7 @@ fn play_sound_effects(
             commands.spawn((
                 AudioPlayer::new(sound),
                 PlaybackSettings {
-                    volume: bevy::audio::Volume::new(settings.sfx_volume),
+                    volume: bevy::audio::Volume::Linear(settings.sfx_volume),
                     mode: bevy::audio::PlaybackMode::Despawn,
                     ..default()
                 },
@@ -168,7 +168,7 @@ fn play_sound_effects(
 fn detect_sound_triggers(
     game_state: Res<GameStateResource>,
     mut audio_state: ResMut<AudioState>,
-    mut sound_events: EventWriter<SoundEffect>,
+    mut sound_events: MessageWriter<SoundEffect>,
 ) {
     if !game_state.is_changed() {
         return;
@@ -200,40 +200,40 @@ fn detect_sound_triggers(
             nh_core::dungeon::CellType::Stone => SoundEffect::FootstepStone,
             _ => SoundEffect::Footstep,
         };
-        sound_events.send(sound);
+        sound_events.write(sound);
     }
 
     // Detect player damage
     let curr_hp = state.player.hp;
     if curr_hp < prev_hp {
-        sound_events.send(SoundEffect::PlayerHurt);
+        sound_events.write(SoundEffect::PlayerHurt);
     }
 
     // Detect messages for other sound triggers
     for msg in &state.messages {
         let lower = msg.to_lowercase();
         if lower.contains("you hit") || lower.contains("hits") {
-            sound_events.send(SoundEffect::Hit);
+            sound_events.write(SoundEffect::Hit);
         } else if lower.contains("miss") {
-            sound_events.send(SoundEffect::Miss);
+            sound_events.write(SoundEffect::Miss);
         } else if lower.contains("killed") || lower.contains("destroyed") {
-            sound_events.send(SoundEffect::MonsterDeath);
+            sound_events.write(SoundEffect::MonsterDeath);
         } else if lower.contains("pick up") {
-            sound_events.send(SoundEffect::Pickup);
+            sound_events.write(SoundEffect::Pickup);
         } else if lower.contains("drop") {
-            sound_events.send(SoundEffect::Drop);
+            sound_events.write(SoundEffect::Drop);
         } else if lower.contains("level up") || lower.contains("welcome to experience level") {
-            sound_events.send(SoundEffect::LevelUp);
+            sound_events.write(SoundEffect::LevelUp);
         } else if lower.contains("locked") {
-            sound_events.send(SoundEffect::DoorLocked);
+            sound_events.write(SoundEffect::DoorLocked);
         } else if lower.contains("door opens") {
-            sound_events.send(SoundEffect::DoorOpen);
+            sound_events.write(SoundEffect::DoorOpen);
         } else if lower.contains("door closes") {
-            sound_events.send(SoundEffect::DoorClose);
+            sound_events.write(SoundEffect::DoorClose);
         } else if lower.contains("secret") {
-            sound_events.send(SoundEffect::SecretFound);
+            sound_events.write(SoundEffect::SecretFound);
         } else if lower.contains("trap") {
-            sound_events.send(SoundEffect::TrapTriggered);
+            sound_events.write(SoundEffect::TrapTriggered);
         }
     }
 

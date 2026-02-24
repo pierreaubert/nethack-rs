@@ -73,7 +73,7 @@ impl DirectionAction {
 fn handle_direction_input(
     input: Res<ButtonInput<KeyCode>>,
     mut dir_state: ResMut<DirectionSelectState>,
-    mut game_commands: EventWriter<GameCommand>,
+    mut game_commands: MessageWriter<GameCommand>,
     mut monster_picker_state: ResMut<super::monster_picker::MonsterPickerState>,
 ) {
     if !dir_state.active {
@@ -142,7 +142,7 @@ fn handle_direction_input(
         if let Some(action) = &dir_state.action {
             // Send the command
             let command = action.to_command(dir);
-            game_commands.send(GameCommand(command));
+            game_commands.write(GameCommand(command));
         }
 
         // Clear state
@@ -169,11 +169,11 @@ fn render_direction_ui(
 
     egui::Area::new(egui::Id::new("direction_select"))
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-        .show(contexts.ctx_mut(), |ui| {
-            egui::Frame::none()
+        .show(contexts.ctx_mut().unwrap(), |ui| {
+            egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 220))
-                .inner_margin(egui::Margin::same(16.0))
-                .rounding(egui::Rounding::same(8.0))
+                .inner_margin(egui::Margin::same(16))
+                .corner_radius(egui::CornerRadius::same(8))
                 .show(ui, |ui| {
                     ui.label(
                         egui::RichText::new(format!("Which direction to {}?", action_name))
@@ -215,7 +215,7 @@ fn render_direction_ui(
                         };
 
                         ui.painter().rect_filled(rect, 4.0, bg_color);
-                        ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(1.0, egui::Color32::GRAY));
+                        ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(1.0, egui::Color32::GRAY), egui::StrokeKind::Inside);
 
                         // Key label
                         ui.painter().text(
