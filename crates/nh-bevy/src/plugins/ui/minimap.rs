@@ -8,7 +8,7 @@
 //! - Toggle with 'M' key
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
 use crate::plugins::game::AppState;
 use crate::resources::GameStateResource;
@@ -17,10 +17,13 @@ pub struct MinimapPlugin;
 
 impl Plugin for MinimapPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<MinimapSettings>().add_systems(
-            Update,
-            (toggle_minimap, render_minimap).run_if(in_state(AppState::Playing)),
-        );
+        app.init_resource::<MinimapSettings>()
+            .add_systems(Update, toggle_minimap.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                EguiPrimaryContextPass,
+                render_minimap
+                    .run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
@@ -65,9 +68,10 @@ fn render_minimap(
     settings: Res<MinimapSettings>,
 ) {
     if !settings.visible {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     let state = &game_state.0;
     let level = &state.current_level;
     let player_x = state.player.pos.x as usize;
@@ -91,7 +95,7 @@ fn render_minimap(
                 settings.background_opacity,
             )),
         )
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.set_min_size(egui::vec2(settings.size, settings.size * 0.5));
 
             let (response, painter) = ui.allocate_painter(
@@ -209,6 +213,8 @@ fn render_minimap(
                 egui::Color32::GRAY,
             );
         });
+
+    
 }
 
 /// Convert cell type to minimap color

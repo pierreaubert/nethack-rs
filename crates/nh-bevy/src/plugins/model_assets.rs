@@ -4,9 +4,9 @@
 //! The `ModelAssets` resource maps directory names (e.g. `"long_sword"`) to loaded handles.
 
 use std::collections::HashMap;
-use std::path::Path;
 
 use bevy::prelude::*;
+use crate::resources::AssetsConfig;
 
 pub struct ModelAssetsPlugin;
 
@@ -37,17 +37,22 @@ pub fn model_name_from_sprite_path(bevy_sprite: &str) -> &str {
     filename.strip_suffix(".png").unwrap_or(filename)
 }
 
-fn load_model_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn load_model_assets(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    assets_config: Option<Res<AssetsConfig>>,
+) {
     let mut models = HashMap::new();
 
     // Scan the models directory on disk.
-    // Bevy's AssetPlugin is configured with file_path = "assets", so the workspace-relative
-    // path `assets/models/` corresponds to the OS path `<workspace>/assets/models/`.
-    // We need to find the workspace root. The binary runs via `cargo run` from the workspace root,
-    // so `std::env::current_dir()` gives us that.
-    let models_dir = Path::new("assets/models");
+    // Bevy's AssetPlugin is configured with file_path pointing to the discovered `assets` dir.
+    // We need to find the workspace-relative `models/` folder.
+    let base_path = assets_config
+        .map(|c| c.base_path.clone())
+        .unwrap_or_else(|| std::path::PathBuf::from("assets"));
+    let models_dir = base_path.join("models");
 
-    let Ok(entries) = std::fs::read_dir(models_dir) else {
+    let Ok(entries) = std::fs::read_dir(&models_dir) else {
         warn!(
             "Could not read models directory at {:?} — no 3D models will be loaded",
             models_dir

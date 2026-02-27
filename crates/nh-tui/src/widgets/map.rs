@@ -3,34 +3,33 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Widget};
 
-use nh_assets::registry::AssetRegistry;
-use nh_core::data::tile::{DungeonTile, Tile};
 use nh_core::dungeon::{CellType, Level};
 use nh_core::player::You;
 use nh_core::{COLNO, ROWNO};
 
 use crate::theme::Theme;
+use crate::display::GlyphSet;
 
 /// Widget for rendering the dungeon map
 pub struct MapWidget<'a> {
     level: &'a Level,
     player: &'a You,
-    assets: &'a AssetRegistry,
     theme: &'a Theme,
+    glyph_set: &'a dyn GlyphSet,
 }
 
 impl<'a> MapWidget<'a> {
     pub fn new(
         level: &'a Level,
         player: &'a You,
-        assets: &'a AssetRegistry,
         theme: &'a Theme,
+        glyph_set: &'a dyn GlyphSet,
     ) -> Self {
         Self {
             level,
             player,
-            assets,
             theme,
+            glyph_set,
         }
     }
 
@@ -55,7 +54,7 @@ impl<'a> MapWidget<'a> {
             // Monster at position
             if let Some(monster) = self.level.monster_at(xi, yi) {
                 let tile = nh_core::data::tile::get_tile_for_monster(monster.permonst());
-                let symbol = tile.to_ascii();
+                let symbol = self.glyph_set.tile_char(&tile);
                 let color = if monster.is_hostile() {
                     self.theme.map_hostile
                 } else if monster.is_pet() {
@@ -69,16 +68,9 @@ impl<'a> MapWidget<'a> {
             // Objects at position - show top object's class symbol
             let objects = self.level.objects_at(xi, yi);
             if let Some(obj) = objects.first() {
-                // Use the shared asset registry for item icons
-                if let Ok(icon) = self.assets.get_icon(obj) {
-                    let color = AssetRegistry::parse_color(&icon.tui_color)
-                        .unwrap_or(self.theme.obj_default);
-                    return (icon.tui_char, Style::default().fg(color));
-                }
-
-                // Fallback to core tile system if registry lookup fails
+                // Fallback to core tile system
                 let tile = nh_core::data::tile::get_tile_for_object(obj);
-                let symbol = tile.to_ascii();
+                let symbol = self.glyph_set.tile_char(&tile);
                 let color = match obj.class {
                     nh_core::object::ObjectClass::Coin => self.theme.obj_coin,
                     nh_core::object::ObjectClass::Gem => self.theme.obj_gem,
@@ -96,8 +88,7 @@ impl<'a> MapWidget<'a> {
 
         // Terrain (shown if explored, dimmed if not currently visible)
         let cell = &self.level.cells[x][y];
-        let tile = Tile::Dungeon(DungeonTile::from(cell.typ));
-        let symbol = tile.to_ascii();
+        let symbol = self.glyph_set.cell_char(cell.typ, cell.flags);
         let t = self.theme;
         let base_color = match cell.typ {
             CellType::Stone => t.map_stone,

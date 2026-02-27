@@ -1,16 +1,24 @@
 //! Message log system
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
 use crate::resources::GameStateResource;
+use crate::plugins::ui::UiState;
+use crate::plugins::game::AppState;
 
 pub struct MessagesPlugin;
 
 impl Plugin for MessagesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MessageHistory>()
-            .add_systems(Update, (update_message_history, render_messages).chain());
+            .add_systems(Update, update_message_history)
+            .add_systems(
+                EguiPrimaryContextPass,
+                render_messages
+                    .run_if(in_state(UiState::Ready))
+                    .run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
@@ -118,6 +126,7 @@ fn render_messages(
     _game_state: Res<GameStateResource>,
     input: Res<ButtonInput<KeyCode>>,
 ) {
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     // Toggle full log with 'P' key or 'V' (standard NetHack)
     if input.just_pressed(KeyCode::KeyP)
         || (input.just_pressed(KeyCode::KeyV)
@@ -129,7 +138,7 @@ fn render_messages(
     // Bottom message area
     egui::Area::new(egui::Id::new("message_log"))
         .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(10.0, -40.0))
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 180))
                 .inner_margin(egui::Margin::same(8))
@@ -201,4 +210,6 @@ fn render_messages(
                     }
                 });
         });
+
+    
 }

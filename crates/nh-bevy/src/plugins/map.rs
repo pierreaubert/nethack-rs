@@ -11,8 +11,17 @@ pub struct MapPlugin;
 
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
+        // Find assets base path for TextureVariants initialization
+        let base_path = if std::path::Path::new("assets").is_dir() {
+            std::path::PathBuf::from("assets")
+        } else if std::path::Path::new("../../assets").is_dir() {
+            std::path::PathBuf::from("../../assets")
+        } else {
+            std::path::PathBuf::from("assets")
+        };
+
         app.init_resource::<MapState>()
-            .insert_resource(TextureVariants::new())
+            .insert_resource(TextureVariants::from_base_path(&base_path))
             .add_systems(Startup, (setup_tile_assets, spawn_map).chain())
             .add_systems(OnEnter(AppState::Playing), mark_map_for_respawn)
             .add_systems(
@@ -46,11 +55,11 @@ struct TextureVariants {
 
 impl TextureVariants {
     /// Count how many variants exist for a texture (e.g., room-1.jpeg, room-2.jpeg, ...)
-    fn count_variants(name: &str) -> usize {
+    fn count_variants(base_path: &std::path::Path, name: &str) -> usize {
         let mut count = 0;
         for i in 1.. {
-            let path = format!("assets/textures/{}-{}.jpeg", name, i);
-            if std::path::Path::new(&path).exists() {
+            let path = base_path.join(format!("textures/{}-{}.jpeg", name, i));
+            if path.exists() {
                 count = i;
             } else {
                 break;
@@ -60,7 +69,7 @@ impl TextureVariants {
     }
 
     /// Initialize variant counts for all texture types
-    fn new() -> Self {
+    pub fn from_base_path(base_path: &std::path::Path) -> Self {
         let texture_names = [
             "floor", "corridor", "wall", "door", "stairs", "water", "lava", "stone", "tree",
             "fountain", "ice", "room",
@@ -68,7 +77,7 @@ impl TextureVariants {
 
         let mut variants = std::collections::HashMap::new();
         for name in texture_names {
-            let count = Self::count_variants(name);
+            let count = Self::count_variants(base_path, name);
             if count > 0 {
                 variants.insert(name.to_string(), (1, count)); // Start at variant 1
             }

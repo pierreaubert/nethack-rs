@@ -13,10 +13,7 @@ path = "bin/nethack.rs"
 
 [dependencies]
 nh-core.workspace = true
-nh-assets = { path = "../nh-assets" }
 ratatui.workspace = true
 crossterm.workspace = true
 strum.workspace = true
 clap.workspace = true
-ratatui-image = "4.1"
-image = { version = "0.25", default-features = false, features = ["png"] }

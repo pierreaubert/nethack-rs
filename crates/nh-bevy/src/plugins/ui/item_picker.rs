@@ -1,7 +1,7 @@
 //! Item picker UI for selecting items for actions (eat, drop, etc.)
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use nh_core::action::Command;
 use nh_core::object::{Object, ObjectClass};
 
@@ -14,12 +14,13 @@ pub struct ItemPickerPlugin;
 
 impl Plugin for ItemPickerPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ItemPickerState>().add_systems(
-            Update,
-            (handle_picker_input, render_picker)
-                .chain()
-                .run_if(in_state(AppState::Playing)),
-        );
+        app.init_resource::<ItemPickerState>()
+            .add_systems(Update, handle_picker_input.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                EguiPrimaryContextPass,
+                render_picker
+                    .run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
@@ -220,9 +221,10 @@ fn render_picker(
     game_state: Res<GameStateResource>,
 ) {
     if !picker_state.active {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     let action_name = picker_state.action.map(|a| a.name()).unwrap_or("select");
     let inventory = &game_state.0.inventory;
 
@@ -230,7 +232,7 @@ fn render_picker(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.set_min_width(300.0);
 
             if picker_state.filtered_indices.is_empty() {
@@ -281,6 +283,8 @@ fn render_picker(
                     .color(egui::Color32::GRAY),
             );
         });
+
+    
 }
 
 use super::{item_name, object_class_color};

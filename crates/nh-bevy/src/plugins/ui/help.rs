@@ -6,7 +6,7 @@
 //! - Toggle with '?' key
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
 use crate::plugins::game::AppState;
 
@@ -14,10 +14,13 @@ pub struct HelpPlugin;
 
 impl Plugin for HelpPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<HelpState>().add_systems(
-            Update,
-            (toggle_help, render_help).run_if(in_state(AppState::Playing)),
-        );
+        app.init_resource::<HelpState>()
+            .add_systems(Update, toggle_help.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                EguiPrimaryContextPass,
+                render_help
+                    .run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
@@ -55,17 +58,21 @@ fn toggle_help(input: Res<ButtonInput<KeyCode>>, mut state: ResMut<HelpState>) {
 }
 
 /// Render the help panel
-fn render_help(mut contexts: EguiContexts, mut help_state: ResMut<HelpState>) {
+fn render_help(
+    mut contexts: EguiContexts,
+    mut help_state: ResMut<HelpState>,
+) {
     if !help_state.open {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     egui::Window::new("Help")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
         .min_width(640.0)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.label(
                 egui::RichText::new("NetHack-RS Help")
                     .size(20.0)
@@ -115,6 +122,8 @@ fn render_help(mut contexts: EguiContexts, mut help_state: ResMut<HelpState>) {
                 }
             });
         });
+
+    
 }
 
 /// Render a 2-column key reference section

@@ -111,7 +111,7 @@ fn load_sprite_assets(
 ) {
     let mut monsters = HashMap::new();
     let mut player_roles = HashMap::new();
-    let objects = HashMap::new();
+    let mut objects = HashMap::new();
     let mut generics = HashMap::new();
 
     // Load all monster sprites from the MONSTERS data table
@@ -182,13 +182,21 @@ fn load_sprite_assets(
     if let Some(reg) = &registry {
         // Walk through all objects to pre-load their specific sprites
         let objects_data = nh_core::data::objects::OBJECTS;
-        for obj_def in objects_data {
+        for (idx, obj_def) in objects_data.iter().enumerate() {
             // Try to build a temporary object to query the registry
-            // Instead, just load based on the bevy_sprite field if available
-            // We'll do lazy loading via the registry at spawn time
-            let _ = obj_def; // Registry lookup happens at spawn time
+            let obj = nh_core::object::Object::new(
+                nh_core::object::ObjectId(idx as u32),
+                0,
+                obj_def.class,
+            );
+            if let Some(path) = reg.0.get_sprite_path(&obj) {
+                if !path.is_empty() && !objects.contains_key(path) {
+                    let owned_path = path.to_string();
+                    let handle: Handle<Image> = asset_server.load(owned_path);
+                    objects.insert(path.to_string(), handle);
+                }
+            }
         }
-        let _ = &reg.0; // Keep the borrow checker happy
     }
 
     // Create shared billboard quad mesh (1×1, centered, facing +Z)

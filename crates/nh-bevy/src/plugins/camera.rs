@@ -3,7 +3,7 @@
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::camera::ScalingMode;
-use bevy_egui::EguiContexts;
+use bevy_egui::{EguiContexts, PrimaryEguiContext};
 
 use crate::components::{CameraMode, PlayerMarker};
 
@@ -91,6 +91,7 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         MainCamera,
         Camera3d::default(),
+        PrimaryEguiContext,
         Projection::Orthographic(OrthographicProjection {
             scaling_mode: ScalingMode::FixedVertical {
                 viewport_height: 30.0,
@@ -144,7 +145,10 @@ fn handle_mouse_input(
     mut control: ResMut<CameraControl>,
     mut egui_contexts: EguiContexts,
 ) {
-    let egui_wants_pointer = egui_contexts.ctx_mut().unwrap().wants_pointer_input();
+    let Ok(ctx) = egui_contexts.ctx_mut() else {
+        return;
+    };
+    let egui_wants_pointer = ctx.wants_pointer_input();
 
     // Handle zoom with scroll wheel (unless egui wants it)
     if !egui_wants_pointer {

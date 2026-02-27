@@ -15,8 +15,7 @@ use ratatui::backend::CrosstermBackend;
 use nh_core::player::{AlignmentType, Gender, Race, Role};
 use nh_core::save::{default_save_path, delete_save, load_game, save_game};
 use nh_core::{GameLoopResult, GameRng, GameState};
-use nh_tui::{App, Theme};
-use ratatui_image::picker::Picker;
+use nh_tui::{App, Theme, GraphicsMode};
 
 /// NetHack clone in Rust
 #[derive(Parser, Debug)]
@@ -75,9 +74,9 @@ struct Args {
     #[arg(long = "light")]
     light: bool,
 
-    /// Render map using PNG tile icons (requires Kitty, iTerm2, or Sixel terminal)
-    #[arg(long = "icons")]
-    icons: bool,
+    /// Graphics mode for the map (classic, fancy, auto)
+    #[arg(short = 'G', long = "graphics", default_value = "auto")]
+    graphics: GraphicsMode,
 }
 
 fn main() -> io::Result<()> {
@@ -110,20 +109,6 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
-    // Detect image protocol before entering raw mode / alternate screen
-    let picker = if args.icons {
-        match Picker::from_query_stdio() {
-            Ok(p) => Some(p),
-            Err(e) => {
-                eprintln!("Warning: --icons requested but terminal query failed: {e}");
-                eprintln!("Falling back to text mode.");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -150,13 +135,6 @@ fn main() -> io::Result<()> {
         run_character_creation(&mut terminal, &args)?
     };
 
-    // Load asset mapping
-    let assets_path = "assets/mapping.json";
-    let assets = nh_assets::registry::AssetRegistry::load_from_file(assets_path)
-        .unwrap_or_else(|_| {
-            nh_assets::registry::AssetRegistry::new(nh_assets::mapping::AssetMapping::default())
-        });
-
     // Detect or override color theme
     let theme = if args.light {
         Theme::light()
@@ -165,61 +143,36 @@ fn main() -> io::Result<()> {
     };
 
     // Create app
-    let mut app = App::new(state, assets, theme);
+    let mut app = App::new(state, theme, args.graphics);
 
-    // Enable icons mode if picker was successfully detected
-    if let Some(picker) = picker {
-        app.set_icons_mode(picker);
-    }
-
-    // Main loop
+    // Main loop — drain all queued events before each render to stay responsive.
     loop {
         // Draw
         terminal.draw(|frame| app.render(frame))?;
 
-        // Handle input
-        if event::poll(Duration::from_millis(100))? {
-            let event = event::read()?;
+        // Wait for at least one event (with timeout for idle redraws)
+        if !event::poll(Duration::from_millis(100))? {
+            continue;
+        }
 
-            if let Some(command) = app.handle_event(event) {
+        // Drain all already-queued events before the next render
+        while event::poll(Duration::ZERO)? {
+            let ev = event::read()?;
+
+            if let Some(command) = app.handle_event(ev) {
                 let result = app.execute(command);
-
-                match result {
-                    GameLoopResult::PlayerDied(_msg) => {
-                        // Delete save file on death (permadeath)
-                        let save_path = default_save_path(&app.state().player.name);
-                        let _ = delete_save(&save_path);
-                        // Death screen is shown via UiMode::DeathScreen (set in execute())
-                        // Loop continues so the user can view the screen and press Enter
-                    }
-                    GameLoopResult::PlayerQuit => break,
-                    GameLoopResult::SaveAndQuit => {
-                        // Save game
-                        let save_path = default_save_path(&app.state().player.name);
-                        if let Err(e) = save_game(app.state(), &save_path) {
-                            eprintln!("Failed to save game: {}", e);
-                        }
-                        break;
-                    }
-                    GameLoopResult::PlayerWon => {
-                        // Delete save file on victory
-                        let save_path = default_save_path(&app.state().player.name);
-                        let _ = delete_save(&save_path);
-
-                        // Show victory message
-                        app.state_mut()
-                            .message("Congratulations! You have ascended!");
-                        terminal.draw(|frame| app.render(frame))?;
-                        std::thread::sleep(Duration::from_secs(3));
-                        break;
-                    }
-                    GameLoopResult::Continue => {}
+                if process_result(&mut app, &mut terminal, result)? {
+                    break;
                 }
             }
 
             if app.should_quit() {
                 break;
             }
+        }
+
+        if app.should_quit() {
+            break;
         }
     }
 
@@ -230,6 +183,47 @@ fn main() -> io::Result<()> {
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+/// Process a game loop result. Returns true if the main loop should break.
+fn process_result(
+    app: &mut App,
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    result: GameLoopResult,
+) -> io::Result<bool> {
+    match result {
+        GameLoopResult::PlayerDied(_msg) => {
+            // Delete save file on death (permadeath)
+            let save_path = default_save_path(&app.state().player.name);
+            let _ = delete_save(&save_path);
+            // Death screen is shown via UiMode::DeathScreen (set in execute())
+            // Loop continues so the user can view the screen and press Enter
+            Ok(false)
+        }
+        GameLoopResult::PlayerQuit => {
+            app.set_should_quit();
+            Ok(true)
+        }
+        GameLoopResult::SaveAndQuit => {
+            let save_path = default_save_path(&app.state().player.name);
+            if let Err(e) = save_game(app.state(), &save_path) {
+                eprintln!("Failed to save game: {}", e);
+            }
+            app.set_should_quit();
+            Ok(true)
+        }
+        GameLoopResult::PlayerWon => {
+            let save_path = default_save_path(&app.state().player.name);
+            let _ = delete_save(&save_path);
+            app.state_mut()
+                .message("Congratulations! You have ascended!");
+            terminal.draw(|frame| app.render(frame))?;
+            std::thread::sleep(Duration::from_secs(3));
+            app.set_should_quit();
+            Ok(true)
+        }
+        GameLoopResult::Continue => Ok(false),
+    }
 }
 
 /// Run TUI character creation and return the new game state
@@ -254,14 +248,12 @@ fn run_character_creation(
 
     // Create a temporary game state for the character creation UI
     let temp_state = GameState::new(GameRng::from_entropy());
-    let assets =
-        nh_assets::registry::AssetRegistry::new(nh_assets::mapping::AssetMapping::default());
     let theme = if args.light {
         Theme::light()
     } else {
         Theme::detect()
     };
-    let mut app = App::new(temp_state, assets, theme);
+    let mut app = App::new(temp_state, theme, args.graphics);
 
     // Start character creation - with name if provided via CLI
     if let Some(ref name) = args.name {

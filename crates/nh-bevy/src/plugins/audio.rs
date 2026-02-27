@@ -9,7 +9,7 @@ use bevy::prelude::*;
 
 use crate::plugins::game::AppState;
 use crate::plugins::ui::GameSettings;
-use crate::resources::GameStateResource;
+use crate::resources::{AssetsConfig, GameStateResource};
 
 pub struct AudioPlugin;
 
@@ -129,6 +129,7 @@ fn play_sound_effects(
     mut sound_events: MessageReader<SoundEffect>,
     asset_server: Res<AssetServer>,
     settings: Res<GameSettings>,
+    assets_config: Option<Res<AssetsConfig>>,
     mut commands: Commands,
     mut warned: Local<std::collections::HashSet<String>>,
 ) {
@@ -138,14 +139,17 @@ fn play_sound_effects(
         return;
     }
 
+    let base_path = assets_config
+        .map(|c| c.base_path.clone())
+        .unwrap_or_else(|| std::path::PathBuf::from("assets"));
+
     for effect in sound_events.read() {
         if let Some(path) = effect.asset_path() {
             // Check if file exists in the asset folder
-            // Try both workspace-relative and crate-relative paths
-            let asset_path = std::path::PathBuf::from("assets").join(path);
+            let asset_path = base_path.join(path);
             if !asset_path.exists() {
                 if !warned.contains(path) {
-                    warn!("Sound file not found: {:?}", effect);
+                    warn!("Sound file not found at {:?}: {:?}", asset_path, effect);
                     warned.insert(path.to_string());
                 }
                 continue;

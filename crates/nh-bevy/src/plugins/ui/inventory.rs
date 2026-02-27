@@ -1,8 +1,9 @@
 //! Inventory UI panel
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
+use crate::plugins::game::AppState;
 use crate::resources::{GameStateResource, AssetRegistryResource};
 
 pub struct InventoryPlugin;
@@ -10,7 +11,12 @@ pub struct InventoryPlugin;
 impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InventoryState>()
-            .add_systems(Update, (handle_inventory_input, render_inventory).chain());
+            .add_systems(Update, handle_inventory_input.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                EguiPrimaryContextPass,
+                render_inventory
+                    .run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
@@ -96,16 +102,17 @@ fn render_inventory(
     asset_registry: Res<AssetRegistryResource>,
 ) {
     if !inv_state.open {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     let inventory = &game_state.0.inventory;
 
     egui::Window::new("Inventory")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.set_min_width(350.0);
             ui.set_min_height(300.0);
 
@@ -186,6 +193,8 @@ fn render_inventory(
                 );
             });
         });
+
+    
 }
 
 use super::{item_name, object_class_color};

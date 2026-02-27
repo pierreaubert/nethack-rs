@@ -109,6 +109,16 @@ impl MonsterState {
     pub fn active() -> Self {
         Self {
             can_move: true,
+            alive: true,
+            ..Default::default()
+        }
+    }
+
+    /// Create sleeping state
+    pub fn sleeping() -> Self {
+        Self {
+            sleeping: true,
+            alive: true,
             ..Default::default()
         }
     }

@@ -7,19 +7,15 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 
-use nh_assets::registry::AssetRegistry;
 use nh_core::action::{Command, Direction as GameDirection};
 use nh_core::object::ObjectClass;
 use nh_core::player::{AlignmentType, Gender, Race, Role};
 use nh_core::{GameLoop, GameLoopResult, GameState};
-use ratatui_image::picker::Picker;
-use ratatui_image::protocol::StatefulProtocol;
-use ratatui_image::StatefulImage;
 use strum::IntoEnumIterator;
 
-use crate::icons::{self, ImageTileCache};
 use crate::input::key_to_command;
 use crate::theme::Theme;
+use crate::display::{self, GlyphSet, GraphicsMode};
 use crate::widgets::{InventoryWidget, MapWidget, MessagesWidget, StatusWidget};
 
 /// UI mode - what the app is currently displaying/waiting for
@@ -143,52 +139,25 @@ pub struct App {
     /// Selection menu for item picking
     selection_cursor: usize,
 
-    /// Asset registry for icons
-    assets: AssetRegistry,
-
     /// Color theme (adapts to light/dark terminal background)
     theme: Theme,
 
-    /// Icons mode: render PNG tiles instead of ASCII characters.
-    icons: bool,
-
-    /// Terminal image protocol picker (Some when icons mode is active).
-    picker: Option<Picker>,
-
-    /// Sprite image cache for icons mode.
-    tile_cache: Option<ImageTileCache>,
-
-    /// Cached image protocol state for the map (avoids re-encoding unchanged images).
-    map_image_state: Option<StatefulProtocol>,
-
-    /// Last tile_px used for compositing (to detect resize).
-    last_tile_px: u32,
+    /// Glyph set for rendering map features
+    glyph_set: Box<dyn GlyphSet>,
 }
 
 impl App {
     /// Create a new application with a new game
-    pub fn new(state: GameState, assets: AssetRegistry, theme: Theme) -> Self {
+    pub fn new(state: GameState, theme: Theme, graphics_mode: GraphicsMode) -> Self {
         Self {
             game_loop: GameLoop::new(state),
             should_quit: false,
             num_pad: false,
             mode: UiMode::Normal,
             selection_cursor: 0,
-            assets,
             theme,
-            icons: false,
-            picker: None,
-            tile_cache: None,
-            map_image_state: None,
-            last_tile_px: 0,
+            glyph_set: display::detect_glyph_set(graphics_mode),
         }
-    }
-
-    /// Enable icons mode with a pre-created Picker.
-    pub fn set_icons_mode(&mut self, picker: Picker) {
-        self.icons = true;
-        self.picker = Some(picker);
-        self.tile_cache = Some(ImageTileCache::new(icons::find_assets_base()));
     }
 
     /// Get game state
@@ -204,6 +173,11 @@ impl App {
     /// Check if app should quit
     pub fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    /// Signal that the app should quit
+    pub fn set_should_quit(&mut self) {
+        self.should_quit = true;
     }
 
     /// Handle input event - returns a command if one should be executed
@@ -793,15 +767,11 @@ impl App {
             ])
             .split(frame.area());
 
-        // Render map — icons mode or text mode
-        if self.icons {
-            self.render_map_icons(frame, chunks[0]);
-        } else {
-            let state = self.game_loop.state();
-            let map_widget =
-                MapWidget::new(&state.current_level, &state.player, &self.assets, &self.theme);
-            frame.render_widget(map_widget, chunks[0]);
-        }
+        // Render map
+        let state = self.game_loop.state();
+        let map_widget =
+            MapWidget::new(&state.current_level, &state.player, &self.theme, self.glyph_set.as_ref());
+        frame.render_widget(map_widget, chunks[0]);
 
         // Render status and messages (re-borrow state after map rendering)
         {
@@ -836,72 +806,13 @@ impl App {
         }
     }
 
-    /// Render the map using image tiles (icons mode).
-    fn render_map_icons(&mut self, frame: &mut Frame, area: Rect) {
-        let block = Block::default().borders(Borders::ALL).title("NetHack");
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let picker = match self.picker.as_mut() {
-            Some(p) => p,
-            None => return,
-        };
-
-        // Calculate tile size in pixels from picker font size and available area
-        let font_size = picker.font_size();
-        if font_size.0 == 0 || font_size.1 == 0 {
-            return;
-        }
-        let avail_w_px = inner.width as u32 * font_size.0 as u32;
-        let avail_h_px = inner.height as u32 * font_size.1 as u32;
-        let tile_px = std::cmp::min(
-            avail_w_px / nh_core::COLNO as u32,
-            avail_h_px / nh_core::ROWNO as u32,
-        );
-        if tile_px < 4 {
-            // Too small for icons, fall back to text
-            let state = self.game_loop.state();
-            let map_widget =
-                MapWidget::new(&state.current_level, &state.player, &self.assets, &self.theme);
-            frame.render_widget(map_widget, area);
-            return;
-        }
-
-        // Invalidate resized cache if tile size changed
-        if tile_px != self.last_tile_px {
-            if let Some(cache) = &mut self.tile_cache {
-                cache.clear_resized();
-            }
-            self.last_tile_px = tile_px;
-        }
-
-        // Compose the map canvas
-        let state = self.game_loop.state();
-        let canvas = icons::compose_map_image(
-            &state.current_level,
-            &state.player,
-            &self.assets,
-            self.tile_cache.as_mut().unwrap(),
-            tile_px,
-        );
-
-        // Encode and render via the picker's protocol
-        let picker = self.picker.as_mut().unwrap();
-        let protocol = picker.new_resize_protocol(canvas);
-        self.map_image_state = Some(protocol);
-
-        if let Some(state) = &mut self.map_image_state {
-            frame.render_stateful_widget(StatefulImage::default(), inner, state);
-        }
-    }
-
     /// Render inventory overlay
     fn render_inventory(&self, frame: &mut Frame) {
         let area = centered_rect(60, 80, frame.area());
         frame.render_widget(Clear, area);
 
         let inventory_widget =
-            InventoryWidget::new(&self.game_loop.state().inventory, &self.assets, &self.theme);
+            InventoryWidget::new(&self.game_loop.state().inventory, &self.theme);
         frame.render_widget(inventory_widget, area);
     }
 
@@ -933,7 +844,7 @@ impl App {
             let list_items: Vec<ListItem> = items
                 .iter()
                 .map(|obj| {
-                    let line = InventoryWidget::format_item(obj, &self.assets);
+                    let line = InventoryWidget::format_item(obj);
                     ListItem::new(line)
                 })
                 .collect();

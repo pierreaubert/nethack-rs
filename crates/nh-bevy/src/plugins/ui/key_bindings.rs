@@ -3,7 +3,7 @@
 
 use crate::plugins::game::AppState;
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
 pub struct KeyBindingsPlugin;
 
@@ -11,9 +11,11 @@ impl Plugin for KeyBindingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<KeyBindingsState>().add_systems(
             Update,
-            (handle_key_bindings_input, render_key_bindings)
-                .chain()
-                .run_if(in_state(AppState::Playing)),
+            handle_key_bindings_input.run_if(in_state(AppState::Playing)),
+        );
+        app.add_systems(
+            EguiPrimaryContextPass,
+            render_key_bindings.run_if(in_state(AppState::Playing)),
         );
     }
 }
@@ -68,17 +70,21 @@ fn handle_key_bindings_input(
 }
 
 /// Render the key bindings display
-fn render_key_bindings(mut contexts: EguiContexts, mut state: ResMut<KeyBindingsState>) {
+fn render_key_bindings(
+    mut contexts: EguiContexts,
+    mut state: ResMut<KeyBindingsState>,
+) {
     if !state.open {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     egui::Window::new("Key Bindings")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(true)
         .default_width(700.0)
         .default_height(500.0)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.label(
                 egui::RichText::new("Key Bindings Reference")
                     .strong()
@@ -140,6 +146,8 @@ fn render_key_bindings(mut contexts: EguiContexts, mut state: ResMut<KeyBindings
                     .small(),
             );
         });
+
+    
 }
 
 /// Render movement key bindings

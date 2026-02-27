@@ -1,7 +1,7 @@
 //! Monster picker UI for selecting targets for spells and wands
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use nh_core::action::{Command, Direction};
 use nh_core::magic::targeting::{TargetInfo, find_monsters_in_range};
 
@@ -15,8 +15,13 @@ impl Plugin for MonsterPickerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MonsterPickerState>().add_systems(
             Update,
-            (handle_picker_input, render_picker, update_monster_list)
+            (handle_picker_input, update_monster_list)
                 .chain()
+                .run_if(in_state(AppState::Playing)),
+        );
+        app.add_systems(
+            EguiPrimaryContextPass,
+            render_picker
                 .run_if(in_state(AppState::Playing)),
         );
     }
@@ -195,18 +200,22 @@ fn handle_picker_input(
     }
 }
 
-fn render_picker(mut contexts: EguiContexts, picker_state: Res<MonsterPickerState>) {
+fn render_picker(
+    mut contexts: EguiContexts,
+    picker_state: Res<MonsterPickerState>,
+) {
     if !picker_state.active {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     let action_name = picker_state.action.map(|a| a.name()).unwrap_or("target");
 
     egui::Window::new(format!("Select monster to {}", action_name))
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.set_min_width(400.0);
 
             if picker_state.monsters.is_empty() {
@@ -270,4 +279,6 @@ fn render_picker(mut contexts: EguiContexts, picker_state: Res<MonsterPickerStat
                 .color(egui::Color32::GRAY),
             );
         });
+
+    
 }

@@ -32,7 +32,8 @@ from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
-TRIPOSR_DIR = SCRIPT_DIR / "TripoSR"
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+TRIPOSR_DIR = PROJECT_ROOT / "tmp" / "TripoSR"
 BLENDER_RIG_SCRIPT = SCRIPT_DIR / "scripts" / "blender_rig.py"
 
 NH_BEVY_ASSETS = Path("/assets/items")
@@ -212,6 +213,15 @@ def should_rig(image_path: Path, rig_dirs: list[str] | None) -> bool:
     return any(f"/{d}/" in path_str or path_str.startswith(f"{d}/") for d in rig_dirs)
 
 
+def mesh_exists(char_output: Path) -> Path | None:
+    """Return the mesh path if it already exists, else None."""
+    for ext in ("mesh.obj", "mesh.glb"):
+        p = char_output / "0" / ext
+        if p.exists():
+            return p
+    return None
+
+
 def process_single(
     image_path: Path,
     input_root: Path,
@@ -229,6 +239,13 @@ def process_single(
     name = image_path.stem
     char_output = relative_output_dir(image_path, input_root, output_dir)
     result = CharacterResult(name=name, image_path=str(image_path))
+
+    # Skip if mesh already exists
+    existing = mesh_exists(char_output)
+    if existing is not None:
+        result.mesh_path = str(existing)
+        print(f"  [{name}] Skipping (mesh already exists)")
+        return result
 
     # Stage 1: Generate mesh
     try:

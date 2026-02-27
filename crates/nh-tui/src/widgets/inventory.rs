@@ -3,7 +3,6 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 
-use nh_assets::registry::AssetRegistry;
 use nh_core::data::objects::OBJECTS;
 use nh_core::object::{Object, ObjectClass};
 
@@ -14,17 +13,15 @@ pub struct InventoryWidget<'a> {
     items: &'a [Object],
     title: &'a str,
     selected: Option<usize>,
-    assets: &'a AssetRegistry,
     theme: &'a Theme,
 }
 
 impl<'a> InventoryWidget<'a> {
-    pub fn new(items: &'a [Object], assets: &'a AssetRegistry, theme: &'a Theme) -> Self {
+    pub fn new(items: &'a [Object], theme: &'a Theme) -> Self {
         Self {
             items,
             title: "Inventory",
             selected: None,
-            assets,
             theme,
         }
     }
@@ -57,7 +54,7 @@ impl<'a> InventoryWidget<'a> {
     }
 
     /// Format an object for display (like NetHack's doname)
-    pub fn format_item(obj: &Object, assets: &AssetRegistry) -> Line<'static> {
+    pub fn format_item(obj: &Object) -> Line<'static> {
         let mut parts: Vec<String> = Vec::new();
 
         // Quantity prefix (for stackable items or coins)
@@ -193,12 +190,6 @@ impl<'a> InventoryWidget<'a> {
             Span::raw(format!("{} - ", obj.inv_letter)),
         ];
 
-        // Add the mapped icon if available
-        if let Ok(icon) = assets.get_icon(obj) {
-            let color = AssetRegistry::parse_color(&icon.tui_color).unwrap_or(Color::Yellow);
-            spans.push(Span::styled(format!("{} ", icon.tui_char), Style::default().fg(color)));
-        }
-
         spans.push(Span::raw(format!(
             "{}{}{}",
             parts.join(" "),
@@ -276,7 +267,7 @@ impl Widget for InventoryWidget<'_> {
 
             // Add items in this class
             for item in items {
-                let mut line = Self::format_item(item, self.assets);
+                let mut line = Self::format_item(item);
 
                 // Override style for BUC if known
                 if item.is_cursed() && item.buc_known {

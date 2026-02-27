@@ -1,7 +1,7 @@
 //! Discoveries UI panel - shows identified items
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use nh_core::object::ObjectClass;
 
 use crate::plugins::game::AppState;
@@ -12,7 +12,7 @@ pub struct DiscoveriesPlugin;
 impl Plugin for DiscoveriesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DiscoveriesState>().add_systems(
-            Update,
+            EguiPrimaryContextPass,
             render_discoveries.run_if(in_state(AppState::Playing)),
         );
     }
@@ -35,14 +35,15 @@ fn render_discoveries(
     }
 
     if !state.open {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     egui::Window::new("Discoveries")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(true)
         .default_width(400.0)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.label(egui::RichText::new("Identified Items").strong());
             ui.separator();
 
@@ -73,6 +74,8 @@ fn render_discoveries(
                 state.open = false;
             }
         });
+
+    
 }
 
 fn render_category(ui: &mut egui::Ui, class: ObjectClass, _game_state: &nh_core::GameState) {

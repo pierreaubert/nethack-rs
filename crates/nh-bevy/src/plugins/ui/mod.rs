@@ -15,7 +15,7 @@ mod minimap;
 pub mod monster_picker;
 
 use bevy::prelude::*;
-use bevy_egui::{EguiPlugin, egui};
+use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
 pub use direction::DirectionSelectState;
 pub use discoveries::DiscoveriesState;
@@ -63,22 +63,60 @@ pub(crate) fn object_class_color(class: &nh_core::object::ObjectClass) -> egui::
 
 pub struct UiPlugin;
 
+/// Global UI state to defer rendering until initialization is complete.
+#[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum UiState {
+    #[default]
+    Loading,
+    Ready,
+}
+
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(EguiPlugin::default()).add_plugins((
-            hud::HudPlugin,
-            messages::MessagesPlugin,
-            inventory::InventoryPlugin,
-            item_picker::ItemPickerPlugin,
-            monster_picker::MonsterPickerPlugin,
-            direction::DirectionPlugin,
-            discoveries::DiscoveriesPlugin,
-            menus::MenusPlugin,
-            minimap::MinimapPlugin,
-            character::CharacterPlugin,
-            help::HelpPlugin,
-            extended_commands::ExtendedCommandsPlugin,
-            key_bindings::KeyBindingsPlugin,
-        ));
+        app.init_state::<UiState>()
+            .add_plugins(EguiPlugin::default())
+            .add_plugins((
+                hud::HudPlugin,
+                messages::MessagesPlugin,
+                inventory::InventoryPlugin,
+                item_picker::ItemPickerPlugin,
+                monster_picker::MonsterPickerPlugin,
+                direction::DirectionPlugin,
+                discoveries::DiscoveriesPlugin,
+                menus::MenusPlugin,
+                minimap::MinimapPlugin,
+                character::CharacterPlugin,
+                help::HelpPlugin,
+                extended_commands::ExtendedCommandsPlugin,
+                key_bindings::KeyBindingsPlugin,
+            ))
+            .add_systems(Update, check_ui_ready.run_if(in_state(UiState::Loading)))
+            .add_systems(EguiPrimaryContextPass, debug_egui_input);
+    }
+}
+
+/// System to log egui interaction for debugging.
+fn debug_egui_input(mut contexts: EguiContexts) {
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
+    if ctx.input(|i: &egui::InputState| i.pointer.any_click()) {
+        info!(
+            "Egui detected click! wants_pointer: {}, wants_keyboard: {}",
+            ctx.wants_pointer_input(),
+            ctx.wants_keyboard_input()
+        );
+    }
+}
+
+
+/// System to transition UiState to Ready once essential assets are loaded.
+fn check_ui_ready(
+    mut next_state: ResMut<NextState<UiState>>,
+    sprite_assets: Option<Res<crate::plugins::sprites::SpriteAssets>>,
+) {
+    if let Some(_assets) = sprite_assets {
+        info!("SpriteAssets detected! Transitioning UiState to Ready.");
+        next_state.set(UiState::Ready);
     }
 }

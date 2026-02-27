@@ -4,7 +4,15 @@ use bevy::prelude::*;
 use nh_core::monster::MonsterId;
 use nh_core::player::{AlignmentType, Gender, Race, Role};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use nh_assets::registry::AssetRegistry;
+
+/// Resource holding the configuration for asset loading.
+#[derive(Resource)]
+pub struct AssetsConfig {
+    /// The base directory for assets (usually "assets" or "../../assets")
+    pub base_path: PathBuf,
+}
 
 /// Wrapper around nh_core::GameState for Bevy
 #[derive(Resource)]

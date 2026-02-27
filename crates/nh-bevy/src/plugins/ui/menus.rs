@@ -10,12 +10,13 @@
 //! - Save/load browser
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use strum::IntoEnumIterator;
 
 use nh_core::player::{AlignmentType, Attribute, Gender, Race, Role};
 
 use crate::plugins::game::AppState;
+use crate::plugins::ui::UiState;
 use crate::resources::{
     CharacterCreationState, CharacterCreationStep, GameOverInfo, GameStateResource,
 };
@@ -30,21 +31,15 @@ impl Plugin for MenusPlugin {
             .init_resource::<CharacterCreationState>()
             .init_resource::<GameOverInfo>()
             .add_systems(
-                Update,
-                render_main_menu.run_if(in_state(AppState::MainMenu)),
-            )
-            .add_systems(
-                Update,
-                render_character_creation.run_if(in_state(AppState::CharacterCreation)),
-            )
-            .add_systems(Update, render_pause_menu.run_if(in_state(AppState::Paused)))
-            .add_systems(
-                Update,
-                render_game_over_screen.run_if(in_state(AppState::GameOver)),
-            )
-            .add_systems(
-                Update,
-                render_victory_screen.run_if(in_state(AppState::Victory)),
+                EguiPrimaryContextPass,
+                (
+                    render_main_menu.run_if(in_state(AppState::MainMenu)),
+                    render_character_creation.run_if(in_state(AppState::CharacterCreation)),
+                    render_pause_menu.run_if(in_state(AppState::Paused)),
+                    render_game_over_screen.run_if(in_state(AppState::GameOver)),
+                    render_victory_screen.run_if(in_state(AppState::Victory)),
+                )
+                    .run_if(in_state(UiState::Ready)),
             );
     }
 }
@@ -110,35 +105,24 @@ fn render_main_menu(
     mut game_state: ResMut<GameStateResource>,
     mut cc_state: ResMut<CharacterCreationState>,
 ) {
-    // Full screen dark overlay (non-interactable so clicks pass through to windows)
-    egui::Area::new(egui::Id::new("main_menu_bg"))
-        .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
-        .interactable(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
-            let screen_rect = ui.ctx().content_rect();
-            ui.painter().rect_filled(
-                screen_rect,
-                egui::CornerRadius::ZERO,
-                egui::Color32::from_rgba_unmultiplied(0, 0, 0, 220),
-            );
-        });
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
 
     // Show settings if open
     if menu_state.show_settings {
-        render_settings_panel(contexts.ctx_mut().unwrap(), &mut menu_state, &mut settings);
-        return;
+        render_settings_panel(ctx, &mut menu_state, &mut settings);
+        return ;
     }
 
     // Show load browser if open
     if menu_state.show_load_browser {
         render_load_browser(
-            contexts.ctx_mut().unwrap(),
+            ctx,
             &mut menu_state,
             &mut save_state,
             &mut game_state,
             &mut next_state,
         );
-        return;
+        return ;
     }
 
     // Main menu window
@@ -147,7 +131,7 @@ fn render_main_menu(
         .resizable(false)
         .collapsible(false)
         .title_bar(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.set_min_width(300.0);
 
             ui.vertical_centered(|ui| {
@@ -173,20 +157,18 @@ fn render_main_menu(
                 // Menu buttons
                 let button_size = egui::vec2(200.0, 40.0);
 
-                if ui
-                    .add_sized(button_size, egui::Button::new("New Game"))
-                    .clicked()
-                {
+                let new_game_btn = ui.add_sized(button_size, egui::Button::new("New Game"));
+                if new_game_btn.clicked() {
+                    info!("New Game button CLICKED!");
                     cc_state.reset();
                     next_state.set(AppState::CharacterCreation);
                 }
 
                 ui.add_space(10.0);
 
-                if ui
-                    .add_sized(button_size, egui::Button::new("Load Game"))
-                    .clicked()
-                {
+                let load_game_btn = ui.add_sized(button_size, egui::Button::new("Load Game"));
+                if load_game_btn.clicked() {
+                    info!("Load Game button CLICKED!");
                     menu_state.show_load_browser = true;
                     save_state.needs_refresh = true;
                 }
@@ -220,6 +202,8 @@ fn render_main_menu(
                 );
             });
         });
+
+    
 }
 
 fn render_pause_menu(
@@ -232,20 +216,22 @@ fn render_pause_menu(
     mut save_state: ResMut<SaveLoadState>,
     game_state: Res<GameStateResource>,
 ) {
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
+
     // Resume on ESC (only if no submenus open)
     if input.just_pressed(KeyCode::Escape)
         && !menu_state.show_settings
         && !menu_state.show_save_browser
     {
         next_state.set(AppState::Playing);
-        return;
+        return ;
     }
 
     // Semi-transparent overlay
     egui::Area::new(egui::Id::new("pause_menu_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
         .interactable(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             let screen_rect = ui.ctx().content_rect();
             ui.painter().rect_filled(
                 screen_rect,
@@ -256,19 +242,19 @@ fn render_pause_menu(
 
     // Show settings if open
     if menu_state.show_settings {
-        render_settings_panel(contexts.ctx_mut().unwrap(), &mut menu_state, &mut settings);
-        return;
+        render_settings_panel(ctx, &mut menu_state, &mut settings);
+        return ;
     }
 
     // Show save browser if open
     if menu_state.show_save_browser {
         render_save_browser(
-            contexts.ctx_mut().unwrap(),
+            ctx,
             &mut menu_state,
             &mut save_state,
             &game_state,
         );
-        return;
+        return ;
     }
 
     // Pause menu window
@@ -276,7 +262,7 @@ fn render_pause_menu(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.set_min_width(250.0);
 
             ui.vertical_centered(|ui| {
@@ -343,6 +329,8 @@ fn render_pause_menu(
                 );
             });
         });
+
+    
 }
 
 fn render_character_creation(
@@ -351,11 +339,13 @@ fn render_character_creation(
     mut cc_state: ResMut<CharacterCreationState>,
     mut game_state: ResMut<GameStateResource>,
 ) {
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
+
     // Dark overlay
     egui::Area::new(egui::Id::new("cc_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
         .interactable(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             let screen_rect = ui.ctx().content_rect();
             ui.painter().rect_filled(
                 screen_rect,
@@ -369,7 +359,7 @@ fn render_character_creation(
         .resizable(false)
         .collapsible(false)
         .min_width(400.0)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(10.0);
                 ui.label(
@@ -654,6 +644,8 @@ fn render_character_creation(
 
             ui.add_space(10.0);
         });
+
+    
 }
 
 fn render_game_over_screen(
@@ -664,11 +656,13 @@ fn render_game_over_screen(
     game_over_info: Res<GameOverInfo>,
     mut cc_state: ResMut<CharacterCreationState>,
 ) {
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
+
     // Dark overlay
     egui::Area::new(egui::Id::new("game_over_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
         .interactable(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             let screen_rect = ui.ctx().content_rect();
             ui.painter().rect_filled(
                 screen_rect,
@@ -681,7 +675,7 @@ fn render_game_over_screen(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.set_min_width(450.0);
 
             ui.vertical_centered(|ui| {
@@ -884,6 +878,8 @@ fn render_game_over_screen(
                 ui.add_space(10.0);
             });
         });
+
+    
 }
 
 fn render_victory_screen(
@@ -892,11 +888,13 @@ fn render_victory_screen(
     mut exit: MessageWriter<AppExit>,
     game_state: Res<GameStateResource>,
 ) {
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
+
     // Dark overlay with gold tint
     egui::Area::new(egui::Id::new("victory_bg"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(0.0, 0.0))
         .interactable(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             let screen_rect = ui.ctx().content_rect();
             ui.painter().rect_filled(
                 screen_rect,
@@ -909,7 +907,7 @@ fn render_victory_screen(
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.set_min_width(450.0);
 
             ui.vertical_centered(|ui| {
@@ -1075,6 +1073,8 @@ fn render_victory_screen(
                 ui.add_space(10.0);
             });
         });
+
+    
 }
 
 /// Render the settings panel (used from both main menu and pause menu)

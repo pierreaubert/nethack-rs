@@ -2,15 +2,22 @@
 
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
 use crate::resources::GameStateResource;
+use crate::plugins::ui::UiState;
+use crate::plugins::game::AppState;
 
 pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, render_hud);
+        app.add_systems(
+            EguiPrimaryContextPass,
+            render_hud
+                .run_if(in_state(UiState::Ready))
+                .run_if(in_state(AppState::Playing)),
+        );
     }
 }
 
@@ -19,13 +26,14 @@ fn render_hud(
     game_state: Res<GameStateResource>,
     diagnostics: Res<DiagnosticsStore>,
 ) {
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     let player = &game_state.0.player;
     let state = &game_state.0;
 
     // Top-left status panel
     egui::Area::new(egui::Id::new("status_hud"))
         .fixed_pos(egui::pos2(10.0, 10.0))
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200))
                 .inner_margin(egui::Margin::same(8))
@@ -227,7 +235,7 @@ fn render_hud(
     // Bottom-right help hint
     egui::Area::new(egui::Id::new("help_hint"))
         .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -10.0))
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 150))
                 .inner_margin(egui::Margin::same(6))
@@ -242,4 +250,6 @@ fn render_hud(
                     );
                 });
         });
+
+    
 }

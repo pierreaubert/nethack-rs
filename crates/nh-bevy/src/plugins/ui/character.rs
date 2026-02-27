@@ -7,7 +7,7 @@
 //! - Toggle with '@' key
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use nh_core::player::{AlignmentType, Attribute, Property};
 
 use crate::plugins::game::AppState;
@@ -17,10 +17,13 @@ pub struct CharacterPlugin;
 
 impl Plugin for CharacterPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<CharacterSheetState>().add_systems(
-            Update,
-            (toggle_character_sheet, render_character_sheet).run_if(in_state(AppState::Playing)),
-        );
+        app.init_resource::<CharacterSheetState>()
+            .add_systems(Update, toggle_character_sheet.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                EguiPrimaryContextPass,
+                render_character_sheet
+                    .run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
@@ -67,9 +70,10 @@ fn render_character_sheet(
     mut sheet_state: ResMut<CharacterSheetState>,
 ) {
     if !sheet_state.open {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     let state = &game_state.0;
     let player = &state.player;
 
@@ -78,7 +82,7 @@ fn render_character_sheet(
         .resizable(false)
         .collapsible(false)
         .min_width(450.0)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             // Header with name and class
             ui.horizontal(|ui| {
                 ui.label(
@@ -141,6 +145,8 @@ fn render_character_sheet(
                 }
             });
         });
+
+    
 }
 
 /// Render the stats tab

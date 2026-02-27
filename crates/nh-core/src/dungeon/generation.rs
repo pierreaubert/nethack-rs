@@ -567,7 +567,7 @@ fn mktemple_c_rng(
 
     // 3. priestini: makemon(PM_ALIGNED_PRIEST=271, sx+1, sy, MM_EPRI)
     // C PM 271 = aligned priest, S_HUMAN, level 12, M2_PEACEFUL|M2_LORD|M2_COLLECT
-    makemon_specific_c_rng(271, depth, objects, bases, rng);
+    makemon_specific_c_rng(level, (sx + 1) as i8, sy as i8, 271, depth, objects, bases, rng);
 
     // 4. spellbooks: cnt = rn1(3, 2) = rn2(3) + 2 → 2 to 4 books
     let cnt = rng.rn2(3) + 2;
@@ -617,7 +617,7 @@ fn fill_zoo_c_rng(
                 else if _throne_i > 5 { 265 }
                 else if _throne_i > 2 { 46 }
                 else { 165 };
-            makemon_specific_c_rng(king_pm, depth, objects, bases, rng);
+            makemon_specific_c_rng(level, tx as i8, ty as i8, king_pm, depth, objects, bases, rng);
             mongets_c_rng(objects, bases, R_MACE, ObjectClass::Weapon, depth, rng);
         }
         RoomType::Beehive => {
@@ -675,41 +675,41 @@ fn fill_zoo_c_rng(
             match room_type {
                 RoomType::Court => {
                     let c_mndx = courtmon_c_rng(depth, player_level, rng);
-                    makemon_specific_c_rng(c_mndx, depth, objects, bases, rng);
+                    makemon_specific_c_rng(level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng);
                 }
                 RoomType::Barracks => {
                     let c_mndx = squadmon_c_rng(depth, rng);
-                    makemon_specific_c_rng(c_mndx, depth, objects, bases, rng);
+                    makemon_specific_c_rng(level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng);
                 }
                 RoomType::Morgue => {
                     let c_mndx = morguemon_c_rng(depth, player_level, rng);
-                    makemon_specific_c_rng(c_mndx, depth, objects, bases, rng);
+                    makemon_specific_c_rng(level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng);
                 }
                 RoomType::Beehive => {
                     if sx == tx && sy == ty {
                         // PM_QUEEN_BEE = 5
-                        makemon_specific_c_rng(5, depth, objects, bases, rng);
+                        makemon_specific_c_rng(level, sx as i8, sy as i8, 5, depth, objects, bases, rng);
                     } else {
                         // PM_KILLER_BEE = 1
-                        makemon_specific_c_rng(1, depth, objects, bases, rng);
+                        makemon_specific_c_rng(level, sx as i8, sy as i8, 1, depth, objects, bases, rng);
                     }
                 }
                 RoomType::LeprechaunHall => {
                     // PM_LEPRECHAUN = 62
-                    makemon_specific_c_rng(62, depth, objects, bases, rng);
+                    makemon_specific_c_rng(level, sx as i8, sy as i8, 62, depth, objects, bases, rng);
                 }
                 RoomType::CockatriceNest => {
                     // PM_COCKATRICE = 10
-                    makemon_specific_c_rng(10, depth, objects, bases, rng);
+                    makemon_specific_c_rng(level, sx as i8, sy as i8, 10, depth, objects, bases, rng);
                 }
                 RoomType::Anthole => {
                     let c_mndx = antholemon_c_rng(depth);
-                    makemon_specific_c_rng(c_mndx, depth, objects, bases, rng);
+                    makemon_specific_c_rng(level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng);
                 }
                 RoomType::Zoo => {
                     // makemon(NULL, sx, sy, MM_ASLEEP) — random monster with groups
                     // anymon=true (ptr=NULL), no MM_NOGRP → groups can form
-                    makemon_zoo_c_rng(level, objects, bases, depth, rng);
+                    makemon_zoo_c_rng(level, sx as i8, sy as i8, objects, bases, depth, rng);
                 }
                 _ => {}
             }
@@ -819,7 +819,9 @@ fn fill_zoo_c_rng(
 /// C's stock_room RNG consumption for shops.
 /// Creates shopkeeper + populates each cell with merchandise.
 fn stock_room_c_rng(
-    level: &Level,
+    level: &mut Level,
+    sx: i8,
+    sy: i8,
     room: &Room,
     shp_indx: usize,
     depth: i32,
@@ -829,7 +831,7 @@ fn stock_room_c_rng(
 ) {
     // 1. shkinit: makemon(PM_SHOPKEEPER) + mkmonmoney(1000 + 30*rnd(100))
     // PM_SHOPKEEPER = 267 in C
-    makemon_specific_c_rng(267, depth, objects, bases, rng);
+    makemon_specific_c_rng(level, sx, sy, 267, depth, objects, bases, rng);
     // mkmonmoney: rnd(100) for initial capital
     rng.rnd(100);
 
@@ -878,7 +880,7 @@ fn stock_room_c_rng(
             if stock_room_goodpos(level, room, door_pos, sx, sy) {
                 cell_count += 1;
                 let mkspecl = specialspot > 0 && cell_count == specialspot as usize;
-                mkshobj_at_c_rng(shp_indx, mkspecl, depth, objects, bases, rng);
+                mkshobj_at_c_rng(level, sx, sy, shp_indx, mkspecl, depth, objects, bases, rng);
             }
         }
     }
@@ -928,6 +930,9 @@ fn stock_room_goodpos(
 /// C's mkshobj_at RNG consumption for a single shop item placement.
 /// Handles tribute book, mimic check, and shop-type-specific item creation.
 fn mkshobj_at_c_rng(
+    level: &mut Level,
+    sx: usize,
+    sy: usize,
     shp_indx: usize,
     mkspecl: bool,
     depth: i32,
@@ -948,7 +953,7 @@ fn mkshobj_at_c_rng(
         // mkclass(S_MIMIC, 0): finds mimic class monsters
         let mimic_mndx = mkclass_c_rng('m', depth, 1, rng);
         // makemon(ptr, sx, sy, NO_MM_FLAGS): specific monster creation
-        makemon_specific_c_rng(mimic_mndx, depth, objects, bases, rng);
+        makemon_specific_c_rng(level, sx as i8, sy as i8, mimic_mndx, depth, objects, bases, rng);
         // rn2(10) for mimic appearance
         rng.rn2(10);
     } else {
@@ -1103,7 +1108,7 @@ fn mkroom_cascade(
             level.flags.has_shop = true;
             // C: stock_room(i, sroom) — populates shop with items/shopkeeper
             let room = level.rooms[idx].clone();
-            stock_room_c_rng(level, &room, shp_indx, depth, objects, &bases, rng);
+            stock_room_c_rng(level, room.x as i8, room.y as i8, &room, shp_indx, depth, objects, &bases, rng);
         } else {
         }
         return;
@@ -1817,10 +1822,9 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
         // if (u.uhave.amulet || !rn2(3)) { somex + somey + makemon }
         let has_amulet = false; // u.uhave.amulet
         if has_amulet || rng.rn2(3) == 0 {
-            let _mx = super::room::somex(room, rng);
-            let _my = super::room::somey(room, rng);
+            let (mx, my) = room.random_point(rng);
             // makemon((struct permonst *) 0, x, y, MM_NOGRP)
-            makemon_c_rng(level, objects, &bases, depth, rng);
+            makemon_c_rng(level, mx as i8, my as i8, objects, &bases, depth, rng);
         }
 
         // --- Traps: C mklev.c:822-826 ---
@@ -3442,6 +3446,9 @@ fn adj_lev_c_from_raw(mlevel: i32, depth: i32, player_level: i32) -> i32 {
 /// Used when C calls makemon(&mons[c_mndx], ...) with a known monster type.
 /// anymon=false → no rndmonst, no group check.
 fn makemon_specific_c_rng(
+    level: &mut Level,
+    x: i8,
+    y: i8,
     c_mndx: usize,
     depth: i32,
     objects: &[ObjClassDef],
@@ -3525,12 +3532,31 @@ fn makemon_specific_c_rng(
 
     // saddle
     rng.rn2(100);
+
+    // ACTUALLY SPAWN THE MONSTER
+    use crate::monster::{Monster, MonsterId, MonsterState};
+    let mut new_mon = Monster::new(MonsterId(0), mndx as i16, x, y);
+    new_mon.name = mon.name.to_string();
+    new_mon.base_speed = mon.move_speed as i32;
+    new_mon.ac = mon.armor_class;
+    new_mon.level = mon.level.max(0) as u8;
+    new_mon.alignment = mon.alignment;
+    new_mon.attacks = mon.attacks;
+    new_mon.resistances = mon.resistances;
+    new_mon.flags = mon.flags;
+    let hp = if m_lev == 0 { 1 } else { m_lev * 4 };
+    new_mon.hp = hp;
+    new_mon.hp_max = hp;
+    new_mon.state = MonsterState::active();
+    level.add_monster_front(new_mon);
 }
 
 /// Full makemon(NULL, x, y, MM_NOGRP) RNG consumption during in_mklev.
 /// Faithfully ports C's makemon chain for exact RNG parity.
 fn makemon_c_rng(
     level: &mut Level,
+    x: i8,
+    y: i8,
     objects: &[ObjClassDef],
     bases: &ClassBases,
     depth: i32,
@@ -3623,6 +3649,23 @@ fn makemon_c_rng(
 
     // 10. saddle check: rn2(100) always, is_domestic short-circuits rest
     rng.rn2(100);
+
+    // ACTUALLY SPAWN THE MONSTER
+    use crate::monster::{Monster, MonsterId, MonsterState};
+    let mut new_mon = Monster::new(MonsterId(0), mndx as i16, x, y);
+    new_mon.name = mon.name.to_string();
+    new_mon.base_speed = mon.move_speed as i32;
+    new_mon.ac = mon.armor_class;
+    new_mon.level = mon.level.max(0) as u8;
+    new_mon.alignment = mon.alignment;
+    new_mon.attacks = mon.attacks;
+    new_mon.resistances = mon.resistances;
+    new_mon.flags = mon.flags;
+    let hp = if m_lev == 0 { 1 } else { m_lev * 4 };
+    new_mon.hp = hp;
+    new_mon.hp_max = hp;
+    new_mon.state = MonsterState::active();
+    level.add_monster_front(new_mon);
 }
 
 /// peace_minded RNG consumption for a given monster.
@@ -3652,6 +3695,8 @@ fn peace_minded_c_rng(mon: &PerMonst, player_alignment: i8, align_record: i32, r
 /// Like makemon_c_rng but with group check enabled (anymon=true, no MM_NOGRP).
 fn makemon_zoo_c_rng(
     level: &mut Level,
+    x: i8,
+    y: i8,
     objects: &[ObjClassDef],
     bases: &ClassBases,
     depth: i32,
@@ -3716,14 +3761,14 @@ fn makemon_zoo_c_rng(
 
     if has_sgroup && rng.rn2(2) != 0 {
         // m_initsgrp: n=3
-        m_initgrp_c_rng(mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, objects, bases, rng);
+        m_initgrp_c_rng(level, x, y, mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, objects, bases, rng);
     } else if has_lgroup {
         if rng.rn2(3) != 0 {
             // m_initlgrp: n=10
-            m_initgrp_c_rng(mon, mndx, m_lev, 10, player_level, player_alignment, align_record, depth, objects, bases, rng);
+            m_initgrp_c_rng(level, x, y, mon, mndx, m_lev, 10, player_level, player_alignment, align_record, depth, objects, bases, rng);
         } else {
             // m_initsgrp: n=3
-            m_initgrp_c_rng(mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, objects, bases, rng);
+            m_initgrp_c_rng(level, x, y, mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, objects, bases, rng);
         }
     }
 
@@ -3737,6 +3782,23 @@ fn makemon_zoo_c_rng(
 
     // 10. saddle check
     rng.rn2(100);
+
+    // ACTUALLY SPAWN
+    use crate::monster::{Monster, MonsterId, MonsterState};
+    let mut new_mon = Monster::new(MonsterId(0), mndx as i16, x, y);
+    new_mon.name = mon.name.to_string();
+    new_mon.base_speed = mon.move_speed as i32;
+    new_mon.ac = mon.armor_class;
+    new_mon.level = mon.level.max(0) as u8;
+    new_mon.alignment = mon.alignment;
+    new_mon.attacks = mon.attacks;
+    new_mon.resistances = mon.resistances;
+    new_mon.flags = mon.flags;
+    let hp = if m_lev == 0 { 1 } else { m_lev * 4 };
+    new_mon.hp = hp;
+    new_mon.hp_max = hp;
+    new_mon.state = MonsterState::sleeping();
+    level.add_monster_front(new_mon);
 }
 
 /// Runtime makemon(NULL, 0, 0, NO_MM_FLAGS) RNG consumption.
@@ -3849,14 +3911,14 @@ pub(crate) fn makemon_runtime_c_rng(
 
     if has_sgroup && rng.rn2(2) != 0 {
         // m_initsgrp: n=3
-        m_initgrp_c_rng(mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, &objects, &bases, rng);
+        m_initgrp_c_rng(level, pos_x, pos_y, mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, &objects, &bases, rng);
     } else if has_lgroup {
         if rng.rn2(3) != 0 {
             // m_initlgrp: n=10
-            m_initgrp_c_rng(mon, mndx, m_lev, 10, player_level, player_alignment, align_record, depth, &objects, &bases, rng);
+            m_initgrp_c_rng(level, pos_x, pos_y, mon, mndx, m_lev, 10, player_level, player_alignment, align_record, depth, &objects, &bases, rng);
         } else {
             // m_initsgrp: n=3
-            m_initgrp_c_rng(mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, &objects, &bases, rng);
+            m_initgrp_c_rng(level, pos_x, pos_y, mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, &objects, &bases, rng);
         }
     }
 
@@ -3894,6 +3956,9 @@ pub(crate) fn makemon_runtime_c_rng(
 /// C's m_initgrp RNG consumption.
 /// Creates cnt group members, each consuming peace_minded + makemon(ptr, ..., MM_NOGRP).
 fn m_initgrp_c_rng(
+    level: &mut Level,
+    x: i8,
+    y: i8,
     mon: &PerMonst,
     mndx: usize,
     _m_lev: i32,
@@ -3924,9 +3989,11 @@ fn m_initgrp_c_rng(
         }
 
         // enexto: no RNG
-        // makemon(ptr, x, y, mmflags | MM_NOGRP) — specific ptr, MM_NOGRP
-        // This is makemon_specific_c_rng but we already know mndx
-        makemon_specific_c_rng(find_c_mndx(mndx), depth, objects, bases, rng);
+        if let Some((nx, ny)) = super::level::enexto(x, y, level) {
+            // makemon(ptr, x, y, mmflags | MM_NOGRP) — specific ptr, MM_NOGRP
+            // This is makemon_specific_c_rng but we already know mndx
+            makemon_specific_c_rng(level, nx, ny, find_c_mndx(mndx), depth, objects, bases, rng);
+        }
     }
 }
 
@@ -4014,8 +4081,8 @@ fn mktrap_c_rng(
 
     // 2. Position: somexy(croom, &m) + occupied() retry loop
     // For first trap in a room, occupied() is typically false → 1 iteration
-    let _tx = super::room::somex(room, rng);
-    let _ty = super::room::somey(room, rng);
+    let tx = super::room::somex(room, rng);
+    let ty = super::room::somey(room, rng);
 
     // 3. maketrap() RNG consumption — depends on trap type
     match kind {
@@ -4041,7 +4108,7 @@ fn mktrap_c_rng(
         18 => {
             // WEB: makemon(&mons[PM_GIANT_SPIDER], m.x, m.y, NO_MM_FLAGS)
             // PM_GIANT_SPIDER = C[95], specific ptr → anymon=false
-            makemon_specific_c_rng(95, depth, &objects, &bases, rng);
+            makemon_specific_c_rng(level, tx as i8, ty as i8, 95, depth, &objects, &bases, rng);
         }
         19 => {
             // STATUE_TRAP: rndmonnum() unicorn avoidance loop + mkcorpstat + makemon
@@ -4057,7 +4124,7 @@ fn mktrap_c_rng(
             // Position (0,0) → makemon_rnd_goodpos → enexto → consumes variable RNG
             // Then full makemon chain for the monster
             // For now, approximate with standard makemon (it's at random position)
-            makemon_c_rng(level, &objects, &bases, depth, rng);
+            makemon_c_rng(level, tx as i8, ty as i8, &objects, &bases, depth, rng);
         }
         _ => {} // Most traps: no additional RNG in maketrap
     }

@@ -5,7 +5,7 @@ use crate::plugins::game::AppState;
 use crate::plugins::input::GameCommand;
 use crate::plugins::ui::direction::{DirectionAction, DirectionSelectState};
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use nh_core::action::Command;
 
 pub struct ExtendedCommandsPlugin;
@@ -14,9 +14,11 @@ impl Plugin for ExtendedCommandsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ExtendedCommandsState>().add_systems(
             Update,
-            (handle_extended_commands_input, render_extended_commands)
-                .chain()
-                .run_if(in_state(AppState::Playing)),
+            handle_extended_commands_input.run_if(in_state(AppState::Playing)),
+        );
+        app.add_systems(
+            EguiPrimaryContextPass,
+            render_extended_commands.run_if(in_state(AppState::Playing)),
         );
     }
 }
@@ -181,9 +183,10 @@ fn render_extended_commands(
     prev_search: Local<String>,
 ) {
     if !state.open {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     let mut needs_filter_update = false;
 
     egui::Window::new("Extended Commands (#)")
@@ -191,7 +194,7 @@ fn render_extended_commands(
         .resizable(true)
         .default_width(600.0)
         .default_height(450.0)
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             ui.label(
                 egui::RichText::new("Extended Commands - Use # prefix to execute")
                     .strong()
@@ -274,6 +277,8 @@ fn render_extended_commands(
                 ui.label("close");
             });
         });
+
+    
 }
 
 /// Update filtered commands based on search filter

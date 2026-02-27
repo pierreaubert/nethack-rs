@@ -1,9 +1,10 @@
 //! Direction selection UI for actions like open, close, kick
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use nh_core::magic::targeting::monsters_in_direction;
 
+use crate::plugins::game::AppState;
 use crate::plugins::input::GameCommand;
 use crate::resources::GameStateResource;
 
@@ -11,10 +12,13 @@ pub struct DirectionPlugin;
 
 impl Plugin for DirectionPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DirectionSelectState>().add_systems(
-            Update,
-            (handle_direction_input, render_direction_ui).chain(),
-        );
+        app.init_resource::<DirectionSelectState>()
+            .add_systems(Update, handle_direction_input.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                EguiPrimaryContextPass,
+                render_direction_ui
+                    .run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
@@ -158,9 +162,10 @@ fn render_direction_ui(
     game_state: Res<GameStateResource>,
 ) {
     if !dir_state.active {
-        return;
+        return ;
     }
 
+    let Ok(ctx) = contexts.ctx_mut() else { return; };
     let action_name = dir_state
         .action
         .as_ref()
@@ -169,7 +174,7 @@ fn render_direction_ui(
 
     egui::Area::new(egui::Id::new("direction_select"))
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-        .show(contexts.ctx_mut().unwrap(), |ui| {
+        .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 220))
                 .inner_margin(egui::Margin::same(16))
@@ -291,4 +296,6 @@ fn render_direction_ui(
                     );
                 });
         });
+
+    
 }

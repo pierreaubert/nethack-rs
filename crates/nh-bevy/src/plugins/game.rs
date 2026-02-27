@@ -25,6 +25,7 @@ impl Plugin for GamePlugin {
 
         // Add sub-plugins in dependency order
         app.add_plugins((
+            UiPlugin,
             ModelAssetsPlugin,
             SpritesPlugin,
             MapPlugin,
@@ -33,7 +34,6 @@ impl Plugin for GamePlugin {
             InputPlugin,
             GamepadPlugin,
             NavigationPlugin,
-            UiPlugin,
             AnimationPlugin,
             AudioPlugin,
             FogOfWarPlugin,
