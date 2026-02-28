@@ -15,7 +15,7 @@ use ratatui::backend::CrosstermBackend;
 use nh_core::player::{AlignmentType, Gender, Race, Role};
 use nh_core::save::{default_save_path, delete_save, load_game, save_game};
 use nh_core::{GameLoopResult, GameRng, GameState};
-use nh_tui::{App, Theme, GraphicsMode};
+use nh_tui::{App, AppEvent, Theme, GraphicsMode, StartMenuAction};
 
 /// NetHack clone in Rust
 #[derive(Parser, Debug)]
@@ -131,8 +131,8 @@ fn main() -> io::Result<()> {
             run_character_creation(&mut terminal, &args)?
         }
     } else {
-        // No name provided - TUI will ask for it
-        run_character_creation(&mut terminal, &args)?
+        // No name provided - TUI will show startup menu
+        run_startup_menu(&mut terminal, &args)?
     };
 
     // Detect or override color theme
@@ -159,10 +159,17 @@ fn main() -> io::Result<()> {
         while event::poll(Duration::ZERO)? {
             let ev = event::read()?;
 
-            if let Some(command) = app.handle_event(ev) {
-                let result = app.execute(command);
-                if process_result(&mut app, &mut terminal, result)? {
-                    break;
+            if let Some(event) = app.handle_event(ev) {
+                match event {
+                    AppEvent::Command(command) => {
+                        let result = app.execute(command);
+                        if process_result(&mut app, &mut terminal, result)? {
+                            break;
+                        }
+                    }
+                    AppEvent::StartMenu(_) => {
+                        // Should not happen in main loop unless we re-enter start menu
+                    }
                 }
             }
 
@@ -226,6 +233,62 @@ fn process_result(
     }
 }
 
+/// Run TUI startup menu and return the game state
+fn run_startup_menu(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    args: &Args,
+) -> io::Result<GameState> {
+    let temp_state = GameState::new(GameRng::from_entropy());
+    let theme = if args.light {
+        Theme::light()
+    } else {
+        Theme::detect()
+    };
+    let mut app = App::new(temp_state, theme, args.graphics);
+    app.set_startup_menu();
+
+    loop {
+        terminal.draw(|frame| app.render(frame))?;
+
+        if event::poll(Duration::from_millis(100))? {
+            let ev = event::read()?;
+            if let Some(app_event) = app.handle_event(ev) {
+                if let AppEvent::StartMenu(action) = app_event {
+                    match action {
+                        StartMenuAction::NewGame => {
+                            return run_character_creation(terminal, args);
+                        }
+                        StartMenuAction::LoadGame => {
+                            // For now, load default if exists, or show error?
+                            // Better: prompt for name if not provided?
+                            // For simplicity, let's look for a save if name was provided, 
+                            // or ask for name if not.
+                            let player_name = args.name.clone().unwrap_or_else(|| "Player".to_string());
+                            let save_path = default_save_path(&player_name);
+                            if save_path.exists() {
+                                match load_game(&save_path) {
+                                    Ok(loaded_state) => return Ok(loaded_state),
+                                    Err(_) => {
+                                        // TODO: show error message in UI
+                                    }
+                                }
+                            } else {
+                                // TODO: show "No save found" message in UI
+                            }
+                        }
+                        StartMenuAction::Quit => {
+                            disable_raw_mode()?;
+                            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+                            terminal.show_cursor()?;
+                            std::process::exit(0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Run TUI character creation and return the new game state
 fn run_character_creation(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
@@ -255,12 +318,20 @@ fn run_character_creation(
     };
     let mut app = App::new(temp_state, theme, args.graphics);
 
-    // Start character creation - with name if provided via CLI
-    if let Some(ref name) = args.name {
-        app.start_character_creation_with_name(name.clone());
-    } else {
-        app.start_character_creation();
-    }
+    // Parse what we can from CLI args
+    let role = args.role.as_ref().and_then(|s| parse_role(s));
+    let race = args.race.as_ref().and_then(|s| parse_race(s));
+    let gender = args.gender.as_ref().and_then(|s| parse_gender(s));
+    let alignment = args.alignment.as_ref().and_then(|s| parse_alignment(s));
+
+    // Start character creation - with any provided CLI options
+    app.start_character_creation_with_choices(
+        args.name.clone(),
+        role,
+        race,
+        gender,
+        alignment,
+    );
 
     // Character creation loop
     loop {

@@ -3,23 +3,35 @@
 //! This example demonstrates how to run the dual-game comparison system
 //! to find behavioral differences between the Rust and C implementations.
 
-use nh_core::{GameLoop, GameRng, GameState};
-use nh_player::ffi::CGameEngine;
+use nh_core::{GameLoop, GameRng, GameState, CGameEngineTrait};
+use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use nh_player::orchestrator::{DualGameOrchestrator, OrchestratorConfig};
 
 fn run_comparison(seed: u64, max_turns: u64) {
     println!("=== Comparison Session (seed={}) ===", seed);
 
     // Initialize Rust game
-    let rust_rng = GameRng::new(seed);
-    let rust_state = GameState::new(rust_rng);
-    let mut rust_loop = GameLoop::new(rust_state);
+    let state = GameState::new_with_identity(
+        GameRng::new(seed),
+        "Hero".to_string(),
+        nh_core::player::Role::Tourist,
+        nh_core::player::Race::Human,
+        nh_core::player::Gender::Male,
+        nh_core::player::AlignmentType::Neutral,
+    );
+    let mut rust_loop = GameLoop::new(state);
 
     // Initialize C game
     let mut c_engine = CGameEngine::new();
     c_engine
         .init("Tourist", "Human", 0, 0)
         .expect("Failed to init C engine");
+    c_engine
+        .reset(seed)
+        .expect("Failed to reset C engine");
+    c_engine
+        .generate_and_place()
+        .expect("Failed to generate C level");
 
     // Create orchestrator with short run for demo
     let config = OrchestratorConfig {

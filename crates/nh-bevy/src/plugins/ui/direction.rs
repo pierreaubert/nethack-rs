@@ -68,7 +68,7 @@ impl DirectionAction {
             DirectionAction::Fire => Command::Fire(dir),
             DirectionAction::Untrap => Command::Untrap(dir),
             DirectionAction::Force => Command::Force(dir),
-            DirectionAction::Zap(c) => Command::Zap(*c, dir),
+            DirectionAction::Zap(c) => Command::Zap(*c, Some(dir)),
             DirectionAction::Throw(c) => Command::Throw(*c, dir),
         }
     }

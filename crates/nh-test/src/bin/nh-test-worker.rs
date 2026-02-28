@@ -1,6 +1,7 @@
 use std::io::{self, BufRead, Write};
 use serde::{Serialize, Deserialize};
 use nh_test::ffi::CGameEngine;
+use nh_core::CGameEngineTrait;
 
 #[derive(Serialize, Deserialize)]
 enum Command {
@@ -111,62 +112,62 @@ fn main() {
 
         let resp = match cmd {
             Command::Init { role, race, gender, align } => {
-                match engine.init(&role, &race, gender, align) {
+                match CGameEngineTrait::init(&mut engine, &role, &race, gender, align) {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
             Command::Reset { seed } => {
-                match engine.reset(seed) {
+                match CGameEngineTrait::reset(&mut engine, seed) {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
             Command::ResetRng { seed } => {
                 match engine.reset_rng(seed) {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
             Command::GenerateLevel => {
                 match engine.generate_level() {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
             Command::GenerateAndPlace => {
-                match engine.generate_and_place() {
+                match CGameEngineTrait::generate_and_place(&engine) {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
             Command::GenerateMaze => {
                 match engine.generate_maze() {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
-            Command::GetHp => Response::Int(engine.hp()),
-            Command::GetMaxHp => Response::Int(engine.max_hp()),
-            Command::GetEnergy => Response::Int(engine.energy()),
-            Command::GetMaxEnergy => Response::Int(engine.max_energy()),
+            Command::GetHp => Response::Int(CGameEngineTrait::hp(&engine)),
+            Command::GetMaxHp => Response::Int(CGameEngineTrait::max_hp(&engine)),
+            Command::GetEnergy => Response::Int(CGameEngineTrait::energy(&engine)),
+            Command::GetMaxEnergy => Response::Int(CGameEngineTrait::max_energy(&engine)),
             Command::GetPosition => {
-                let (x, y) = engine.position();
+                let (x, y) = CGameEngineTrait::position(&engine);
                 Response::Pos(x, y)
             }
-            Command::GetTurnCount => Response::Long(engine.turn_count()),
-            Command::GetStateJson => Response::String(engine.state_json()),
+            Command::GetTurnCount => Response::Long(CGameEngineTrait::turn_count(&engine)),
+            Command::GetStateJson => Response::String(CGameEngineTrait::state_json(&engine)),
             Command::GetMapJson => Response::String(engine.map_json()),
             Command::ExecCmd { cmd } => {
-                match engine.exec_cmd(cmd) {
+                match CGameEngineTrait::exec_cmd(&engine, cmd) {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
             Command::ExecCmdDir { cmd, dx, dy } => {
-                match engine.exec_cmd_dir(cmd, dx, dy) {
+                match CGameEngineTrait::exec_cmd_dir(&engine, cmd, dx, dy) {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
             Command::SetDLevel { dnum, dlevel } => {
@@ -174,20 +175,20 @@ fn main() {
                 Response::Ok
             }
             Command::SetState { hp, hpmax, x, y, ac, moves } => {
-                engine.set_state(hp, hpmax, x, y, ac, moves);
+                CGameEngineTrait::set_state(&engine, hp, hpmax, x, y, ac, moves);
                 Response::Ok
             }
-            Command::GetArmorClass => Response::Int(engine.armor_class()),
-            Command::GetGold => Response::Int(engine.gold()),
-            Command::GetExperienceLevel => Response::Int(engine.experience_level()),
-            Command::GetCurrentLevel => Response::Int(engine.current_level()),
-            Command::GetDungeonDepth => Response::Int(engine.dungeon_depth()),
-            Command::IsDead => Response::Bool(engine.is_dead()),
-            Command::GetLastMessage => Response::String(engine.last_message()),
+            Command::GetArmorClass => Response::Int(CGameEngineTrait::armor_class(&engine)),
+            Command::GetGold => Response::Int(CGameEngineTrait::gold(&engine)),
+            Command::GetExperienceLevel => Response::Int(CGameEngineTrait::experience_level(&engine)),
+            Command::GetCurrentLevel => Response::Int(CGameEngineTrait::current_level(&engine)),
+            Command::GetDungeonDepth => Response::Int(CGameEngineTrait::dungeon_depth(&engine)),
+            Command::IsDead => Response::Bool(CGameEngineTrait::is_dead(&engine)),
+            Command::GetLastMessage => Response::String(CGameEngineTrait::last_message(&engine)),
             Command::GetInventoryCount => Response::Int(engine.inventory_count()),
-            Command::GetInventoryJson => Response::String(engine.inventory_json()),
+            Command::GetInventoryJson => Response::String(CGameEngineTrait::inventory_json(&engine)),
             Command::GetObjectTableJson => Response::String(engine.object_table_json()),
-            Command::GetMonstersJson => Response::String(engine.monsters_json()),
+            Command::GetMonstersJson => Response::String(CGameEngineTrait::monsters_json(&engine)),
             Command::SetWizardMode { enable } => {
                 engine.set_wizard_mode(enable);
                 Response::Ok
@@ -195,15 +196,15 @@ fn main() {
             Command::AddItemToInv { item_id, weight } => {
                 match engine.add_item_to_inv(item_id, weight) {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
             Command::GetCarryingWeight => Response::Int(engine.carrying_weight()),
             Command::GetMonsterCount => Response::Int(engine.monster_count()),
-            Command::GetRole => Response::String(engine.role()),
-            Command::GetRace => Response::String(engine.race()),
-            Command::GetGenderString => Response::String(engine.gender_string()),
-            Command::GetAlignmentString => Response::String(engine.alignment_string()),
+            Command::GetRole => Response::String(CGameEngineTrait::role(&engine)),
+            Command::GetRace => Response::String(CGameEngineTrait::race(&engine)),
+            Command::GetGenderString => Response::String(CGameEngineTrait::gender_string(&engine)),
+            Command::GetAlignmentString => Response::String(CGameEngineTrait::alignment_string(&engine)),
             Command::GetResultMessage => Response::String(engine.result_message()),
             Command::GetRngCallCount => Response::Int(engine.rng_call_count() as i32),
             Command::SetSkipMovemon { skip } => {
@@ -211,7 +212,9 @@ fn main() {
                 Response::Ok
             }
             Command::RngRn2 { limit } => Response::Int(engine.rng_rn2(limit)),
-            Command::CalcBaseDamage { weapon_id, small_monster } => Response::Int(engine.calc_base_damage(weapon_id, small_monster)),
+            Command::CalcBaseDamage { weapon_id, small_monster } => {
+                Response::Int(engine.calc_base_damage(weapon_id, small_monster))
+            }
             Command::GetAc => Response::Int(engine.ac()),
             Command::TestSetupStatus { hp, max_hp, level, ac } => {
                 engine.test_setup_status(hp, max_hp, level, ac);
@@ -220,12 +223,12 @@ fn main() {
             Command::WearItem { item_id } => {
                 match engine.wear_item(item_id) {
                     Ok(_) => Response::Ok,
-                    Err(e) => Response::Error(format!("{}", e)),
+                    Err(e) => Response::Error(e),
                 }
             }
             Command::GetNutrition => Response::Int(engine.nutrition()),
             Command::GetAttributesJson => Response::String(engine.attributes_json()),
-            Command::ExportLevel => Response::String(engine.export_level()),
+            Command::ExportLevel => Response::String(CGameEngineTrait::export_level(&engine)),
             Command::EnableRngTracing => {
                 engine.enable_rng_tracing();
                 Response::Ok
@@ -239,16 +242,8 @@ fn main() {
                 engine.clear_rng_trace();
                 Response::Ok
             }
-            Command::GetVisibility => {
-                let viz = engine.get_visibility();
-                // Serialize as JSON array of arrays of bools
-                Response::String(serde_json::to_string(&viz).unwrap_or_default())
-            }
-            Command::GetCouldsee => {
-                let cs = engine.get_couldsee();
-                Response::String(serde_json::to_string(&cs).unwrap_or_default())
-            }
-            // Function-level isolation testing (Phase 1)
+            Command::GetVisibility => Response::String(serde_json::to_string(&engine.get_visibility()).unwrap()),
+            Command::GetCouldsee => Response::String(serde_json::to_string(&engine.get_couldsee()).unwrap()),
             Command::TestFinddpos { xl, yl, xh, yh } => {
                 let (x, y) = engine.test_finddpos(xl, yl, xh, yh);
                 Response::Pos(x, y)
@@ -264,15 +259,9 @@ fn main() {
                 engine.test_join(a, b, nxcor);
                 Response::Ok
             }
-            Command::GetSmeq => {
-                Response::String(engine.get_smeq())
-            }
-            Command::GetDoorindex => {
-                Response::Int(engine.get_doorindex())
-            }
-            Command::GetCellRegion { x1, y1, x2, y2 } => {
-                Response::String(engine.get_cell_region(x1, y1, x2, y2))
-            }
+            Command::GetSmeq => Response::String(engine.get_smeq()),
+            Command::GetDoorindex => Response::Int(engine.get_doorindex()),
+            Command::GetCellRegion { x1, y1, x2, y2 } => Response::String(engine.get_cell_region(x1, y1, x2, y2)),
             Command::SetCell { x, y, typ } => {
                 engine.set_cell(x, y, typ);
                 Response::Ok
@@ -281,20 +270,14 @@ fn main() {
                 engine.clear_level();
                 Response::Ok
             }
-            Command::AddRoom { lx, ly, hx, hy, rtype } => {
-                Response::Int(engine.add_room(lx, ly, hx, hy, rtype))
-            }
+            Command::AddRoom { lx, ly, hx, hy, rtype } => Response::Int(engine.add_room(lx, ly, hx, hy, rtype)),
             Command::CarveRoom { lx, ly, hx, hy } => {
                 engine.carve_room(lx, ly, hx, hy);
                 Response::Ok
             }
             Command::GetRectJson => Response::String(engine.rect_json()),
-            Command::DebugCell { x, y } => {
-                Response::String(engine.debug_cell(x, y))
-            }
-            Command::DebugMfndpos { mon_index } => {
-                Response::String(engine.debug_mfndpos(mon_index))
-            }
+            Command::DebugCell { x, y } => Response::String(engine.debug_cell(x, y)),
+            Command::DebugMfndpos { mon_index } => Response::String(engine.debug_mfndpos(mon_index)),
             Command::Exit => break,
         };
 

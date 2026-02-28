@@ -9,8 +9,24 @@ use crate::magic::genocide::{do_class_genocide, do_genocide, do_reverse_genocide
 use crate::magic::scroll::{ScrollType, read_scroll};
 use crate::object::{Object, ObjectClass};
 
-/// Read a scroll from inventory
-pub fn do_read(state: &mut GameState, obj_letter: char) -> ActionResult {
+/// Read a scroll from inventory or a contextual feature
+pub fn do_read(state: &mut GameState, obj_letter: Option<char>) -> ActionResult {
+    if obj_letter.is_none() {
+        // Contextual reading (thrones, statues, etc.)
+        use crate::dungeon::CellType;
+        let pos = state.player.pos;
+        let cell_type = state.current_level.cell(pos.x as usize, pos.y as usize).typ;
+
+        return match cell_type {
+            CellType::Throne => {
+                state.message("The throne is full of strange carvings.");
+                ActionResult::Success
+            }
+            _ => ActionResult::Failed("There is nothing here to read.".to_string()),
+        };
+    }
+
+    let obj_letter = obj_letter.unwrap();
     // Get the scroll from inventory
     let obj = match state.get_inventory_item(obj_letter) {
         Some(o) => o.clone(),
@@ -125,7 +141,7 @@ pub fn do_read(state: &mut GameState, obj_letter: char) -> ActionResult {
 }
 
 pub fn doread(state: &mut GameState, obj_letter: char) -> ActionResult {
-    do_read(state, obj_letter)
+    do_read(state, Some(obj_letter))
 }
 
 pub fn seffects(state: &mut GameState, obj: &Object) {
@@ -390,7 +406,7 @@ mod tests {
 
         // This will likely fail or do nothing if the scroll type is 0 (Mail) or similar
         // But do_read should handle it gracefully
-        let result = do_read(&mut state, 'a');
+        let result = do_read(&mut state, Some('a'));
         assert!(matches!(result, ActionResult::Success));
     }
 }

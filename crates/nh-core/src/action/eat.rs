@@ -855,10 +855,28 @@ pub fn fpostfx(state: &mut GameState, object_type: i16, buc: BucStatus, corpse_t
 
 /// Eat food from inventory.
 /// Port of doeat() from eat.c. Handles corpses, tins, and regular food.
-pub fn do_eat(state: &mut GameState, obj_letter: char) -> ActionResult {
+pub fn do_eat(state: &mut GameState, obj_letter: Option<char>) -> ActionResult {
+    // Determine the object to eat (from inventory or floor)
+    let (letter, _on_floor) = if let Some(l) = obj_letter {
+        (l, false)
+    } else {
+        // Look for food on the floor
+        let pos = state.player.pos;
+        if let Some(_floor_obj) = state.current_level.objects_at(pos.x, pos.y).iter().find(|o| o.class == ObjectClass::Food) {
+            // In original NetHack, if there's food on the floor, we'd pick it up or eat it directly.
+            // For now, let's assume we need to pick it up first or provide a way to eat from floor.
+            // Simplified: if there's food on the floor, we can't eat it directly yet in this impl 
+            // without more complex logic (like identifying which one).
+            // For now, just fail with message if it's None and nothing edible is found.
+            return ActionResult::Failed("There is nothing here to eat.".to_string());
+        } else {
+            return ActionResult::Failed("There is nothing here to eat.".to_string());
+        }
+    };
+
     // Extract data from object
     let (obj_name, object_type, corpse_type, buc, obj_age) = {
-        let obj = match state.get_inventory_item(obj_letter) {
+        let obj = match state.get_inventory_item(letter) {
             Some(o) => o,
             None => return ActionResult::Failed("You don't have that item.".to_string()),
         };
@@ -873,12 +891,12 @@ pub fn do_eat(state: &mut GameState, obj_letter: char) -> ActionResult {
 
     // Tin handling
     if object_type == otyp::TIN {
-        return do_eat_tin(state, obj_letter);
+        return do_eat_tin(state, letter);
     }
 
     // Calculate nutrition (with race modifier)
     let nutrition = {
-        let obj = state.get_inventory_item(obj_letter).unwrap();
+        let obj = state.get_inventory_item(letter).unwrap();
         calculate_nutrition(obj, state.player.race)
     };
 
@@ -893,7 +911,7 @@ pub fn do_eat(state: &mut GameState, obj_letter: char) -> ActionResult {
 
     // Corpse handling
     if object_type == otyp::CORPSE {
-        return do_eat_corpse(state, obj_letter, obj_name, corpse_type, buc, obj_age, nutrition);
+        return do_eat_corpse(state, letter, obj_name, corpse_type, buc, obj_age, nutrition);
     }
 
     // Non-corpse food
@@ -911,7 +929,7 @@ pub fn do_eat(state: &mut GameState, obj_letter: char) -> ActionResult {
     if state.player.nutrition >= 2000 {
         let died = choke(state, &obj_name);
         if died {
-            state.remove_from_inventory(obj_letter);
+            state.remove_from_inventory(letter);
             return ActionResult::Died("choked on food".to_string());
         }
     }
@@ -922,7 +940,7 @@ pub fn do_eat(state: &mut GameState, obj_letter: char) -> ActionResult {
         state.message(msg.clone());
     }
 
-    state.remove_from_inventory(obj_letter);
+    state.remove_from_inventory(letter);
     ActionResult::Success
 }
 

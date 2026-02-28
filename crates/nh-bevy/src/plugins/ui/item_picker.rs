@@ -46,6 +46,8 @@ pub enum PickerAction {
     Remove, // Ring/Amulet
     Drop,
     Throw, // Needs direction
+    Dip,
+    DipItem(char),
 }
 
 impl PickerAction {
@@ -63,6 +65,7 @@ impl PickerAction {
             PickerAction::Remove => "remove",
             PickerAction::Drop => "drop",
             PickerAction::Throw => "throw",
+            PickerAction::Dip | PickerAction::DipItem(_) => "dip",
         }
     }
 
@@ -92,6 +95,8 @@ impl PickerAction {
             }
             PickerAction::Drop => true,
             PickerAction::Throw => true, // Can throw anything
+            PickerAction::Dip => true,   // Can dip most things
+            PickerAction::DipItem(_) => obj.class == ObjectClass::Potion,
         }
     }
 }
@@ -109,6 +114,15 @@ fn handle_picker_input(
 
     // Close with Escape
     if input.just_pressed(KeyCode::Escape) {
+        if let Some(PickerAction::DipItem(target)) = picker_state.action {
+            // Check if standing on fountain
+            use nh_core::dungeon::CellType;
+            let pos = game_state.0.player.pos;
+            let cell_type = game_state.0.current_level.cell(pos.x as usize, pos.y as usize).typ;
+            if cell_type == CellType::Fountain {
+                commands.write(GameCommand(Command::Dip(target, None)));
+            }
+        }
         picker_state.active = false;
         picker_state.action = None;
         return;
@@ -167,13 +181,13 @@ fn confirm_selection(
     if let Some(action) = picker_state.action {
         match action {
             PickerAction::Eat => {
-                commands.write(GameCommand(Command::Eat(item_char)));
+                commands.write(GameCommand(Command::Eat(Some(item_char))));
             }
             PickerAction::Quaff => {
-                commands.write(GameCommand(Command::Quaff(item_char)));
+                commands.write(GameCommand(Command::Quaff(Some(item_char))));
             }
             PickerAction::Read => {
-                commands.write(GameCommand(Command::Read(item_char)));
+                commands.write(GameCommand(Command::Read(Some(item_char))));
             }
             PickerAction::Wield => {
                 commands.write(GameCommand(Command::Wield(Some(item_char))));
@@ -207,6 +221,16 @@ fn confirm_selection(
                 dir_state.active = true;
                 dir_state.action = Some(DirectionAction::Throw(item_char));
             }
+            PickerAction::Dip => {
+                // Next step: select what to dip into (potion)
+                picker_state.action = Some(PickerAction::DipItem(item_char));
+                picker_state.selected_index = 0;
+                // Note: filtered_indices will be updated by handle_item_picker_input
+                return;
+            }
+            PickerAction::DipItem(target) => {
+                commands.write(GameCommand(Command::Dip(target, Some(item_char))));
+            }
         }
     }
 
@@ -228,7 +252,17 @@ fn render_picker(
     let action_name = picker_state.action.map(|a| a.name()).unwrap_or("select");
     let inventory = &game_state.0.inventory;
 
-    egui::Window::new(format!("Select item to {}", action_name))
+    let mut title = format!("Select item to {}", action_name);
+    if let Some(PickerAction::DipItem(_)) = picker_state.action {
+        use nh_core::dungeon::CellType;
+        let pos = game_state.0.player.pos;
+        let cell_type = game_state.0.current_level.cell(pos.x as usize, pos.y as usize).typ;
+        if cell_type == CellType::Fountain {
+            title += " (Esc for fountain)";
+        }
+    }
+
+    egui::Window::new(title)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
         .collapsible(false)

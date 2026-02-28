@@ -5,10 +5,12 @@
 
 use crate::agent::{SessionResult, VirtualPlayer, VirtualPlayerConfig};
 use crate::ffi::CGameEngine;
+use nh_core::CGameEngineTrait;
 use crate::compare::compare_states;
 use crate::state::c_extractor::CGameWrapper;
 use crate::state::common::*;
 use crate::state::rust_extractor::RustGameEngine;
+use nh_core::player::Position;
 
 /// Main orchestrator for dual-game comparison
 pub struct DualGameOrchestrator {
@@ -33,43 +35,72 @@ impl DualGameOrchestrator {
     }
 
     /// Run a single comparison session
-    pub fn run_session(
+    pub fn run_session<E: CGameEngineTrait>(
         &mut self,
         rust_loop: &mut nh_core::GameLoop,
-        c_engine: &mut CGameEngine,
+        c_engine: &mut E,
         seed: u64,
     ) -> SessionResult {
         let mut result = SessionResult::default();
         result.seed = seed;
 
         // Initialize wrappers
-        let mut rust_wrapper = RustGameEngine::new(rust_loop);
+        // Need to do this before creating c_wrapper which takes a mutable borrow
+        let level_json = c_engine.export_level();
+
+        if let Ok(fixture) = serde_json::from_str::<nh_core::dungeon::LevelFixture>(&level_json) {
+            rust_loop.state_mut().current_level = nh_core::dungeon::Level::from_fixture(&fixture);
+        }
+
         let mut c_wrapper = CGameWrapper::new(c_engine);
 
-        // Get initial states
+        // Get initial C state to find where C placed the player
+        let c_state_initial = c_wrapper.extract_state();
+        
+        // SYNC PLAYER POSITION: Move Rust player to where C engine placed them
+        rust_loop.state_mut().player.pos = Position::new(
+            c_state_initial.position.0 as i8,
+            c_state_initial.position.1 as i8,
+        );
+
+        // Initialize wrappers
+        let mut rust_wrapper = RustGameEngine::new(rust_loop);
+
+        // Get initial states for comparison loop
         let mut rust_state = rust_wrapper.extract_state();
         let mut c_state = c_wrapper.extract_state();
+
+        // Ensure C position and stats match Rust's initial (potentially modified by map sync)
+        c_wrapper.set_state(
+            rust_state.hp,
+            rust_state.max_hp,
+            rust_state.position.0,
+            rust_state.position.1,
+            rust_state.armor_class,
+            rust_state.turn as i64,
+        );
 
         // Set exploration rate
         self.player
             .set_exploration_rate(self.config.initial_exploration_rate);
 
         for turn in 0..self.config.max_turns_per_session {
-            // Select action
+            // Select action based on Rust's view
             let action = self.player.select_action(&rust_state);
 
             // Execute on Rust
             let (rust_reward, rust_message) = rust_wrapper.step(&action);
             let rust_messages = rust_wrapper.last_messages();
 
-            // Synchronize C state with Rust state
+            // RE-SYNC State before C step to ensure C is testing the SAME situation
+            // Use rust_state (which was used to select the action)
             c_wrapper.set_state(
-                rust_state.position.0,
-                rust_state.position.1,
                 rust_state.hp,
                 rust_state.max_hp,
-                rust_state.experience_level,
+                rust_state.position.0,
+                rust_state.position.1,
                 rust_state.armor_class,
+                rust_state.turn as i64,
             );
 
             // Execute on C
@@ -172,11 +203,19 @@ impl DualGameOrchestrator {
             .iter()
             .map(|seed| {
                 // Reset both games
-                let mut new_rust_loop =
-                    nh_core::GameLoop::new(nh_core::GameState::new(nh_core::GameRng::new(*seed)));
+                let state = nh_core::GameState::new_with_identity(
+                    nh_core::GameRng::new(*seed),
+                    "Hero".to_string(),
+                    nh_core::player::Role::Tourist,
+                    nh_core::player::Race::Human,
+                    nh_core::player::Gender::Male,
+                    nh_core::player::AlignmentType::Neutral,
+                );
+                let mut new_rust_loop = nh_core::GameLoop::new(state);
                 let mut new_c_engine = CGameEngine::new();
                 let _ = new_c_engine.init("Tourist", "Human", 0, 0);
                 let _ = new_c_engine.reset(*seed);
+                let _ = new_c_engine.generate_and_place();
 
                 // Run session
                 self.run_session(&mut new_rust_loop, &mut new_c_engine, *seed)

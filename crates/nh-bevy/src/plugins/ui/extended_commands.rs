@@ -4,6 +4,7 @@
 use crate::plugins::game::AppState;
 use crate::plugins::input::GameCommand;
 use crate::plugins::ui::direction::{DirectionAction, DirectionSelectState};
+use crate::plugins::ui::item_picker::{ItemPickerState, PickerAction};
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use nh_core::action::Command;
@@ -72,6 +73,7 @@ fn handle_extended_commands_input(
     mut state: ResMut<ExtendedCommandsState>,
     mut game_commands: MessageWriter<GameCommand>,
     mut dir_state: ResMut<DirectionSelectState>,
+    mut picker_state: ResMut<ItemPickerState>,
 ) {
     // Toggle with '#' key (Shift+3 on most keyboards)
     let shift_held = input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight);
@@ -105,7 +107,7 @@ fn handle_extended_commands_input(
             && state.selected_index < state.filtered_commands.len()
         {
             let cmd_name = &state.filtered_commands[state.selected_index].name;
-            dispatch_extended_command(cmd_name, &mut game_commands, &mut dir_state);
+            dispatch_extended_command(cmd_name, &mut game_commands, &mut dir_state, &mut picker_state);
             state.open = false;
         }
     }
@@ -116,6 +118,7 @@ fn dispatch_extended_command(
     name: &str,
     commands: &mut MessageWriter<GameCommand>,
     dir_state: &mut ResMut<DirectionSelectState>,
+    picker_state: &mut ResMut<ItemPickerState>,
 ) {
     let lower = name.to_lowercase();
     // Simple commands (no extra input)
@@ -125,7 +128,7 @@ fn dispatch_extended_command(
         "sit" => Some(Command::Sit),
         "chat" => Some(Command::Chat),
         "pay" => Some(Command::Pay),
-        "dip" => Some(Command::Dip),
+        "dip" => Some(Command::Dip(' ', None)),
         "jump" => Some(Command::Jump),
         "ride" => Some(Command::Ride),
         "wipe" => Some(Command::Wipe),
@@ -173,6 +176,34 @@ fn dispatch_extended_command(
     if let Some(action) = dir_action {
         dir_state.active = true;
         dir_state.action = Some(action);
+        return;
+    }
+
+    // Item commands
+    let item_action = match lower.as_str() {
+        "eat" => Some(PickerAction::Eat),
+        "quaff" => Some(PickerAction::Quaff),
+        "read" => Some(PickerAction::Read),
+        "zap" => Some(PickerAction::Zap),
+        "dip" => Some(PickerAction::Dip),
+        "apply" => Some(PickerAction::Apply),
+        "wield" => Some(PickerAction::Wield),
+        "wear" => Some(PickerAction::Wear),
+        "takeoff" => Some(PickerAction::TakeOff),
+        "puton" => Some(PickerAction::PutOn),
+        "remove" => Some(PickerAction::Remove),
+        "drop" => Some(PickerAction::Drop),
+        "throw" => Some(PickerAction::Throw),
+        _ => None,
+    };
+
+    if let Some(action) = item_action {
+        picker_state.active = true;
+        picker_state.action = Some(action);
+        picker_state.selected_index = 0;
+        // Note: filtered_indices will be populated by the picker system or should be done here if possible
+        // For now, let's assume confirm_selection or render_picker handles it, or better, 
+        // we should really have a shared "open_picker" helper.
     }
 }
 
@@ -475,6 +506,67 @@ fn get_all_commands() -> Vec<CommandInfo> {
         CommandInfo {
             name: "close".to_string(),
             description: "Close a door".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        // Gameplay: item commands (also available via shortcuts)
+        CommandInfo {
+            name: "eat".to_string(),
+            description: "Eat something".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "quaff".to_string(),
+            description: "Quaff (drink) a potion".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "read".to_string(),
+            description: "Read a scroll or spellbook".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "zap".to_string(),
+            description: "Zap a wand".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "apply".to_string(),
+            description: "Apply (use) a tool".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "wield".to_string(),
+            description: "Wield a weapon".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "wear".to_string(),
+            description: "Wear armor".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "takeoff".to_string(),
+            description: "Take off armor".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "puton".to_string(),
+            description: "Put on a ring or amulet".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "remove".to_string(),
+            description: "Remove a ring or amulet".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "drop".to_string(),
+            description: "Drop an item".to_string(),
+            category: CommandCategory::Gameplay,
+        },
+        CommandInfo {
+            name: "throw".to_string(),
+            description: "Throw an item".to_string(),
             category: CommandCategory::Gameplay,
         },
         // Gameplay: meta

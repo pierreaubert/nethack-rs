@@ -167,7 +167,7 @@ const EXTENDED_COMMANDS_LIST: &[ExtendedCommand] = &[
     ExtendedCommand {
         name: "dip",
         description: "dip an object in a pool",
-        command: Command::Dip,
+        command: Command::Dip(' ', None),
         flags: CommandFlags::GENERAL,
     },
     ExtendedCommand {

@@ -95,30 +95,220 @@ pub struct CGameEngineSubprocess {
     reader: RefCell<BufReader<std::process::ChildStdout>>,
 }
 
+impl nh_core::CGameEngineTrait for CGameEngineSubprocess {
+    fn init(&mut self, role: &str, race: &str, gender: i32, align: i32) -> Result<(), String> {
+        match self.send_command(CommandMsg::Init {
+            role: role.to_string(),
+            race: race.to_string(),
+            gender,
+            align,
+        }).map_err(|e| e.to_string())? {
+            ResponseMsg::Ok => Ok(()),
+            ResponseMsg::Error(e) => Err(e),
+            _ => Err("Unexpected response".to_string()),
+        }
+    }
+
+    fn reset(&mut self, seed: u64) -> Result<(), String> {
+        match self.send_command(CommandMsg::Reset { seed }).map_err(|e| e.to_string())? {
+            ResponseMsg::Ok => Ok(()),
+            ResponseMsg::Error(e) => Err(e),
+            _ => Err("Unexpected response".to_string()),
+        }
+    }
+
+    fn generate_and_place(&self) -> Result<(), String> {
+        match self.send_command(CommandMsg::GenerateAndPlace).map_err(|e| e.to_string())? {
+            ResponseMsg::Ok => Ok(()),
+            ResponseMsg::Error(e) => Err(e),
+            _ => Err("Unexpected response".to_string()),
+        }
+    }
+
+    fn export_level(&self) -> String {
+        match self.send_command(CommandMsg::ExportLevel).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn exec_cmd(&self, cmd: char) -> Result<(), String> {
+        match self.send_command(CommandMsg::ExecCmd { cmd }).map_err(|e| e.to_string())? {
+            ResponseMsg::Ok => Ok(()),
+            ResponseMsg::Error(e) => Err(e),
+            _ => Err("Unexpected response".to_string()),
+        }
+    }
+
+    fn exec_cmd_dir(&self, cmd: char, dx: i32, dy: i32) -> Result<(), String> {
+        match self.send_command(CommandMsg::ExecCmdDir { cmd, dx, dy }).map_err(|e| e.to_string())? {
+            ResponseMsg::Ok => Ok(()),
+            ResponseMsg::Error(e) => Err(e),
+            _ => Err("Unexpected response".to_string()),
+        }
+    }
+
+    fn hp(&self) -> i32 {
+        match self.send_command(CommandMsg::GetHp).unwrap() {
+            ResponseMsg::Int(hp) => hp,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn max_hp(&self) -> i32 {
+        match self.send_command(CommandMsg::GetMaxHp).unwrap() {
+            ResponseMsg::Int(hp) => hp,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn energy(&self) -> i32 {
+        match self.send_command(CommandMsg::GetEnergy).unwrap() {
+            ResponseMsg::Int(e) => e,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn max_energy(&self) -> i32 {
+        match self.send_command(CommandMsg::GetMaxEnergy).unwrap() {
+            ResponseMsg::Int(e) => e,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn gold(&self) -> i32 {
+        match self.send_command(CommandMsg::GetGold).unwrap() {
+            ResponseMsg::Int(g) => g,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn position(&self) -> (i32, i32) {
+        match self.send_command(CommandMsg::GetPosition).unwrap() {
+            ResponseMsg::Pos(x, y) => (x, y),
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn set_state(&self, hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64) {
+        let _ = self.send_command(CommandMsg::SetState { hp, hpmax, x, y, ac, moves });
+    }
+
+    fn armor_class(&self) -> i32 {
+        match self.send_command(CommandMsg::GetArmorClass).unwrap() {
+            ResponseMsg::Int(ac) => ac,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn experience_level(&self) -> i32 {
+        match self.send_command(CommandMsg::GetExperienceLevel).unwrap() {
+            ResponseMsg::Int(l) => l,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn current_level(&self) -> i32 {
+        match self.send_command(CommandMsg::GetCurrentLevel).unwrap() {
+            ResponseMsg::Int(l) => l,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn dungeon_depth(&self) -> i32 {
+        match self.send_command(CommandMsg::GetDungeonDepth).unwrap() {
+            ResponseMsg::Int(d) => d,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn turn_count(&self) -> u64 {
+        match self.send_command(CommandMsg::GetTurnCount).unwrap() {
+            ResponseMsg::Long(t) => t,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn is_dead(&self) -> bool {
+        match self.send_command(CommandMsg::IsDead).unwrap() {
+            ResponseMsg::Bool(b) => b,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn is_game_over(&self) -> bool {
+        self.is_dead()
+    }
+
+    fn is_won(&self) -> bool {
+        false
+    }
+
+    fn state_json(&self) -> String {
+        match self.send_command(CommandMsg::GetStateJson).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn last_message(&self) -> String {
+        match self.send_command(CommandMsg::GetLastMessage).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn inventory_json(&self) -> String {
+        match self.send_command(CommandMsg::GetInventoryJson).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn monsters_json(&self) -> String {
+        match self.send_command(CommandMsg::GetMonstersJson).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn role(&self) -> String {
+        match self.send_command(CommandMsg::GetRole).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn race(&self) -> String {
+        match self.send_command(CommandMsg::GetRace).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unknown response"),
+        }
+    }
+
+    fn gender_string(&self) -> String {
+        match self.send_command(CommandMsg::GetGenderString).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    fn alignment_string(&self) -> String {
+        match self.send_command(CommandMsg::GetAlignmentString).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+}
+
 impl CGameEngineSubprocess {
     pub fn new() -> Self {
-        let mut exe_path = std::env::current_exe().expect("Failed to get current exe path");
-        exe_path.pop();
-        if exe_path.ends_with("deps") {
-            exe_path.pop();
-        }
-        
-        let worker_path = exe_path.join("nh-test-worker");
-        
-        let mut child = if worker_path.exists() {
-            Command::new(worker_path)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::inherit())
-                .spawn().expect("Failed to spawn worker")
-        } else {
-            Command::new("cargo")
-                .args(&["run", "--bin", "nh-test-worker", "-q", "-p", "nh-test"])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::inherit())
-                .spawn().expect("Failed to spawn worker via cargo")
-        };
+        let mut child = Command::new("cargo")
+            .args(&["run", "--bin", "nh-test-worker", "-q", "-p", "nh-test"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn().expect("Failed to spawn worker via cargo");
 
         let stdin = child.stdin.take().expect("Failed to open stdin");
         let stdout = child.stdout.take().expect("Failed to open stdout");
@@ -148,497 +338,6 @@ impl CGameEngineSubprocess {
                 let resp: ResponseMsg = serde_json::from_str(json_content).context(format!("Failed to parse worker response: {}", json_content))?;
                 return Ok(resp);
             }
-        }
-    }
-
-    pub fn init(&mut self, role: &str, race: &str, gender: i32, align: i32) -> Result<(), String> {
-        match self.send_command(CommandMsg::Init {
-            role: role.to_string(),
-            race: race.to_string(),
-            gender,
-            align,
-        }).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn reset(&mut self, seed: u64) -> Result<(), String> {
-        match self.send_command(CommandMsg::Reset { seed }).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn reset_rng(&self, seed: u64) -> Result<(), String> {
-        match self.send_command(CommandMsg::ResetRng { seed }).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn generate_level(&self) -> Result<(), String> {
-        match self.send_command(CommandMsg::GenerateLevel).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn generate_and_place(&self) -> Result<(), String> {
-        match self.send_command(CommandMsg::GenerateAndPlace).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn generate_maze(&self) -> Result<(), String> {
-        match self.send_command(CommandMsg::GenerateMaze).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn hp(&self) -> i32 {
-        match self.send_command(CommandMsg::GetHp).unwrap() {
-            ResponseMsg::Int(hp) => hp,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn max_hp(&self) -> i32 {
-        match self.send_command(CommandMsg::GetMaxHp).unwrap() {
-            ResponseMsg::Int(hp) => hp,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn energy(&self) -> i32 {
-        match self.send_command(CommandMsg::GetEnergy).unwrap() {
-            ResponseMsg::Int(e) => e,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn max_energy(&self) -> i32 {
-        match self.send_command(CommandMsg::GetMaxEnergy).unwrap() {
-            ResponseMsg::Int(e) => e,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn position(&self) -> (i32, i32) {
-        match self.send_command(CommandMsg::GetPosition).unwrap() {
-            ResponseMsg::Pos(x, y) => (x, y),
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn turn_count(&self) -> u64 {
-        match self.send_command(CommandMsg::GetTurnCount).unwrap() {
-            ResponseMsg::Long(t) => t,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn state_json(&self) -> String {
-        match self.send_command(CommandMsg::GetStateJson).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn map_json(&self) -> String {
-        match self.send_command(CommandMsg::GetMapJson).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn exec_cmd(&self, cmd: char) -> Result<(), String> {
-        match self.send_command(CommandMsg::ExecCmd { cmd }).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn exec_cmd_dir(&self, cmd: char, dx: i32, dy: i32) -> Result<(), String> {
-        match self.send_command(CommandMsg::ExecCmdDir { cmd, dx, dy }).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn set_dlevel(&self, dnum: i32, dlevel: i32) {
-        let _ = self.send_command(CommandMsg::SetDLevel { dnum, dlevel });
-    }
-
-    pub fn set_state(&self, hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64) {
-        let _ = self.send_command(CommandMsg::SetState { hp, hpmax, x, y, ac, moves });
-    }
-
-    pub fn armor_class(&self) -> i32 {
-        match self.send_command(CommandMsg::GetArmorClass).unwrap() {
-            ResponseMsg::Int(ac) => ac,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn gold(&self) -> i32 {
-        match self.send_command(CommandMsg::GetGold).unwrap() {
-            ResponseMsg::Int(g) => g,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn experience_level(&self) -> i32 {
-        match self.send_command(CommandMsg::GetExperienceLevel).unwrap() {
-            ResponseMsg::Int(l) => l,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn current_level(&self) -> i32 {
-        match self.send_command(CommandMsg::GetCurrentLevel).unwrap() {
-            ResponseMsg::Int(l) => l,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn dungeon_depth(&self) -> i32 {
-        match self.send_command(CommandMsg::GetDungeonDepth).unwrap() {
-            ResponseMsg::Int(d) => d,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn is_dead(&self) -> bool {
-        match self.send_command(CommandMsg::IsDead).unwrap() {
-            ResponseMsg::Bool(b) => b,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn last_message(&self) -> String {
-        match self.send_command(CommandMsg::GetLastMessage).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn inventory_count(&self) -> i32 {
-        match self.send_command(CommandMsg::GetInventoryCount).unwrap() {
-            ResponseMsg::Int(c) => c,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn inventory_json(&self) -> String {
-        match self.send_command(CommandMsg::GetInventoryJson).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn object_table_json(&self) -> String {
-        match self.send_command(CommandMsg::GetObjectTableJson).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn monsters_json(&self) -> String {
-        match self.send_command(CommandMsg::GetMonstersJson).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn set_wizard_mode(&self, enable: bool) {
-        let _ = self.send_command(CommandMsg::SetWizardMode { enable });
-    }
-
-    pub fn add_item_to_inv(&self, item_id: i32, weight: i32) -> Result<(), String> {
-        match self.send_command(CommandMsg::AddItemToInv { item_id, weight }).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn carrying_weight(&self) -> i32 {
-        match self.send_command(CommandMsg::GetCarryingWeight).unwrap() {
-            ResponseMsg::Int(w) => w,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn monster_count(&self) -> i32 {
-        match self.send_command(CommandMsg::GetMonsterCount).unwrap() {
-            ResponseMsg::Int(c) => c,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn role(&self) -> String {
-        match self.send_command(CommandMsg::GetRole).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn race(&self) -> String {
-        match self.send_command(CommandMsg::GetRace).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unknown response"),
-        }
-    }
-
-    pub fn gender_string(&self) -> String {
-        match self.send_command(CommandMsg::GetGenderString).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn alignment_string(&self) -> String {
-        match self.send_command(CommandMsg::GetAlignmentString).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn result_message(&self) -> String {
-        match self.send_command(CommandMsg::GetResultMessage).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn rng_call_count(&self) -> u64 {
-        match self.send_command(CommandMsg::GetRngCallCount).unwrap() {
-            ResponseMsg::Int(i) => i as u64,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn set_skip_movemon(&self, skip: bool) {
-        self.send_command(CommandMsg::SetSkipMovemon { skip }).unwrap();
-    }
-
-    pub fn rng_rn2(&self, limit: i32) -> i32 {
-        match self.send_command(CommandMsg::RngRn2 { limit }).unwrap() {
-            ResponseMsg::Int(i) => i,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn calc_base_damage(&self, weapon_id: i32, small_monster: bool) -> i32 {
-        match self.send_command(CommandMsg::CalcBaseDamage { weapon_id, small_monster }).unwrap() {
-            ResponseMsg::Int(d) => d,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn ac(&self) -> i32 {
-        match self.send_command(CommandMsg::GetAc).unwrap() {
-            ResponseMsg::Int(a) => a,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn test_setup_status(&self, hp: i32, max_hp: i32, level: i32, ac: i32) {
-        let _ = self.send_command(CommandMsg::TestSetupStatus { hp, max_hp, level, ac });
-    }
-
-    pub fn wear_item(&self, item_id: i32) -> Result<(), String> {
-        match self.send_command(CommandMsg::WearItem { item_id }).map_err(|e| e.to_string())? {
-            ResponseMsg::Ok => Ok(()),
-            ResponseMsg::Error(e) => Err(e),
-            _ => Err("Unexpected response".to_string()),
-        }
-    }
-
-    pub fn nutrition(&self) -> i32 {
-        match self.send_command(CommandMsg::GetNutrition).unwrap() {
-            ResponseMsg::Int(n) => n,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn attributes_json(&self) -> String {
-        match self.send_command(CommandMsg::GetAttributesJson).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn export_level(&self) -> String {
-        match self.send_command(CommandMsg::ExportLevel).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn enable_rng_tracing(&self) {
-        let _ = self.send_command(CommandMsg::EnableRngTracing);
-    }
-
-    pub fn disable_rng_tracing(&self) {
-        let _ = self.send_command(CommandMsg::DisableRngTracing);
-    }
-
-    pub fn rng_trace_json(&self) -> String {
-        match self.send_command(CommandMsg::GetRngTrace).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn clear_rng_trace(&self) {
-        let _ = self.send_command(CommandMsg::ClearRngTrace);
-    }
-
-    /// Get C's viz_array as a Rust-ordered [x][y] visibility grid (80×21)
-    /// Debug: get C cell state at (x,y) as string
-    pub fn debug_cell(&self, x: i32, y: i32) -> String {
-        match self.send_command(CommandMsg::DebugCell { x, y }).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => String::new(),
-        }
-    }
-
-    /// Debug: get C mfndpos results for monster at given index as string
-    pub fn debug_mfndpos(&self, mon_index: i32) -> String {
-        match self.send_command(CommandMsg::DebugMfndpos { mon_index }).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => String::new(),
-        }
-    }
-
-    pub fn get_visibility(&self) -> Vec<Vec<bool>> {
-        match self.send_command(CommandMsg::GetVisibility).unwrap() {
-            ResponseMsg::String(s) => {
-                serde_json::from_str(&s).unwrap_or_else(|_| vec![vec![false; 21]; 80])
-            }
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn get_couldsee(&self) -> Vec<Vec<bool>> {
-        match self.send_command(CommandMsg::GetCouldsee).unwrap() {
-            ResponseMsg::String(s) => {
-                serde_json::from_str(&s).unwrap_or_else(|_| vec![vec![false; 21]; 80])
-            }
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    // ========================================================================
-    // Function-level isolation testing (Phase 1)
-    // ========================================================================
-
-    pub fn test_finddpos(&self, xl: i32, yl: i32, xh: i32, yh: i32) -> (i32, i32) {
-        match self.send_command(CommandMsg::TestFinddpos { xl, yl, xh, yh }).unwrap() {
-            ResponseMsg::Pos(x, y) => (x, y),
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn test_dig_corridor(&self, sx: i32, sy: i32, dx: i32, dy: i32, nxcor: bool) -> bool {
-        match self.send_command(CommandMsg::TestDigCorridor { sx, sy, dx, dy, nxcor }).unwrap() {
-            ResponseMsg::Bool(b) => b,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn test_makecorridors(&self) {
-        let _ = self.send_command(CommandMsg::TestMakecorridors);
-    }
-
-    pub fn test_join(&self, a: i32, b: i32, nxcor: bool) {
-        let _ = self.send_command(CommandMsg::TestJoin { a, b, nxcor });
-    }
-
-    pub fn get_smeq(&self) -> String {
-        match self.send_command(CommandMsg::GetSmeq).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn get_doorindex(&self) -> i32 {
-        match self.send_command(CommandMsg::GetDoorindex).unwrap() {
-            ResponseMsg::Int(i) => i,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn get_cell_region(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> String {
-        match self.send_command(CommandMsg::GetCellRegion { x1, y1, x2, y2 }).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn set_cell(&self, x: i32, y: i32, typ: i32) {
-        let _ = self.send_command(CommandMsg::SetCell { x, y, typ });
-    }
-
-    pub fn clear_level(&self) {
-        let _ = self.send_command(CommandMsg::ClearLevel);
-    }
-
-    pub fn add_room(&self, lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32) -> i32 {
-        match self.send_command(CommandMsg::AddRoom { lx, ly, hx, hy, rtype }).unwrap() {
-            ResponseMsg::Int(i) => i,
-            _ => panic!("Unexpected response"),
-        }
-    }
-
-    pub fn carve_room(&self, lx: i32, ly: i32, hx: i32, hy: i32) {
-        let _ = self.send_command(CommandMsg::CarveRoom { lx, ly, hx, hy });
-    }
-
-    pub fn rect_json(&self) -> String {
-        match self.send_command(CommandMsg::GetRectJson).unwrap() {
-            ResponseMsg::String(s) => s,
-            _ => panic!("Unexpected response"),
-        }
-    }
-}
-
-impl Drop for CGameEngineSubprocess {
-    fn drop(&mut self) {
-        let _ = self.send_command(CommandMsg::Exit);
-        let _ = self.child.wait();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_subprocess_init() {
-        let mut engine = CGameEngineSubprocess::new();
-        engine.init("Valkyrie", "Human", 0, 0).unwrap();
-        assert_eq!(engine.hp(), 16);
-    }
-
-    #[test]
-    fn test_subprocess_multi_init() {
-        for _ in 0..2 {
-            let mut engine = CGameEngineSubprocess::new();
-            engine.init("Valkyrie", "Human", 0, 0).unwrap();
-            assert_eq!(engine.hp(), 16);
         }
     }
 }

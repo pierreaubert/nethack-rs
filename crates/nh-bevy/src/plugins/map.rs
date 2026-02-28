@@ -573,6 +573,13 @@ fn spawn_tile(
         }
     };
 
+    // Helper to pick initial visibility
+    let initial_visibility = if explored {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+
     let dungeon_tile = DungeonTile::from(cell.typ);
     let mat_type = TileMaterialType::from(dungeon_tile);
 
@@ -585,6 +592,7 @@ fn spawn_tile(
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(mat(&materials.floor, &materials.floor_unexplored)),
                 Transform::from_translation(world_pos),
+                initial_visibility,
             ));
         }
         DungeonTile::VerticalWall | DungeonTile::HorizontalWall | DungeonTile::Corner => {
@@ -595,6 +603,7 @@ fn spawn_tile(
                 Mesh3d(meshes.wall.clone()),
                 MeshMaterial3d(mat(&materials.wall, &materials.wall_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.5),
+                initial_visibility,
             ));
         }
         DungeonTile::DoorClosed | DungeonTile::DoorOpen => {
@@ -644,6 +653,7 @@ fn spawn_tile(
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(mat(&materials.corridor, &materials.corridor_unexplored)),
                 Transform::from_translation(world_pos),
+                initial_visibility,
             ));
 
             // Door itself - thin slab
@@ -662,6 +672,7 @@ fn spawn_tile(
                 Transform::from_translation(world_pos + Vec3::Y * 0.5)
                     .with_rotation(rotation)
                     .with_scale(Vec3::new(0.2, 1.0, 1.0)),
+                initial_visibility,
             ));
         }
         DungeonTile::StairsUp | DungeonTile::StairsDown => {
@@ -672,6 +683,7 @@ fn spawn_tile(
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(mat(&materials.stairs, &materials.stairs_unexplored)),
                 Transform::from_translation(world_pos),
+                initial_visibility,
             ));
         }
         DungeonTile::Pool => {
@@ -682,6 +694,7 @@ fn spawn_tile(
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(mat(&materials.water, &materials.water_unexplored)),
                 Transform::from_translation(world_pos - Vec3::Y * 0.3),
+                initial_visibility,
             ));
         }
         DungeonTile::Lava => {
@@ -692,6 +705,7 @@ fn spawn_tile(
                 Mesh3d(meshes.floor.clone()),
                 MeshMaterial3d(mat(&materials.lava, &materials.lava_unexplored)),
                 Transform::from_translation(world_pos - Vec3::Y * 0.2),
+                initial_visibility,
             ));
         }
         DungeonTile::Stone => {
@@ -702,6 +716,7 @@ fn spawn_tile(
                 Mesh3d(meshes.wall.clone()),
                 MeshMaterial3d(mat(&materials.stone, &materials.stone_unexplored)),
                 Transform::from_translation(world_pos + Vec3::Y * 0.5),
+                initial_visibility,
             ));
         }
     }

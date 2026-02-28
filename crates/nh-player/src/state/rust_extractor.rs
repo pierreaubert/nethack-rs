@@ -17,6 +17,11 @@ impl<'a> RustGameEngine<'a> {
         Self { game_loop }
     }
 
+    /// Synchronize the map from a fixture
+    pub fn sync_map(&mut self, fixture: &nh_core::dungeon::LevelFixture) {
+        self.game_loop.state_mut().current_level = nh_core::dungeon::Level::from_fixture(fixture);
+    }
+
     /// Extract unified state from Rust implementation
     pub fn extract_state(&self) -> UnifiedGameState {
         let state = self.game_loop.state();

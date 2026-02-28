@@ -40,8 +40,31 @@ pub fn do_quaff(state: &mut GameState, obj_letter: char) -> ActionResult {
     ActionResult::Success
 }
 
-pub fn dodrink(state: &mut GameState, obj_letter: char) -> ActionResult {
-    do_quaff(state, obj_letter)
+pub fn dodrink(state: &mut GameState, obj_letter: Option<char>) -> ActionResult {
+    if let Some(letter) = obj_letter {
+        do_quaff(state, letter)
+    } else {
+        // Drink from floor features (fountain, sink, etc.)
+        use crate::dungeon::CellType;
+        let pos = state.player.pos;
+        let cell_type = state.current_level.cell(pos.x as usize, pos.y as usize).typ;
+
+        match cell_type {
+            CellType::Fountain => {
+                drinkfountain(state);
+                ActionResult::Success
+            }
+            CellType::Sink => {
+                drinksink(state);
+                ActionResult::Success
+            }
+            CellType::Pool | CellType::Moat | CellType::Lava => {
+                state.message("That would be very foolish.");
+                ActionResult::NoTime
+            }
+            _ => ActionResult::Failed("There is nothing here to drink.".to_string()),
+        }
+    }
 }
 
 pub fn dopotion(state: &mut GameState, obj: &Object) {
@@ -100,10 +123,33 @@ pub fn h2_opotion_dip(state: &mut GameState, obj: &mut Object, potion: &Object) 
     }
 }
 
-/// Dip an object into a potion
-pub fn dodip(state: &mut GameState, obj_letter: char, potion_letter: char) -> ActionResult {
+/// Dip an object into a potion or fountain
+pub fn dodip(state: &mut GameState, obj_letter: char, potion_letter: Option<char>) -> ActionResult {
     use crate::object::BucStatus;
 
+    if potion_letter.is_none() {
+        // Dip into fountain
+        use crate::dungeon::CellType;
+        let pos = state.player.pos;
+        let cell_type = state.current_level.cell(pos.x as usize, pos.y as usize).typ;
+        if cell_type == CellType::Fountain {
+            // Get the object to dip
+            let mut obj = match state.get_inventory_item(obj_letter) {
+                Some(o) => o.clone(),
+                None => return ActionResult::Failed("You don't have that item.".to_string()),
+            };
+            dipfountain(state, &mut obj);
+            // Need to update the object back in inventory if it changed
+            if let Some(inv_obj) = state.get_inventory_item_mut(obj_letter) {
+                *inv_obj = obj;
+            }
+            return ActionResult::Success;
+        } else {
+            return ActionResult::Failed("There is nothing here to dip into.".to_string());
+        }
+    }
+
+    let potion_letter = potion_letter.unwrap();
     // Get both objects
     let obj = match state.get_inventory_item(obj_letter) {
         Some(o) => o.clone(),

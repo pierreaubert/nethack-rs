@@ -3,6 +3,7 @@
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::prelude::Stylize;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
@@ -25,6 +26,8 @@ pub enum UiMode {
     Normal,
     /// Character creation wizard
     CharacterCreation(CharacterCreationState),
+    /// Startup menu
+    StartMenu { cursor: usize },
     /// Showing inventory (read-only)
     Inventory,
     /// Selecting an item for an action
@@ -42,6 +45,8 @@ pub enum UiMode {
     ExtendedCommandInput { input: String },
     /// Showing help
     Help,
+    /// Main menu with options
+    Menu { cursor: usize },
     /// Death screen showing final statistics
     DeathScreen { cause: String },
 }
@@ -86,6 +91,14 @@ pub enum CharacterCreationState {
     },
 }
 
+/// Choices from startup menu
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StartMenuAction {
+    NewGame,
+    LoadGame,
+    Quit,
+}
+
 /// Character creation result
 #[derive(Debug, Clone)]
 pub struct CharacterChoices {
@@ -94,6 +107,23 @@ pub struct CharacterChoices {
     pub race: Race,
     pub gender: Gender,
     pub alignment: AlignmentType,
+}
+
+/// Partial character choices from CLI
+#[derive(Default, Clone)]
+pub struct PartialCharacterChoices {
+    pub name: Option<String>,
+    pub role: Option<Role>,
+    pub race: Option<Race>,
+    pub gender: Option<Gender>,
+    pub alignment: Option<AlignmentType>,
+}
+
+/// App events that can be handled by the main loop
+#[derive(Debug, Clone)]
+pub enum AppEvent {
+    Command(Command),
+    StartMenu(StartMenuAction),
 }
 
 /// Action waiting for additional input
@@ -120,6 +150,9 @@ pub enum PendingAction {
     ThrowDir(char),
     Untrap,
     Force,
+    Dip,
+    /// Dip: item to dip already selected, waiting for potion (or fountain)
+    DipItem(char),
 }
 
 /// Application state
@@ -144,6 +177,9 @@ pub struct App {
 
     /// Glyph set for rendering map features
     glyph_set: Box<dyn GlyphSet>,
+
+    /// Initial choices from CLI to skip steps
+    cli_choices: PartialCharacterChoices,
 }
 
 impl App {
@@ -157,6 +193,7 @@ impl App {
             selection_cursor: 0,
             theme,
             glyph_set: display::detect_glyph_set(graphics_mode),
+            cli_choices: PartialCharacterChoices::default(),
         }
     }
 
@@ -181,20 +218,18 @@ impl App {
     }
 
     /// Handle input event - returns a command if one should be executed
-    pub fn handle_event(&mut self, event: Event) -> Option<Command> {
+    pub fn handle_event(&mut self, event: Event) -> Option<AppEvent> {
         if let Event::Key(key) = event {
-            // Check for quit (always available)
-            if key.code == KeyCode::Char('Q') && key.modifiers.contains(KeyModifiers::SHIFT) {
-                self.should_quit = true;
-                return None;
-            }
-
             // Handle based on current UI mode
             match &self.mode {
-                UiMode::Normal => self.handle_normal_input(key),
+                UiMode::Normal => self.handle_normal_input(key).map(AppEvent::Command),
                 UiMode::CharacterCreation(_) => {
                     self.handle_character_creation_input(key);
                     None
+                }
+                UiMode::StartMenu { cursor } => {
+                    let cursor = *cursor;
+                    self.handle_start_menu_input(key, cursor).map(AppEvent::StartMenu)
                 }
                 UiMode::Inventory => {
                     self.handle_inventory_input(key);
@@ -202,16 +237,22 @@ impl App {
                 }
                 UiMode::ItemSelect { action, .. } => {
                     let action = *action;
-                    self.handle_item_select_input(key, action)
+                    self.handle_item_select_input(key, action).map(AppEvent::Command)
                 }
                 UiMode::DirectionSelect { action, .. } => {
                     let action = *action;
-                    self.handle_direction_select_input(key, action)
+                    self.handle_direction_select_input(key, action).map(AppEvent::Command)
                 }
-                UiMode::ExtendedCommandInput { .. } => self.handle_extended_command_input(key),
+                UiMode::ExtendedCommandInput { .. } => {
+                    self.handle_extended_command_input(key).map(AppEvent::Command)
+                }
                 UiMode::Help => {
                     self.handle_help_input(key);
                     None
+                }
+                UiMode::Menu { cursor } => {
+                    let cursor = *cursor;
+                    self.handle_menu_input(key, cursor).map(AppEvent::Command)
                 }
                 UiMode::DeathScreen { .. } => {
                     self.handle_death_screen_input(key);
@@ -223,9 +264,6 @@ impl App {
         }
     }
 
-    /// Handle input in normal gameplay mode
-    ///
-    /// Key bindings follow the original NetHack cmd.c conventions.
     fn handle_normal_input(&mut self, key: crossterm::event::KeyEvent) -> Option<Command> {
         // Handle Ctrl key combos first
         if key.modifiers.contains(KeyModifiers::CONTROL) {
@@ -239,7 +277,31 @@ impl App {
             };
         }
 
+        // Handle Alt key combos (meta keys in original NetHack)
+        if key.modifiers.contains(KeyModifiers::ALT) {
+            return match key.code {
+                KeyCode::Char('p') => Some(Command::Pray),
+                KeyCode::Char('o') => Some(Command::Offer),
+                KeyCode::Char('c') => Some(Command::Chat),
+                KeyCode::Char('s') => Some(Command::Sit),
+                KeyCode::Char('j') => Some(Command::Jump),
+                KeyCode::Char('i') => Some(Command::Invoke),
+                KeyCode::Char('l') => Some(Command::Loot),
+                KeyCode::Char('t') => Some(Command::TurnUndead),
+                KeyCode::Char('r') => Some(Command::Ride),
+                _ => None,
+            };
+        }
+
         match key.code {
+            // ================================================================
+            // Menu (uppercase Q)
+            // ================================================================
+            KeyCode::Char('Q') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.mode = UiMode::Menu { cursor: 0 };
+                None
+            }
+
             // ================================================================
             // Commands that need item selection
             // ================================================================
@@ -248,6 +310,15 @@ impl App {
                 None
             }
             KeyCode::Char('e') => {                                          // e: eat
+                // Check if any food on floor
+                use nh_core::object::ObjectClass;
+                let pos = self.game_loop.state().player.pos;
+                let has_food_on_floor = self.game_loop.state().current_level.objects_at(pos.x, pos.y).iter().any(|o| o.class == ObjectClass::Food);
+                
+                if has_food_on_floor {
+                    return Some(Command::Eat(None));
+                }
+
                 self.enter_item_select("Eat what?", PendingAction::Eat, Some(ObjectClass::Food));
                 None
             }
@@ -259,6 +330,7 @@ impl App {
                 );
                 None
             }
+            KeyCode::Char('A') => Some(Command::MonsterAbility),             // A: monster ability
             KeyCode::Char('W') => {                                          // W: wear armor
                 self.enter_item_select("Wear what?", PendingAction::Wear, Some(ObjectClass::Armor));
                 None
@@ -288,6 +360,14 @@ impl App {
                 None
             }
             KeyCode::Char('q') => {                                          // q: quaff potion
+                // Check if standing on fountain/sink
+                use nh_core::dungeon::CellType;
+                let pos = self.game_loop.state().player.pos;
+                let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                if matches!(cell_type, CellType::Fountain | CellType::Sink) {
+                    return Some(Command::Quaff(None));
+                }
+
                 self.enter_item_select(
                     "Quaff what?",
                     PendingAction::Quaff,
@@ -296,6 +376,14 @@ impl App {
                 None
             }
             KeyCode::Char('r') => {                                          // r: read scroll/book
+                // Check if standing on throne/statue
+                use nh_core::dungeon::CellType;
+                let pos = self.game_loop.state().player.pos;
+                let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                if matches!(cell_type, CellType::Throne) {
+                    return Some(Command::Read(None));
+                }
+
                 self.enter_item_select(
                     "Read what?",
                     PendingAction::Read,
@@ -378,7 +466,17 @@ impl App {
         action: PendingAction,
     ) -> Option<Command> {
         match key.code {
-            KeyCode::Esc => {
+            KeyCode::Esc | KeyCode::Char(' ') => {
+                if let PendingAction::DipItem(item) = action {
+                    // Check if standing on fountain
+                    use nh_core::dungeon::CellType;
+                    let pos = self.game_loop.state().player.pos;
+                    let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                    if cell_type == CellType::Fountain {
+                        self.mode = UiMode::Normal;
+                        return Some(Command::Dip(item, None));
+                    }
+                }
                 self.mode = UiMode::Normal;
                 None
             }
@@ -486,7 +584,7 @@ impl App {
             "sit" => Some(Command::Sit),
             "chat" => Some(Command::Chat),
             "pay" => Some(Command::Pay),
-            "dip" => Some(Command::Dip),
+            "dip" => Some(Command::Dip(' ', None)),
             "jump" => Some(Command::Jump),
             "ride" => Some(Command::Ride),
             "wipe" => Some(Command::Wipe),
@@ -556,6 +654,68 @@ impl App {
         }
     }
 
+    /// Handle input when in the startup menu
+    fn handle_start_menu_input(&mut self, key: crossterm::event::KeyEvent, cursor: usize) -> Option<StartMenuAction> {
+        match key.code {
+            KeyCode::Up | KeyCode::Char('k') => {
+                let new_cursor = if cursor == 0 { 2 } else { cursor - 1 };
+                self.mode = UiMode::StartMenu { cursor: new_cursor };
+                None
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                let new_cursor = (cursor + 1) % 3;
+                self.mode = UiMode::StartMenu { cursor: new_cursor };
+                None
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                match cursor {
+                    0 => Some(StartMenuAction::NewGame),
+                    1 => Some(StartMenuAction::LoadGame),
+                    2 => Some(StartMenuAction::Quit),
+                    _ => None,
+                }
+            }
+            KeyCode::Char('q') | KeyCode::Char('Q') => {
+                Some(StartMenuAction::Quit)
+            }
+            _ => None,
+        }
+    }
+
+    /// Handle input when in the main menu
+    fn handle_menu_input(&mut self, key: crossterm::event::KeyEvent, cursor: usize) -> Option<Command> {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char(' ') | KeyCode::Char('Q') => {
+                self.mode = UiMode::Normal;
+                None
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                let new_cursor = if cursor == 0 { 3 } else { cursor - 1 };
+                self.mode = UiMode::Menu { cursor: new_cursor };
+                None
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                let new_cursor = (cursor + 1) % 4;
+                self.mode = UiMode::Menu { cursor: new_cursor };
+                None
+            }
+            KeyCode::Enter => {
+                self.mode = UiMode::Normal;
+                match cursor {
+                    0 => None,                  // Continue
+                    1 => Some(Command::Save),    // Save and Quit
+                    2 => Some(Command::Quit),    // Quit without saving
+                    3 => {                       // Help
+                        self.mode = UiMode::Help;
+                        None
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// Enter item selection mode
     fn enter_item_select(
         &mut self,
@@ -584,16 +744,16 @@ impl App {
     fn action_with_item(&mut self, action: PendingAction, letter: char) -> Option<Command> {
         match action {
             PendingAction::Drop => Some(Command::ExtendedCommand(format!("drop {}", letter))),
-            PendingAction::Eat => Some(Command::ExtendedCommand(format!("eat {}", letter))),
+            PendingAction::Eat => Some(Command::Eat(Some(letter))),
             PendingAction::Apply => Some(Command::ExtendedCommand(format!("apply {}", letter))),
             PendingAction::Wear => Some(Command::ExtendedCommand(format!("wear {}", letter))),
             PendingAction::TakeOff => Some(Command::ExtendedCommand(format!("takeoff {}", letter))),
             PendingAction::Wield => Some(Command::ExtendedCommand(format!("wield {}", letter))),
             PendingAction::PutOn => Some(Command::ExtendedCommand(format!("puton {}", letter))),
             PendingAction::Remove => Some(Command::ExtendedCommand(format!("remove {}", letter))),
-            PendingAction::Quaff => Some(Command::ExtendedCommand(format!("quaff {}", letter))),
-            PendingAction::Read => Some(Command::ExtendedCommand(format!("read {}", letter))),
-            PendingAction::Zap => Some(Command::ExtendedCommand(format!("zap {}", letter))),
+            PendingAction::Quaff => Some(Command::Quaff(Some(letter))),
+            PendingAction::Read => Some(Command::Read(Some(letter))),
+            PendingAction::Zap => Some(Command::Zap(letter, None)),
             PendingAction::Throw => {
                 // Throw needs a direction after item selection
                 self.enter_direction_select(
@@ -602,6 +762,25 @@ impl App {
                 );
                 None
             }
+            PendingAction::Dip => {
+                // Check if standing on fountain
+                use nh_core::dungeon::CellType;
+                let pos = self.game_loop.state().player.pos;
+                let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                
+                if cell_type == CellType::Fountain {
+                    // Ask if they want to dip into fountain or select potion
+                    // NetHack logic: "Dip it into the fountain?" [yn]
+                    // For now, let's just allow selecting a potion or defaulting to fountain if they press Enter?
+                    // Simpler: just ask for potion, and provide fountain as an "option" (None)
+                    self.enter_item_select("What do you want to dip it into? (Esc for fountain)", PendingAction::DipItem(letter), Some(ObjectClass::Potion));
+                    None
+                } else {
+                    self.enter_item_select("What do you want to dip it into?", PendingAction::DipItem(letter), Some(ObjectClass::Potion));
+                    None
+                }
+            }
+            PendingAction::DipItem(item) => Some(Command::Dip(item, Some(letter))),
             _ => None,
         }
     }
@@ -630,7 +809,19 @@ impl App {
             return self.execute_extended_command(cmd);
         }
 
-        let result = self.game_loop.tick(command);
+        // Handle commands that need manual dispatch because of new signatures
+        let result = match &command {
+            Command::Dip(item, potion) => {
+                let action_result = nh_core::action::quaff::dodip(self.game_loop.state_mut(), *item, *potion);
+                match action_result {
+                    nh_core::action::ActionResult::Died(msg) => GameLoopResult::PlayerDied(msg),
+                    nh_core::action::ActionResult::Quit => GameLoopResult::PlayerQuit,
+                    nh_core::action::ActionResult::Save => GameLoopResult::SaveAndQuit,
+                    _ => GameLoopResult::Continue,
+                }
+            }
+            _ => self.game_loop.tick(command),
+        };
 
         match &result {
             GameLoopResult::PlayerDied(cause) => {
@@ -658,72 +849,198 @@ impl App {
         }
 
         let result = match parts[0] {
-            "drop" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::pickup::do_drop(self.game_loop.state_mut(), letter)
-            }
-            "eat" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::eat::do_eat(self.game_loop.state_mut(), letter)
-            }
-            "apply" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::apply::do_apply(self.game_loop.state_mut(), letter)
-            }
-            "wear" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::wear::do_wear(self.game_loop.state_mut(), letter)
-            }
-            "takeoff" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::wear::do_takeoff(self.game_loop.state_mut(), letter)
-            }
-            "wield" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::wear::do_wield(self.game_loop.state_mut(), letter)
-            }
-            "puton" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::wear::do_puton(self.game_loop.state_mut(), letter)
-            }
-            "remove" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::wear::do_remove(self.game_loop.state_mut(), letter)
-            }
-            "open" if parts.len() > 1 => {
-                if let Some(dir) = self.parse_direction(parts[1]) {
-                    nh_core::action::open_close::do_open(self.game_loop.state_mut(), dir)
+            "drop" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::pickup::do_drop(self.game_loop.state_mut(), letter)
                 } else {
-                    nh_core::action::ActionResult::NoTime
+                    self.enter_item_select("Drop what?", PendingAction::Drop, None);
+                    return GameLoopResult::Continue;
                 }
             }
-            "close" if parts.len() > 1 => {
-                if let Some(dir) = self.parse_direction(parts[1]) {
-                    nh_core::action::open_close::do_close(self.game_loop.state_mut(), dir)
+            "eat" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::eat::do_eat(self.game_loop.state_mut(), Some(letter))
                 } else {
-                    nh_core::action::ActionResult::NoTime
+                    // For now, floor eating not fully implemented but we call with None
+                    nh_core::action::eat::do_eat(self.game_loop.state_mut(), None)
                 }
             }
-            "kick" if parts.len() > 1 => {
-                if let Some(dir) = self.parse_direction(parts[1]) {
-                    nh_core::action::kick::do_kick(self.game_loop.state_mut(), dir)
+            "apply" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::apply::do_apply(self.game_loop.state_mut(), letter)
                 } else {
-                    nh_core::action::ActionResult::NoTime
+                    self.enter_item_select("Apply what?", PendingAction::Apply, Some(ObjectClass::Tool));
+                    return GameLoopResult::Continue;
                 }
             }
-            "quaff" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::quaff::do_quaff(self.game_loop.state_mut(), letter)
+            "wear" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::wear::do_wear(self.game_loop.state_mut(), letter)
+                } else {
+                    self.enter_item_select("Wear what?", PendingAction::Wear, Some(ObjectClass::Armor));
+                    return GameLoopResult::Continue;
+                }
             }
-            "read" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                nh_core::action::read::do_read(self.game_loop.state_mut(), letter)
+            "takeoff" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::wear::do_takeoff(self.game_loop.state_mut(), letter)
+                } else {
+                    self.enter_item_select("Take off what?", PendingAction::TakeOff, Some(ObjectClass::Armor));
+                    return GameLoopResult::Continue;
+                }
             }
-            "zap" if parts.len() > 1 => {
-                let letter = parts[1].chars().next().unwrap_or(' ');
-                // Zap needs a direction - for now, zap forward
-                nh_core::action::zap::do_zap(self.game_loop.state_mut(), letter, None)
+            "wield" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::wear::do_wield(self.game_loop.state_mut(), letter)
+                } else {
+                    self.enter_item_select("Wield what?", PendingAction::Wield, Some(ObjectClass::Weapon));
+                    return GameLoopResult::Continue;
+                }
             }
+            "puton" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::wear::do_puton(self.game_loop.state_mut(), letter)
+                } else {
+                    self.enter_item_select("Put on what?", PendingAction::PutOn, None);
+                    return GameLoopResult::Continue;
+                }
+            }
+            "remove" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::wear::do_remove(self.game_loop.state_mut(), letter)
+                } else {
+                    self.enter_item_select("Remove what?", PendingAction::Remove, None);
+                    return GameLoopResult::Continue;
+                }
+            }
+            "quaff" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::quaff::dodrink(self.game_loop.state_mut(), Some(letter))
+                } else {
+                    // Check if standing on fountain/sink
+                    use nh_core::dungeon::CellType;
+                    let pos = self.game_loop.state().player.pos;
+                    let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                    if matches!(cell_type, CellType::Fountain | CellType::Sink) {
+                        nh_core::action::quaff::dodrink(self.game_loop.state_mut(), None)
+                    } else {
+                        self.enter_item_select("Quaff what?", PendingAction::Quaff, Some(ObjectClass::Potion));
+                        return GameLoopResult::Continue;
+                    }
+                }
+            }
+            "read" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::read::do_read(self.game_loop.state_mut(), Some(letter))
+                } else {
+                    // Check contextual
+                    use nh_core::dungeon::CellType;
+                    let pos = self.game_loop.state().player.pos;
+                    let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                    if matches!(cell_type, CellType::Throne) {
+                        nh_core::action::read::do_read(self.game_loop.state_mut(), None)
+                    } else {
+                        self.enter_item_select("Read what?", PendingAction::Read, Some(ObjectClass::Scroll));
+                        return GameLoopResult::Continue;
+                    }
+                }
+            }
+            "zap" => {
+                if parts.len() > 1 {
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    nh_core::action::zap::do_zap(self.game_loop.state_mut(), letter, None)
+                } else {
+                    self.enter_item_select("Zap what?", PendingAction::Zap, Some(ObjectClass::Wand));
+                    return GameLoopResult::Continue;
+                }
+            }
+            "throw" => {
+                if parts.len() > 1 {
+                    // Logic for throw with letter param
+                    let letter = parts[1].chars().next().unwrap_or(' ');
+                    self.enter_direction_select("Throw in which direction?", PendingAction::ThrowDir(letter));
+                    return GameLoopResult::Continue;
+                } else {
+                    self.enter_item_select("Throw what?", PendingAction::Throw, None);
+                    return GameLoopResult::Continue;
+                }
+            }
+            "open" => {
+                if parts.len() > 1 {
+                    if let Some(dir) = self.parse_direction(parts[1]) {
+                        nh_core::action::open_close::do_open(self.game_loop.state_mut(), dir)
+                    } else {
+                        nh_core::action::ActionResult::NoTime
+                    }
+                } else {
+                    self.enter_direction_select("Open in which direction?", PendingAction::Open);
+                    return GameLoopResult::Continue;
+                }
+            }
+            "close" => {
+                if parts.len() > 1 {
+                    if let Some(dir) = self.parse_direction(parts[1]) {
+                        nh_core::action::open_close::do_close(self.game_loop.state_mut(), dir)
+                    } else {
+                        nh_core::action::ActionResult::NoTime
+                    }
+                } else {
+                    self.enter_direction_select("Close in which direction?", PendingAction::Close);
+                    return GameLoopResult::Continue;
+                }
+            }
+            "kick" => {
+                if parts.len() > 1 {
+                    if let Some(dir) = self.parse_direction(parts[1]) {
+                        nh_core::action::kick::do_kick(self.game_loop.state_mut(), dir)
+                    } else {
+                        nh_core::action::ActionResult::NoTime
+                    }
+                } else {
+                    self.enter_direction_select("Kick in which direction?", PendingAction::Kick);
+                    return GameLoopResult::Continue;
+                }
+            }
+            "pray" => return self.execute(Command::Pray),
+            "offer" => return self.execute(Command::Offer),
+            "sit" => return self.execute(Command::Sit),
+            "chat" => return self.execute(Command::Chat),
+            "jump" => return self.execute(Command::Jump),
+            "ride" => return self.execute(Command::Ride),
+            "invoke" => return self.execute(Command::Invoke),
+            "loot" => return self.execute(Command::Loot),
+            "monster" => return self.execute(Command::MonsterAbility),
+            "enhance" => return self.execute(Command::EnhanceSkill),
+            "travel" => return self.execute(Command::Travel),
+            "twoweapon" => return self.execute(Command::TwoWeapon),
+            "swap" => return self.execute(Command::SwapWeapon),
+            "search" => return self.execute(Command::Search),
+            "dip" => {
+                self.enter_item_select("What do you want to dip?", PendingAction::Dip, None);
+                return GameLoopResult::Continue;
+            }
+            "save" => return self.execute(Command::Save),
+            "quit" => return self.execute(Command::Quit),
+            "discoveries" => return self.execute(Command::Discoveries),
+            "history" => return self.execute(Command::History),
+            "attributes" => return self.execute(Command::ShowAttributes),
+            "conduct" => return self.execute(Command::ShowConduct),
+            "overview" => return self.execute(Command::DungeonOverview),
+            "spells" => return self.execute(Command::ShowSpells),
+            "equipment" => return self.execute(Command::ShowEquipment),
+            "vanquished" => return self.execute(Command::Vanquished),
+            "redraw" => return self.execute(Command::Redraw),
+            "gold" => return self.execute(Command::CountGold),
             _ => {
                 self.game_loop.state_mut().message("Unknown command.");
                 nh_core::action::ActionResult::NoTime
@@ -789,6 +1106,7 @@ impl App {
             UiMode::CharacterCreation(cc_state) => {
                 self.render_character_creation(frame, cc_state);
             }
+            UiMode::StartMenu { cursor } => self.render_start_menu(frame, cursor),
             UiMode::Inventory => self.render_inventory(frame),
             UiMode::ItemSelect { prompt, filter, .. } => {
                 self.render_item_select(frame, &prompt, filter);
@@ -800,6 +1118,7 @@ impl App {
                 self.render_extended_command_input(frame, &input);
             }
             UiMode::Help => self.render_help(frame),
+            UiMode::Menu { cursor } => self.render_menu(frame, cursor),
             UiMode::DeathScreen { cause } => {
                 self.render_death_screen(frame, &cause);
             }
@@ -907,6 +1226,8 @@ impl App {
                 "untrap", "force", "kick", "open", "close", "fight", "discoveries",
                 "history", "attributes", "conduct", "overview", "spells", "equipment",
                 "vanquished", "redraw", "gold", "save", "quit", "search", "swap",
+                "quaff", "eat", "read", "zap", "apply", "wield", "wear", "takeoff",
+                "puton", "remove", "drop", "throw",
             ]
             .iter()
             .filter(|cmd| cmd.starts_with(&lower))
@@ -961,7 +1282,7 @@ Information:
 
 Meta:
   #    Extended command (pray, offer, sit, chat, ...)
-  S    Save game      Q  Quit
+  S    Save game      Q  Quit (Menu)
 
 Press ESC or SPACE to close"#;
 
@@ -977,6 +1298,95 @@ Press ESC or SPACE to close"#;
         frame.render_widget(paragraph, area);
     }
 
+    /// Render startup menu overlay
+    fn render_start_menu(&self, frame: &mut Frame, cursor: usize) {
+        let area = centered_rect(40, 30, frame.area());
+        frame.render_widget(Clear, area);
+
+        let block = Block::default()
+            .title(" NetHack-RS ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(self.theme.header));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let options = vec![
+            "New Game",
+            "Load Game",
+            "Quit",
+        ];
+
+        let list_items: Vec<ListItem> = options
+            .iter()
+            .enumerate()
+            .map(|(i, &opt)| {
+                let style = if i == cursor {
+                    Style::default()
+                        .fg(self.theme.cursor_fg)
+                        .bg(self.theme.cursor_bg)
+                        .bold()
+                } else {
+                    Style::default().fg(self.theme.text)
+                };
+                let text = if i == cursor {
+                    format!("> {}", opt)
+                } else {
+                    format!("  {}", opt)
+                };
+                ListItem::new(Line::from(Span::styled(text, style)))
+            })
+            .collect();
+
+        let list = List::new(list_items);
+        frame.render_widget(list, inner);
+    }
+
+    /// Render main menu overlay
+    fn render_menu(&self, frame: &mut Frame, cursor: usize) {
+        let area = centered_rect(40, 30, frame.area());
+        frame.render_widget(Clear, area);
+
+        let block = Block::default()
+            .title("NetHack - Menu")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(self.theme.header));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let options = vec![
+            "Continue",
+            "Save and Quit",
+            "Quit without saving",
+            "Help",
+        ];
+
+        let list_items: Vec<ListItem> = options
+            .iter()
+            .enumerate()
+            .map(|(i, &opt)| {
+                let style = if i == cursor {
+                    Style::default()
+                        .fg(self.theme.cursor_fg)
+                        .bg(self.theme.cursor_bg)
+                        .bold()
+                } else {
+                    Style::default().fg(self.theme.text)
+                };
+                let text = if i == cursor {
+                    format!("> {}", opt)
+                } else {
+                    format!("  {}", opt)
+                };
+                ListItem::new(Line::from(Span::styled(text, style)))
+            })
+            .collect();
+
+        let list = List::new(list_items);
+        frame.render_widget(list, inner);
+    }
+
     /// Handle character creation input
     fn handle_character_creation_input(&mut self, key: crossterm::event::KeyEvent) {
         let current_state = match &self.mode {
@@ -984,94 +1394,114 @@ Press ESC or SPACE to close"#;
             _ => return,
         };
 
-        let new_state = match current_state {
+        match current_state {
             CharacterCreationState::EnterName { mut name } => match key.code {
                 KeyCode::Enter => {
                     if name.is_empty() {
                         name = "Player".to_string();
                     }
-                    CharacterCreationState::AskRandom { name, cursor: 0 }
+                    self.start_character_creation_with_choices(Some(name), None, None, None, None);
                 }
                 KeyCode::Backspace => {
                     name.pop();
-                    CharacterCreationState::EnterName { name }
+                    self.mode =
+                        UiMode::CharacterCreation(CharacterCreationState::EnterName { name });
                 }
                 KeyCode::Char(c) if name.len() < 32 => {
                     name.push(c);
-                    CharacterCreationState::EnterName { name }
+                    self.mode =
+                        UiMode::CharacterCreation(CharacterCreationState::EnterName { name });
                 }
                 KeyCode::Esc => {
                     self.should_quit = true;
-                    return;
                 }
-                _ => CharacterCreationState::EnterName { name },
+                _ => {}
             },
             CharacterCreationState::AskRandom { name, cursor } => {
                 match key.code {
                     KeyCode::Char('y') | KeyCode::Char('Y') => {
                         // Random selection
-                        let roles: Vec<Role> = Role::iter().collect();
-                        let races: Vec<Race> = Race::iter().collect();
-                        let genders: Vec<Gender> =
-                            Gender::iter().filter(|g| *g != Gender::Neuter).collect();
-                        let aligns: Vec<AlignmentType> = AlignmentType::iter().collect();
+                        let role = nh_core::player::pick_role(
+                            None,
+                            None,
+                            None,
+                            &nh_core::player::RoleFilter::new(),
+                        )
+                        .unwrap();
+                        let race = nh_core::player::pick_race(
+                            Some(role),
+                            None,
+                            None,
+                            &nh_core::player::RoleFilter::new(),
+                        )
+                        .unwrap();
+                        let gender = nh_core::player::pick_gend(
+                            Some(role),
+                            race,
+                            None,
+                            &nh_core::player::RoleFilter::new(),
+                        )
+                        .unwrap();
+                        let alignment = nh_core::player::pick_align(role).unwrap();
 
-                        let role = roles[self.selection_cursor % roles.len()];
-                        let race = races[(self.selection_cursor / 2) % races.len()];
-                        let gender = genders[(self.selection_cursor / 3) % genders.len()];
-                        let alignment = aligns[(self.selection_cursor / 5) % aligns.len()];
-
-                        CharacterCreationState::Done {
+                        self.mode = UiMode::CharacterCreation(CharacterCreationState::Done {
                             name,
                             role,
                             race,
                             gender,
                             alignment,
-                        }
+                        });
                     }
                     KeyCode::Char('n') | KeyCode::Char('N') => {
-                        CharacterCreationState::SelectRole { name, cursor: 0 }
+                        self.advance_character_creation(name, None, None, None, None);
                     }
                     KeyCode::Enter => {
                         if cursor == 0 {
-                            // "Yes, pick for me" is selected
-                            let roles: Vec<Role> = Role::iter().collect();
-                            let races: Vec<Race> = Race::iter().collect();
-                            let genders: Vec<Gender> =
-                                Gender::iter().filter(|g| *g != Gender::Neuter).collect();
-                            let aligns: Vec<AlignmentType> = AlignmentType::iter().collect();
+                            // "Yes"
+                            let role = nh_core::player::pick_role(
+                                None,
+                                None,
+                                None,
+                                &nh_core::player::RoleFilter::new(),
+                            )
+                            .unwrap();
+                            let race = nh_core::player::pick_race(
+                                Some(role),
+                                None,
+                                None,
+                                &nh_core::player::RoleFilter::new(),
+                            )
+                            .unwrap();
+                            let gender = nh_core::player::pick_gend(
+                                Some(role),
+                                race,
+                                None,
+                                &nh_core::player::RoleFilter::new(),
+                            )
+                            .unwrap();
+                            let alignment = nh_core::player::pick_align(role).unwrap();
 
-                            let role = roles[self.selection_cursor % roles.len()];
-                            let race = races[(self.selection_cursor / 2) % races.len()];
-                            let gender =
-                                genders[(self.selection_cursor / 3) % genders.len()];
-                            let alignment =
-                                aligns[(self.selection_cursor / 5) % aligns.len()];
-
-                            CharacterCreationState::Done {
+                            self.mode = UiMode::CharacterCreation(CharacterCreationState::Done {
                                 name,
                                 role,
                                 race,
                                 gender,
                                 alignment,
-                            }
+                            });
                         } else {
-                            CharacterCreationState::SelectRole { name, cursor: 0 }
+                            self.advance_character_creation(name, None, None, None, None);
                         }
                     }
-                    KeyCode::Char('q') | KeyCode::Esc => {
-                        self.should_quit = true;
-                        return;
+                    KeyCode::Up | KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('k') => {
+                        self.mode = UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                            name,
+                            cursor: 1 - cursor,
+                        });
                     }
-                    KeyCode::Up | KeyCode::Char('k') => CharacterCreationState::AskRandom {
-                        name,
-                        cursor: if cursor == 0 { 1 } else { 0 },
-                    },
-                    KeyCode::Down | KeyCode::Char('j') => CharacterCreationState::AskRandom {
-                        name,
-                        cursor: if cursor == 0 { 1 } else { 0 },
-                    },
-                    _ => CharacterCreationState::AskRandom { name, cursor },
+                    KeyCode::Esc => {
+                        self.should_quit = true;
+                    }
+                    _ => {}
                 }
             }
             CharacterCreationState::SelectRole { name, cursor } => {
@@ -1083,54 +1513,55 @@ Press ESC or SPACE to close"#;
                         } else {
                             cursor - 1
                         };
-                        CharacterCreationState::SelectRole {
+                        self.mode = UiMode::CharacterCreation(CharacterCreationState::SelectRole {
                             name,
                             cursor: new_cursor,
-                        }
+                        });
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
                         let new_cursor = (cursor + 1) % roles.len();
-                        CharacterCreationState::SelectRole {
+                        self.mode = UiMode::CharacterCreation(CharacterCreationState::SelectRole {
                             name,
                             cursor: new_cursor,
-                        }
+                        });
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => {
                         let role = roles[cursor];
-                        CharacterCreationState::SelectRace {
-                            name,
-                            role,
-                            cursor: 0,
-                        }
-                    }
-                    KeyCode::Char('*') => {
-                        let role = roles[self.selection_cursor % roles.len()];
-                        self.selection_cursor = self.selection_cursor.wrapping_add(7);
-                        CharacterCreationState::SelectRace {
-                            name,
-                            role,
-                            cursor: 0,
-                        }
+                        self.advance_character_creation(name, Some(role), None, None, None);
                     }
                     KeyCode::Char(c) if c.is_ascii_lowercase() => {
                         let idx = (c as u8 - b'a') as usize;
                         if idx < roles.len() {
-                            let role = roles[idx];
-                            CharacterCreationState::SelectRace {
+                            self.advance_character_creation(
                                 name,
-                                role,
-                                cursor: 0,
-                            }
-                        } else {
-                            CharacterCreationState::SelectRole { name, cursor }
+                                Some(roles[idx]),
+                                None,
+                                None,
+                                None,
+                            );
                         }
                     }
-                    KeyCode::Esc => CharacterCreationState::AskRandom { name, cursor: 0 },
-                    _ => CharacterCreationState::SelectRole { name, cursor },
+                    KeyCode::Char('*') => {
+                        let role = nh_core::player::pick_role(
+                            None,
+                            None,
+                            None,
+                            &nh_core::player::RoleFilter::new(),
+                        )
+                        .unwrap();
+                        self.advance_character_creation(name, Some(role), None, None, None);
+                    }
+                    KeyCode::Esc => {
+                        self.mode =
+                            UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                                name,
+                                cursor: 0,
+                            });
+                    }
+                    _ => {}
                 }
             }
             CharacterCreationState::SelectRace { name, role, cursor } => {
-                // Filter races compatible with selected role
                 let races: Vec<Race> = Race::iter()
                     .filter(|&r| nh_core::player::validrace(role, r))
                     .collect();
@@ -1141,55 +1572,50 @@ Press ESC or SPACE to close"#;
                         } else {
                             cursor - 1
                         };
-                        CharacterCreationState::SelectRace {
+                        self.mode = UiMode::CharacterCreation(CharacterCreationState::SelectRace {
                             name,
                             role,
                             cursor: new_cursor,
-                        }
+                        });
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
                         let new_cursor = (cursor + 1) % races.len();
-                        CharacterCreationState::SelectRace {
+                        self.mode = UiMode::CharacterCreation(CharacterCreationState::SelectRace {
                             name,
                             role,
                             cursor: new_cursor,
-                        }
+                        });
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => {
                         let race = races[cursor];
-                        CharacterCreationState::SelectGender {
-                            name,
-                            role,
-                            race,
-                            cursor: 0,
-                        }
-                    }
-                    KeyCode::Char('*') => {
-                        let race = races[self.selection_cursor % races.len()];
-                        self.selection_cursor = self.selection_cursor.wrapping_add(3);
-                        CharacterCreationState::SelectGender {
-                            name,
-                            role,
-                            race,
-                            cursor: 0,
-                        }
+                        self.advance_character_creation(name, Some(role), Some(race), None, None);
                     }
                     KeyCode::Char(c) if c.is_ascii_lowercase() => {
                         let idx = (c as u8 - b'a') as usize;
                         if idx < races.len() {
-                            let race = races[idx];
-                            CharacterCreationState::SelectGender {
+                            self.advance_character_creation(
                                 name,
-                                role,
-                                race,
-                                cursor: 0,
-                            }
-                        } else {
-                            CharacterCreationState::SelectRace { name, role, cursor }
+                                Some(role),
+                                Some(races[idx]),
+                                None,
+                                None,
+                            );
                         }
                     }
-                    KeyCode::Esc => CharacterCreationState::SelectRole { name, cursor: 0 },
-                    _ => CharacterCreationState::SelectRace { name, role, cursor },
+                    KeyCode::Char('*') => {
+                        let race = nh_core::player::pick_race(
+                            Some(role),
+                            None,
+                            None,
+                            &nh_core::player::RoleFilter::new(),
+                        )
+                        .unwrap();
+                        self.advance_character_creation(name, Some(role), Some(race), None, None);
+                    }
+                    KeyCode::Esc => {
+                        self.advance_character_creation(name, None, None, None, None);
+                    }
+                    _ => {}
                 }
             }
             CharacterCreationState::SelectGender {
@@ -1200,74 +1626,63 @@ Press ESC or SPACE to close"#;
             } => {
                 let genders = [Gender::Male, Gender::Female];
                 match key.code {
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        let new_cursor = if cursor == 0 { 1 } else { 0 };
-                        CharacterCreationState::SelectGender {
-                            name,
-                            role,
-                            race,
-                            cursor: new_cursor,
-                        }
-                    }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        let new_cursor = if cursor == 0 { 1 } else { 0 };
-                        CharacterCreationState::SelectGender {
-                            name,
-                            role,
-                            race,
-                            cursor: new_cursor,
-                        }
+                    KeyCode::Up | KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('k') => {
+                        self.mode =
+                            UiMode::CharacterCreation(CharacterCreationState::SelectGender {
+                                name,
+                                role,
+                                race,
+                                cursor: 1 - cursor,
+                            });
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => {
                         let gender = genders[cursor];
-                        CharacterCreationState::SelectAlignment {
+                        self.advance_character_creation(
                             name,
-                            role,
-                            race,
-                            gender,
-                            cursor: 0,
-                        }
+                            Some(role),
+                            Some(race),
+                            Some(gender),
+                            None,
+                        );
                     }
                     KeyCode::Char('m') | KeyCode::Char('M') => {
-                        CharacterCreationState::SelectAlignment {
+                        self.advance_character_creation(
                             name,
-                            role,
-                            race,
-                            gender: Gender::Male,
-                            cursor: 0,
-                        }
+                            Some(role),
+                            Some(race),
+                            Some(Gender::Male),
+                            None,
+                        );
                     }
                     KeyCode::Char('f') | KeyCode::Char('F') => {
-                        CharacterCreationState::SelectAlignment {
+                        self.advance_character_creation(
                             name,
-                            role,
-                            race,
-                            gender: Gender::Female,
-                            cursor: 0,
-                        }
+                            Some(role),
+                            Some(race),
+                            Some(Gender::Female),
+                            None,
+                        );
                     }
                     KeyCode::Char('*') => {
-                        let gender = genders[self.selection_cursor % 2];
-                        self.selection_cursor = self.selection_cursor.wrapping_add(1);
-                        CharacterCreationState::SelectAlignment {
-                            name,
-                            role,
+                        let gender = nh_core::player::pick_gend(
+                            Some(role),
                             race,
-                            gender,
-                            cursor: 0,
-                        }
+                            None,
+                            &nh_core::player::RoleFilter::new(),
+                        )
+                        .unwrap();
+                        self.advance_character_creation(
+                            name,
+                            Some(role),
+                            Some(race),
+                            Some(gender),
+                            None,
+                        );
                     }
-                    KeyCode::Esc => CharacterCreationState::SelectRace {
-                        name,
-                        role,
-                        cursor: 0,
-                    },
-                    _ => CharacterCreationState::SelectGender {
-                        name,
-                        role,
-                        race,
-                        cursor,
-                    },
+                    KeyCode::Esc => {
+                        self.advance_character_creation(name, Some(role), None, None, None);
+                    }
+                    _ => {}
                 }
             }
             CharacterCreationState::SelectAlignment {
@@ -1282,103 +1697,110 @@ Press ESC or SPACE to close"#;
                     AlignmentType::Lawful,
                     AlignmentType::Neutral,
                     AlignmentType::Chaotic,
-                ].into_iter()
-                    .filter(|&a| nh_core::player::validalign(role, race, gender, a))
-                    .collect();
+                ]
+                .into_iter()
+                .filter(|&a| nh_core::player::validalign(role, race, gender, a))
+                .collect();
                 let aligns_len = aligns.len();
                 // If only one alignment is valid, skip selection
                 if aligns_len == 1 {
-                    self.mode = UiMode::CharacterCreation(CharacterCreationState::Done {
+                    self.advance_character_creation(
                         name,
-                        role,
-                        race,
-                        gender,
-                        alignment: aligns[0],
-                    });
+                        Some(role),
+                        Some(race),
+                        Some(gender),
+                        Some(aligns[0]),
+                    );
                     return;
                 }
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => {
-                        let new_cursor = if cursor == 0 { aligns_len - 1 } else { cursor - 1 };
-                        CharacterCreationState::SelectAlignment {
-                            name,
-                            role,
-                            race,
-                            gender,
-                            cursor: new_cursor,
-                        }
+                        let new_cursor = if cursor == 0 {
+                            aligns_len - 1
+                        } else {
+                            cursor - 1
+                        };
+                        self.mode =
+                            UiMode::CharacterCreation(CharacterCreationState::SelectAlignment {
+                                name,
+                                role,
+                                race,
+                                gender,
+                                cursor: new_cursor,
+                            });
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
                         let new_cursor = (cursor + 1) % aligns_len;
-                        CharacterCreationState::SelectAlignment {
-                            name,
-                            role,
-                            race,
-                            gender,
-                            cursor: new_cursor,
-                        }
+                        self.mode =
+                            UiMode::CharacterCreation(CharacterCreationState::SelectAlignment {
+                                name,
+                                role,
+                                race,
+                                gender,
+                                cursor: new_cursor,
+                            });
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => {
                         let alignment = aligns[cursor.min(aligns_len - 1)];
-                        CharacterCreationState::Done {
+                        self.advance_character_creation(
                             name,
-                            role,
-                            race,
-                            gender,
-                            alignment,
-                        }
+                            Some(role),
+                            Some(race),
+                            Some(gender),
+                            Some(alignment),
+                        );
                     }
-                    KeyCode::Char('l') | KeyCode::Char('L') if aligns.contains(&AlignmentType::Lawful) => {
-                        CharacterCreationState::Done {
-                            name, role, race, gender,
-                            alignment: AlignmentType::Lawful,
-                        }
+                    KeyCode::Char('l')
+                    | KeyCode::Char('L') if aligns.contains(&AlignmentType::Lawful) => {
+                        self.advance_character_creation(
+                            name,
+                            Some(role),
+                            Some(race),
+                            Some(gender),
+                            Some(AlignmentType::Lawful),
+                        );
                     }
-                    KeyCode::Char('n') | KeyCode::Char('N') if aligns.contains(&AlignmentType::Neutral) => {
-                        CharacterCreationState::Done {
-                            name, role, race, gender,
-                            alignment: AlignmentType::Neutral,
-                        }
+                    KeyCode::Char('n')
+                    | KeyCode::Char('N') if aligns.contains(&AlignmentType::Neutral) => {
+                        self.advance_character_creation(
+                            name,
+                            Some(role),
+                            Some(race),
+                            Some(gender),
+                            Some(AlignmentType::Neutral),
+                        );
                     }
-                    KeyCode::Char('c') | KeyCode::Char('C') if aligns.contains(&AlignmentType::Chaotic) => {
-                        CharacterCreationState::Done {
-                            name, role, race, gender,
-                            alignment: AlignmentType::Chaotic,
-                        }
+                    KeyCode::Char('c')
+                    | KeyCode::Char('C') if aligns.contains(&AlignmentType::Chaotic) => {
+                        self.advance_character_creation(
+                            name,
+                            Some(role),
+                            Some(race),
+                            Some(gender),
+                            Some(AlignmentType::Chaotic),
+                        );
                     }
                     KeyCode::Char('*') => {
-                        let alignment = aligns[self.selection_cursor % aligns_len];
-                        CharacterCreationState::Done {
+                        let alignment = nh_core::player::pick_align(role).unwrap();
+                        self.advance_character_creation(
                             name,
-                            role,
-                            race,
-                            gender,
-                            alignment,
-                        }
+                            Some(role),
+                            Some(race),
+                            Some(gender),
+                            Some(alignment),
+                        );
                     }
-                    KeyCode::Esc => CharacterCreationState::SelectGender {
-                        name,
-                        role,
-                        race,
-                        cursor: 0,
-                    },
-                    _ => CharacterCreationState::SelectAlignment {
-                        name,
-                        role,
-                        race,
-                        gender,
-                        cursor,
-                    },
+                    KeyCode::Esc => {
+                        self.advance_character_creation(name, Some(role), Some(race), None, None);
+                    }
+                    _ => {}
                 }
             }
             CharacterCreationState::Done { .. } => {
                 // Already done, transition to normal mode
                 self.mode = UiMode::Normal;
-                return;
             }
-        };
-
-        self.mode = UiMode::CharacterCreation(new_state);
+        }
     }
 
     /// Render character creation modal
@@ -1541,6 +1963,11 @@ Press ESC or SPACE to close"#;
         frame.render_widget(footer_para, inner_chunks[1]);
     }
 
+    /// Set startup menu mode
+    pub fn set_startup_menu(&mut self) {
+        self.mode = UiMode::StartMenu { cursor: 0 };
+    }
+
     /// Start character creation mode
     pub fn start_character_creation(&mut self) {
         self.mode = UiMode::CharacterCreation(CharacterCreationState::EnterName {
@@ -1548,10 +1975,104 @@ Press ESC or SPACE to close"#;
         });
     }
 
-    /// Start character creation with a pre-set name (from CLI)
-    pub fn start_character_creation_with_name(&mut self, name: String) {
+    /// Start character creation with optional pre-set choices (from CLI)
+    pub fn start_character_creation_with_choices(
+        &mut self,
+        name: Option<String>,
+        role: Option<Role>,
+        race: Option<Race>,
+        gender: Option<Gender>,
+        alignment: Option<AlignmentType>,
+    ) {
+        self.cli_choices = PartialCharacterChoices {
+            name: name.clone(),
+            role,
+            race,
+            gender,
+            alignment,
+        };
+
+        let name = name.unwrap_or_default();
+        if name.is_empty() {
+            self.mode = UiMode::CharacterCreation(CharacterCreationState::EnterName {
+                name: String::new(),
+            });
+            return;
+        }
+
+        // Check if we have at least one choice (other than name)
+        if role.is_some() || race.is_some() || gender.is_some() || alignment.is_some() {
+            // Skip AskRandom and go to the first missing choice
+            self.advance_character_creation(name, role, race, gender, alignment);
+            return;
+        }
+
+        // Just name - ask random
         self.mode =
             UiMode::CharacterCreation(CharacterCreationState::AskRandom { name, cursor: 0 });
+    }
+
+    /// Advance to the first missing choice in character creation
+    fn advance_character_creation(
+        &mut self,
+        name: String,
+        role: Option<Role>,
+        race: Option<Race>,
+        gender: Option<Gender>,
+        alignment: Option<AlignmentType>,
+    ) {
+        // Merge provided choices with CLI defaults
+        let role = role.or(self.cli_choices.role);
+        let race = race.or(self.cli_choices.race);
+        let gender = gender.or(self.cli_choices.gender);
+        let alignment = alignment.or(self.cli_choices.alignment);
+
+        if let Some(role) = role {
+            if let Some(race) = race {
+                if let Some(gender) = gender {
+                    if let Some(alignment) = alignment {
+                        self.mode = UiMode::CharacterCreation(CharacterCreationState::Done {
+                            name,
+                            role,
+                            race,
+                            gender,
+                            alignment,
+                        });
+                    } else {
+                        // Missing alignment
+                        self.mode =
+                            UiMode::CharacterCreation(CharacterCreationState::SelectAlignment {
+                                name,
+                                role,
+                                race,
+                                gender,
+                                cursor: 0,
+                            });
+                    }
+                } else {
+                    // Missing gender
+                    self.mode = UiMode::CharacterCreation(CharacterCreationState::SelectGender {
+                        name,
+                        role,
+                        race,
+                        cursor: 0,
+                    });
+                }
+            } else {
+                // Missing race
+                self.mode = UiMode::CharacterCreation(CharacterCreationState::SelectRace {
+                    name,
+                    role,
+                    cursor: 0,
+                });
+            }
+        } else {
+            // Missing role
+            self.mode = UiMode::CharacterCreation(CharacterCreationState::SelectRole {
+                name,
+                cursor: 0,
+            });
+        }
     }
 
     /// Check if character creation is complete and get the choices

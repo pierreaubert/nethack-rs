@@ -1634,12 +1634,25 @@ char* nh_ffi_get_result_message(void) {
 /* Synchronize engine state from external source */
 void nh_ffi_set_state(int hp, int hpmax, int x, int y, int ac, long turn_count) {
 #ifdef REAL_NETHACK
+    /* Ensure coordinates are within bounds */
+    if (x >= 1 && x < COLNO && y >= 0 && y < ROWNO) {
+        /* If player position changed, we might need to update map-related state */
+        if (u.ux != x || u.uy != y) {
+            u.ux = x;
+            u.uy = y;
+            /* In NetHack, vision depends on u.ux, u.uy. 
+               We should mark vision as dirty so it's recalculated. */
+            vision_full_recalc = 1;
+        }
+    }
+    
     u.uhp = hp;
     u.uhpmax = hpmax;
-    u.ux = x;
-    u.uy = y;
     u.uac = ac;
     moves = turn_count;
+    
+    /* Ensure HP doesn't exceed max */
+    if (u.uhp > u.uhpmax) u.uhp = u.uhpmax;
 #else
     (void)hp; (void)hpmax; (void)x; (void)y; (void)ac; (void)turn_count;
 #endif

@@ -91,13 +91,12 @@ impl VisibilityMap {
 }
 
 /// Sync visibility directly from nh-core's authoritative Level state.
-/// This matches the TUI behavior exactly — both read from Level::is_visible/is_explored.
 fn sync_visibility_from_core(
     mut visibility: ResMut<VisibilityMap>,
     game_state: Res<GameStateResource>,
     settings: Res<FogSettings>,
 ) {
-    if !settings.enabled {
+    if !settings.enabled || !game_state.is_changed() {
         return;
     }
 
@@ -109,7 +108,6 @@ fn sync_visibility_from_core(
     }
 
     // Read visibility and explored state directly from nh-core
-    // This is the same data the TUI reads via level.is_visible()/is_explored()
     for y in 0..nh_core::ROWNO {
         for x in 0..nh_core::COLNO {
             visibility.visible[y][x] = level.is_visible(x as i8, y as i8);
@@ -119,7 +117,6 @@ fn sync_visibility_from_core(
 }
 
 /// Apply fog of war effect to tile entities
-/// Swaps between normal and unexplored (semi-transparent) materials based on explored state
 fn apply_fog_to_tiles(
     visibility: Res<VisibilityMap>,
     settings: Res<FogSettings>,
@@ -129,20 +126,34 @@ fn apply_fog_to_tiles(
             &MapPosition,
             &TileMaterialType,
             &mut MeshMaterial3d<StandardMaterial>,
+            &mut Visibility,
         ),
         With<TileMarker>,
     >,
 ) {
-    if !settings.enabled || !visibility.initialized {
+    if !settings.enabled || !visibility.initialized || !visibility.is_changed() {
         return;
     }
 
-    for (pos, mat_type, mut material) in tile_query.iter_mut() {
+    for (pos, mat_type, mut material, mut vis) in tile_query.iter_mut() {
         let x = pos.x as usize;
         let y = pos.y as usize;
 
-        // Get the appropriate material based on explored state
-        let (normal, unexplored) = match mat_type {
+        let explored = visibility.is_explored(x, y);
+        let in_los = visibility.is_visible(x, y);
+
+        // 1. Handle overall visibility (explored vs unexplored)
+        if !explored {
+            if *vis != Visibility::Hidden {
+                *vis = Visibility::Hidden;
+            }
+            continue; // Skip material update for hidden tiles
+        } else if *vis != Visibility::Inherited {
+            *vis = Visibility::Inherited;
+        }
+
+        // 2. Handle material (dimmed vs normal) based on LOS
+        let (normal, dimmed) = match mat_type {
             TileMaterialType::Floor => (&tile_materials.floor, &tile_materials.floor_unexplored),
             TileMaterialType::Corridor => (
                 &tile_materials.corridor,
@@ -162,16 +173,9 @@ fn apply_fog_to_tiles(
             TileMaterialType::Ice => (&tile_materials.ice, &tile_materials.ice_unexplored),
         };
 
-        if visibility.is_explored(x, y) {
-            // Explored - use normal material
-            if material.0 != *normal {
-                material.0 = normal.clone();
-            }
-        } else {
-            // Not explored - use semi-transparent unexplored material
-            if material.0 != *unexplored {
-                material.0 = unexplored.clone();
-            }
+        let target_mat = if in_los { normal } else { dimmed };
+        if material.0 != *target_mat {
+            material.0 = target_mat.clone();
         }
     }
 }
@@ -197,7 +201,7 @@ fn apply_fog_to_entities(
         ),
     >,
 ) {
-    if !settings.enabled || !visibility.initialized {
+    if !settings.enabled || !visibility.initialized || !visibility.is_changed() {
         return;
     }
 

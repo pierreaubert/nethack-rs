@@ -188,44 +188,8 @@ impl CGameEngine {
         Self { initialized: false }
     }
 
-    pub fn init(
-        &mut self,
-        role: &str,
-        race: &str,
-        gender: i32,
-        alignment: i32,
-    ) -> Result<(), String> {
-        let role_c = CString::new(role).map_err(|e| format!("Invalid role: {}", e))?;
-        let race_c = CString::new(race).map_err(|e| format!("Invalid race: {}", e))?;
-
-        let result = unsafe {
-            nh_ffi_init(
-                role_c.as_ptr(),
-                race_c.as_ptr(),
-                gender as c_int,
-                alignment as c_int,
-            )
-        };
-
-        if result < 0 {
-            return Err("Failed to initialize C NetHack".to_string());
-        }
-
-        self.initialized = true;
-        Ok(())
-    }
-
-    pub fn reset(&mut self, seed: u64) -> Result<(), String> {
-        if !self.initialized {
-            return Err("Game not initialized".to_string());
-        }
-
-        let result = unsafe { nh_ffi_reset(seed as c_ulong) };
-        if result < 0 {
-            return Err("Failed to reset game".to_string());
-        }
-
-        Ok(())
+    pub fn is_initialized(&self) -> bool {
+        self.initialized
     }
 
     pub fn reset_rng(&self, seed: u64) -> Result<(), String> {
@@ -250,19 +214,6 @@ impl CGameEngine {
         Ok(())
     }
 
-    pub fn generate_and_place(&self) -> Result<(), String> {
-        if !self.initialized {
-            return Err("Game not initialized".to_string());
-        }
-
-        let result = unsafe { nh_ffi_generate_and_place() };
-        if result < 0 {
-            return Err("Failed to generate level and place player".to_string());
-        }
-
-        Ok(())
-    }
-
     pub fn generate_maze(&self) -> Result<(), String> {
         if !self.initialized {
             return Err("Game not initialized".to_string());
@@ -272,124 +223,8 @@ impl CGameEngine {
         Ok(())
     }
 
-    pub fn exec_cmd(&self, cmd: char) -> Result<(), String> {
-        if !self.initialized {
-            return Err("Game not initialized".to_string());
-        }
-
-        let result = unsafe { nh_ffi_exec_cmd(cmd as c_char) };
-        if result == -2 {
-            // Player died during post-turn processing (starvation, monster kill, etc.)
-            return Err("Player died".to_string());
-        }
-        if result < 0 {
-            return Err(format!("Command failed: {}", cmd));
-        }
-
-        Ok(())
-    }
-
-    pub fn exec_cmd_dir(&self, cmd: char, dx: i32, dy: i32) -> Result<(), String> {
-        if !self.initialized {
-            return Err("Game not initialized".to_string());
-        }
-
-        let result = unsafe { nh_ffi_exec_cmd_dir(cmd as c_char, dx as c_int, dy as c_int) };
-        if result < 0 {
-            return Err("Directional command failed".to_string());
-        }
-
-        Ok(())
-    }
-
-    pub fn hp(&self) -> i32 {
-        unsafe { nh_ffi_get_hp() as i32 }
-    }
-
-    pub fn max_hp(&self) -> i32 {
-        unsafe { nh_ffi_get_max_hp() as i32 }
-    }
-
-    pub fn energy(&self) -> i32 {
-        unsafe { nh_ffi_get_energy() as i32 }
-    }
-
-    pub fn max_energy(&self) -> i32 {
-        unsafe { nh_ffi_get_max_energy() as i32 }
-    }
-
-    pub fn position(&self) -> (i32, i32) {
-        let mut x: c_int = 0;
-        let mut y: c_int = 0;
-        unsafe { nh_ffi_get_position(&mut x, &mut y) };
-        (x as i32, y as i32)
-    }
-
-    pub fn set_state(&self, hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64) {
-        unsafe {
-            nh_ffi_set_state(
-                hp as c_int,
-                hpmax as c_int,
-                x as c_int,
-                y as c_int,
-                ac as c_int,
-                moves as c_long,
-            )
-        };
-    }
-
-    pub fn armor_class(&self) -> i32 {
-        unsafe { nh_ffi_get_armor_class() as i32 }
-    }
-
-    pub fn gold(&self) -> i32 {
-        unsafe { nh_ffi_get_gold() as i32 }
-    }
-
-    pub fn experience_level(&self) -> i32 {
-        unsafe { nh_ffi_get_experience_level() as i32 }
-    }
-
-    pub fn current_level(&self) -> i32 {
-        unsafe { nh_ffi_get_current_level() as i32 }
-    }
-
-    pub fn dungeon_depth(&self) -> i32 {
-        unsafe { nh_ffi_get_dungeon_depth() as i32 }
-    }
-
-    pub fn turn_count(&self) -> u64 {
-        unsafe { nh_ffi_get_turn_count() as u64 }
-    }
-
-    pub fn is_dead(&self) -> bool {
-        unsafe { nh_ffi_is_player_dead() != 0 }
-    }
-
     pub fn set_dlevel(&self, dnum: i32, dlevel: i32) {
         unsafe { nh_ffi_set_dlevel(dnum, dlevel) }
-    }
-
-    pub fn is_initialized(&self) -> bool {
-        self.initialized
-    }
-
-    pub fn is_game_over(&self) -> bool {
-        unsafe { nh_ffi_is_game_over() != 0 }
-    }
-
-    pub fn is_won(&self) -> bool {
-        unsafe { nh_ffi_is_game_won() != 0 }
-    }
-
-    pub fn state_json(&self) -> String {
-        let json_ptr = unsafe { nh_ffi_get_state_json() };
-        if json_ptr.is_null() {
-            return "{}".to_string();
-        }
-        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
-        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
-        result
     }
 
     pub fn map_json(&self) -> String {
@@ -402,28 +237,8 @@ impl CGameEngine {
         result
     }
 
-    pub fn last_message(&self) -> String {
-        let msg_ptr = unsafe { nh_ffi_get_last_message() };
-        if msg_ptr.is_null() {
-            return "No message".to_string();
-        }
-        let result = unsafe { CStr::from_ptr(msg_ptr).to_string_lossy().into_owned() };
-        unsafe { nh_ffi_free_string(msg_ptr as *mut c_void) };
-        result
-    }
-
     pub fn inventory_count(&self) -> i32 {
         unsafe { nh_ffi_get_inventory_count() as i32 }
-    }
-
-    pub fn inventory_json(&self) -> String {
-        let json_ptr = unsafe { nh_ffi_get_inventory_json() };
-        if json_ptr.is_null() {
-            return "[]".to_string();
-        }
-        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
-        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
-        result
     }
 
     pub fn object_table_json(&self) -> String {
@@ -436,49 +251,8 @@ impl CGameEngine {
         result
     }
 
-    pub fn monsters_json(&self) -> String {
-        let json_ptr = unsafe { nh_ffi_get_nearby_monsters_json() };
-        if json_ptr.is_null() {
-            return "[]".to_string();
-        }
-        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
-        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
-        result
-    }
-
     pub fn monster_count(&self) -> i32 {
         unsafe { nh_ffi_count_monsters() as i32 }
-    }
-
-    pub fn role(&self) -> String {
-        let ptr = unsafe { nh_ffi_get_role() };
-        if ptr.is_null() {
-            return "Unknown".to_string();
-        }
-        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
-    }
-
-    pub fn race(&self) -> String {
-        let ptr = unsafe { nh_ffi_get_race() };
-        if ptr.is_null() {
-            return "Unknown".to_string();
-        }
-        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
-    }
-
-    pub fn gender_string(&self) -> String {
-        match unsafe { nh_ffi_get_gender() } {
-            0 => "Male".to_string(),
-            _ => "Female".to_string(),
-        }
-    }
-
-    pub fn alignment_string(&self) -> String {
-        match unsafe { nh_ffi_get_alignment() } {
-            -1 => "Chaotic".to_string(),
-            0 => "Neutral".to_string(),
-            _ => "Lawful".to_string(),
-        }
     }
 
     pub fn result_message(&self) -> String {
@@ -559,56 +333,6 @@ impl CGameEngine {
         result
     }
 
-    pub fn export_level(&self) -> String {
-        let json_ptr = unsafe { nh_ffi_export_level() };
-        if json_ptr.is_null() {
-            return "{}".to_string();
-        }
-        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
-        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
-        result
-    }
-
-    /// Get C's viz_array as a Rust-ordered [x][y] visibility grid (80×21)
-    pub fn get_visibility(&self) -> Vec<Vec<bool>> {
-        let mut buf = vec![0u8; 80 * 21]; // COLNO * ROWNO
-        unsafe { nh_ffi_get_visibility(buf.as_mut_ptr() as *mut c_char) };
-        let mut visible = vec![vec![false; 21]; 80];
-        for x in 0..80 {
-            for y in 0..21 {
-                visible[x][y] = buf[x * 21 + y] != 0;
-            }
-        }
-        visible
-    }
-
-    /// Get C's viz_array COULD_SEE as a Rust-ordered [x][y] grid (80×21)
-    pub fn get_couldsee(&self) -> Vec<Vec<bool>> {
-        let mut buf = vec![0u8; 80 * 21]; // COLNO * ROWNO
-        unsafe { nh_ffi_get_couldsee(buf.as_mut_ptr() as *mut c_char) };
-        let mut couldsee = vec![vec![false; 21]; 80];
-        for x in 0..80 {
-            for y in 0..21 {
-                couldsee[x][y] = buf[x * 21 + y] != 0;
-            }
-        }
-        couldsee
-    }
-
-    /// Debug: get C cell state at (x,y) as string
-    pub fn debug_cell(&self, x: i32, y: i32) -> String {
-        let ptr = unsafe { nh_ffi_debug_cell(x as c_int, y as c_int) };
-        if ptr.is_null() { return String::new(); }
-        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
-    }
-
-    /// Debug: get C mfndpos results for monster at given index as string
-    pub fn debug_mfndpos(&self, mon_index: i32) -> String {
-        let ptr = unsafe { nh_ffi_debug_mfndpos(mon_index as c_int) };
-        if ptr.is_null() { return String::new(); }
-        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
-    }
-
     pub fn enable_rng_tracing(&self) {
         unsafe { nh_ffi_enable_rng_tracing() };
     }
@@ -631,52 +355,298 @@ impl CGameEngine {
         unsafe { nh_ffi_clear_rng_trace() };
     }
 
-    // ========================================================================
-    // Function-level isolation testing (Phase 1)
-    // ========================================================================
+    pub fn get_visibility(&self) -> Vec<Vec<bool>> {
+        let mut buffer = vec![0i8; 16384];
+        unsafe { nh_ffi_get_visibility(buffer.as_mut_ptr()) };
+        let json = unsafe { CStr::from_ptr(buffer.as_ptr()).to_string_lossy().into_owned() };
+        serde_json::from_str(&json).unwrap_or_else(|_| vec![vec![false; 21]; 80])
+    }
 
-    /// Test C's finddpos() in isolation. Returns (x, y) chosen position.
+    pub fn get_couldsee(&self) -> Vec<Vec<bool>> {
+        let mut buffer = vec![0i8; 16384];
+        unsafe { nh_ffi_get_couldsee(buffer.as_mut_ptr()) };
+        let json = unsafe { CStr::from_ptr(buffer.as_ptr()).to_string_lossy().into_owned() };
+        serde_json::from_str(&json).unwrap_or_else(|_| vec![vec![false; 21]; 80])
+    }
+
     pub fn test_finddpos(&self, xl: i32, yl: i32, xh: i32, yh: i32) -> (i32, i32) {
-        let mut out_x: c_int = 0;
-        let mut out_y: c_int = 0;
-        unsafe {
-            nh_ffi_test_finddpos(xl as c_int, yl as c_int, xh as c_int, yh as c_int, &mut out_x, &mut out_y);
-        }
-        (out_x as i32, out_y as i32)
+        let mut x: c_int = 0;
+        let mut y: c_int = 0;
+        unsafe { nh_ffi_test_finddpos(xl as c_int, yl as c_int, xh as c_int, yh as c_int, &mut x, &mut y) };
+        (x as i32, y as i32)
     }
 
-    /// Test C's dig_corridor() in isolation. Returns true if corridor was dug.
     pub fn test_dig_corridor(&self, sx: i32, sy: i32, dx: i32, dy: i32, nxcor: bool) -> bool {
-        unsafe { nh_ffi_test_dig_corridor(sx as c_int, sy as c_int, dx as c_int, dy as c_int, nxcor as c_int) != 0 }
+        unsafe { nh_ffi_test_dig_corridor(sx as c_int, sy as c_int, dx as c_int, dy as c_int, if nxcor { 1 } else { 0 }) != 0 }
     }
 
-    /// Test C's makecorridors() in isolation.
     pub fn test_makecorridors(&self) {
-        unsafe { nh_ffi_test_makecorridors() }
+        unsafe { nh_ffi_test_makecorridors() };
     }
 
-    /// Test C's join() in isolation (re-implemented in FFI using public functions).
     pub fn test_join(&self, a: i32, b: i32, nxcor: bool) {
-        unsafe { nh_ffi_test_join(a as c_int, b as c_int, nxcor as c_int) }
+        unsafe { nh_ffi_test_join(a as c_int, b as c_int, if nxcor { 1 } else { 0 }) };
     }
 
-    /// Get C's smeq[] connectivity array as JSON.
     pub fn get_smeq(&self) -> String {
         let ptr = unsafe { nh_ffi_get_smeq() };
-        if ptr.is_null() { return "[]".to_string(); }
+        if ptr.is_null() {
+            return String::new();
+        }
         let result = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
         unsafe { nh_ffi_free_string(ptr as *mut c_void) };
         result
     }
 
-    /// Get C's doorindex value.
     pub fn get_doorindex(&self) -> i32 {
         unsafe { nh_ffi_get_doorindex() as i32 }
     }
 
-    /// Get a rectangular region of level cells as a JSON array of type IDs.
     pub fn get_cell_region(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> String {
-        let json_ptr = unsafe { nh_ffi_get_cell_region(x1 as c_int, y1 as c_int, x2 as c_int, y2 as c_int) };
+        let ptr = unsafe { nh_ffi_get_cell_region(x1 as c_int, y1 as c_int, x2 as c_int, y2 as c_int) };
+        if ptr.is_null() {
+            return "[]".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(ptr as *mut c_void) };
+        result
+    }
+
+    pub fn set_cell(&self, x: i32, y: i32, typ: i32) {
+        unsafe { nh_ffi_set_cell(x as c_int, y as c_int, typ as c_int) };
+    }
+
+    pub fn clear_level(&self) {
+        unsafe { nh_ffi_clear_level() };
+    }
+
+    pub fn add_room(&self, lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32) -> i32 {
+        unsafe { nh_ffi_add_room(lx as c_int, ly as c_int, hx as c_int, hy as c_int, rtype as c_int) as i32 }
+    }
+
+    pub fn carve_room(&self, lx: i32, ly: i32, hx: i32, hy: i32) {
+        unsafe { nh_ffi_carve_room(lx as c_int, ly as c_int, hx as c_int, hy as c_int) };
+    }
+
+    pub fn rect_json(&self) -> String {
+        let ptr = unsafe { nh_ffi_get_rect_json() };
+        if ptr.is_null() {
+            return "[]".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(ptr as *mut c_void) };
+        result
+    }
+
+    pub fn debug_cell(&self, x: i32, y: i32) -> String {
+        let ptr = unsafe { nh_ffi_debug_cell(x as c_int, y as c_int) };
+        if ptr.is_null() {
+            return String::new();
+        }
+        let result = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(ptr as *mut c_void) };
+        result
+    }
+
+    pub fn debug_mfndpos(&self, mon_index: i32) -> String {
+        let ptr = unsafe { nh_ffi_debug_mfndpos(mon_index as c_int) };
+        if ptr.is_null() {
+            return String::new();
+        }
+        let result = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(ptr as *mut c_void) };
+        result
+    }
+}
+
+impl nh_core::CGameEngineTrait for CGameEngine {
+    fn init(
+        &mut self,
+        role: &str,
+        race: &str,
+        gender: i32,
+        alignment: i32,
+    ) -> Result<(), String> {
+        let role_c = CString::new(role).map_err(|e| format!("Invalid role: {}", e))?;
+        let race_c = CString::new(race).map_err(|e| format!("Invalid race: {}", e))?;
+
+        let result = unsafe {
+            nh_ffi_init(
+                role_c.as_ptr(),
+                race_c.as_ptr(),
+                gender as c_int,
+                alignment as c_int,
+            )
+        };
+
+        if result < 0 {
+            return Err("Failed to initialize C NetHack".to_string());
+        }
+
+        self.initialized = true;
+        Ok(())
+    }
+
+    fn reset(&mut self, seed: u64) -> Result<(), String> {
+        if !self.initialized {
+            return Err("Game not initialized".to_string());
+        }
+
+        let result = unsafe { nh_ffi_reset(seed as c_ulong) };
+        if result < 0 {
+            return Err("Failed to reset game".to_string());
+        }
+
+        Ok(())
+    }
+
+    fn generate_and_place(&self) -> Result<(), String> {
+        if !self.initialized {
+            return Err("Game not initialized".to_string());
+        }
+
+        let result = unsafe { nh_ffi_generate_and_place() };
+        if result < 0 {
+            return Err("Failed to generate level and place player".to_string());
+        }
+
+        Ok(())
+    }
+
+    fn export_level(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_export_level() };
+        if json_ptr.is_null() {
+            return "{}".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
+    }
+
+    fn exec_cmd(&self, cmd: char) -> Result<(), String> {
+        if !self.initialized {
+            return Err("Game not initialized".to_string());
+        }
+
+        let result = unsafe { nh_ffi_exec_cmd(cmd as c_char) };
+        if result == -2 {
+            // Player died during post-turn processing (starvation, monster kill, etc.)
+            return Err("Player died".to_string());
+        }
+        if result < 0 {
+            return Err(format!("Command failed: {}", cmd));
+        }
+
+        Ok(())
+    }
+
+    fn exec_cmd_dir(&self, cmd: char, dx: i32, dy: i32) -> Result<(), String> {
+        if !self.initialized {
+            return Err("Game not initialized".to_string());
+        }
+
+        let result = unsafe { nh_ffi_exec_cmd_dir(cmd as c_char, dx as c_int, dy as c_int) };
+        if result < 0 {
+            return Err("Directional command failed".to_string());
+        }
+
+        Ok(())
+    }
+
+    fn hp(&self) -> i32 {
+        unsafe { nh_ffi_get_hp() as i32 }
+    }
+
+    fn max_hp(&self) -> i32 {
+        unsafe { nh_ffi_get_max_hp() as i32 }
+    }
+
+    fn energy(&self) -> i32 {
+        unsafe { nh_ffi_get_energy() as i32 }
+    }
+
+    fn max_energy(&self) -> i32 {
+        unsafe { nh_ffi_get_max_energy() as i32 }
+    }
+
+    fn gold(&self) -> i32 {
+        unsafe { nh_ffi_get_gold() as i32 }
+    }
+
+    fn position(&self) -> (i32, i32) {
+        let mut x: c_int = 0;
+        let mut y: c_int = 0;
+        unsafe { nh_ffi_get_position(&mut x, &mut y) };
+        (x as i32, y as i32)
+    }
+
+    fn set_state(&self, hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64) {
+        unsafe {
+            nh_ffi_set_state(
+                hp as c_int,
+                hpmax as c_int,
+                x as c_int,
+                y as c_int,
+                ac as c_int,
+                moves as c_long,
+            )
+        };
+    }
+
+    fn armor_class(&self) -> i32 {
+        unsafe { nh_ffi_get_armor_class() as i32 }
+    }
+
+    fn experience_level(&self) -> i32 {
+        unsafe { nh_ffi_get_experience_level() as i32 }
+    }
+
+    fn current_level(&self) -> i32 {
+        unsafe { nh_ffi_get_current_level() as i32 }
+    }
+
+    fn dungeon_depth(&self) -> i32 {
+        unsafe { nh_ffi_get_dungeon_depth() as i32 }
+    }
+
+    fn turn_count(&self) -> u64 {
+        unsafe { nh_ffi_get_turn_count() as u64 }
+    }
+
+    fn is_dead(&self) -> bool {
+        unsafe { nh_ffi_is_player_dead() != 0 }
+    }
+
+    fn is_game_over(&self) -> bool {
+        unsafe { nh_ffi_is_game_over() != 0 }
+    }
+
+    fn is_won(&self) -> bool {
+        unsafe { nh_ffi_is_game_won() != 0 }
+    }
+
+    fn state_json(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_get_state_json() };
+        if json_ptr.is_null() {
+            return "{}".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
+    }
+
+    fn last_message(&self) -> String {
+        let msg_ptr = unsafe { nh_ffi_get_last_message() };
+        if msg_ptr.is_null() {
+            return "No message".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(msg_ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(msg_ptr as *mut c_void) };
+        result
+    }
+
+    fn inventory_json(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_get_inventory_json() };
         if json_ptr.is_null() {
             return "[]".to_string();
         }
@@ -685,47 +655,48 @@ impl CGameEngine {
         result
     }
 
-    /// Set a single cell type on the current C level.
-    pub fn set_cell(&self, x: i32, y: i32, typ: i32) {
-        unsafe { nh_ffi_set_cell(x as c_int, y as c_int, typ as c_int) }
-    }
-
-    /// Clear the entire C level to STONE.
-    pub fn clear_level(&self) {
-        unsafe { nh_ffi_clear_level() }
-    }
-
-    /// Add a room to C's rooms[] array. Returns room index or -1.
-    pub fn add_room(&self, lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32) -> i32 {
-        unsafe { nh_ffi_add_room(lx as c_int, ly as c_int, hx as c_int, hy as c_int, rtype as c_int) as i32 }
-    }
-
-    /// Carve a room's interior and walls on the C level.
-    pub fn carve_room(&self, lx: i32, ly: i32, hx: i32, hy: i32) {
-        unsafe { nh_ffi_carve_room(lx as c_int, ly as c_int, hx as c_int, hy as c_int) }
-    }
-
-    /// Get C's rectangle list as JSON.
-    pub fn rect_json(&self) -> String {
-        let json_ptr = unsafe { nh_ffi_get_rect_json() };
+    fn monsters_json(&self) -> String {
+        let json_ptr = unsafe { nh_ffi_get_nearby_monsters_json() };
         if json_ptr.is_null() {
-            return "{\"count\":0,\"rects\":[]}".to_string();
+            return "[]".to_string();
         }
         let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
         unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
         result
     }
 
-    /// Enable RNG tracing for the C engine.
-    pub fn start_tracing(&mut self) {
-        self.enable_rng_tracing();
+    fn role(&self) -> String {
+        let ptr = unsafe { nh_ffi_get_role() };
+        if ptr.is_null() {
+            return "Unknown".to_string();
+        }
+        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
     }
 
-    /// Get RNG trace
-    pub fn get_trace(&self) -> Vec<nh_rng::RngTraceEntry> {
-        Vec::new() // Full trace requires JSON parsing; use rng_trace_json() instead
+    fn race(&self) -> String {
+        let ptr = unsafe { nh_ffi_get_race() };
+        if ptr.is_null() {
+            return "Unknown".to_string();
+        }
+        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
+    }
+
+    fn gender_string(&self) -> String {
+        match unsafe { nh_ffi_get_gender() } {
+            0 => "Male".to_string(),
+            _ => "Female".to_string(),
+        }
+    }
+
+    fn alignment_string(&self) -> String {
+        match unsafe { nh_ffi_get_alignment() } {
+            -1 => "Chaotic".to_string(),
+            0 => "Neutral".to_string(),
+            _ => "Lawful".to_string(),
+        }
     }
 }
+
 
 impl Drop for CGameEngine {
     fn drop(&mut self) {

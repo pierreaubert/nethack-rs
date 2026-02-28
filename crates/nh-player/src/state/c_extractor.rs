@@ -4,31 +4,32 @@
 //! into a UnifiedGameState for comparison with the Rust implementation.
 
 use crate::ffi::CGameEngine;
+use nh_core::CGameEngineTrait;
 use crate::state::common::*;
 
 /// Wrapper for C game engine state extraction
-pub struct CGameWrapper<'a> {
-    engine: &'a mut CGameEngine,
+pub struct CGameWrapper<'a, E: CGameEngineTrait> {
+    engine: &'a mut E,
 }
 
-impl<'a> CGameWrapper<'a> {
+impl<'a, E: CGameEngineTrait> CGameWrapper<'a, E> {
     /// Create a new C game wrapper
-    pub fn new(engine: &'a mut CGameEngine) -> Self {
+    pub fn new(engine: &'a mut E) -> Self {
         Self { engine }
     }
 
     /// Set C engine state from Rust state
     pub fn set_state(
         &mut self,
+        hp: i32,
+        hpmax: i32,
         x: i32,
         y: i32,
-        hp: i32,
-        max_hp: i32,
-        experience_level: i32,
-        armor_class: i32,
+        ac: i32,
+        moves: i64,
     ) {
         self.engine
-            .set_state(x, y, hp, max_hp, experience_level, armor_class);
+            .set_state(hp, hpmax, x, y, ac, moves);
     }
 
     /// Extract unified state from C implementation
@@ -109,7 +110,7 @@ impl<'a> CGameWrapper<'a> {
 }
 
 /// Extract inventory from C engine
-fn extract_inventory(engine: &CGameEngine) -> Vec<UnifiedObject> {
+fn extract_inventory<E: CGameEngineTrait>(engine: &E) -> Vec<UnifiedObject> {
     let json = engine.inventory_json();
     let json_value: serde_json::Value =
         serde_json::from_str(&json).unwrap_or_else(|_| serde_json::json!([]));
@@ -136,7 +137,7 @@ fn extract_inventory(engine: &CGameEngine) -> Vec<UnifiedObject> {
 }
 
 /// Extract monsters from C engine
-fn extract_monsters(engine: &CGameEngine) -> Vec<UnifiedMonster> {
+fn extract_monsters<E: CGameEngineTrait>(engine: &E) -> Vec<UnifiedMonster> {
     let json = engine.monsters_json();
     let json_value: serde_json::Value =
         serde_json::from_str(&json).unwrap_or_else(|_| serde_json::json!([]));
@@ -195,7 +196,7 @@ fn action_to_command(action: &GameAction) -> Option<(char, i32, i32)> {
 }
 
 /// Calculate reward for C engine
-fn calculate_reward(engine: &CGameEngine) -> f64 {
+fn calculate_reward<E: CGameEngineTrait>(engine: &E) -> f64 {
     let mut reward = 0.01;
     if engine.is_dead() {
         reward -= 100.0;

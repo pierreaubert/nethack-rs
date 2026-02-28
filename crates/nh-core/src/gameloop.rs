@@ -621,7 +621,7 @@ impl GameLoop {
     fn execute_command(&mut self, command: Command) -> ActionResult {
         // Engulfed state restricts most actions (C: u.uswallow checks throughout cmd.c)
         if self.state.player.swallowed {
-            match command {
+            match &command {
                 // Allowed while engulfed: attack engulfer, use items on self, info commands
                 Command::Rest | Command::Quit | Command::Save
                 | Command::Inventory | Command::Look | Command::History
@@ -630,12 +630,12 @@ impl GameLoop {
                 | Command::Apply(_) | Command::Wear(_) | Command::TakeOff(_)
                 | Command::Wield(_) | Command::PutOn(_) | Command::Remove(_)
                 | Command::CastSpell => {}
-                Command::Zap(_, _) => {
+                Command::Zap(letter, _) => {
                     // Zapping while engulfed hits the engulfer
                     self.state.message("You zap at the engulfer!");
                     return crate::action::zap::do_zap(
                         &mut self.state,
-                        match command { Command::Zap(l, _) => l, _ => unreachable!() },
+                        *letter,
                         None, // direction ignored — hits engulfer
                     );
                 }
@@ -663,14 +663,14 @@ impl GameLoop {
             }
         }
 
-        match command {
-            Command::Move(dir) => self.do_move(dir),
+        match &command {
+            Command::Move(dir) => self.do_move(*dir),
             Command::Run(dir) => {
                 // Running: move in direction until something interesting happens
                 // For now, just move one step (full running requires UI integration)
-                self.do_move(dir)
+                self.do_move(*dir)
             }
-            Command::MoveUntilInteresting(dir) => self.do_move(dir),
+            Command::MoveUntilInteresting(dir) => self.do_move(*dir),
             Command::Rest => {
                 self.state.message("You wait.");
                 ActionResult::Success
@@ -683,27 +683,30 @@ impl GameLoop {
 
             // Object manipulation
             Command::Pickup => crate::action::pickup::do_pickup(&mut self.state),
-            Command::Drop(letter) => crate::action::pickup::do_drop(&mut self.state, letter),
-            Command::Eat(letter) => crate::action::eat::do_eat(&mut self.state, letter),
-            Command::Apply(letter) => crate::action::apply::do_apply(&mut self.state, letter),
-            Command::Wear(letter) => crate::action::wear::do_wear(&mut self.state, letter),
-            Command::TakeOff(letter) => crate::action::wear::do_takeoff(&mut self.state, letter),
+            Command::Drop(letter) => crate::action::pickup::do_drop(&mut self.state, *letter),
+            Command::Eat(letter_opt) => crate::action::eat::do_eat(&mut self.state, *letter_opt),
+            Command::Apply(letter) => crate::action::apply::do_apply(&mut self.state, *letter),
+            Command::Wear(letter) => crate::action::wear::do_wear(&mut self.state, *letter),
+            Command::TakeOff(letter) => crate::action::wear::do_takeoff(&mut self.state, *letter),
             Command::Wield(letter_opt) => {
                 if let Some(letter) = letter_opt {
-                    crate::action::wear::do_wield(&mut self.state, letter)
+                    crate::action::wear::do_wield(&mut self.state, *letter)
                 } else {
                     crate::action::wear::do_unwield(&mut self.state)
                 }
             }
-            Command::PutOn(letter) => crate::action::wear::do_puton(&mut self.state, letter),
-            Command::Remove(letter) => crate::action::wear::do_remove(&mut self.state, letter),
-            Command::Quaff(letter) => crate::action::quaff::do_quaff(&mut self.state, letter),
-            Command::Read(letter) => crate::action::read::do_read(&mut self.state, letter),
-            Command::Zap(letter, dir) => {
-                crate::action::zap::do_zap(&mut self.state, letter, Some(dir))
+            Command::PutOn(letter) => crate::action::wear::do_puton(&mut self.state, *letter),
+            Command::Remove(letter) => crate::action::wear::do_remove(&mut self.state, *letter),
+            Command::Quaff(letter_opt) => crate::action::quaff::dodrink(&mut self.state, *letter_opt),
+            Command::Read(letter_opt) => crate::action::read::do_read(&mut self.state, *letter_opt),
+            Command::Zap(letter, dir_opt) => {
+                crate::action::zap::do_zap(&mut self.state, *letter, *dir_opt)
+            }
+            Command::Dip(item, potion) => {
+                crate::action::quaff::dodip(&mut self.state, *item, *potion)
             }
             Command::Throw(letter, dir) => {
-                crate::action::throw::do_throw(&mut self.state, letter, dir)
+                crate::action::throw::do_throw(&mut self.state, *letter, *dir)
             }
             Command::Fire(dir) => {
                 // Fire uses the quivered/wielded ranged weapon
@@ -723,7 +726,7 @@ impl GameLoop {
                     .map(|o| o.inv_letter);
 
                 if let Some(letter) = throwable {
-                    crate::action::throw::do_throw(&mut self.state, letter, dir)
+                    crate::action::throw::do_throw(&mut self.state, letter, *dir)
                 } else {
                     self.state.message("You have nothing to fire.");
                     ActionResult::NoTime
@@ -731,9 +734,9 @@ impl GameLoop {
             }
 
             // Directional actions
-            Command::Open(dir) => crate::action::open_close::do_open(&mut self.state, dir),
-            Command::Close(dir) => crate::action::open_close::do_close(&mut self.state, dir),
-            Command::Kick(dir) => crate::action::kick::do_kick(&mut self.state, dir),
+            Command::Open(dir) => crate::action::open_close::do_open(&mut self.state, *dir),
+            Command::Close(dir) => crate::action::open_close::do_close(&mut self.state, *dir),
+            Command::Kick(dir) => crate::action::kick::do_kick(&mut self.state, *dir),
             Command::Fight(dir) => {
                 // Force fight - attack even peaceful monsters
                 let state = &mut self.state;
@@ -869,7 +872,7 @@ impl GameLoop {
 
             // Special actions
             Command::Pray => crate::action::pray::do_pray(&mut self.state),
-            Command::Engrave(ref text) => {
+            Command::Engrave(text) => {
                 crate::action::engrave::do_engrave(&mut self.state, text)
             }
 
@@ -955,24 +958,6 @@ impl GameLoop {
                     crate::action::trap::check_trap(&mut self.state, x, y)
                 } else {
                     ActionResult::Success
-                }
-            }
-            Command::Dip => {
-                // Dip item into potion (dodip from potion.c)
-                // Check if player has any potions to dip into
-                let has_potion = self
-                    .state
-                    .inventory
-                    .iter()
-                    .any(|o| o.class == crate::object::ObjectClass::Potion);
-                if !has_potion {
-                    self.state.message("You don't have anything to dip into.");
-                    ActionResult::NoTime
-                } else {
-                    // Needs UI prompt for item + potion selection, then call dodip()
-                    self.state
-                        .message("Dip which item into which potion?");
-                    ActionResult::NoTime
                 }
             }
             Command::Offer => {
@@ -1112,7 +1097,7 @@ impl GameLoop {
             // Object manipulation extensions
             Command::SelectQuiver(letter) => {
                 // Ready a projectile for firing (dowieldquiver from wield.c)
-                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == letter) {
+                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == *letter) {
                     let name = obj.display_name();
                     self.state.message(format!("You ready {}.", name));
                     ActionResult::Success
@@ -1137,7 +1122,7 @@ impl GameLoop {
             }
             Command::Tip(letter) => {
                 // Tip over a container (dotip from pickup.c)
-                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == letter) {
+                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == *letter) {
                     if obj.is_container() {
                         let name = obj.display_name();
                         self.state.message(format!("You turn {} upside down.", name));
@@ -1153,7 +1138,7 @@ impl GameLoop {
             }
             Command::Rub(letter) => {
                 // Rub a lamp or touchstone (dorub from apply.c)
-                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == letter) {
+                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == *letter) {
                     let name = obj.display_name();
                     self.state.message(format!("You rub {}.", name));
                     ActionResult::Success
@@ -1327,9 +1312,9 @@ impl GameLoop {
                 }
                 ActionResult::NoTime
             }
-            Command::NameItem(letter, ref new_name) => {
+            Command::NameItem(letter, new_name) => {
                 // Name an item (docallcmd/do_oname from do_name.c)
-                if let Some(obj) = self.state.inventory.iter_mut().find(|o| o.inv_letter == letter) {
+                if let Some(obj) = self.state.inventory.iter_mut().find(|o| o.inv_letter == *letter) {
                     let result = crate::action::name::oname(obj, new_name);
                     match result {
                         crate::action::name::NamingResult::Named(name) => {
@@ -1350,26 +1335,26 @@ impl GameLoop {
                     ActionResult::NoTime
                 }
             }
-            Command::NameLevel(ref new_name) => {
+            Command::NameLevel(new_name) => {
                 // Annotate level (donamelevel from do_name.c)
                 self.state.message(format!("Level annotated: {}.", new_name));
                 ActionResult::NoTime
             }
             Command::Organize(from_letter, to_letter) => {
                 // Reorganize inventory (doorganize from invent.c)
-                let from_idx = self.state.inventory.iter().position(|o| o.inv_letter == from_letter);
+                let from_idx = self.state.inventory.iter().position(|o| o.inv_letter == *from_letter);
                 if let Some(idx) = from_idx {
-                    let already_used = self.state.inventory.iter().any(|o| o.inv_letter == to_letter);
+                    let already_used = self.state.inventory.iter().any(|o| o.inv_letter == *to_letter);
                     if already_used {
                         // Swap letters
                         for obj in &mut self.state.inventory {
-                            if obj.inv_letter == to_letter {
-                                obj.inv_letter = from_letter;
+                            if obj.inv_letter == *to_letter {
+                                obj.inv_letter = *from_letter;
                                 break;
                             }
                         }
                     }
-                    self.state.inventory[idx].inv_letter = to_letter;
+                    self.state.inventory[idx].inv_letter = *to_letter;
                     self.state.message(format!("Moved item to slot '{}'.", to_letter));
                     ActionResult::NoTime
                 } else {
@@ -1459,7 +1444,7 @@ impl GameLoop {
             }
             Command::TypeInventory(class_char) => {
                 // Show inventory filtered by class (dotypeinv from invent.c)
-                let class = crate::object::ObjectClass::from_symbol(class_char);
+                let class = crate::object::ObjectClass::from_symbol(*class_char);
                 let matching: Vec<_> = self.state.inventory.iter()
                     .filter(|o| class.is_none() || Some(o.class) == class)
                     .collect();
@@ -1488,7 +1473,7 @@ impl GameLoop {
                 ActionResult::NoTime
             }
 
-            Command::ExtendedCommand(cmd_name) => self.handle_extended_command(&cmd_name),
+            Command::ExtendedCommand(cmd_name) => self.handle_extended_command(cmd_name),
             Command::Redraw => {
                 // Redraw is handled by the UI layer
                 ActionResult::NoTime
@@ -2194,7 +2179,7 @@ impl GameLoop {
 
         let movemon_rng_start = state.rng.call_count();
 
-        for (id, mtype, mx, my, mname) in &monster_ids {
+        for (id, _mtype, mx, my, _mname) in &monster_ids {
             let id = *id;
             // Check if monster has enough movement and can act
             let can_act = state
@@ -2360,7 +2345,7 @@ impl GameLoop {
                 let rng_after = state.rng.call_count();
                 let rng_delta = rng_after - rng_before;
                 // Get post-movement position for comparison with C
-                let (post_x, post_y) = state.current_level.monster(id)
+                let (_post_x, _post_y) = state.current_level.monster(id)
                     .map(|m| (m.x, m.y))
                     .unwrap_or((*mx, *my));
                 if rng_delta > 0 || cfg!(debug_assertions) {
@@ -2373,7 +2358,7 @@ impl GameLoop {
             }
         }
 
-        let movemon_rng_total = state.rng.call_count() - movemon_rng_start;
+        let _movemon_rng_total = state.rng.call_count() - movemon_rng_start;
 
         any_moved
     }
@@ -2944,7 +2929,7 @@ impl GameLoop {
 
     /// Handle talk command with NPCs
     fn handle_talk_command(&mut self, target_id: MonsterId) -> String {
-        use crate::special::{priest, quest, shk};
+        use crate::special::{priest, shk};
 
         if let Some(monster) = self.state.current_level.monster(target_id) {
             match true {
@@ -2961,27 +2946,6 @@ impl GameLoop {
             }
         } else {
             "There's nobody here to talk to.".to_string()
-        }
-    }
-
-    /// Handle shop payment
-    fn handle_payment(&mut self, shopkeeper_id: Option<MonsterId>) -> String {
-        use crate::special::shk;
-
-        if let Some(id) = shopkeeper_id {
-            let shopkeeper_clone = self.state.current_level.monster(id).cloned();
-            if let Some(mut shopkeeper) = shopkeeper_clone {
-                let level_clone = self.state.current_level.clone();
-                if shk::pay_shopkeeper(&mut shopkeeper, &level_clone, &mut self.state.player) {
-                    "You pay your debt.".to_string()
-                } else {
-                    "You don't have enough gold to pay.".to_string()
-                }
-            } else {
-                "The shopkeeper is not here.".to_string()
-            }
-        } else {
-            "There's no shopkeeper to pay.".to_string()
         }
     }
 
@@ -3061,28 +3025,23 @@ impl GameLoop {
                     state.current_level.add_monster(mon);
                 }
             }
-            TimedEventType::Stoning => {
-                if !state
-                    .player
-                    .properties
-                    .has(crate::player::Property::StoneResistance)
-                {
-                    state.message("You have turned to stone.");
-                    state.player.hp = 0; // Instant death
+            TimedEventType::FigurineAnimate(object_id) => {
+                // Animate figurine into a monster
+                if let Some(fig) = state.current_level.remove_object(object_id) {
+                    let monster_type = fig.corpse_type;
+                    let x = fig.x;
+                    let y = fig.y;
+                    let mid = crate::monster::MonsterId(state.rng.rn2(u32::MAX));
+                    let mut mon = crate::monster::Monster::new(mid, monster_type, x, y);
+                    if let Some(pm) = crate::data::MONSTERS.get(monster_type as usize) {
+                        mon.name = pm.name.to_string();
+                        mon.level = pm.level as u8;
+                        mon.hp = pm.level.max(1) as i32;
+                        mon.hp_max = mon.hp;
+                    }
+                    state.current_level.add_monster(mon);
+                    state.message(format!("The figurine comes to life at ({}, {})!", x, y));
                 }
-            }
-            TimedEventType::Sliming => {
-                crate::action::eat::slimed_to_death(state);
-            }
-            TimedEventType::Strangling => {
-                state.player.take_damage(3);
-                if state.player.is_dead() {
-                    state.message("You suffocate.");
-                }
-            }
-            TimedEventType::Vomiting => {
-                state.message("You vomit.");
-                state.player.nutrition = state.player.nutrition.saturating_sub(100);
             }
             TimedEventType::DelayedDeath(ref cause) => {
                 state.message(format!("You die from {}.", cause));
@@ -3129,50 +3088,35 @@ impl GameLoop {
                     state.message(format!("The figurine comes to life at ({}, {})!", x, y));
                 }
             }
-            TimedEventType::Regeneration => {
-                // Handled by process_regeneration()
-            }
-            TimedEventType::EnergyRegeneration => {
-                // Handled by process_regeneration()
-            }
-            TimedEventType::Hunger => {
-                // Update hunger state and generate messages
-                let hunger_messages = crate::action::eat::newuhs(state, false);
-                for msg in hunger_messages {
-                    state.message(msg);
+            TimedEventType::Stoning => {
+                if !state
+                    .player
+                    .properties
+                    .has(crate::player::Property::StoneResistance)
+                {
+                    state.message("You have turned to stone.");
+                    state.player.hp = 0; // Instant death
                 }
             }
-            TimedEventType::BlindFromCreamPie => {
-                state.player.blinded_timeout = 0;
-                state.message("You can see again.");
+            TimedEventType::FigurineAnimate(object_id) => {
+                // Animate figurine into a monster
+                if let Some(fig) = state.current_level.remove_object(object_id) {
+                    let monster_type = fig.corpse_type;
+                    let x = fig.x;
+                    let y = fig.y;
+                    let mid = crate::monster::MonsterId(state.rng.rn2(u32::MAX));
+                    let mut mon = crate::monster::Monster::new(mid, monster_type, x, y);
+                    if let Some(pm) = crate::data::MONSTERS.get(monster_type as usize) {
+                        mon.name = pm.name.to_string();
+                        mon.level = pm.level as u8;
+                        mon.hp = pm.level.max(1) as i32;
+                        mon.hp_max = mon.hp;
+                    }
+                    state.current_level.add_monster(mon);
+                    state.message(format!("The figurine comes to life at ({}, {})!", x, y));
+                }
             }
-            TimedEventType::TempSeeInvisible => {
-                state.player.properties.set_timeout(crate::player::Property::SeeInvisible, 0);
-                state.message("You thought you saw something disappear.");
-            }
-            TimedEventType::TempTelepathy => {
-                state.player.properties.set_timeout(crate::player::Property::Telepathy, 0);
-                state.message("Your mental acuity diminishes.");
-            }
-            TimedEventType::TempWarning => {
-                state.player.properties.set_timeout(crate::player::Property::Warning, 0);
-                state.message("You feel less sensitive.");
-            }
-            TimedEventType::TempStealth => {
-                state.player.properties.set_timeout(crate::player::Property::Stealth, 0);
-                state.message("You feel clumsy.");
-            }
-            TimedEventType::TempLevitation => {
-                state.player.properties.set_timeout(crate::player::Property::Levitation, 0);
-                state.message("You float gently to the ground.");
-            }
-            TimedEventType::TempFlying => {
-                state.player.properties.set_timeout(crate::player::Property::Flying, 0);
-                state.message("You lose the ability to fly.");
-            }
-            TimedEventType::Custom(_name) => {
-                // Custom events are processed by external handlers
-            }
+            _ => {}
         }
     }
 
@@ -3212,15 +3156,10 @@ impl GameLoop {
         }
 
         // Energy Regeneration (C: moveloop lines 225-237)
-        // C formula: if (u.uen < u.uenmax && ((wtcap < MOD_ENCUMBER
-        //   && (!(moves % ((MAXULEV + 8 - u.ulevel) * (wizard ? 3 : 4) / 6))))
-        //   || Energy_regeneration))
-        //   u.uen += rn1((int)(ACURR(A_WIS) + ACURR(A_INT)) / 15 + 1, 1);
         if state.player.energy < state.player.energy_max {
             let is_wizard = state.player.role == crate::player::Role::Wizard;
             let en_freq = ((30 + 8 - ulevel) * (if is_wizard { 3 } else { 4 }) / 6) as u64;
             let has_energy_regen = state.player.properties.has(crate::player::Property::EnergyRegeneration);
-            // C: wtcap < MOD_ENCUMBER — energy only regens when not stressed+
             let not_encumbered = !matches!(
                 state.player.encumbrance(),
                 crate::player::Encumbrance::Stressed
@@ -3232,7 +3171,6 @@ impl GameLoop {
             if en_freq > 0 && ((not_encumbered && turns % en_freq == 0) || has_energy_regen) {
                 let wis = state.player.attr_current.get(Attribute::Wisdom) as i32;
                 let int = state.player.attr_current.get(Attribute::Intelligence) as i32;
-                // rn1(x, y) = rn2(x) + y
                 let rn1_range = ((wis + int) / 15 + 1) as u32;
                 let heal = state.rng.rn2(rn1_range) as i32 + 1;
                 state.player.energy = (state.player.energy + heal).min(state.player.energy_max);
@@ -3260,24 +3198,12 @@ pub enum DeathHow {
 
 #[cfg(feature = "std")]
 /// Create a score entry from the current game state (done/done2 equivalent)
-///
-/// This is called when the game ends to record the player's score.
 pub fn create_score_entry(state: &GameState, death_reason: &str, how: DeathHow) -> ScoreEntry {
     let ascended = matches!(how, DeathHow::Ascended);
-
-    // Calculate score based on various factors
     let mut score: i64 = 0;
-
-    // Gold collected
     score += state.player.gold as i64;
-
-    // Experience points
     score += (state.player.exp * 10) as i64;
-
-    // Dungeon depth bonus
     score += (state.current_level.dlevel.level_num as i64) * 100;
-
-    // Ascension bonus
     if ascended {
         score += 50000;
     }
@@ -3294,7 +3220,7 @@ pub fn create_score_entry(state: &GameState, death_reason: &str, how: DeathHow) 
         death_reason: death_reason.to_string(),
         ascended,
         turns: state.turns,
-        realtime: 0, // Would need to track real time
+        realtime: 0,
         timestamp: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -3305,16 +3231,12 @@ pub fn create_score_entry(state: &GameState, death_reason: &str, how: DeathHow) 
 
 #[cfg(feature = "std")]
 /// Handle game ending and record score (done equivalent from end.c)
-///
-/// This function is called when the game ends for any reason.
-/// It creates a score entry and saves it to the high score file.
 pub fn done(
     state: &GameState,
     death_reason: &str,
     how: DeathHow,
     score_file: Option<&std::path::Path>,
 ) -> Result<ScoreEntry, topten::TopTenError> {
-    // Save bones if this was a regular death (not quit/escape/ascend)
     if matches!(how, DeathHow::Killed) {
         let bones_manager = crate::dungeon::BonesManager::default();
         let level = state.current_level.clone();
@@ -3341,21 +3263,12 @@ pub fn done(
     }
 
     let entry = create_score_entry(state, death_reason, how);
-
     if let Some(path) = score_file {
-        // Ensure the record file exists
         topten::check_record_file(path)?;
-
-        // Load existing scores
         let mut scores = topten::HighScores::load(path).unwrap_or_default();
-
-        // Add the new entry
         scores.add_score(entry.clone());
-
-        // Save the updated scores
         scores.save(path)?;
     }
-
     Ok(entry)
 }
 
@@ -3365,10 +3278,8 @@ mod tests {
     use crate::object::{ObjectClass, ObjectId};
     use crate::player::Attribute;
 
-    /// Create a test state with normal dexterity (10) for neutral AC bonus
     fn test_state() -> GameState {
         let mut state = GameState::default();
-        // Set dexterity to 10 for neutral AC bonus (0)
         state.player.attr_current.set(Attribute::Dexterity, 10);
         state
     }
@@ -3376,8 +3287,6 @@ mod tests {
     #[test]
     fn test_base_armor_class() {
         let state = test_state();
-        // Base AC should be 10 when no armor is worn
-        // Dexterity 10 gives +0 bonus
         assert_eq!(state.calculate_armor_class(), 10);
     }
 
@@ -3535,26 +3444,18 @@ mod tests {
     #[test]
     fn test_grab_released_when_grabber_gone() {
         use crate::monster::MonsterId;
-
         let mut state = test_state();
-
-        // Set player as grabbed by a non-existent monster
         let fake_grabber_id = MonsterId(999);
         state.player.grabbed_by = Some(fake_grabber_id);
         state.player.pos.x = 6;
         state.player.pos.y = 5;
-        // Ensure test position and adjacent cells are walkable for invariant checker
         for dx in 0..3 {
             for dy in 0..3 {
                 state.current_level.cells[5 + dx][4 + dy].typ = crate::dungeon::CellType::Room;
             }
         }
-
-        // Create game loop and try to move
         let mut game_loop = GameLoop::new(state);
         let _result = game_loop.tick(Command::Move(crate::action::Direction::East));
-
-        // Player should be released since grabber doesn't exist
         assert!(game_loop.state().player.grabbed_by.is_none());
     }
 
@@ -3653,10 +3554,6 @@ mod tests {
     }
 
     /// Regression test: player must start on a walkable cell with visibility.
-    ///
-    /// On dungeon level 1 there are no upstairs, so the player is placed in a
-    /// room via `find_player_start()`.  Previously the fallback placed the
-    /// player inside solid stone, causing an empty map and no movement.
     #[test]
     fn test_player_starts_on_walkable_cell() {
         use crate::player::{Gender, Race, Role, AlignmentType};

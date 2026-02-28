@@ -863,6 +863,11 @@ impl Level {
 
     /// Move a monster to a new position
     pub fn move_monster(&mut self, id: MonsterId, new_x: i8, new_y: i8) -> bool {
+        // Destination must be unoccupied
+        if self.monster_at(new_x, new_y).is_some() {
+            return false;
+        }
+
         let monster = self.monsters.iter_mut().find(|m| m.id == id);
         if let Some(monster) = monster {
             let old_x = monster.x;

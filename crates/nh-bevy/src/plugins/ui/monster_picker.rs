@@ -179,12 +179,12 @@ fn handle_picker_input(
 
                     // Send the appropriate command
                     let command = match action {
-                        TargetAction::Zap(c) => Command::Zap(c, direction),
+                        TargetAction::Zap(c) => Command::Zap(c, Some(direction)),
                         TargetAction::Throw(c) => Command::Throw(c, direction),
                         TargetAction::Spell => {
                             // Spell targeting would be handled differently
                             // For now, treat like zap
-                            Command::Zap('?', direction)
+                            Command::Zap('?', Some(direction))
                         }
                     };
 
