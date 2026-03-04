@@ -94,7 +94,9 @@ impl CIsaac64 {
 
     /// Returns a random value in [0, x) - matches rn2(x)
     pub fn rn2(&mut self, x: u32) -> u32 {
-        if x == 0 { return 0; }
+        if x == 0 {
+            return 0;
+        }
         let raw = self.next_u64();
         let result = (raw % x as u64) as u32;
         if self.tracing {
@@ -111,7 +113,9 @@ impl CIsaac64 {
 
     /// Returns a random value in [1, x] - matches rnd(x)
     pub fn rnd(&mut self, x: u32) -> u32 {
-        if x == 0 { return 0; }
+        if x == 0 {
+            return 0;
+        }
         let raw = self.next_u64();
         let result = (raw % x as u64) as u32 + 1;
         if self.tracing {

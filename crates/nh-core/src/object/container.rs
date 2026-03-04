@@ -370,7 +370,7 @@ pub fn use_container(container: &Object) -> String {
 
     let mut result = String::from("Container contents:\n");
     for (idx, item) in container.contents.iter().enumerate() {
-        let letter = ('a' as u8 + idx as u8) as char;
+        let letter = (b'a' + idx as u8) as char;
         let name = format_container_item(item);
         result.push_str(&format!("  {} - {}\n", letter, name));
     }

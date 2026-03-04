@@ -83,27 +83,26 @@ pub fn dosearch0(state: &mut GameState, autosearch: bool) -> ActionResult {
             // Check for hidden monsters and traps
             else {
                 // Check for hidden monster
-                if !autosearch {
-                    if let Some(monster) = state.current_level.monster_at(x, y) {
-                        if monster.state.hiding {
-                            let monster_id = monster.id;
-                            let monster_name = monster.name.clone();
-                            // Try to find the hidden monster
-                            if let Some(mon) = state.current_level.monster_mut(monster_id) {
-                                mon.state.hiding = false;
-                                state.message(format!("You find {} hiding there!", monster_name));
-                            }
-                        }
+                if !autosearch
+                    && let Some(monster) = state.current_level.monster_at(x, y)
+                    && monster.state.hiding
+                {
+                    let monster_id = monster.id;
+                    let monster_name = monster.name.clone();
+                    // Try to find the hidden monster
+                    if let Some(mon) = state.current_level.monster_mut(monster_id) {
+                        mon.state.hiding = false;
+                        state.message(format!("You find {} hiding there!", monster_name));
                     }
                 }
 
                 // Check for hidden trap
-                if let Some(trap) = state.current_level.trap_at(x, y) {
-                    if !trap.seen {
-                        let find_chance = 8;
-                        if state.rng.rnl(find_chance, luck) == 0 {
-                            find_trap(state, x, y);
-                        }
+                if let Some(trap) = state.current_level.trap_at(x, y)
+                    && !trap.seen
+                {
+                    let find_chance = 8;
+                    if state.rng.rnl(find_chance, luck) == 0 {
+                        find_trap(state, x, y);
                     }
                 }
             }
@@ -224,13 +223,13 @@ pub fn findone(state: &mut GameState, x: i8, y: i8) -> i32 {
     }
 
     // Check for hidden monster
-    if let Some(monster) = state.current_level.monster_at(x, y) {
-        if monster.state.hiding {
-            let monster_id = monster.id;
-            if let Some(mon) = state.current_level.monster_mut(monster_id) {
-                mon.state.hiding = false;
-                found += 1;
-            }
+    if let Some(monster) = state.current_level.monster_at(x, y)
+        && monster.state.hiding
+    {
+        let monster_id = monster.id;
+        if let Some(mon) = state.current_level.monster_mut(monster_id) {
+            mon.state.hiding = false;
+            found += 1;
         }
     }
 

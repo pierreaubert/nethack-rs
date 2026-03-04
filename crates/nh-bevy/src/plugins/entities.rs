@@ -227,12 +227,7 @@ fn sync_monster_entities(
 
             let entity = entity.unwrap_or_else(|| {
                 let mut model_builder = ModelBuilder::new(&mut meshes, &mut materials);
-                model_builder.spawn_monster(
-                    &mut commands,
-                    monster,
-                    monster_def,
-                    transform,
-                )
+                model_builder.spawn_monster(&mut commands, monster, monster_def, transform)
             });
 
             commands.entity(entity).insert(map_pos);
@@ -581,9 +576,8 @@ fn spawn_floor_objects(
 
             // Try 3D model → billboard sprite → procedural fallback
             let entity = if let Some(sprites) = sprite_assets {
-                let mut spawner =
-                    BillboardSpawner::new(sprites, materials, registry, asset_server)
-                        .with_model_assets(model_assets);
+                let mut spawner = BillboardSpawner::new(sprites, materials, registry, asset_server)
+                    .with_model_assets(model_assets);
                 spawner
                     .spawn_3d_object(commands, obj, transform)
                     .or_else(|| spawner.spawn_object_billboard(commands, obj, transform))
@@ -772,7 +766,12 @@ fn update_monster_indicators(
     game_state: Res<GameStateResource>,
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    monster_query: Query<(Entity, &MonsterMarker, &MapPosition, &MeshMaterial3d<StandardMaterial>)>,
+    monster_query: Query<(
+        Entity,
+        &MonsterMarker,
+        &MapPosition,
+        &MeshMaterial3d<StandardMaterial>,
+    )>,
     health_indicators: Query<Entity, With<HealthIndicator>>,
     status_indicators: Query<Entity, With<StatusIndicator>>,
     allegiance_indicators: Query<Entity, With<AllegianceIndicator>>,

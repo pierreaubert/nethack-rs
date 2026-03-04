@@ -260,7 +260,10 @@ pub fn get_identification_progress(knowledge: &IdentificationKnowledge, object_t
 ///
 /// Sets the object's known flag and all sub-flags, and updates
 /// the player's type knowledge database.
-pub fn fully_identify_obj(obj: &mut crate::object::Object, knowledge: &mut IdentificationKnowledge) {
+pub fn fully_identify_obj(
+    obj: &mut crate::object::Object,
+    knowledge: &mut IdentificationKnowledge,
+) {
     obj.known = true;
     obj.buc_known = true;
     knowledge.identify_item(obj.object_type);

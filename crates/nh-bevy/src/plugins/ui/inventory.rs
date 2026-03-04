@@ -4,18 +4,20 @@ use bevy::prelude::*;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
 use crate::plugins::game::AppState;
-use crate::resources::{GameStateResource, AssetRegistryResource};
+use crate::resources::{AssetRegistryResource, GameStateResource};
 
 pub struct InventoryPlugin;
 
 impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InventoryState>()
-            .add_systems(Update, handle_inventory_input.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                Update,
+                handle_inventory_input.run_if(in_state(AppState::Playing)),
+            )
             .add_systems(
                 EguiPrimaryContextPass,
-                render_inventory
-                    .run_if(in_state(AppState::Playing)),
+                render_inventory.run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -102,10 +104,12 @@ fn render_inventory(
     asset_registry: Res<AssetRegistryResource>,
 ) {
     if !inv_state.open {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     let inventory = &game_state.0.inventory;
 
     egui::Window::new("Inventory")
@@ -193,8 +197,6 @@ fn render_inventory(
                 );
             });
         });
-
-    
 }
 
 use super::{item_name, object_class_color};

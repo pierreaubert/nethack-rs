@@ -3,9 +3,9 @@
 //! This example demonstrates how to run the dual-game comparison system
 //! to find behavioral differences between the Rust and C implementations.
 
-use nh_core::{GameLoop, GameRng, GameState, CGameEngineTrait};
-use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
+use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_player::orchestrator::{DualGameOrchestrator, OrchestratorConfig};
+use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 
 fn run_comparison(seed: u64, max_turns: u64) {
     println!("=== Comparison Session (seed={}) ===", seed);
@@ -26,9 +26,7 @@ fn run_comparison(seed: u64, max_turns: u64) {
     c_engine
         .init("Tourist", "Human", 0, 0)
         .expect("Failed to init C engine");
-    c_engine
-        .reset(seed)
-        .expect("Failed to reset C engine");
+    c_engine.reset(seed).expect("Failed to reset C engine");
     c_engine
         .generate_and_place()
         .expect("Failed to generate C level");

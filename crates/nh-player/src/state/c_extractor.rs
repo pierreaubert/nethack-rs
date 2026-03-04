@@ -3,9 +3,8 @@
 //! This module provides functionality to convert the C game state
 //! into a UnifiedGameState for comparison with the Rust implementation.
 
-use crate::ffi::CGameEngine;
-use nh_core::CGameEngineTrait;
 use crate::state::common::*;
+use nh_core::CGameEngineTrait;
 
 /// Wrapper for C game engine state extraction
 pub struct CGameWrapper<'a, E: CGameEngineTrait> {
@@ -19,17 +18,8 @@ impl<'a, E: CGameEngineTrait> CGameWrapper<'a, E> {
     }
 
     /// Set C engine state from Rust state
-    pub fn set_state(
-        &mut self,
-        hp: i32,
-        hpmax: i32,
-        x: i32,
-        y: i32,
-        ac: i32,
-        moves: i64,
-    ) {
-        self.engine
-            .set_state(hp, hpmax, x, y, ac, moves);
+    pub fn set_state(&mut self, hp: i32, hpmax: i32, x: i32, y: i32, ac: i32, moves: i64) {
+        self.engine.set_state(hp, hpmax, x, y, ac, moves);
     }
 
     /// Extract unified state from C implementation

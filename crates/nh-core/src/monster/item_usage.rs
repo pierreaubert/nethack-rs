@@ -203,15 +203,7 @@ pub fn monster_fire_special_beam(
     }
 
     mbhit_effect(
-        effect,
-        monster_x,
-        monster_y,
-        dx,
-        dy,
-        range,
-        player,
-        level,
-        rng,
+        effect, monster_x, monster_y, dx, dy, range, player, level, rng,
     )
 }
 
@@ -258,15 +250,15 @@ pub fn monster_use_breath_weapon(
 /// Returns a priority value (higher = preferred).
 pub fn wand_offensive_priority(muse_type: i32) -> i32 {
     match muse_type {
-        20 => 100,  // MUSE_WAN_DEATH - highest priority
-        22 => 80,   // MUSE_WAN_FIRE
-        24 => 75,   // MUSE_WAN_COLD
-        26 => 70,   // MUSE_WAN_LIGHTNING
-        27 => 50,   // MUSE_WAN_MAGIC_MISSILE
-        21 => 40,   // MUSE_WAN_SLEEP
-        28 => 30,   // MUSE_WAN_STRIKING
-        23 => 78,   // MUSE_FIRE_HORN
-        25 => 73,   // MUSE_FROST_HORN
+        20 => 100, // MUSE_WAN_DEATH - highest priority
+        22 => 80,  // MUSE_WAN_FIRE
+        24 => 75,  // MUSE_WAN_COLD
+        26 => 70,  // MUSE_WAN_LIGHTNING
+        27 => 50,  // MUSE_WAN_MAGIC_MISSILE
+        21 => 40,  // MUSE_WAN_SLEEP
+        28 => 30,  // MUSE_WAN_STRIKING
+        23 => 78,  // MUSE_FIRE_HORN
+        25 => 73,  // MUSE_FROST_HORN
         _ => 0,
     }
 }
@@ -413,12 +405,7 @@ pub fn execute_monster_teleport(
 // ============================================================================
 
 /// Calculate direction and distance from monster to player for throwing
-pub fn throw_direction(
-    monster_x: i8,
-    monster_y: i8,
-    player_x: i8,
-    player_y: i8,
-) -> (i8, i8, i32) {
+pub fn throw_direction(monster_x: i8, monster_y: i8, player_x: i8, player_y: i8) -> (i8, i8, i32) {
     let dx = (player_x - monster_x).signum();
     let dy = (player_y - monster_y).signum();
     let dist = ((player_x as i32 - monster_x as i32).abs())
@@ -515,7 +502,10 @@ fn apply_thrown_potion_effect(
         // POT_ACID (object type 107)
         107 => {
             let d = rng.dice(2, 6) as i32;
-            if player.properties.has(crate::player::Property::AcidResistance) {
+            if player
+                .properties
+                .has(crate::player::Property::AcidResistance)
+            {
                 messages.push("The acid doesn't affect you.".to_string());
                 0
             } else {

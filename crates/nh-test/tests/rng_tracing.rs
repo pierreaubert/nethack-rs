@@ -142,7 +142,10 @@ fn test_print_sample_trace() {
     }
 
     println!("\n=== Sample RNG Trace (seed=42, 5 turns) ===");
-    println!("{:<6} {:<10} {:<6} {:<8} {:<20}", "Seq", "Function", "Arg", "Result", "Raw");
+    println!(
+        "{:<6} {:<10} {:<6} {:<8} {:<20}",
+        "Seq", "Function", "Arg", "Result", "Raw"
+    );
     println!("{}", "-".repeat(55));
     for entry in rng.trace() {
         println!(

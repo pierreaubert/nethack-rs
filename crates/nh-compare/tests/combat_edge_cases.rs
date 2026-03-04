@@ -4,22 +4,19 @@
 //! silver damage, artifact effects, passive attacks, two-weapon combat,
 //! riding/jousting, thrown weapon specials.
 
+use nh_core::GameRng;
 use nh_core::combat::artifact::{
-    Artifact, ArtifactAlignment, ArtifactFlags, InvokeProperty,
-    artifact_hit, spec_applies,
+    Artifact, ArtifactAlignment, ArtifactFlags, InvokeProperty, artifact_hit, spec_applies,
 };
 use nh_core::combat::{
-    Attack, AttackType, CombatEffect, DamageType,
-    buc_damage_bonus, cleave_targets, hates_silver_check, hmon,
-    joust, maybe_erode_weapon, mon_hates_silver, passivemm,
-    retouch_object, silver_damage, silver_sears, special_dmgval,
-    throw_damage, two_weapon_hit,
-    AttackSource, JoustResult,
+    Attack, AttackSource, AttackType, CombatEffect, DamageType, JoustResult, buc_damage_bonus,
+    cleave_targets, hates_silver_check, hmon, joust, maybe_erode_weapon, mon_hates_silver,
+    passivemm, retouch_object, silver_damage, silver_sears, special_dmgval, throw_damage,
+    two_weapon_hit,
 };
 use nh_core::monster::{Monster, MonsterFlags, MonsterId, MonsterResistances};
 use nh_core::object::{BucStatus, Material, Object, ObjectClass, ObjectId};
 use nh_core::player::{Attribute, You};
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -163,8 +160,14 @@ fn test_hmon_silver_weapon_vs_undead() {
         let mut t = target.clone();
         let mut w = weapon.clone();
         let result = hmon(
-            &mut player, &mut t, Some(&mut w), Some(Material::Iron),
-            AttackSource::Melee, 5, &[], &mut rng,
+            &mut player,
+            &mut t,
+            Some(&mut w),
+            Some(Material::Iron),
+            AttackSource::Melee,
+            5,
+            &[],
+            &mut rng,
         );
         iron_total += result.damage as i64;
 
@@ -172,8 +175,14 @@ fn test_hmon_silver_weapon_vs_undead() {
         let mut t2 = target.clone();
         let mut w2 = weapon.clone();
         let result2 = hmon(
-            &mut player, &mut t2, Some(&mut w2), Some(Material::Silver),
-            AttackSource::Melee, 5, &[], &mut rng2,
+            &mut player,
+            &mut t2,
+            Some(&mut w2),
+            Some(Material::Silver),
+            AttackSource::Melee,
+            5,
+            &[],
+            &mut rng2,
         );
         silver_total += result2.damage as i64;
     }
@@ -269,7 +278,9 @@ fn test_artifact_stormbringer_life_drain() {
     let art = Artifact {
         name: "Stormbringer",
         otyp: 11, // broadsword range
-        spfx: ArtifactFlags::DRLI.union(ArtifactFlags::ATTK).union(ArtifactFlags::INTEL),
+        spfx: ArtifactFlags::DRLI
+            .union(ArtifactFlags::ATTK)
+            .union(ArtifactFlags::INTEL),
         cspfx: ArtifactFlags::NONE,
         mtype: 0,
         attk: Attack::new(AttackType::None, DamageType::DrainLife, 5, 2),
@@ -347,13 +358,19 @@ fn test_artifact_vorpal_blade_behead() {
     // dieroll == 1 triggers beheading
     let result = artifact_hit(&weapon, &target, &mut damage, 1, &artifacts, &mut rng);
 
-    assert!(result.had_effect, "Vorpal Blade should have an effect on dieroll 1");
+    assert!(
+        result.had_effect,
+        "Vorpal Blade should have an effect on dieroll 1"
+    );
     assert!(
         result.instant_kill,
         "Vorpal Blade should instant-kill on dieroll 1 (beheading)"
     );
     assert!(
-        result.messages.iter().any(|m| m.contains("beheads") || m.contains("decapitates")),
+        result
+            .messages
+            .iter()
+            .any(|m| m.contains("beheads") || m.contains("decapitates")),
         "Vorpal Blade should produce a beheading message"
     );
 }
@@ -381,8 +398,14 @@ fn test_passive_fire_damages_attacker() {
     // passivemm skips non-None attack types for passive processing
     // so the attacker is not damaged, but the function correctly returns hit
     assert!(result.hit, "passivemm should report the hit status");
-    assert!(!result.agr_died, "Attacker should not die from non-passive attacks");
-    assert!(!result.def_died, "Defender should not be marked dead (def_died=false passed)");
+    assert!(
+        !result.agr_died,
+        "Attacker should not die from non-passive attacks"
+    );
+    assert!(
+        !result.def_died,
+        "Defender should not be marked dead (def_died=false passed)"
+    );
 }
 
 // ============================================================================
@@ -450,8 +473,14 @@ fn test_two_weapon_combat() {
             if let Some(ref sec) = secondary_result {
                 if sec.hit {
                     both_hit = true;
-                    assert!(primary_result.damage >= 1, "Primary weapon should deal at least 1 damage");
-                    assert!(sec.damage >= 1, "Secondary weapon should deal at least 1 damage");
+                    assert!(
+                        primary_result.damage >= 1,
+                        "Primary weapon should deal at least 1 damage"
+                    );
+                    assert!(
+                        sec.damage >= 1,
+                        "Secondary weapon should deal at least 1 damage"
+                    );
                     break;
                 }
             }
@@ -496,11 +525,7 @@ fn test_jousting_requires_mounted_lance() {
 
     // Fumbling => no joust
     let result3 = joust(&player, true, true, true, true, &lance, &mut rng);
-    assert_eq!(
-        result3,
-        JoustResult::NoJoust,
-        "Cannot joust while fumbling"
-    );
+    assert_eq!(result3, JoustResult::NoJoust, "Cannot joust while fumbling");
 }
 
 // ============================================================================
@@ -631,7 +656,9 @@ fn test_hates_silver_check_combinations() {
     assert!(hates_silver_check(false, false, false, false, true, false));
     assert!(!hates_silver_check(false, false, false, false, true, true));
     // Normal creature does not hate silver
-    assert!(!hates_silver_check(false, false, false, false, false, false));
+    assert!(!hates_silver_check(
+        false, false, false, false, false, false
+    ));
 }
 
 // ============================================================================
@@ -643,11 +670,11 @@ fn test_silver_sears_message() {
     let mut rng = GameRng::new(42);
 
     let (dmg, msg) = silver_sears(true, true, "the zombie", &mut rng);
-    assert!(dmg >= 1 && dmg <= 20, "Silver sears damage should be 1d20, got {dmg}");
     assert!(
-        msg.is_some(),
-        "Silver sears should produce a message"
+        dmg >= 1 && dmg <= 20,
+        "Silver sears damage should be 1d20, got {dmg}"
     );
+    assert!(msg.is_some(), "Silver sears should produce a message");
     assert!(
         msg.as_ref().unwrap().contains("sears"),
         "Message should mention searing"
@@ -687,7 +714,10 @@ fn test_weapon_erosion_from_acid() {
             break;
         }
     }
-    assert!(eroded, "Weapon should be eroded at least once in 200 attempts");
+    assert!(
+        eroded,
+        "Weapon should be eroded at least once in 200 attempts"
+    );
 
     // Erosion-proof weapon should never erode
     weapon.erosion_proof = true;
@@ -775,9 +805,15 @@ fn test_retouch_silver_object() {
 
     // Normal player touching silver: no damage
     let result2 = retouch_object(false, true);
-    assert!(result2.is_none(), "Normal creature touching silver should be fine");
+    assert!(
+        result2.is_none(),
+        "Normal creature touching silver should be fine"
+    );
 
     // Silver-hating player touching non-silver: no damage
     let result3 = retouch_object(true, false);
-    assert!(result3.is_none(), "Silver-hating creature touching non-silver should be fine");
+    assert!(
+        result3.is_none(),
+        "Silver-hating creature touching non-silver should be fine"
+    );
 }

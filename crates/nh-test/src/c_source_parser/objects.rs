@@ -102,10 +102,10 @@ pub fn extract_object_weights() -> Vec<(String, i32)> {
                     // Try to extract weight (7th field after commas)
                     let after_name = &rest[end + 1..];
                     let parts: Vec<&str> = after_name.split(',').collect();
-                    if parts.len() > 6 {
-                        if let Ok(wt) = parts[6].trim().parse::<i32>() {
-                            results.push((name, wt));
-                        }
+                    if parts.len() > 6
+                        && let Ok(wt) = parts[6].trim().parse::<i32>()
+                    {
+                        results.push((name, wt));
                     }
                 }
             }
@@ -549,7 +549,7 @@ pub fn extract_object_names_by_class() -> HashMap<ObjectClass, Vec<String>> {
                     if let Some(end) = rest.find('"') {
                         let name = rest[..end].to_string();
                         if !name.is_empty() {
-                            results.entry(*class).or_insert_with(Vec::new).push(name);
+                            results.entry(*class).or_default().push(name);
                         }
                     }
                 }

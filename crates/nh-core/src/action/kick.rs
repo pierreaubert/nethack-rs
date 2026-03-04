@@ -128,7 +128,7 @@ fn kick_door(state: &mut GameState, x: i8, y: i8) -> ActionResult {
     ActionResult::Success
 }
 
-pub fn kick_object(state: &mut GameState, x: i8, y: i8) -> ActionResult {
+pub fn kick_object(state: &mut GameState, _x: i8, _y: i8) -> ActionResult {
     state.message("You kick the object.");
     // Stub: move object logic would go here
     ActionResult::Success
@@ -195,8 +195,8 @@ pub fn hurtle(state: &mut GameState, dx: i8, dy: i8, range: i32) {
     state.message("You are thrown through the air!");
 
     let mut moved = 0;
-    let start_x = state.player.pos.x;
-    let start_y = state.player.pos.y;
+    let _start_x = state.player.pos.x;
+    let _start_y = state.player.pos.y;
 
     // Move the player step by step
     for _ in 0..range {
@@ -333,10 +333,10 @@ pub fn mhurtle(
     // Calculate collision damage if stopped early
     if moved < range {
         let damage = (range - moved) / 2;
-        if damage > 0 {
-            if let Some(monster) = state.current_level.monster_mut(monster_id) {
-                monster.hp -= damage;
-            }
+        if damage > 0
+            && let Some(monster) = state.current_level.monster_mut(monster_id)
+        {
+            monster.hp -= damage;
         }
     }
 

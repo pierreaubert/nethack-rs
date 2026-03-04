@@ -9,7 +9,7 @@ use nh_compare::report::ConvergenceReport;
 use nh_compare::snapshot::{GameSnapshot, ItemSnapshot, MonsterSnapshot, PlayerSnapshot};
 use nh_core::action::Command;
 use nh_core::player::{Attribute, Gender, Race, Role};
-use nh_core::{GameLoop, GameRng, GameState};
+use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use serial_test::serial;
 
@@ -317,10 +317,7 @@ fn test_ci_convergence_gate() {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        let history_path = history_dir.join(format!(
-            "{}_{}.json",
-            scenario.label, timestamp
-        ));
+        let history_path = history_dir.join(format!("{}_{}.json", scenario.label, timestamp));
         std::fs::write(&history_path, report.to_json()).ok();
     }
 
@@ -328,10 +325,7 @@ fn test_ci_convergence_gate() {
     for line in &summary_lines {
         println!("{}", line);
     }
-    println!(
-        "Overall: {}",
-        if all_passed { "PASS" } else { "FAIL" }
-    );
+    println!("Overall: {}", if all_passed { "PASS" } else { "FAIL" });
 
     assert!(
         all_passed,

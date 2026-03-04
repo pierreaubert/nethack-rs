@@ -56,42 +56,35 @@ pub enum LevelChangeResult {
 /// - Being trapped
 /// - Being held/swallowed
 /// - No stairs at current position
-pub fn dodown(
-    player: &You,
-    level: &Level,
-    _rng: &mut GameRng,
-) -> LevelChangeResult {
+pub fn dodown(player: &You, level: &Level, _rng: &mut GameRng) -> LevelChangeResult {
     let px = player.pos.x;
     let py = player.pos.y;
 
     // Check if levitating
     if player.properties.has(Property::Levitation) {
-        return LevelChangeResult::Floating(
-            "You are floating high above the stairs.".to_string(),
-        );
+        return LevelChangeResult::Floating("You are floating high above the stairs.".to_string());
     }
 
     // Check if trapped
     if player.utrap > 0 {
-        return LevelChangeResult::Trapped(
-            "You are stuck and cannot go down.".to_string(),
-        );
+        return LevelChangeResult::Trapped("You are stuck and cannot go down.".to_string());
     }
 
     // Check for downstairs at current position
-    let stair = level.stairs.iter().find(|s| s.x == px && s.y == py && !s.up);
+    let stair = level
+        .stairs
+        .iter()
+        .find(|s| s.x == px && s.y == py && !s.up);
 
     if let Some(stair) = stair {
         LevelChangeResult::Changed(stair.destination)
     } else if let Some(trap) = level.trap_at(px, py) {
         // Trap door or hole allows descent
         match trap.trap_type {
-            TrapType::TrapDoor | TrapType::Hole => {
-                LevelChangeResult::Changed(DLevel {
-                    dungeon_num: level.dlevel.dungeon_num,
-                    level_num: level.dlevel.level_num + 1,
-                })
-            }
+            TrapType::TrapDoor | TrapType::Hole => LevelChangeResult::Changed(DLevel {
+                dungeon_num: level.dlevel.dungeon_num,
+                level_num: level.dlevel.level_num + 1,
+            }),
             _ => LevelChangeResult::Blocked("You can't go down here.".to_string()),
         }
     } else {
@@ -105,11 +98,7 @@ pub fn dodown(
 /// - No upstairs at current position
 /// - Being trapped in a pit (can climb out)
 /// - Being held/swallowed
-pub fn doup(
-    player: &You,
-    level: &Level,
-    _rng: &mut GameRng,
-) -> LevelChangeResult {
+pub fn doup(player: &You, level: &Level, _rng: &mut GameRng) -> LevelChangeResult {
     let px = player.pos.x;
     let py = player.pos.y;
 
@@ -117,9 +106,7 @@ pub fn doup(
     if player.utrap > 0 {
         // In C: climbing out of a pit via '<' always works
         // The actual trap reset is handled by the caller
-        return LevelChangeResult::Trapped(
-            "You climb out of the pit.".to_string(),
-        );
+        return LevelChangeResult::Trapped("You climb out of the pit.".to_string());
     }
 
     // Check for upstairs at current position
@@ -171,7 +158,11 @@ impl LevelTransition {
     pub fn stairs(destination: DLevel, going_up: bool) -> Self {
         Self {
             destination,
-            direction: if going_up { LevelDirection::Up } else { LevelDirection::Down },
+            direction: if going_up {
+                LevelDirection::Up
+            } else {
+                LevelDirection::Down
+            },
             at_stairs: true,
             falling: false,
             portal: false,
@@ -307,12 +298,7 @@ fn find_random_valid_position(level: &Level, rng: &mut GameRng) -> (i8, i8) {
 /// - Trigger traps
 ///
 /// Returns true if the object was consumed (fell into something).
-pub fn flooreffects(
-    level: &Level,
-    x: i8,
-    y: i8,
-    is_boulder: bool,
-) -> FloorEffect {
+pub fn flooreffects(level: &Level, x: i8, y: i8, is_boulder: bool) -> FloorEffect {
     if !level.is_valid_pos(x, y) {
         return FloorEffect::Nothing;
     }
@@ -590,9 +576,7 @@ mod tests {
     #[test]
     fn test_find_following_pets_adjacent() {
         let mut level = test_level_with_stairs();
-        let mut pet = crate::monster::Monster::new(
-            crate::monster::MonsterId(0), 0, 8, 5,
-        );
+        let mut pet = crate::monster::Monster::new(crate::monster::MonsterId(0), 0, 8, 5);
         pet.tameness = 5;
         pet.name = "kitten".to_string();
         level.add_monster(pet);
@@ -604,9 +588,7 @@ mod tests {
     #[test]
     fn test_find_following_pets_too_far() {
         let mut level = test_level_with_stairs();
-        let mut pet = crate::monster::Monster::new(
-            crate::monster::MonsterId(0), 0, 12, 5,
-        );
+        let mut pet = crate::monster::Monster::new(crate::monster::MonsterId(0), 0, 12, 5);
         pet.tameness = 5;
         pet.name = "kitten".to_string();
         level.add_monster(pet);
@@ -618,9 +600,7 @@ mod tests {
     #[test]
     fn test_find_following_pets_hostile_ignored() {
         let mut level = test_level_with_stairs();
-        let mut hostile = crate::monster::Monster::new(
-            crate::monster::MonsterId(0), 0, 8, 5,
-        );
+        let mut hostile = crate::monster::Monster::new(crate::monster::MonsterId(0), 0, 8, 5);
         hostile.tameness = 0;
         hostile.name = "goblin".to_string();
         level.add_monster(hostile);

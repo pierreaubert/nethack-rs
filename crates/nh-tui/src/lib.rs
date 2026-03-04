@@ -9,5 +9,5 @@ pub mod theme;
 pub mod widgets;
 
 pub use app::{App, AppEvent, CharacterChoices, CharacterCreationState, StartMenuAction, UiMode};
-pub use theme::Theme;
 pub use display::GraphicsMode;
+pub use theme::Theme;

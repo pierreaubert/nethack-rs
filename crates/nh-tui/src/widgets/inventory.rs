@@ -186,9 +186,7 @@ impl<'a> InventoryWidget<'a> {
             String::new()
         };
 
-        let mut spans = vec![
-            Span::raw(format!("{} - ", obj.inv_letter)),
-        ];
+        let mut spans = vec![Span::raw(format!("{} - ", obj.inv_letter))];
 
         spans.push(Span::raw(format!(
             "{}{}{}",

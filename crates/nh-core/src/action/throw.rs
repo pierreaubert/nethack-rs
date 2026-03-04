@@ -7,7 +7,6 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use crate::action::kick::{hurtle, hurtle_step, mhurtle, mhurtle_step};
 use crate::action::{ActionResult, Direction};
 use crate::combat::CombatEffect;
 use crate::gameloop::GameState;
@@ -135,10 +134,8 @@ pub fn multishot_count(
     }
 
     // Must be ammo+launcher or stackable missile weapon
-    let is_stackable_missile = matches!(
-        obj.class,
-        ObjectClass::Weapon | ObjectClass::Gem
-    ) && obj.quantity > 1;
+    let is_stackable_missile =
+        matches!(obj.class, ObjectClass::Weapon | ObjectClass::Gem) && obj.quantity > 1;
 
     if !ammo_with_launcher && !is_stackable_missile {
         return 1;
@@ -147,10 +144,8 @@ pub fn multishot_count(
     let mut multishot: i32 = 1;
 
     // Determine if the player has a "weak multishot" penalty
-    let weak = matches!(
-        player.role,
-        Role::Wizard | Role::Priest | Role::Healer
-    ) || (player.role == Role::Tourist)
+    let weak = matches!(player.role, Role::Wizard | Role::Priest | Role::Healer)
+        || (player.role == Role::Tourist)
         || player.attr_current.get(Attribute::Dexterity) <= 6;
 
     // Weapon skill bonuses
@@ -309,11 +304,7 @@ pub struct PotionHitResult {
 ///
 /// Based on C potion.c potionhit(). Each potion type has a unique
 /// effect when shattered on a monster.
-pub fn potionhit(
-    target: &mut Monster,
-    potion: &Object,
-    rng: &mut GameRng,
-) -> PotionHitResult {
+pub fn potionhit(target: &mut Monster, potion: &Object, rng: &mut GameRng) -> PotionHitResult {
     let mut result = PotionHitResult {
         messages: Vec::new(),
         affected: false,
@@ -322,10 +313,9 @@ pub fn potionhit(
         monster_died: false,
     };
 
-    result.messages.push(format!(
-        "The potion shatters on {}!",
-        target.name
-    ));
+    result
+        .messages
+        .push(format!("The potion shatters on {}!", target.name));
 
     // Apply potion-specific effects based on object_type
     // Potion types: 257=GainAbility..282=Water (from PotionType enum)
@@ -333,7 +323,9 @@ pub fn potionhit(
         259 => {
             // Confusion
             if target.confused_timeout == 0 {
-                result.messages.push(format!("{} looks confused.", target.name));
+                result
+                    .messages
+                    .push(format!("{} looks confused.", target.name));
             }
             target.confused_timeout += rng.rnd(12) as u16 + 4;
             result.affected = true;
@@ -371,7 +363,9 @@ pub fn potionhit(
             // Healing - heals monster!
             let heal = rng.dice(6, 4) as i32;
             target.hp = (target.hp + heal).min(target.hp_max);
-            result.messages.push(format!("{} looks better.", target.name));
+            result
+                .messages
+                .push(format!("{} looks better.", target.name));
             result.affected = true;
             result.damage = 0; // No damage
         }
@@ -379,7 +373,9 @@ pub fn potionhit(
             // Extra healing
             let heal = rng.dice(6, 8) as i32;
             target.hp = (target.hp + heal).min(target.hp_max);
-            result.messages.push(format!("{} looks much better.", target.name));
+            result
+                .messages
+                .push(format!("{} looks much better.", target.name));
             result.affected = true;
             result.damage = 0;
         }
@@ -388,7 +384,9 @@ pub fn potionhit(
             if !target.resists_sleep() {
                 target.state.sleeping = true;
                 target.sleep_timeout = rng.rnd(12) as u16 + 5;
-                result.messages.push(format!("{} falls asleep.", target.name));
+                result
+                    .messages
+                    .push(format!("{} falls asleep.", target.name));
                 result.affected = true;
             } else {
                 result.messages.push(format!("{} resists.", target.name));
@@ -397,7 +395,9 @@ pub fn potionhit(
         275 => {
             // Full healing
             target.hp = target.hp_max;
-            result.messages.push(format!("{} looks completely healed!", target.name));
+            result
+                .messages
+                .push(format!("{} looks completely healed!", target.name));
             result.affected = true;
             result.damage = 0;
         }
@@ -405,10 +405,14 @@ pub fn potionhit(
             // Acid
             let acid_dmg = rng.dice(3, 6) as i32;
             if target.resists_acid() {
-                result.messages.push(format!("{} is not affected.", target.name));
+                result
+                    .messages
+                    .push(format!("{} is not affected.", target.name));
             } else {
                 result.damage += acid_dmg;
-                result.messages.push(format!("{} is burned by acid!", target.name));
+                result
+                    .messages
+                    .push(format!("{} is burned by acid!", target.name));
                 result.affected = true;
             }
         }
@@ -419,10 +423,9 @@ pub fn potionhit(
                 if target.is_undead() || target.is_demon() {
                     let holy_dmg = rng.dice(2, 6) as i32;
                     result.damage += holy_dmg;
-                    result.messages.push(format!(
-                        "{} is burned by the holy water!",
-                        target.name
-                    ));
+                    result
+                        .messages
+                        .push(format!("{} is burned by the holy water!", target.name));
                     result.affected = true;
                 }
             } else if potion.buc == BucStatus::Cursed {
@@ -430,10 +433,9 @@ pub fn potionhit(
                 if !target.is_undead() && !target.is_demon() {
                     let unholy_dmg = rng.dice(2, 6) as i32;
                     result.damage += unholy_dmg;
-                    result.messages.push(format!(
-                        "{} is burned by the unholy water!",
-                        target.name
-                    ));
+                    result
+                        .messages
+                        .push(format!("{} is burned by the unholy water!", target.name));
                     result.affected = true;
                 }
             }
@@ -511,15 +513,11 @@ pub fn handle_boomerang(
             monster.hp -= damage;
             result.hit_monster = Some(monster_id);
             result.damage = damage;
-            result.messages.push(format!(
-                "The boomerang hits {}!",
-                monster.name
-            ));
+            result
+                .messages
+                .push(format!("The boomerang hits {}!", monster.name));
             if monster.hp <= 0 {
-                result.messages.push(format!(
-                    "You kill {}!",
-                    monster.name
-                ));
+                result.messages.push(format!("You kill {}!", monster.name));
             }
             // Boomerang continues on return path even after hit
             break;
@@ -530,10 +528,14 @@ pub fn handle_boomerang(
     let dex = player.attr_current.get(Attribute::Dexterity) as i32;
     if rng.rn2(10) == 0 && dex < 14 {
         result.returned = false;
-        result.messages.push("You fumble and fail to catch the boomerang!".to_string());
+        result
+            .messages
+            .push("You fumble and fail to catch the boomerang!".to_string());
     } else {
         result.returned = true;
-        result.messages.push("You skillfully catch the boomerang.".to_string());
+        result
+            .messages
+            .push("You skillfully catch the boomerang.".to_string());
     }
 
     result
@@ -620,16 +622,17 @@ pub fn gem_accept_full(
         if is_real_gem {
             if is_buddy {
                 result.luck_change = 5;
-                result.messages.push("You feel exceptionally lucky!".to_string());
+                result
+                    .messages
+                    .push("You feel exceptionally lucky!".to_string());
             } else {
                 result.luck_change = rng.rn2(7) as i32 - 3; // -3 to +3
             }
         } else {
             // Fake gem (glass, worthless)
-            result.messages.push(format!(
-                "{} is not interested in your junk.",
-                target.name
-            ));
+            result
+                .messages
+                .push(format!("{} is not interested in your junk.", target.name));
             result.gem_taken = false;
         }
     } else {
@@ -642,29 +645,24 @@ pub fn gem_accept_full(
             }
         } else {
             // Fake but unknown: unicorn graciously accepts
-            result.messages.push(format!(
-                "{} graciously accepts your gift.",
-                target.name
-            ));
+            result
+                .messages
+                .push(format!("{} graciously accepts your gift.", target.name));
         }
     }
 
     if result.gem_taken {
         // Add gem to unicorn inventory
         target.inventory.push(obj.clone());
-        result.messages.push(format!(
-            "{} catches the gem.",
-            target.name
-        ));
+        result
+            .messages
+            .push(format!("{} catches the gem.", target.name));
     }
 
     // Unicorn may teleport away after accepting
     if result.gem_taken && rng.rn2(3) == 0 {
         result.teleported = true;
-        result.messages.push(format!(
-            "{} vanishes!",
-            target.name
-        ));
+        result.messages.push(format!("{} vanishes!", target.name));
     }
 
     result
@@ -703,26 +701,23 @@ pub fn throw_egg(
         damage: 1,
     };
 
-    result.messages.push(format!(
-        "The egg splatters on {}!",
-        target.name
-    ));
+    result
+        .messages
+        .push(format!("The egg splatters on {}!", target.name));
 
     if is_cockatrice_egg {
         // Petrification check
         if target.resists_stone() {
-            result.messages.push(format!(
-                "{} is not affected.",
-                target.name
-            ));
+            result
+                .messages
+                .push(format!("{} is not affected.", target.name));
         } else {
             // Monster turns to stone
             result.petrified = true;
             result.damage = target.hp + 200; // Fatal
-            result.messages.push(format!(
-                "{} turns to stone!",
-                target.name
-            ));
+            result
+                .messages
+                .push(format!("{} turns to stone!", target.name));
         }
     }
 
@@ -772,7 +767,9 @@ pub fn wand_break_effect(
 
     let charges = wand.enchantment.max(0) as i32;
     if charges == 0 {
-        result.messages.push("The wand breaks with a fizzle.".to_string());
+        result
+            .messages
+            .push("The wand breaks with a fizzle.".to_string());
         return result;
     }
 
@@ -880,11 +877,15 @@ pub fn monster_throw(
 
         // Special effects from projectile type
         if obj.poisoned
-            && !player.properties.has(crate::player::Property::PoisonResistance)
+            && !player
+                .properties
+                .has(crate::player::Property::PoisonResistance)
         {
             result.effects.push(CombatEffect::Poisoned);
             result.player_damage += rng.rnd(6) as i32;
-            result.messages.push("The projectile was poisoned!".to_string());
+            result
+                .messages
+                .push("The projectile was poisoned!".to_string());
         }
     } else {
         result.messages.push(format!(
@@ -1171,7 +1172,12 @@ pub fn do_throw(state: &mut GameState, obj_letter: char, direction: Direction) -
                                 gem_identified,
                                 &mut state.rng,
                             );
-                            (gem_result.messages, gem_result.luck_change, false, gem_result.teleported)
+                            (
+                                gem_result.messages,
+                                gem_result.luck_change,
+                                false,
+                                gem_result.teleported,
+                            )
                         } else {
                             monster.hp -= damage;
                             let died = monster.hp <= 0;
@@ -1189,7 +1195,8 @@ pub fn do_throw(state: &mut GameState, obj_letter: char, direction: Direction) -
                         state.message(msg);
                     }
                     if luck_change != 0 {
-                        state.player.luck = (state.player.luck as i32 + luck_change).clamp(-13, 13) as i8;
+                        state.player.luck =
+                            (state.player.luck as i32 + luck_change).clamp(-13, 13) as i8;
                     }
                     if killed || teleported {
                         state.current_level.remove_monster(monster_id);
@@ -1219,14 +1226,18 @@ pub fn do_throw(state: &mut GameState, obj_letter: char, direction: Direction) -
                 }
             } else {
                 // Miss
-                let monster_name = state.current_level.monster(monster_id)
+                let monster_name = state
+                    .current_level
+                    .monster(monster_id)
                     .map(|m| m.name.clone())
                     .unwrap_or_else(|| "monster".to_string());
                 state.message(format!("The {} misses {}.", obj_name, monster_name));
                 // Object lands at monster position
                 projectile.x = path.end_x;
                 projectile.y = path.end_y;
-                state.current_level.add_object(projectile, path.end_x, path.end_y);
+                state
+                    .current_level
+                    .add_object(projectile, path.end_x, path.end_y);
             }
         } else if path.hit_wall {
             // Hit a wall
@@ -1250,7 +1261,9 @@ pub fn do_throw(state: &mut GameState, obj_letter: char, direction: Direction) -
             // Traveled full range, lands on ground
             projectile.x = path.end_x;
             projectile.y = path.end_y;
-            state.current_level.add_object(projectile, path.end_x, path.end_y);
+            state
+                .current_level
+                .add_object(projectile, path.end_x, path.end_y);
             if shot == 0 {
                 state.message(format!("The {} lands on the ground.", obj_name));
             }
@@ -1304,13 +1317,13 @@ pub fn dofire(state: &mut GameState, direction: Direction) -> ActionResult {
 }
 
 /// Throw an object that might not be in inventory (e.g. from floor)
-pub fn throwit(state: &mut GameState, obj: Object, direction: Direction) {
+pub fn throwit(state: &mut GameState, obj: Object, _direction: Direction) {
     // Logic to throw an object that might not be in inventory (e.g. from floor)
     // Stub
     state.message(format!("You throw {}.", obj.display_name()));
 }
 
-pub fn throw_gold(state: &mut GameState, amount: i32) {
+pub fn throw_gold(state: &mut GameState, _amount: i32) {
     state.message("You throw the gold.");
 }
 
@@ -1347,8 +1360,7 @@ pub fn m_throw(state: &mut GameState, monster_id: u32, obj: Object, dx: i8, dy: 
         // Check if hits player
         if x == state.player.pos.x && y == state.player.pos.y {
             // Monster's throw hits player
-            let to_hit =
-                10 + state.current_level.dlevel.depth() as i32 - state.player.armor_class as i32;
+            let to_hit = 10 + state.current_level.dlevel.depth() - state.player.armor_class as i32;
             let roll = state.rng.rnd(20) as i32;
 
             if roll <= to_hit {
@@ -1371,34 +1383,34 @@ pub fn m_throw(state: &mut GameState, monster_id: u32, obj: Object, dx: i8, dy: 
         }
 
         // Check if hits another monster
-        if let Some(target_mon) = state.current_level.monster_at(x, y) {
-            if target_mon.id.0 != monster_id {
-                // Hits another monster
-                let target_id = target_mon.id;
-                let target_name = target_mon.name.clone();
-                let target_ac = target_mon.ac;
+        if let Some(target_mon) = state.current_level.monster_at(x, y)
+            && target_mon.id.0 != monster_id
+        {
+            // Hits another monster
+            let target_id = target_mon.id;
+            let target_name = target_mon.name.clone();
+            let target_ac = target_mon.ac;
 
-                let to_hit = 10 - target_ac as i32;
-                let roll = state.rng.rnd(20) as i32;
+            let to_hit = 10 - target_ac as i32;
+            let roll = state.rng.rnd(20) as i32;
 
-                if roll <= to_hit {
-                    let damage = calculate_throw_damage(&obj, &mut state.rng);
-                    state.message(format!("The {} hits the {}!", obj_name, target_name));
+            if roll <= to_hit {
+                let damage = calculate_throw_damage(&obj, &mut state.rng);
+                state.message(format!("The {} hits the {}!", obj_name, target_name));
 
-                    if let Some(target) = state.current_level.monster_mut(target_id) {
-                        target.hp -= damage;
-                        if target.hp <= 0 {
-                            state.message(format!("The {} is killed!", target_name));
-                            state.current_level.remove_monster(target_id);
-                        }
+                if let Some(target) = state.current_level.monster_mut(target_id) {
+                    target.hp -= damage;
+                    if target.hp <= 0 {
+                        state.message(format!("The {} is killed!", target_name));
+                        state.current_level.remove_monster(target_id);
                     }
-                } else {
-                    state.message(format!("The {} misses the {}.", obj_name, target_name));
                 }
-                final_x = x;
-                final_y = y;
-                break;
+            } else {
+                state.message(format!("The {} misses the {}.", obj_name, target_name));
             }
+            final_x = x;
+            final_y = y;
+            break;
         }
 
         // Check for walls
@@ -1481,7 +1493,7 @@ pub fn drop_throw(state: &mut GameState, obj: Object, x: i8, y: i8) {
 }
 
 /// Check if thrown object hits a specific monster
-pub fn thitmonst(state: &mut GameState, monster_id: u32, obj: &Object) -> bool {
+pub fn thitmonst(state: &mut GameState, monster_id: u32, _obj: &Object) -> bool {
     if let Some(monster) = state
         .current_level
         .monster(crate::monster::MonsterId(monster_id))
@@ -1546,7 +1558,7 @@ pub fn tmiss(state: &mut GameState, obj: &Object, monster_id: u32) {
 }
 
 /// Object hits the floor (breaking potions, etc.)
-pub fn hitfloor(state: &mut GameState, obj: &Object, x: i8, y: i8) {
+pub fn hitfloor(state: &mut GameState, obj: &Object, _x: i8, _y: i8) {
     match obj.class {
         ObjectClass::Potion => {
             state.message("The potion shatters!");
@@ -1580,7 +1592,7 @@ pub fn gem_accept(state: &mut GameState, monster_id: u32, obj: &Object) -> bool 
             // Unicorns like valuable gems
             // Higher value = higher acceptance chance
             let value = obj.shop_price.max(1);
-            let accept_chance = (value / 100).min(80) as i32;
+            let accept_chance = (value / 100).min(80);
             let roll = state.rng.rnd(100) as i32;
 
             if roll <= accept_chance {
@@ -1603,13 +1615,6 @@ pub fn gem_learned(state: &mut GameState, obj: &Object) {
         state.message("You learn something about gems.");
         // Would mark gem type as identified in discovery system
     }
-}
-
-/// Check if an object is a boomerang that can return to player
-fn is_boomerang(obj: &crate::object::Object) -> bool {
-    // Boomerangs are throwing weapons that return
-    // In NetHack, boomerangs are typically object types 39-41
-    matches!(obj.object_type, 39..=41)
 }
 
 /// Calculate damage for thrown object
@@ -1943,14 +1948,7 @@ mod tests {
         let mut target = test_monster();
         let gem = Object::new(ObjectId(1), 100, ObjectClass::Gem);
 
-        let result = gem_accept_full(
-            &mut target,
-            &gem,
-            Material::Glass,
-            0,
-            true,
-            &mut rng,
-        );
+        let result = gem_accept_full(&mut target, &gem, Material::Glass, 0, true, &mut rng);
         assert_eq!(result.luck_change, 0);
         assert!(!result.gem_taken);
     }
@@ -1963,14 +1961,7 @@ mod tests {
         target.alignment = 0;
         let gem = Object::new(ObjectId(1), 100, ObjectClass::Gem);
 
-        let result = gem_accept_full(
-            &mut target,
-            &gem,
-            Material::Gemstone,
-            0,
-            false,
-            &mut rng,
-        );
+        let result = gem_accept_full(&mut target, &gem, Material::Gemstone, 0, false, &mut rng);
         assert!(result.became_peaceful);
         assert!(target.is_peaceful());
     }

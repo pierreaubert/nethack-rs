@@ -8,9 +8,9 @@
 
 use std::collections::HashSet;
 
+use nh_test::c_source_parser::artifacts::extract_artifact_names;
 use nh_test::c_source_parser::monsters::extract_monster_names;
 use nh_test::c_source_parser::objects::extract_object_names;
-use nh_test::c_source_parser::artifacts::extract_artifact_names;
 use nh_test::c_source_parser::roles::extract_role_names;
 
 // ============================================================================
@@ -137,11 +137,7 @@ fn test_monster_count() {
     let count = nh_core::data::monsters::MONSTERS.len();
     println!("Rust monster count: {}", count);
     // NetHack 3.6.7 has ~381 monsters (including NUMMONS sentinel)
-    assert!(
-        count >= 370,
-        "Expected 370+ monsters, found {}",
-        count
-    );
+    assert!(count >= 370, "Expected 370+ monsters, found {}", count);
 }
 
 // ============================================================================
@@ -241,11 +237,7 @@ fn test_object_count() {
     let count = nh_core::data::objects::OBJECTS.len();
     println!("Rust object count: {}", count);
     // NetHack 3.6.7 has ~467 objects
-    assert!(
-        count >= 400,
-        "Expected 400+ objects, found {}",
-        count
-    );
+    assert!(count >= 400, "Expected 400+ objects, found {}", count);
 }
 
 // ============================================================================
@@ -452,9 +444,24 @@ fn test_static_data_summary() {
     println!("\n=== Static Data Summary ===");
     println!("{:<20} {:<10} {:<10}", "Category", "C", "Rust");
     println!("{}", "-".repeat(40));
-    println!("{:<20} {:<10} {:<10}", "Monsters", c_monsters.len(), rust_monsters);
-    println!("{:<20} {:<10} {:<10}", "Objects", c_objects.len(), rust_objects);
-    println!("{:<20} {:<10} {:<10}", "Artifacts", c_artifacts.len(), rust_artifacts);
+    println!(
+        "{:<20} {:<10} {:<10}",
+        "Monsters",
+        c_monsters.len(),
+        rust_monsters
+    );
+    println!(
+        "{:<20} {:<10} {:<10}",
+        "Objects",
+        c_objects.len(),
+        rust_objects
+    );
+    println!(
+        "{:<20} {:<10} {:<10}",
+        "Artifacts",
+        c_artifacts.len(),
+        rust_artifacts
+    );
     println!("{:<20} {:<10} {:<10}", "Roles", c_roles.len(), rust_roles);
     println!("{:<20} {:<10} {:<10}", "Races", "5", rust_races);
 }

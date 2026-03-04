@@ -605,7 +605,7 @@ pub fn assign_rnd_level(
 /// If the depth is in the current dungeon, return that level.
 /// If above current dungeon, trace back through parent branches.
 pub fn get_level(dungeon_system: &DungeonSystem, current: &DLevel, depth: i32) -> DLevel {
-    let mut dgn = current.dungeon_num;
+    let dgn = current.dungeon_num;
 
     // Get current dungeon info
     let Some(dungeon) = dungeon_system.dungeons.get(dgn as usize) else {
@@ -625,7 +625,6 @@ pub fn get_level(dungeon_system: &DungeonSystem, current: &DLevel, depth: i32) -
         // Find parent dungeon
         for branch in &dungeon_system.branches {
             if branch.end2.dungeon_num == dgn {
-                dgn = branch.end1.dungeon_num;
                 // Recursively find level in parent
                 return get_level(dungeon_system, &branch.end1, depth);
             }

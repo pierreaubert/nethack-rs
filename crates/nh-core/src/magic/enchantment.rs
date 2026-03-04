@@ -7,7 +7,6 @@
 use crate::compat::*;
 
 use crate::object::{BucStatus, Object, ObjectClass};
-use crate::player::You;
 use crate::rng::GameRng;
 
 /// Result of an enchantment operation

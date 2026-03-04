@@ -192,12 +192,11 @@ pub fn extract_c_room_constants() -> Option<super::room_types::CRoomConstants> {
 
     let mut max_rooms = 40;
     for line in content.lines() {
-        if line.contains("#define MAXNROFROOMS") {
-            if let Some(num_str) = line.split_whitespace().nth(2) {
-                if let Ok(num) = num_str.parse::<usize>() {
-                    max_rooms = num;
-                }
-            }
+        if line.contains("#define MAXNROFROOMS")
+            && let Some(num_str) = line.split_whitespace().nth(2)
+            && let Ok(num) = num_str.parse::<usize>()
+        {
+            max_rooms = num;
         }
     }
 

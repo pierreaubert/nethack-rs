@@ -8,8 +8,8 @@ use nh_core::magic::identification::{
     IdentificationKnowledge, IdentificationLevel, identify_from_scroll,
 };
 use nh_core::object::{
-    BucStatus, DiscoveryState, Object, ObjectClass, ObjectId,
-    container_weight, doname, put_in_container, xname,
+    BucStatus, DiscoveryState, Object, ObjectClass, ObjectId, container_weight, doname,
+    put_in_container, xname,
 };
 
 // ============================================================================
@@ -51,11 +51,23 @@ fn test_artifact_list_exists() {
 
     // Known artifacts should be present
     let names: Vec<&str> = ARTIFACTS.iter().map(|a| a.name).collect();
-    assert!(names.contains(&"Excalibur"), "Excalibur should be in artifact list");
-    assert!(names.contains(&"Stormbringer"), "Stormbringer should be in artifact list");
-    assert!(names.contains(&"Mjollnir"), "Mjollnir should be in artifact list");
+    assert!(
+        names.contains(&"Excalibur"),
+        "Excalibur should be in artifact list"
+    );
+    assert!(
+        names.contains(&"Stormbringer"),
+        "Stormbringer should be in artifact list"
+    );
+    assert!(
+        names.contains(&"Mjollnir"),
+        "Mjollnir should be in artifact list"
+    );
     assert!(names.contains(&"Sting"), "Sting should be in artifact list");
-    assert!(names.contains(&"Vorpal Blade"), "Vorpal Blade should be in artifact list");
+    assert!(
+        names.contains(&"Vorpal Blade"),
+        "Vorpal Blade should be in artifact list"
+    );
 }
 
 // ============================================================================
@@ -235,7 +247,11 @@ fn test_buc_identification() {
     let mut unknown_buc = Object::default();
     unknown_buc.buc = BucStatus::Blessed;
     unknown_buc.buc_known = false;
-    assert_eq!(unknown_buc.buc_prefix(), "", "Unknown BUC should show empty prefix");
+    assert_eq!(
+        unknown_buc.buc_prefix(),
+        "",
+        "Unknown BUC should show empty prefix"
+    );
 
     unknown_buc.buc_known = true;
     assert_eq!(unknown_buc.buc_prefix(), "blessed ");
@@ -334,7 +350,11 @@ fn test_bag_of_holding_exists() {
     // Uncursed BoH halves contained weight
     // Base 15 + 200/2 = 115
     let w = container_weight(&bag);
-    assert_eq!(w, 115, "Uncursed BoH weight: base(15) + contents(200)/2 = 115, got {}", w);
+    assert_eq!(
+        w, 115,
+        "Uncursed BoH weight: base(15) + contents(200)/2 = 115, got {}",
+        w
+    );
 
     // Blessed BoH quarters contained weight
     bag.buc = BucStatus::Blessed;
@@ -385,18 +405,38 @@ fn test_object_doname() {
     known_obj.buc_known = true;
     known_obj.enchantment = 2;
     let name = known_obj.doname("long sword");
-    assert!(name.contains("blessed"), "doname should show BUC, got: {}", name);
-    assert!(name.contains("+2"), "doname should show enchantment, got: {}", name);
-    assert!(name.contains("long sword"), "doname should show base name, got: {}", name);
+    assert!(
+        name.contains("blessed"),
+        "doname should show BUC, got: {}",
+        name
+    );
+    assert!(
+        name.contains("+2"),
+        "doname should show enchantment, got: {}",
+        name
+    );
+    assert!(
+        name.contains("long sword"),
+        "doname should show base name, got: {}",
+        name
+    );
 
     // Multiple quantity
     let mut stack = Object::new(ObjectId(3), 1, ObjectClass::Weapon);
     stack.quantity = 5;
     let name = stack.doname("arrow");
-    assert!(name.contains("5"), "doname should show quantity, got: {}", name);
+    assert!(
+        name.contains("5"),
+        "doname should show quantity, got: {}",
+        name
+    );
     // Module-level doname function also works
     let name2 = doname(&stack, "arrow");
-    assert!(name2.contains("5"), "Module doname should show quantity, got: {}", name2);
+    assert!(
+        name2.contains("5"),
+        "Module doname should show quantity, got: {}",
+        name2
+    );
 }
 
 // ============================================================================

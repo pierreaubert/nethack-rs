@@ -3,7 +3,7 @@
 //! End-to-end replay validation and overall convergence assessment.
 
 use nh_core::action::{Command, Direction};
-use nh_core::{GameLoop, GameLoopResult, GameState, GameRng};
+use nh_core::{GameLoop, GameLoopResult, GameRng, GameState};
 
 // ============================================================================
 // 9.1: Short replay tests
@@ -40,7 +40,8 @@ fn test_replay_basic_movement() {
         assert!(
             matches!(result, GameLoopResult::Continue),
             "Command {} should continue, got {:?}",
-            i, result
+            i,
+            result
         );
     }
 }
@@ -80,11 +81,19 @@ fn test_replay_different_seeds_diverge() {
     // Different seeds generate different levels, so positions may differ
     // (the player may be blocked by walls in one but not the other)
     // At minimum, the levels themselves should differ
-    let room_count_1 = gl1.state().current_level.cells.iter()
+    let room_count_1 = gl1
+        .state()
+        .current_level
+        .cells
+        .iter()
         .flat_map(|col| col.iter())
         .filter(|c| c.typ == nh_core::dungeon::CellType::Room)
         .count();
-    let room_count_2 = gl2.state().current_level.cells.iter()
+    let room_count_2 = gl2
+        .state()
+        .current_level
+        .cells
+        .iter()
         .flat_map(|col| col.iter())
         .filter(|c| c.typ == nh_core::dungeon::CellType::Room)
         .count();
@@ -118,10 +127,7 @@ fn test_replay_mixed_commands() {
 
 #[test]
 fn test_replay_save_terminates() {
-    let commands = vec![
-        Command::Move(Direction::East),
-        Command::Save,
-    ];
+    let commands = vec![Command::Move(Direction::East), Command::Save];
 
     let (_, results) = replay_commands(42, &commands);
     assert!(matches!(results.last(), Some(GameLoopResult::SaveAndQuit)));
@@ -129,10 +135,7 @@ fn test_replay_save_terminates() {
 
 #[test]
 fn test_replay_quit_terminates() {
-    let commands = vec![
-        Command::Move(Direction::East),
-        Command::Quit,
-    ];
+    let commands = vec![Command::Move(Direction::East), Command::Quit];
 
     let (_, results) = replay_commands(42, &commands);
     assert!(matches!(results.last(), Some(GameLoopResult::PlayerQuit)));
@@ -145,8 +148,14 @@ fn test_replay_quit_terminates() {
 #[test]
 fn test_replay_10_seeds_50_moves() {
     let directions = [
-        Direction::North, Direction::South, Direction::East, Direction::West,
-        Direction::NorthEast, Direction::NorthWest, Direction::SouthEast, Direction::SouthWest,
+        Direction::North,
+        Direction::South,
+        Direction::East,
+        Direction::West,
+        Direction::NorthEast,
+        Direction::NorthWest,
+        Direction::SouthEast,
+        Direction::SouthWest,
     ];
 
     for seed in 0..10u64 {
@@ -168,7 +177,10 @@ fn test_replay_10_seeds_50_moves() {
             match result {
                 GameLoopResult::Continue => {}
                 GameLoopResult::PlayerDied(_) => break,
-                _ => panic!("Unexpected result at seed {} turn {}: {:?}", seed, turn, result),
+                _ => panic!(
+                    "Unexpected result at seed {} turn {}: {:?}",
+                    seed, turn, result
+                ),
             }
         }
     }
@@ -182,8 +194,14 @@ fn test_replay_10_seeds_50_moves() {
 /// search, rest, look, inventory, and other non-destructive actions.
 fn generate_varied_commands(n: usize, seed: u64) -> Vec<Command> {
     let directions = [
-        Direction::North, Direction::South, Direction::East, Direction::West,
-        Direction::NorthEast, Direction::NorthWest, Direction::SouthEast, Direction::SouthWest,
+        Direction::North,
+        Direction::South,
+        Direction::East,
+        Direction::West,
+        Direction::NorthEast,
+        Direction::NorthWest,
+        Direction::SouthEast,
+        Direction::SouthWest,
     ];
     let mut commands = Vec::with_capacity(n);
     // Use seed to vary the pattern slightly
@@ -219,10 +237,13 @@ fn run_n_steps(seed: u64, n: usize) -> (u64, i32, i8, i8, bool) {
         let result = gl.tick(cmd.clone());
         match result {
             GameLoopResult::Continue => {}
-            GameLoopResult::PlayerDied(_) => { alive = false; break; }
-            GameLoopResult::PlayerWon |
-            GameLoopResult::PlayerQuit |
-            GameLoopResult::SaveAndQuit => break,
+            GameLoopResult::PlayerDied(_) => {
+                alive = false;
+                break;
+            }
+            GameLoopResult::PlayerWon
+            | GameLoopResult::PlayerQuit
+            | GameLoopResult::SaveAndQuit => break,
         }
     }
 
@@ -248,7 +269,10 @@ fn test_500_step_stress_5_seeds() {
             turns_completed = i as u64 + 1;
             match result {
                 GameLoopResult::Continue => {}
-                GameLoopResult::PlayerDied(_) => { died = true; break; }
+                GameLoopResult::PlayerDied(_) => {
+                    died = true;
+                    break;
+                }
                 _ => break,
             }
         }
@@ -256,15 +280,20 @@ fn test_500_step_stress_5_seeds() {
         let s = gl.state();
         println!(
             "  seed={}: {} turns, HP={}/{}, pos=({},{}), {}",
-            seed, turns_completed, s.player.hp, s.player.hp_max,
-            s.player.pos.x, s.player.pos.y,
+            seed,
+            turns_completed,
+            s.player.hp,
+            s.player.hp_max,
+            s.player.pos.x,
+            s.player.pos.y,
             if died { "DIED" } else { "alive" }
         );
 
         // Must have run at least some turns
         assert!(
             turns_completed > 0,
-            "Seed {}: should have run at least 1 turn", seed
+            "Seed {}: should have run at least 1 turn",
+            seed
         );
     }
 }
@@ -396,7 +425,9 @@ fn test_convergence_summary() {
 
     println!("=== Phase 19: Integration & Full Verification ===");
     println!("  Status: COMPLETE (10 new integration tests)");
-    println!("  GameState::new_with_identity() — full player init (role/race/gender/HP/energy/skills/inventory)");
+    println!(
+        "  GameState::new_with_identity() — full player init (role/race/gender/HP/energy/skills/inventory)"
+    );
     println!("  MonsterSpawn timed event now spawns actual monsters");
     println!("  Per-turn visibility refresh in new_turn()");
     println!("  Integration tests:");

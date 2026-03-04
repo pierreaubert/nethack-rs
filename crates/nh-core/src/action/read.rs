@@ -96,12 +96,7 @@ pub fn do_read(state: &mut GameState, obj_letter: Option<char>) -> ActionResult 
             // Normal scroll - genocide single monster type
             // Would normally get player input to select a specific monster
             // For now, if polymorphed, use that type; otherwise use default
-            let target_type = if let Some(player_monster_type) = state.player.monster_num {
-                player_monster_type
-            } else {
-                // Default to monster type 5 if not polymorphed
-                5
-            };
+            let target_type = state.player.monster_num.unwrap_or(5);
 
             let result = do_genocide(target_type, state);
             for msg in result.messages {
@@ -159,7 +154,7 @@ pub fn seffects(state: &mut GameState, obj: &Object) {
 
 /// Study a spellbook to learn its spell
 pub fn study_book(state: &mut GameState, book: &Object) -> ActionResult {
-    use crate::magic::spell::{KnownSpell, SpellType};
+    use crate::magic::spell::KnownSpell;
 
     // Check if player is confused
     if state.player.is_confused() {
@@ -258,7 +253,7 @@ fn spell_type_from_book(book_type: i16) -> Option<crate::magic::spell::SpellType
 
 /// Reading a spellbook while confused may destroy it
 /// Returns true if the book was destroyed
-pub fn confused_book(state: &mut GameState, book: &Object) -> bool {
+pub fn confused_book(state: &mut GameState, _book: &Object) -> bool {
     state.message("Being confused you have difficulties controlling your actions.");
 
     // 1 in 3 chance to tear the book
@@ -272,7 +267,7 @@ pub fn confused_book(state: &mut GameState, book: &Object) -> bool {
 }
 
 /// Effects of reading a cursed spellbook
-pub fn cursed_book(state: &mut GameState, book: &Object) {
+pub fn cursed_book(state: &mut GameState, _book: &Object) {
     use crate::player::Attribute;
 
     state.message("The book is cursed!");
@@ -310,7 +305,7 @@ pub fn book_cursed(state: &mut GameState, book: &Object) {
     cursed_book(state, book);
 }
 
-pub fn book_disappears(state: &mut GameState, book: &Object) {
+pub fn book_disappears(state: &mut GameState, _book: &Object) {
     state.message("The book disappears in a puff of smoke!");
 }
 
@@ -361,11 +356,11 @@ pub fn deadbook(state: &mut GameState, _book: &Object) {
     }
 }
 
-pub fn lookup_novel(state: &mut GameState, book: &Object) {
+pub fn lookup_novel(state: &mut GameState, _book: &Object) {
     state.message("You read the novel.");
 }
 
-pub fn noveltitle(book: &Object) -> String {
+pub fn noveltitle(_book: &Object) -> String {
     "A Tale of Two Cities".to_string()
 }
 

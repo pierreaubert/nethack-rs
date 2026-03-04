@@ -6,9 +6,7 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use crate::object::Object;
 use crate::player::{Property, You};
-use crate::rng::GameRng;
 use serde::{Deserialize, Serialize};
 
 /// Artifact special property or effect
@@ -343,24 +341,19 @@ pub fn artifact_provides_protection(artifact_id: u8, damage_type: &str) -> bool 
     match damage_type {
         "fire" => effects
             .properties
-            .iter()
-            .any(|p| *p == ArtifactProperty::FireResistance),
+            .contains(&ArtifactProperty::FireResistance),
         "cold" => effects
             .properties
-            .iter()
-            .any(|p| *p == ArtifactProperty::ColdResistance),
+            .contains(&ArtifactProperty::ColdResistance),
         "poison" => effects
             .properties
-            .iter()
-            .any(|p| *p == ArtifactProperty::PoisonResistance),
+            .contains(&ArtifactProperty::PoisonResistance),
         "drain" => effects
             .properties
-            .iter()
-            .any(|p| *p == ArtifactProperty::DrainResistance),
+            .contains(&ArtifactProperty::DrainResistance),
         "sleep" => effects
             .properties
-            .iter()
-            .any(|p| *p == ArtifactProperty::SleepResistance),
+            .contains(&ArtifactProperty::SleepResistance),
         _ => false,
     }
 }
@@ -414,19 +407,21 @@ mod artifact_tracking {
 
     /// Mark an artifact as existing or not existing
     pub fn set_artifact_exists(artifact_index: usize, exists: bool) {
-        if artifact_index > 0 && artifact_index < MAX_ARTIFACTS {
-            if let Ok(mut exist) = ARTIFACT_EXIST.lock() {
-                exist[artifact_index] = exists;
-            }
+        if artifact_index > 0
+            && artifact_index < MAX_ARTIFACTS
+            && let Ok(mut exist) = ARTIFACT_EXIST.lock()
+        {
+            exist[artifact_index] = exists;
         }
     }
 
     /// Check if a specific artifact exists
     pub fn artifact_exists(artifact_index: usize) -> bool {
-        if artifact_index > 0 && artifact_index < MAX_ARTIFACTS {
-            if let Ok(exist) = ARTIFACT_EXIST.lock() {
-                return exist[artifact_index];
-            }
+        if artifact_index > 0
+            && artifact_index < MAX_ARTIFACTS
+            && let Ok(exist) = ARTIFACT_EXIST.lock()
+        {
+            return exist[artifact_index];
         }
         false
     }
@@ -467,7 +462,7 @@ pub use artifact_tracking::*;
 // =============================================================================
 
 use crate::combat::DamageType;
-use crate::data::artifacts::{ARTIFACTS, Artifact, ArtifactFlags};
+use crate::data::artifacts::{ARTIFACTS, ArtifactFlags};
 
 /// Check if artifact has a specific special ability flag (spec_ability equivalent)
 pub fn spec_ability(artifact_index: usize, ability: ArtifactFlags) -> bool {
@@ -717,9 +712,6 @@ pub fn artitouch(
         return ArtifactTouchResult::Success;
     }
 
-    // Calculate damage for blast
-    let mut damage = 0i32;
-
     if bad_class && bad_align && self_willed {
         // Completely incompatible - artifact evades
         return ArtifactTouchResult::Evades;
@@ -727,7 +719,7 @@ pub fn artitouch(
 
     if self_willed && (bad_class || bad_align) {
         // Artifact resists and may blast
-        damage = rng.rnd(if bad_class && bad_align { 8 } else { 4 }) as i32;
+        let damage = rng.rnd(if bad_class && bad_align { 8 } else { 4 }) as i32;
         if damage > 0 {
             return ArtifactTouchResult::Blasted(damage);
         }
@@ -835,10 +827,7 @@ pub fn doinvoke(
 /// Sting/Orcrist warning effect check (Sting_effects equivalent)
 /// Returns warning message if orcs are nearby
 pub fn sting_effects(artifact_index: usize, orcs_nearby: bool) -> Option<String> {
-    let art = match ARTIFACTS.get(artifact_index) {
-        Some(a) => a,
-        None => return None,
-    };
+    let art = ARTIFACTS.get(artifact_index)?;
 
     // Only applies to artifacts that warn against orcs (Sting, Orcrist)
     if !art.spfx.contains(ArtifactFlags::WARN) {
@@ -870,7 +859,7 @@ pub enum MagicbaneEffect {
 /// Magicbane special hit effect (Mb_hit equivalent)
 /// Returns (additional_damage, effect, message)
 pub fn mb_hit(
-    is_player_attack: bool,
+    _is_player_attack: bool,
     die_roll: i32,
     spe: i32,
     target_mr: u8,

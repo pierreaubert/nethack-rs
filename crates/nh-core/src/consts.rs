@@ -236,7 +236,7 @@ pub const fn isqrt(n: u32) -> u32 {
         return 0;
     }
     let mut x = n;
-    let mut y = (x + 1) / 2;
+    let mut y = x.div_ceil(2);
     while y < x {
         x = y;
         y = (x + n / x) / 2;
@@ -366,8 +366,8 @@ pub const fn plur(count: i32) -> &'static str {
 
 /// "y" -> "ies" or just "s" for plural
 pub fn ies(word: &str) -> String {
-    if word.ends_with('y') {
-        format!("{}ies", &word[..word.len() - 1])
+    if let Some(stem) = word.strip_suffix('y') {
+        format!("{}ies", stem)
     } else {
         format!("{}s", word)
     }
@@ -736,14 +736,12 @@ pub fn makeplural(word: &str) -> String {
     }
 
     // Ends in -y preceded by consonant -> -ies
-    if word.ends_with('y') {
-        let chars: Vec<char> = word.chars().collect();
-        if chars.len() > 1 {
-            let second_last = chars[chars.len() - 2].to_ascii_lowercase();
-            if !"aeiou".contains(second_last) {
-                return format!("{}ies", &word[..word.len() - 1]);
-            }
-        }
+    if let Some(stem) = word.strip_suffix('y').filter(|s| {
+        s.chars()
+            .next_back()
+            .is_some_and(|c| !"aeiou".contains(c.to_ascii_lowercase()))
+    }) {
+        return format!("{}ies", stem);
     }
 
     // Ends in -s, -x, -z, -ch, -sh -> add -es
@@ -757,11 +755,11 @@ pub fn makeplural(word: &str) -> String {
     }
 
     // Ends in -f or -fe -> -ves (with some exceptions)
-    if word.ends_with('f') {
-        return format!("{}ves", &word[..word.len() - 1]);
+    if let Some(stem) = word.strip_suffix("fe") {
+        return format!("{}ves", stem);
     }
-    if word.ends_with("fe") {
-        return format!("{}ves", &word[..word.len() - 2]);
+    if let Some(stem) = word.strip_suffix('f') {
+        return format!("{}ves", stem);
     }
 
     // Default: add -s
@@ -841,13 +839,10 @@ pub fn hcolor(
     hallucinating: bool,
     rng: &mut crate::rng::GameRng,
 ) -> &'static str {
-    if hallucinating || colorpref.is_none() {
-        let idx = rng.rn2(HCOLORS.len() as u32) as usize;
-        HCOLORS[idx]
-    } else {
+    if let Some(pref) = colorpref.filter(|_| !hallucinating) {
         // Return a static version of the color - caller provides color constants
         // Since we can't return the reference directly, use a match on common colors
-        match colorpref.unwrap() {
+        match pref {
             "black" => "black",
             "white" => "white",
             "red" => "red",
@@ -867,6 +862,9 @@ pub fn hcolor(
             "pink" => "pink",
             _ => "colorless",
         }
+    } else {
+        let idx = rng.rn2(HCOLORS.len() as u32) as usize;
+        HCOLORS[idx]
     }
 }
 
@@ -948,13 +946,13 @@ pub fn fire_effect_category(monster_type: i16) -> FireEffectCategory {
     // For now, use approximate type ranges
     match monster_type {
         // Fire creatures
-        mt if mt >= 300 && mt < 310 => FireEffectCategory::AlreadyOnFire,
+        mt if (300..310).contains(&mt) => FireEffectCategory::AlreadyOnFire,
         // Water creatures
-        mt if mt >= 310 && mt < 320 => FireEffectCategory::WaterBased,
+        mt if (310..320).contains(&mt) => FireEffectCategory::WaterBased,
         // Ice/glass creatures
-        mt if mt >= 320 && mt < 330 => FireEffectCategory::Melting,
+        mt if (320..330).contains(&mt) => FireEffectCategory::Melting,
         // Stone/earth creatures
-        mt if mt >= 330 && mt < 350 => FireEffectCategory::HeatingUp,
+        mt if (330..350).contains(&mt) => FireEffectCategory::HeatingUp,
         // Normal creatures
         _ => FireEffectCategory::Normal,
     }
@@ -1011,11 +1009,8 @@ pub fn hliquid(
     hallucinating: bool,
     rng: &mut crate::rng::GameRng,
 ) -> &'static str {
-    if hallucinating || liquidpref.is_none() {
-        let idx = rng.rn2(HLIQUIDS.len() as u32) as usize;
-        HLIQUIDS[idx]
-    } else {
-        match liquidpref.unwrap() {
+    if let Some(pref) = liquidpref.filter(|_| !hallucinating) {
+        match pref {
             "water" => "water",
             "blood" => "blood",
             "oil" => "oil",
@@ -1025,6 +1020,9 @@ pub fn hliquid(
             "potion" => "potion",
             _ => "liquid",
         }
+    } else {
+        let idx = rng.rn2(HLIQUIDS.len() as u32) as usize;
+        HLIQUIDS[idx]
     }
 }
 

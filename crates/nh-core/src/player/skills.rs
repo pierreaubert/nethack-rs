@@ -326,36 +326,6 @@ pub fn skill_level_name(level: SkillLevel) -> &'static str {
     }
 }
 
-/// Initialize player skills from role defaults (skill_init equivalent)
-///
-/// Sets up the skill set based on the player's role and race.
-/// This would typically be called at character creation.
-pub fn skill_init(skill_set: &mut SkillSet, role: &str) {
-    // Role-specific skill initializations
-    // This is a simplified version - the full implementation would be in tables
-    match role.to_lowercase().as_str() {
-        "barbarian" => {
-            skill_set.set_max(SkillType::BareHanded, SkillLevel::Master);
-            skill_set.set_max(SkillType::TwoWeapon, SkillLevel::Skilled);
-            skill_set.set_max(SkillType::BroadSword, SkillLevel::Expert);
-        }
-        "warrior" => {
-            skill_set.set_max(SkillType::BareHanded, SkillLevel::Expert);
-            skill_set.set_max(SkillType::BroadSword, SkillLevel::Expert);
-            skill_set.set_max(SkillType::Axe, SkillLevel::Skilled);
-        }
-        "monk" => {
-            skill_set.set_max(SkillType::BareHanded, SkillLevel::GrandMaster);
-            skill_set.set_max(SkillType::Quarterstaff, SkillLevel::Skilled);
-        }
-        "wizard" => {
-            skill_set.set_max(SkillType::AttackSpells, SkillLevel::Expert);
-            skill_set.set_max(SkillType::EnchantmentSpells, SkillLevel::Expert);
-        }
-        _ => {}
-    }
-}
-
 /// Add a weapon skill to the list of available skills (add_weapon_skill equivalent)
 ///
 /// Increases the number of skills available for advancement.
@@ -383,7 +353,7 @@ pub fn unrestrict_weapon_skill(skill_set: &mut SkillSet, skill_type: SkillType) 
 /// Adds practice points to a skill based on the degree of success.
 pub fn use_skill(skill_set: &mut SkillSet, skill_type: SkillType, degree: i32) {
     let skill = skill_set.get_mut(skill_type);
-    let practice_points = (degree.abs() as u16).max(1);
+    let practice_points = (degree.unsigned_abs() as u16).max(1);
     skill.add_practice(practice_points);
 }
 
@@ -421,19 +391,6 @@ pub fn enhance_weapon_skill(skill_set: &mut SkillSet) -> bool {
         }
     }
     false
-}
-
-/// Get spell skill type from spellbook object type (spell_skilltype equivalent)
-///
-/// Maps a spellbook object type to its corresponding skill type.
-pub fn spell_skilltype(booktype: u16) -> Option<SkillType> {
-    // This would be based on object table lookups in the real implementation
-    match booktype {
-        1..=10 => Some(SkillType::AttackSpells),
-        11..=20 => Some(SkillType::HealingSpells),
-        21..=30 => Some(SkillType::DivinationSpells),
-        _ => None,
-    }
 }
 
 /// Get weapon description (weapon_descr equivalent)

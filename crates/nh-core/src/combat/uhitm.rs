@@ -7,25 +7,21 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use super::artifact::{artifact_for_object, artifact_hit, spec_abon, spec_dbon, Artifact};
+use super::artifact::{Artifact, artifact_for_object, artifact_hit, spec_abon, spec_dbon};
 use super::{
-    AmmunitionCount, ArmorProficiency, ArmorType, CombatEffect, CombatEncounter, CombatModifier,
-    CombatResult, CombatSpell, CriticalHitType, DamageType, DefenseCalculation, DifficultyRating,
-    DodgeSkill, EncounterState, Formation, GroupTactic, LootDrop, LootGenerator, RangedAttack,
-    RangedCombatResult, RangedWeaponType, SkillLevel, SpecialCombatEffect, SpellCastResult,
-    StatusEffect, StatusEffectTracker, TreasureHoard, WeaponSkill, apply_armor_penetration,
-    apply_combat_modifiers, apply_damage_reduction, apply_encounter_modifiers,
-    apply_special_effect, apply_status_effect, attempt_dodge, award_loot_to_player,
-    award_monster_xp, award_player_xp, calculate_armor_damage_reduction,
+    ArmorType, CombatEffect, CombatEncounter, CombatResult, CombatSpell, CriticalHitType,
+    DifficultyRating, EncounterState, Formation, LootDrop, LootGenerator, SkillLevel,
+    SpecialCombatEffect, SpellCastResult, TreasureHoard, WeaponSkill, apply_armor_penetration,
+    apply_encounter_modifiers, apply_special_effect, award_loot_to_player, award_player_xp,
     calculate_attribute_damage_bonus, calculate_encounter_xp, calculate_monster_xp_reward,
     calculate_skill_enhanced_damage, calculate_skill_enhanced_to_hit, calculate_status_damage,
     can_player_cast_spell, cast_combat_spell, check_flanking, determine_critical_hit,
-    effect_severity_from_skill, execute_ranged_attack, flanking_damage_bonus, roll_special_effect,
-    select_monster_target, should_trigger_special_effect, weapon_vs_armor_bonus,
+    effect_severity_from_skill, flanking_damage_bonus, should_trigger_special_effect,
+    weapon_vs_armor_bonus,
 };
 use crate::monster::{Monster, MonsterFlags};
 use crate::object::{Material, Object};
-use crate::player::{AlignmentType, You};
+use crate::player::You;
 use crate::rng::GameRng;
 
 // ============================================================================
@@ -424,8 +420,7 @@ pub fn hmon(
                 damage += spec_bonus;
 
                 // Artifact special effects (beheading, drain, elemental)
-                let art_result =
-                    artifact_hit(w, target, &mut damage, dieroll, artifacts, rng);
+                let art_result = artifact_hit(w, target, &mut damage, dieroll, artifacts, rng);
                 if art_result.had_effect {
                     result.artifact_messaged = true;
                     result.messages.extend(art_result.messages);
@@ -442,10 +437,9 @@ pub fn hmon(
                 && mon_hates_silver(target)
                 && !is_silver
             {
-                result.messages.push(format!(
-                    "Your silver weapon sears {}'s flesh!",
-                    target.name
-                ));
+                result
+                    .messages
+                    .push(format!("Your silver weapon sears {}'s flesh!", target.name));
             }
 
             // Poison check
@@ -653,10 +647,7 @@ pub fn cleave_targets(
             (center_dir + 1) % 8,
         )
     } else {
-        (
-            (center_dir + 1) % 8,
-            (center_dir + 7) % 8,
-        )
+        ((center_dir + 1) % 8, (center_dir + 7) % 8)
     };
 
     [
@@ -685,10 +676,7 @@ pub fn cleave_targets(
 /// Vulnerability multiplier for a monster against a damage type.
 ///
 /// Returns a multiplier (1.0 = normal, 2.0 = double, 0.0 = immune).
-pub fn creature_vulnerability(
-    target: &Monster,
-    weapon_material: Material,
-) -> f32 {
+pub fn creature_vulnerability(target: &Monster, weapon_material: Material) -> f32 {
     let mut mult = 1.0;
 
     // Silver vulnerability
@@ -957,8 +945,8 @@ pub fn player_attack_monster(
 pub fn process_player_xp_reward(
     player: &mut You,
     monster: &Monster,
-    damage_dealt: i32,
-    player_hp_before: i32,
+    _damage_dealt: i32,
+    _player_hp_before: i32,
 ) -> bool {
     // Calculate XP reward based on monster level
     let reward = calculate_monster_xp_reward(monster);
@@ -1394,56 +1382,6 @@ pub fn advance_weapon_skill_from_combat(
     }
 }
 
-/// Get player's armor proficiency level
-///
-/// Based on experience and class
-pub fn get_player_armor_proficiency(player: &You) -> ArmorProficiency {
-    match player.exp_level {
-        0..=3 => ArmorProficiency::Untrained,
-        4..=8 => ArmorProficiency::Novice,
-        9..=15 => ArmorProficiency::Trained,
-        16..=25 => ArmorProficiency::Expert,
-        _ => ArmorProficiency::Master,
-    }
-}
-
-/// Get player's dodge/evasion skill level
-///
-/// Based on dexterity and experience
-pub fn get_player_dodge_skill(player: &You) -> DodgeSkill {
-    let dex_bonus = (player.attr_current.get(crate::player::Attribute::Dexterity) as i32 - 10) / 2;
-    let base_level = match player.exp_level {
-        0..=3 => 0,
-        4..=8 => 1,
-        9..=15 => 2,
-        16..=25 => 3,
-        _ => 4,
-    };
-
-    let adjusted = base_level + dex_bonus;
-    match adjusted {
-        ..=0 => DodgeSkill::Untrained,
-        1..=2 => DodgeSkill::Basic,
-        3..=4 => DodgeSkill::Practiced,
-        5..=6 => DodgeSkill::Expert,
-        _ => DodgeSkill::Master,
-    }
-}
-
-/// Calculate player defense against incoming attack
-pub fn calculate_player_defense(player: &You) -> DefenseCalculation {
-    let armor_prof = get_player_armor_proficiency(player);
-    let dodge_skill = get_player_dodge_skill(player);
-
-    // Base AC from armor class
-    let base_ac = player.armor_class as i32;
-
-    // For now, assume no armor degradation
-    let degradation = super::ArmorDegradation::new(10);
-
-    DefenseCalculation::calculate(base_ac, armor_prof, dodge_skill, degradation)
-}
-
 pub fn ammo_for_launcher(ammo: &Object, launcher: &Object) -> bool {
     // Check if ammo matches launcher type
     // Arrows for bows, bolts for crossbows, etc.
@@ -1472,488 +1410,11 @@ pub fn throw_damage(weapon: &Object, player: &You, rng: &mut GameRng) -> i32 {
     damage.max(1)
 }
 
-/// Comprehensive combat evaluation combining all factors
-///
-/// Evaluates a complete combat scenario including skill, modifiers, and special effects.
-/// Returns detailed breakdown of combat calculation for debugging/analysis.
-pub fn evaluate_comprehensive_combat(
-    player: &You,
-    target: &Monster,
-    weapon: Option<&Object>,
-    modifiers: &[CombatModifier],
-    _rng: &mut GameRng,
-) -> String {
-    let weapon_skill = get_weapon_skill(weapon);
-    let skill_level = get_player_weapon_skill(player, weapon_skill);
-    let base_to_hit = calculate_to_hit(player, target, weapon);
-
-    let armor_penetration = skill_level.armor_penetration();
-    let enhanced_to_hit =
-        calculate_skill_enhanced_to_hit(base_to_hit, skill_level, armor_penetration);
-
-    let target_ac = target.ac;
-    let effective_ac = apply_armor_penetration(target_ac, armor_penetration);
-
-    let (mod_to_hit, mod_damage) = apply_combat_modifiers(modifiers);
-    let final_to_hit = enhanced_to_hit + mod_to_hit;
-
-    // Format comprehensive combat info
-    format!(
-        "Combat: {} vs {} (AC {})\n  Weapon: {:?}, Skill: {:?}\n  Base ToHit: {}, Enhanced: {}, Final: {}\n  Modifiers: +{} to-hit, +{} damage\n  EffectiveAC: {}",
-        player.name,
-        "Monster",
-        target.ac,
-        weapon_skill,
-        skill_level,
-        base_to_hit,
-        enhanced_to_hit,
-        final_to_hit,
-        mod_to_hit,
-        mod_damage,
-        effective_ac
-    )
-}
-
-// ============================================================================
-// Ranged Combat System (Phase 11 Integration)
-// ============================================================================
-
-/// Determine ranged weapon type from launcher object
-pub fn get_ranged_weapon_type(launcher: Option<&Object>) -> Option<RangedWeaponType> {
-    match launcher {
-        None => None,
-        Some(w) => {
-            let name_lower = w
-                .name
-                .as_ref()
-                .map(|n| n.to_lowercase())
-                .unwrap_or_default();
-
-            if name_lower.contains("bow") {
-                Some(RangedWeaponType::Bow)
-            } else if name_lower.contains("crossbow") {
-                Some(RangedWeaponType::Crossbow)
-            } else if name_lower.contains("sling") {
-                Some(RangedWeaponType::Sling)
-            } else if w.thrown {
-                Some(RangedWeaponType::Thrown)
-            } else {
-                None
-            }
-        }
-    }
-}
-
-/// Calculate distance between attacker and target (simplified 2D distance)
-pub fn calculate_distance(attacker_x: i32, attacker_y: i32, target_x: i32, target_y: i32) -> i32 {
-    // Chebyshev distance (max of absolute differences) for grid-based combat
-    let dx = (attacker_x - target_x).abs();
-    let dy = (attacker_y - target_y).abs();
-    dx.max(dy)
-}
-
-/// Player ranged attack against monster
-pub fn player_ranged_attack(
-    player: &mut You,
-    target: &mut Monster,
-    launcher: Option<&Object>,
-    distance: i32,
-    rng: &mut GameRng,
-) -> CombatResult {
-    // Determine ranged weapon type
-    let Some(weapon_type) = get_ranged_weapon_type(launcher) else {
-        // Not a valid ranged weapon
-        return CombatResult::MISS;
-    };
-
-    // Get player's skill with ranged weapons (bow, crossbow, or sling)
-    let weapon_skill = match weapon_type {
-        RangedWeaponType::Bow => WeaponSkill::Bow,
-        RangedWeaponType::Crossbow => WeaponSkill::Crossbow,
-        RangedWeaponType::Sling => WeaponSkill::Sling,
-        RangedWeaponType::Thrown => WeaponSkill::Dagger, // Use dagger skill for thrown
-    };
-
-    let skill_level = get_player_weapon_skill(player, weapon_skill);
-
-    // Get base to-hit (without distance penalty)
-    let strength = player.attr_current.get(crate::player::Attribute::Strength) as u8;
-    let dexterity = player.attr_current.get(crate::player::Attribute::Dexterity) as u8;
-
-    // Ranged weapons heavily favor dexterity
-    let mut base_to_hit = (dexterity as i32 - 10) / 2;
-    base_to_hit += player.exp_level;
-    base_to_hit += player.luck as i32;
-
-    // Add launcher enchantment
-    if let Some(w) = launcher {
-        base_to_hit += w.enchantment as i32;
-        base_to_hit += w.weapon_tohit as i32;
-    }
-
-    // Create ranged attack info
-    let ranged_attack = RangedAttack {
-        weapon_type,
-        distance,
-        skill_level,
-        base_to_hit,
-    };
-
-    // Check if in range
-    if !ranged_attack.in_range() {
-        return CombatResult::MISS;
-    }
-
-    // Line-of-sight check requires Level access; attack is validated at the caller level
-
-    // Execute ranged attack
-    let mut ranged_result = execute_ranged_attack(&ranged_attack, target.ac, rng);
-
-    if !ranged_result.hit {
-        return CombatResult::MISS;
-    }
-
-    // Calculate base damage from ammo/launcher
-    let base_damage = if let Some(w) = launcher {
-        if w.damage_dice > 0 && w.damage_sides > 0 {
-            rng.dice(w.damage_dice as u32, w.damage_sides as u32) as i32
-        } else {
-            rng.dice(1, 6) as i32
-        }
-    } else {
-        rng.dice(1, 4) as i32
-    };
-
-    // Calculate ranged damage with distance scaling
-    let damage = ranged_attack.calculate_damage(base_damage, ranged_result.critical);
-
-    // Handle instant kill
-    let target_died = if ranged_result.critical == CriticalHitType::InstantKill {
-        target.hp = 0;
-        true
-    } else {
-        target.hp -= damage;
-        target.hp <= 0
-    };
-
-    // Apply special effects for ranged weapons
-    let mut special_effect = None;
-
-    // On critical hit, chance for special effect
-    if ranged_result.critical.is_critical() && skill_level as u8 >= SkillLevel::Skilled as u8 {
-        if rng.one_in(4) {
-            special_effect = Some(super::CombatEffect::ItemDestroyed); // Arrow breaks/pierces armor
-        }
-    }
-
-    // Update weapon proficiency
-    update_weapon_proficiency(
-        player,
-        weapon_skill,
-        true,
-        ranged_result.critical.is_critical(),
-    );
-
-    CombatResult {
-        hit: true,
-        defender_died: target_died,
-        attacker_died: false,
-        damage,
-        special_effect,
-    }
-}
-
-/// Consume ammunition for a ranged attack
-///
-/// Reduces ammunition count by one if available. Should be called after a
-/// ranged attack succeeds or fails, to deduct the arrow/bolt/stone used.
-///
-/// Returns true if ammunition was successfully consumed, false if out of ammo
-/// (which shouldn't happen if checks were done correctly upstream).
-pub fn consume_ammunition(ammunition: &mut AmmunitionCount) -> bool {
-    ammunition.consume()
-}
-
-/// Recover ammunition after a ranged attack
-///
-/// Attempts to pick up the projectile after an attack. In NetHack, arrows
-/// can be recovered with some probability depending on what they hit.
-/// Success rate should be higher for misses, lower for kills.
-///
-/// For now, this implements a simple recovery chance based on what happened.
-pub fn try_recover_ammunition(
-    ammunition: &mut AmmunitionCount,
-    hit: bool,
-    critical: CriticalHitType,
-    rng: &mut crate::rng::GameRng,
-) {
-    // Recovery chance depends on whether projectile hit and how hard
-    let recovery_chance = match (hit, critical) {
-        (false, _) => 95,                    // 95% chance to recover on miss
-        (true, CriticalHitType::None) => 75, // 75% on normal hit
-        (true, CriticalHitType::Graze | CriticalHitType::Critical) => 50, // 50% on critical
-        (true, CriticalHitType::Devastating) => 25, // 25% on devastating
-        (true, CriticalHitType::InstantKill) => 0, // 0% on instant kill
-    };
-
-    if rng.rnd(100) < recovery_chance {
-        ammunition.recover(1); // Recover one projectile
-    }
-}
-
-/// Get ammunition requirements for a launcher
-///
-/// Determines what type and how much ammunition a launcher needs.
-/// Returns (ammunition_type, ideal_count) where type is weapon class.
-pub fn ammunition_requirement_for_launcher(launcher: &Object) -> Option<(u16, i32)> {
-    // Bow requires arrows (50-56), ideal 20
-    if launcher.object_type >= 57 && launcher.object_type <= 58 {
-        return Some((50, 20)); // Arrows
-    }
-
-    // Crossbow requires bolts (63-66), ideal 15
-    if launcher.object_type >= 59 && launcher.object_type <= 60 {
-        return Some((63, 15)); // Bolts
-    }
-
-    // Sling requires stones (67-70), ideal 30
-    if launcher.object_type >= 61 && launcher.object_type <= 62 {
-        return Some((67, 30)); // Stones
-    }
-
-    None
-}
-
-/// Check if a target monster is friendly to the player
-///
-/// A monster is considered friendly if:
-/// - It's tame (pet)
-/// - It's peaceful and the player is not hostile
-/// - It's an NPC or allied creature
-///
-/// Returns true if the monster should NOT be attacked, false if hostile/enemy.
-pub fn is_friendly_target(target: &Monster, player: &You) -> bool {
-    // Tame monsters are always friendly (pets)
-    if target.state.tame {
-        return true;
-    }
-
-    // Peaceful monsters that are co-aligned are friendly
-    if target.state.peaceful {
-        // If both player and monster are aligned the same way (or both neutral),
-        // they're friendly. Co-alignment check:
-        let player_align_type = player.alignment.typ;
-        let monster_align_type = crate::player::AlignmentType::from_value(target.alignment);
-
-        let coaligned = if player_align_type == crate::player::AlignmentType::Neutral {
-            // Neutral player doesn't have alignment-based friendliness
-            false
-        } else {
-            player_align_type == monster_align_type
-        };
-
-        if coaligned {
-            return true; // Same alignment = friendly
-        }
-    }
-
-    // All other monsters are hostile/enemy
-    false
-}
-
-/// Friendly fire check result
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FriendlyFireResult {
-    /// Safe to attack - no friendly fire risk
-    Safe,
-    /// Target is friendly - would cause friendly fire
-    TargetFriendly,
-    /// Friendly unit in projectile path - would cause collateral damage
-    CollateralRisk,
-}
-
-/// Check if a ranged attack would cause friendly fire
-///
-/// Validates that the attack target and projectile path don't hit friendly units.
-/// Returns Safe if the attack is clear, or describes the friendly fire risk.
-pub fn check_friendly_fire(
-    attacker: &You,
-    target: &Monster,
-    level: &crate::dungeon::Level,
-) -> FriendlyFireResult {
-    // First check: is the target itself friendly?
-    if is_friendly_target(target, attacker) {
-        return FriendlyFireResult::TargetFriendly;
-    }
-
-    // Second check: scan projectile path for friendly units
-    // (This would require scanning all monsters in level, which isn't available
-    // in this function signature without Level access to monster list)
-    // For now, we implement basic checks above
-
-    FriendlyFireResult::Safe
-}
-
-/// Get friendly fire warning message
-///
-/// Returns a descriptive message about the friendly fire risk that can be
-/// shown to the player before confirming the attack.
-pub fn friendly_fire_warning_message(result: FriendlyFireResult, target: &Monster) -> String {
-    match result {
-        FriendlyFireResult::Safe => "Attack is clear - no friendly units at risk.".to_string(),
-        FriendlyFireResult::TargetFriendly => {
-            format!(
-                "{} is friendly! {} won't attack your ally!",
-                &target.name,
-                if target.state.tame { "You" } else { "You" }
-            )
-        }
-        FriendlyFireResult::CollateralRisk => {
-            "Warning: A friendly unit may be in the projectile path!".to_string()
-        }
-    }
-}
-
-/// Attempt ranged attack with friendly fire prevention
-///
-/// Checks for friendly fire before executing the attack.
-/// Returns true if attack proceeds, false if blocked by friendly fire.
-pub fn can_attack_ranged_safely(
-    attacker: &You,
-    target: &Monster,
-    level: &crate::dungeon::Level,
-) -> Result<(), String> {
-    let ff_result = check_friendly_fire(attacker, target, level);
-
-    match ff_result {
-        FriendlyFireResult::Safe => Ok(()),
-        FriendlyFireResult::TargetFriendly => Err(format!(
-            "{} is your ally - you can't attack them!",
-            &target.name
-        )),
-        FriendlyFireResult::CollateralRisk => Err("Friendly units are in the way!".to_string()),
-    }
-}
-
-/// Monster ranged attack against player
-pub fn monster_ranged_attack(
-    attacker: &Monster,
-    player: &mut You,
-    distance: i32,
-    rng: &mut GameRng,
-) -> CombatResult {
-    // Simple monster ranged attack (if monster has ranged capability)
-    // Most monsters use melee, but some can throw rocks, breathe, etc.
-
-    // Get monster skill level
-    let skill_level = match attacker.level {
-        0..=2 => SkillLevel::Unskilled,
-        3..=6 => SkillLevel::Basic,
-        7..=12 => SkillLevel::Skilled,
-        13..=20 => SkillLevel::Expert,
-        _ => SkillLevel::Master,
-    };
-
-    // Assume thrown rock/projectile attack
-    let base_to_hit = attacker.level as i32;
-
-    let ranged_attack = RangedAttack {
-        weapon_type: RangedWeaponType::Thrown,
-        distance,
-        skill_level,
-        base_to_hit,
-    };
-
-    if !ranged_attack.in_range() {
-        return CombatResult::MISS;
-    }
-
-    let ranged_result = execute_ranged_attack(&ranged_attack, player.armor_class, rng);
-
-    if !ranged_result.hit {
-        return CombatResult::MISS;
-    }
-
-    // Calculate damage
-    let base_damage = rng.dice(1, 4) as i32;
-    let damage = ranged_attack.calculate_damage(base_damage, ranged_result.critical);
-
-    let player_died = if ranged_result.critical == CriticalHitType::InstantKill {
-        player.hp = 0;
-        true
-    } else {
-        player.hp -= damage;
-        player.hp <= 0
-    };
-
-    CombatResult {
-        hit: true,
-        defender_died: player_died,
-        attacker_died: false,
-        damage,
-        special_effect: None,
-    }
-}
-
-// ============================================================================
-// Player Defense Application (Phase 12 Integration)
-// ============================================================================
-
-/// Apply player defense to incoming damage
-///
-/// Calculates damage reduction from armor, applies dodge saves,
-/// and returns final damage taken
-pub fn apply_player_defense(
-    player: &You,
-    incoming_damage: i32,
-    damage_type: DamageType,
-    rng: &mut GameRng,
-) -> i32 {
-    // Calculate player defense
-    let defense = calculate_player_defense(player);
-
-    // Try to dodge (dodge skill scales with dexterity)
-    let dodge_skill = get_player_dodge_skill(player);
-    if attempt_dodge(dodge_skill, 0, rng) {
-        // Dodged! Take 1 damage or none
-        return 0;
-    }
-
-    // Calculate armor damage reduction
-    let armor_type = ArmorType::Light; // Worn armor type detection requires per-slot equipment tracking
-    let reduction = calculate_armor_damage_reduction(
-        defense.base_ac,
-        defense.proficiency,
-        damage_type,
-        armor_type,
-    );
-
-    // Apply damage reduction
-    apply_damage_reduction(incoming_damage, reduction)
-}
-
-/// Check if player can dodge an attack
-pub fn can_player_dodge(player: &You, attacker_accuracy: i32, rng: &mut GameRng) -> bool {
-    let dodge_skill = get_player_dodge_skill(player);
-    attempt_dodge(dodge_skill, attacker_accuracy, rng)
-}
-
 /// Check if player is wearing armor of a specific type
 pub fn player_wearing_armor_type(player: &You, armor_type: ArmorType) -> bool {
     // Per-slot worn armor tracking not yet implemented; defaults to no armor
     let _ = (player, armor_type);
     false
-}
-
-/// Check if weapon can penetrate player armor
-pub fn weapon_penetrates_armor(weapon: Option<&Object>, armor_type: ArmorType) -> bool {
-    match weapon {
-        None => true, // Bare hands can't penetrate armor
-        Some(w) => {
-            // Enchanted/special weapons can penetrate better
-            w.enchantment > 0 || matches!(armor_type, ArmorType::Light)
-        }
-    }
 }
 
 /// Check if weapon is wielded two-handed
@@ -2034,10 +1495,7 @@ pub fn skill_hit_bonus(player: &You, weapon: Option<&Object>, is_twoweap: bool) 
     if is_twoweap {
         // Two-weapon combat (weapon.c:1431-1451)
         // Use minimum of weapon skill and two-weapon skill
-        let tw_level = player
-            .skills
-            .get(crate::player::SkillType::TwoWeapon)
-            .level;
+        let tw_level = player.skills.get(crate::player::SkillType::TwoWeapon).level;
         let wep_level = player.skills.get(wep_type).level;
         let effective = if wep_level.as_int() < tw_level.as_int() {
             wep_level
@@ -2097,10 +1555,7 @@ pub fn skill_dam_bonus(player: &You, weapon: Option<&Object>, is_twoweap: bool) 
 
     if is_twoweap {
         // Two-weapon combat (weapon.c:1526-1545)
-        let tw_level = player
-            .skills
-            .get(crate::player::SkillType::TwoWeapon)
-            .level;
+        let tw_level = player.skills.get(crate::player::SkillType::TwoWeapon).level;
         let wep_level = player.skills.get(wep_type).level;
         let effective = if wep_level.as_int() < tw_level.as_int() {
             wep_level
@@ -2190,7 +1645,7 @@ pub fn attack_checks(
     // Peaceful confirmation
     if is_peaceful && can_see_target {
         // Check for Stormbringer special case
-        let is_stormbringer = weapon.map_or(false, |_w| {
+        let is_stormbringer = weapon.is_some_and(|_w| {
             // Would check for artifact "Stormbringer" - for now stub
             false
         });
@@ -2619,102 +2074,6 @@ where
     total_damage
 }
 
-// ============================================================================
-// Additional NetHack C function equivalents
-// ============================================================================
-
-/// Main melee attack function (hitum in C).
-///
-/// Wrapper for the full attack sequence including checks and execution.
-///
-/// # Arguments
-/// * `player` - The attacking player
-/// * `target` - The monster being attacked
-/// * `weapon` - The weapon being used
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// Combat result
-pub fn hitum(
-    player: &mut You,
-    target: &mut Monster,
-    weapon: Option<&Object>,
-    rng: &mut GameRng,
-) -> CombatResult {
-    // Check if we can attack
-    if target.state.peaceful && !player.properties.has(crate::player::Property::Conflict) {
-        // Would need confirmation in full implementation
-        return CombatResult::MISS;
-    }
-
-    // Execute the attack
-    player_attack_monster(player, target, weapon, rng)
-}
-
-/// Cleaving attack - hit multiple adjacent targets (hitum_cleave in C).
-///
-/// When the player has a cleaving weapon, they can potentially hit
-/// multiple monsters in one swing.
-///
-/// # Arguments
-/// * `player` - The attacking player
-/// * `targets` - List of adjacent monsters
-/// * `weapon` - The cleaving weapon
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// Vector of combat results for each target hit
-pub fn hitum_cleave(
-    player: &mut You,
-    targets: &mut [&mut Monster],
-    weapon: &Object,
-    rng: &mut GameRng,
-) -> Vec<CombatResult> {
-    let mut results = Vec::new();
-
-    // Cleaving can hit up to 3 adjacent targets
-    let max_cleave = 3.min(targets.len());
-
-    for target in targets.iter_mut().take(max_cleave) {
-        let result = player_attack_monster(player, *target, Some(weapon), rng);
-        results.push(result);
-
-        // If we miss, the cleave chain ends
-        if !result.hit {
-            break;
-        }
-    }
-
-    results
-}
-
-/// Attack a known (visible) monster (known_hitum in C).
-///
-/// This is used when the player explicitly targets a visible monster.
-///
-/// # Arguments
-/// * `player` - The attacking player
-/// * `target` - The visible monster
-/// * `weapon` - The weapon being used
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// Combat result
-pub fn known_hitum(
-    player: &mut You,
-    target: &mut Monster,
-    weapon: Option<&Object>,
-    rng: &mut GameRng,
-) -> CombatResult {
-    // Wake up the monster
-    target.state.sleeping = false;
-
-    // Mark as seen
-    target.state.invisible = false;
-
-    hitum(player, target, weapon, rng)
-}
-
 /// Hit a monster and apply damage - simplified version (hmon in C).
 ///
 /// Core damage application function.
@@ -2745,7 +2104,7 @@ pub fn hmon_simple(
             // For now, check if weapon name contains "silver"
             if w.name
                 .as_ref()
-                .map_or(false, |n| n.to_lowercase().contains("silver"))
+                .is_some_and(|n| n.to_lowercase().contains("silver"))
             {
                 final_damage += rng.rnd(20) as i32;
             }
@@ -2786,7 +2145,7 @@ pub fn hmonas(player: &mut You, target: &mut Monster, rng: &mut GameRng) -> Comb
     let damage = if player.monster_num.is_some() {
         // Polymorphed - use monster form damage
         // Simplified: use level-based damage
-        rng.dice(1, (player.exp_level as u32).max(2).min(10)) as i32
+        rng.dice(1, (player.exp_level as u32).clamp(2, 10)) as i32
     } else if player.role == crate::player::Role::Monk {
         // Monks have martial arts
         let sides = ((player.exp_level / 2) + 1).clamp(2, 16) as u32;
@@ -2797,204 +2156,6 @@ pub fn hmonas(player: &mut You, target: &mut Monster, rng: &mut GameRng) -> Comb
     };
 
     hmon_simple(player, target, None, damage, rng)
-}
-
-/// Object hits monster (thrown/launched object) (ohitmon in C).
-///
-/// Handles damage when a thrown or launched object hits a monster.
-///
-/// # Arguments
-/// * `target` - The monster being hit
-/// * `obj` - The object that hit
-/// * `launcher_damage_bonus` - Bonus damage from launcher (if any)
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// Combat result
-pub fn ohitmon(
-    target: &mut Monster,
-    obj: &Object,
-    launcher_damage_bonus: i32,
-    rng: &mut GameRng,
-) -> CombatResult {
-    // Calculate base damage from object
-    let dice = if obj.damage_dice > 0 {
-        obj.damage_dice
-    } else {
-        1
-    };
-    let sides = if obj.damage_sides > 0 {
-        obj.damage_sides
-    } else {
-        4
-    };
-    let mut damage = rng.dice(dice as u32, sides as u32) as i32;
-
-    // Add enchantment
-    damage += obj.enchantment as i32;
-
-    // Add launcher bonus
-    damage += launcher_damage_bonus;
-
-    // Silver object bonus (check name for "silver")
-    if mon_hates_silver(target) {
-        if obj
-            .name
-            .as_ref()
-            .map_or(false, |n| n.to_lowercase().contains("silver"))
-        {
-            damage += rng.rnd(20) as i32;
-        }
-    }
-
-    // Minimum damage
-    damage = damage.max(1);
-
-    target.hp -= damage;
-
-    CombatResult {
-        hit: true,
-        defender_died: target.hp <= 0,
-        attacker_died: false,
-        damage,
-        special_effect: None,
-    }
-}
-
-/// Apply special damage effects to monster (damageum in C).
-///
-/// Handles special damage types like poison, disease, etc.
-///
-/// # Arguments
-/// * `player` - The attacking player
-/// * `target` - The monster being damaged
-/// * `damage_type` - Type of special damage
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// Combat result with special effects
-pub fn damageum(
-    _player: &You,
-    target: &mut Monster,
-    damage_type: DamageType,
-    rng: &mut GameRng,
-) -> CombatResult {
-    let mut damage = 0;
-    let mut special_effect = None;
-
-    match damage_type {
-        DamageType::Fire => {
-            if !target.resists_fire() {
-                damage = rng.dice(2, 6) as i32;
-                // No specific burning effect in CombatEffect, damage is enough
-            }
-        }
-        DamageType::Cold => {
-            if !target.resists_cold() {
-                damage = rng.dice(2, 6) as i32;
-                special_effect = Some(super::CombatEffect::Slowed);
-            }
-        }
-        DamageType::Electric => {
-            if !target.resists_elec() {
-                damage = rng.dice(2, 6) as i32;
-                special_effect = Some(super::CombatEffect::Stunned);
-            }
-        }
-        DamageType::Poison => {
-            if !target.resists_poison() {
-                damage = rng.dice(1, 6) as i32;
-                special_effect = Some(super::CombatEffect::Poisoned);
-            }
-        }
-        DamageType::Acid => {
-            if !target.resists_acid() {
-                damage = rng.dice(1, 6) as i32;
-            }
-        }
-        DamageType::DrainLife => {
-            // Simplified: no drain resistance check, just apply damage
-            damage = rng.dice(1, 4) as i32;
-            // Reduce max HP
-            target.hp_max = (target.hp_max - 1).max(1);
-            special_effect = Some(super::CombatEffect::Drained);
-        }
-        DamageType::Stone => {
-            if !target.resists_stone() {
-                // Instant petrification
-                target.hp = 0;
-                special_effect = Some(super::CombatEffect::Petrifying);
-            }
-        }
-        _ => {
-            // Physical or unhandled type - no special damage
-        }
-    }
-
-    if damage > 0 {
-        target.hp -= damage;
-    }
-
-    CombatResult {
-        hit: damage > 0 || special_effect.is_some(),
-        defender_died: target.hp <= 0,
-        attacker_died: false,
-        damage,
-        special_effect,
-    }
-}
-
-/// Miss a monster (missum in C).
-///
-/// Called when player misses a monster - may have side effects.
-///
-/// # Arguments
-/// * `player` - The attacking player
-/// * `target` - The monster that was missed
-/// * `weapon` - The weapon used
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// Message about the miss
-pub fn missum(
-    _player: &You,
-    target: &Monster,
-    weapon: Option<&Object>,
-    _rng: &mut GameRng,
-) -> String {
-    let weapon_name = weapon
-        .map(|w| w.display_name())
-        .unwrap_or_else(|| "bare hands".to_string());
-    format!("You miss the {} with your {}.", target.name, weapon_name)
-}
-
-/// Use a mirror against a shade (shade_glare in C).
-///
-/// Mirrors can harm shades that look into them.
-///
-/// # Arguments
-/// * `target` - The shade being affected
-/// * `is_shade` - Whether the target is a shade (caller must determine)
-/// * `rng` - Random number generator
-///
-/// # Returns
-/// Whether the shade was affected and damage dealt
-pub fn shade_glare(target: &mut Monster, is_shade: bool, rng: &mut GameRng) -> (bool, i32) {
-    // Only shades are vulnerable
-    if !is_shade {
-        return (false, 0);
-    }
-
-    // Check if shade looks (random chance)
-    if rng.one_in(2) {
-        // Shade sees its own reflection and is damaged
-        let damage = rng.dice(2, 6) as i32;
-        target.hp -= damage;
-        (true, damage)
-    } else {
-        // Shade averts its gaze
-        (false, 0)
-    }
 }
 
 /// Check if a monster hates silver by name heuristic (fallback).
@@ -3045,11 +2206,11 @@ pub fn hates_silver(is_demon: bool, is_undead: bool, is_were: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::combat::artifact::{
-        Artifact, ArtifactAlignment, ArtifactFlags, InvokeProperty,
+    use crate::combat::artifact::{Artifact, ArtifactAlignment, ArtifactFlags, InvokeProperty};
+    use crate::combat::{
+        AmmunitionCount, Attack, AttackType, DamageType, RangedAttack, RangedWeaponType,
     };
-    use crate::combat::{AmmunitionCount, Attack, AttackType, DamageType, RangedAttack, RangedWeaponType};
-    use crate::monster::{MonsterId, MonsterFlags, MonsterResistances};
+    use crate::monster::{MonsterFlags, MonsterId, MonsterResistances};
     use crate::object::{BucStatus, ObjectClass, ObjectId};
     use crate::player::Attribute;
 
@@ -3349,8 +2510,7 @@ mod tests {
 
         for _ in 0..100 {
             monster.hp = 100;
-            let result =
-                player_attack_monster(&mut player, &mut monster, Some(&weapon), &mut rng);
+            let result = player_attack_monster(&mut player, &mut monster, Some(&weapon), &mut rng);
             if result.hit {
                 assert!(
                     result.damage >= 1 && result.damage <= 10,
@@ -3374,7 +2534,11 @@ mod tests {
             monster.hp = 100;
             let result = player_attack_monster(&mut player, &mut monster, None, &mut rng);
             if result.hit {
-                assert!(result.damage >= 1, "Damage {} should be at least 1", result.damage);
+                assert!(
+                    result.damage >= 1,
+                    "Damage {} should be at least 1",
+                    result.damage
+                );
             }
         }
     }
@@ -3429,7 +2593,8 @@ mod tests {
         assert!(
             hits_poor_ac > hits_good_ac,
             "Should hit AC 10 more than AC -5: {} vs {}",
-            hits_poor_ac, hits_good_ac
+            hits_poor_ac,
+            hits_good_ac
         );
         assert_eq!(hits_poor_ac, 1000, "Should always hit AC 10");
     }
@@ -3911,10 +3076,7 @@ mod tests {
 
             if weapon.erosion2 > 0 {
                 got_erosion = true;
-                assert!(result
-                    .messages
-                    .iter()
-                    .any(|m| m.contains("corroded")));
+                assert!(result.messages.iter().any(|m| m.contains("corroded")));
                 break;
             }
         }
@@ -4691,7 +3853,9 @@ mod tests {
         use crate::player::{SkillLevel, SkillType};
 
         // Allow BroadSword to advance to Expert and start at Unskilled
-        player.skills.set_max(SkillType::BroadSword, SkillLevel::Expert);
+        player
+            .skills
+            .set_max(SkillType::BroadSword, SkillLevel::Expert);
         player.skills.get_mut(SkillType::BroadSword).level = SkillLevel::Unskilled;
         // Give the player advancement slots
         player.skills.slots = 1;
@@ -4898,76 +4062,10 @@ mod tests {
         assert!(!ammo2.is_low(), "10/20 should not be considered low");
 
         let ammo3 = AmmunitionCount::new(5, 20); // 25% = exactly at threshold, not below
-        assert!(!ammo3.is_low(), "5/20 should not be considered low (not strictly below 25%)");
-    }
-
-    #[test]
-    fn test_ammunition_requirement_for_bow() {
-        let mut bow = Object::default();
-        bow.object_type = 57; // Bow
-
-        let requirement = ammunition_requirement_for_launcher(&bow);
-        assert_eq!(requirement, Some((50, 20)), "Bow should require arrows");
-    }
-
-    #[test]
-    fn test_ammunition_requirement_for_crossbow() {
-        let mut crossbow = Object::default();
-        crossbow.object_type = 59; // Crossbow
-
-        let requirement = ammunition_requirement_for_launcher(&crossbow);
-        assert_eq!(requirement, Some((63, 15)), "Crossbow should require bolts");
-    }
-
-    #[test]
-    fn test_ammunition_requirement_for_sling() {
-        let mut sling = Object::default();
-        sling.object_type = 61; // Sling
-
-        let requirement = ammunition_requirement_for_launcher(&sling);
-        assert_eq!(requirement, Some((67, 30)), "Sling should require stones");
-    }
-
-    #[test]
-    fn test_ammunition_requirement_no_launcher() {
-        let not_launcher = Object::default();
-
-        let requirement = ammunition_requirement_for_launcher(&not_launcher);
-        assert_eq!(requirement, None, "Non-launcher should return None");
-    }
-
-    #[test]
-    fn test_consume_ammunition() {
-        let mut ammo = AmmunitionCount::new(10, 20);
-
-        let consumed = consume_ammunition(&mut ammo);
-        assert!(consumed, "Should successfully consume");
-        assert_eq!(ammo.count, 9, "Count should decrease");
-    }
-
-    #[test]
-    fn test_try_recover_ammunition_on_miss() {
-        let mut ammo = AmmunitionCount::new(10, 20);
-        let mut rng = crate::rng::GameRng::new(42);
-
-        try_recover_ammunition(&mut ammo, false, CriticalHitType::None, &mut rng);
-
-        // On miss, should likely recover (95% chance)
-        // With seed 42, we should get recovery
-        assert!(ammo.count >= 10, "Should likely recover on miss");
-    }
-
-    #[test]
-    fn test_try_recover_ammunition_on_critical() {
-        let mut ammo = AmmunitionCount::new(10, 20);
-        let mut rng = crate::rng::GameRng::new(100);
-
-        // With seed 100, critical hit (25% recovery) less likely to recover
-        try_recover_ammunition(&mut ammo, true, CriticalHitType::Devastating, &mut rng);
-
-        // Might or might not recover depending on RNG
-        // Just verify structure works
-        assert!(ammo.count >= 10 && ammo.count <= 11);
+        assert!(
+            !ammo3.is_low(),
+            "5/20 should not be considered low (not strictly below 25%)"
+        );
     }
 
     #[test]
@@ -5000,242 +4098,6 @@ mod tests {
                 weapon.name()
             );
         }
-    }
-
-    // ========================================================================
-    // FRIENDLY FIRE PREVENTION TESTS
-    // ========================================================================
-
-    #[test]
-    fn test_is_friendly_target_tame_monster() {
-        let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-        target.state.tame = true; // Pet/familiar
-        let player = test_player();
-
-        assert!(
-            is_friendly_target(&target, &player),
-            "Tame monsters should be friendly"
-        );
-    }
-
-    #[test]
-    fn test_is_friendly_target_peaceful_coaligned() {
-        let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-        target.state.peaceful = true;
-        target.alignment = 10; // Positive alignment = Lawful
-
-        let mut player = test_player();
-        // is_friendly_target checks player.alignment.typ, not record
-        player.alignment.typ = crate::player::AlignmentType::Lawful;
-
-        assert!(
-            is_friendly_target(&target, &player),
-            "Peaceful co-aligned monsters should be friendly"
-        );
-    }
-
-    #[test]
-    fn test_is_friendly_target_peaceful_not_coaligned() {
-        let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-        target.state.peaceful = true;
-        target.alignment = 10; // Positive alignment
-
-        let mut player = test_player();
-        player.alignment.record = -5; // Negative (not co-aligned)
-
-        assert!(
-            !is_friendly_target(&target, &player),
-            "Peaceful but non-aligned monsters should not be friendly"
-        );
-    }
-
-    #[test]
-    fn test_is_friendly_target_hostile_monster() {
-        let target = Monster::new(MonsterId(1), 10, 5, 5);
-        let player = test_player();
-
-        assert!(
-            !is_friendly_target(&target, &player),
-            "Hostile monsters should not be friendly"
-        );
-    }
-
-    #[test]
-    fn test_is_friendly_target_neutral_player() {
-        let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-        target.state.peaceful = true;
-        target.alignment = 10;
-
-        let mut player = test_player();
-        player.alignment.record = 0; // Neutral
-
-        assert!(
-            !is_friendly_target(&target, &player),
-            "Neutral player doesn't have alignment-based friendliness"
-        );
-    }
-
-    #[test]
-    fn test_check_friendly_fire_safe_target() {
-        let attacker = test_player();
-        let target = Monster::new(MonsterId(1), 10, 5, 5); // Hostile
-        let level = crate::dungeon::Level::new(crate::dungeon::DLevel::main_dungeon_start());
-
-        let result = check_friendly_fire(&attacker, &target, &level);
-        assert_eq!(
-            result,
-            FriendlyFireResult::Safe,
-            "Attacking hostile monster should be safe"
-        );
-    }
-
-    #[test]
-    fn test_check_friendly_fire_friendly_target() {
-        let mut attacker = test_player();
-        let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-        target.state.tame = true; // Pet
-
-        let level = crate::dungeon::Level::new(crate::dungeon::DLevel::main_dungeon_start());
-
-        let result = check_friendly_fire(&attacker, &target, &level);
-        assert_eq!(
-            result,
-            FriendlyFireResult::TargetFriendly,
-            "Attacking friendly monster should flag as target friendly"
-        );
-    }
-
-    #[test]
-    fn test_friendly_fire_warning_safe() {
-        let target = Monster::new(MonsterId(1), 10, 5, 5);
-
-        let msg = friendly_fire_warning_message(FriendlyFireResult::Safe, &target);
-        assert!(
-            msg.contains("clear") || msg.contains("safe"),
-            "Safe message should mention clear/safe"
-        );
-    }
-
-    #[test]
-    fn test_friendly_fire_warning_target_friendly() {
-        let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-        target.name = "Fluffy the dog".to_string();
-
-        let msg = friendly_fire_warning_message(FriendlyFireResult::TargetFriendly, &target);
-        assert!(
-            msg.contains("friendly"),
-            "Should warn about friendly target"
-        );
-        assert!(msg.contains("Fluffy"), "Should include target name");
-    }
-
-    #[test]
-    fn test_friendly_fire_warning_collateral() {
-        let target = Monster::new(MonsterId(1), 10, 5, 5);
-
-        let msg = friendly_fire_warning_message(FriendlyFireResult::CollateralRisk, &target);
-        assert!(
-            msg.contains("friendly") || msg.contains("path"),
-            "Should warn about projectile path"
-        );
-    }
-
-    #[test]
-    fn test_can_attack_ranged_safely_ok() {
-        let attacker = test_player();
-        let target = Monster::new(MonsterId(1), 10, 5, 5); // Hostile
-        let level = crate::dungeon::Level::new(crate::dungeon::DLevel::main_dungeon_start());
-
-        let result = can_attack_ranged_safely(&attacker, &target, &level);
-        assert!(
-            result.is_ok(),
-            "Attacking hostile monster should be allowed"
-        );
-    }
-
-    #[test]
-    fn test_can_attack_ranged_safely_blocked() {
-        let attacker = test_player();
-        let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-        target.state.tame = true; // Pet
-
-        let level = crate::dungeon::Level::new(crate::dungeon::DLevel::main_dungeon_start());
-
-        let result = can_attack_ranged_safely(&attacker, &target, &level);
-        assert!(
-            result.is_err(),
-            "Attacking friendly monster should be blocked"
-        );
-        assert!(
-            result.unwrap_err().contains("ally"),
-            "Error should mention ally"
-        );
-    }
-
-    #[test]
-    fn test_friendly_fire_prevention_multiple_alignments() {
-        use crate::player::AlignmentType;
-
-        // Test various alignment combinations
-        // is_friendly_target uses player.alignment.typ (not record) and
-        // AlignmentType::from_value(monster.alignment) for the monster.
-        // Neutral players never get alignment-based friendliness.
-        let alignments: Vec<(AlignmentType, i8, bool)> = vec![
-            (AlignmentType::Lawful, 10, true),     // Both Lawful
-            (AlignmentType::Chaotic, -10, true),    // Both Chaotic
-            (AlignmentType::Neutral, 0, false),     // Both neutral (neutral player never friendly)
-            (AlignmentType::Lawful, -10, false),    // Lawful vs Chaotic
-            (AlignmentType::Lawful, 0, false),      // Lawful vs Neutral
-        ];
-
-        for (player_align_type, monster_align, expected_friendly) in alignments {
-            let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-            target.state.peaceful = true;
-            target.alignment = monster_align;
-
-            let mut player = test_player();
-            player.alignment.typ = player_align_type;
-
-            let is_friendly = is_friendly_target(&target, &player);
-            assert_eq!(
-                is_friendly, expected_friendly,
-                "Alignment ({:?}, {}) should result in friendly={}",
-                player_align_type, monster_align, expected_friendly
-            );
-        }
-    }
-
-    #[test]
-    fn test_tame_overrides_alignment() {
-        // Tame monsters are friendly regardless of alignment
-        let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-        target.state.tame = true;
-        target.alignment = -100; // Very hostile alignment
-
-        let mut player = test_player();
-        player.alignment.record = 100; // Very positive alignment
-
-        assert!(
-            is_friendly_target(&target, &player),
-            "Tame status should override alignment"
-        );
-    }
-
-    #[test]
-    fn test_peaceful_requires_coalignment() {
-        let mut target = Monster::new(MonsterId(1), 10, 5, 5);
-        target.state.peaceful = true;
-        target.state.tame = false; // Not tame
-
-        let mut player = test_player();
-        player.alignment.record = 10; // Positive
-        target.alignment = -10; // Negative (not co-aligned)
-
-        // Without tame or co-alignment, should not be friendly
-        assert!(
-            !is_friendly_target(&target, &player),
-            "Peaceful without co-alignment should not be friendly"
-        );
     }
 
     #[test]

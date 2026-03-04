@@ -1,11 +1,11 @@
 //! Bevy resources for NetHack-rs
 
 use bevy::prelude::*;
+use nh_assets::registry::AssetRegistry;
 use nh_core::monster::MonsterId;
 use nh_core::player::{AlignmentType, Gender, Race, Role};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use nh_assets::registry::AssetRegistry;
 
 /// Resource holding the configuration for asset loading.
 #[derive(Resource)]

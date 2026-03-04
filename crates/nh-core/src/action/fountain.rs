@@ -404,7 +404,7 @@ pub fn dowaterdemon(state: &mut GameState) {
     }
 
     // Low level characters might get a wish
-    let difficulty = state.player.exp_level as i32;
+    let difficulty = state.player.exp_level;
     if state.rng.rnd(100) as i32 > 80 + difficulty {
         state.message("Grateful for its release, the demon grants you a wish!");
         // Would handle wish granting

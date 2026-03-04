@@ -148,14 +148,22 @@ fn run_game(seed: u64, role: Role, commands: &[Command]) -> (u64, i32, i8, i8, u
         let result = gl.tick(cmd.clone());
         if matches!(
             result,
-            GameLoopResult::PlayerDied(_) | GameLoopResult::PlayerQuit | GameLoopResult::SaveAndQuit
+            GameLoopResult::PlayerDied(_)
+                | GameLoopResult::PlayerQuit
+                | GameLoopResult::SaveAndQuit
         ) {
             break;
         }
     }
 
     let s = gl.state();
-    (s.turns, s.player.hp, s.player.pos.x, s.player.pos.y, s.inventory.len())
+    (
+        s.turns,
+        s.player.hp,
+        s.player.pos.x,
+        s.player.pos.y,
+        s.inventory.len(),
+    )
 }
 
 // ============================================================================
@@ -222,13 +230,13 @@ fn test_convergence_score() {
     );
     println!();
     println!("  Behavioral Test Count (BTC):");
-    println!(
-        "    {} nh-compare tests / 25 = {:.1}/40",
-        test_count, btc
-    );
+    println!("    {} nh-compare tests / 25 = {:.1}/40", test_count, btc);
     println!();
     println!("  Structural (SC):");
-    println!("    TODOs in nh-core/src: {} ({}pt)", todo_count, todo_score);
+    println!(
+        "    TODOs in nh-core/src: {} ({}pt)",
+        todo_count, todo_score
+    );
     println!("    WASM proxy:           5pt");
     println!("    Clippy clean:         5pt");
     println!("    SC subtotal:          {:.0}/20", sc);
@@ -344,13 +352,7 @@ fn test_stress_multi_seed() {
         let s = gl.state();
         println!(
             "  seed={:<6} role={:<12?} turns={:<4} hp={:<4} pos=({},{}) died={}",
-            seed,
-            role,
-            s.turns,
-            s.player.hp,
-            s.player.pos.x,
-            s.player.pos.y,
-            died
+            seed, role, s.turns, s.player.hp, s.player.pos.x, s.player.pos.y, died
         );
 
         // Must have run at least some turns without crashing
@@ -430,7 +432,8 @@ fn test_zero_todos_in_source() {
 
     let total_todos: usize = offenders.iter().map(|(_, c)| c).sum();
     assert_eq!(
-        total_todos, 0,
+        total_todos,
+        0,
         "Found {} TODO(s) across {} files in nh-core/src/. All must be resolved.",
         total_todos,
         offenders.len()
@@ -459,8 +462,19 @@ fn test_no_direct_monster_xy_mutation() {
 
     // Variable names commonly used for monsters
     let monster_vars = [
-        "pet.", "monster.", "mon.", "m.", "mtmp.", "guard.", "shkp.",
-        "worm.", "mdef.", "magr.", "attacker.", "defender.", "victim.",
+        "pet.",
+        "monster.",
+        "mon.",
+        "m.",
+        "mtmp.",
+        "guard.",
+        "shkp.",
+        "worm.",
+        "mdef.",
+        "magr.",
+        "attacker.",
+        "defender.",
+        "victim.",
     ];
 
     let mut violations: Vec<(String, usize, String)> = Vec::new();
@@ -516,7 +530,8 @@ fn test_no_direct_monster_xy_mutation() {
             }
 
             // Skip annotated safe patterns
-            if trimmed.contains("pre-add") || trimmed.contains("not yet in level")
+            if trimmed.contains("pre-add")
+                || trimmed.contains("not yet in level")
                 || trimmed.contains("grid-safe:")
             {
                 continue;
@@ -536,11 +551,7 @@ fn test_no_direct_monster_xy_mutation() {
                                 continue; // This is == comparison, not assignment
                             }
                         }
-                        violations.push((
-                            file_name.clone(),
-                            line_num,
-                            trimmed.to_string(),
-                        ));
+                        violations.push((file_name.clone(), line_num, trimmed.to_string()));
                     }
                 }
             }
@@ -579,7 +590,11 @@ fn test_deterministic_turns() {
     let seeds: Vec<u64> = vec![1, 42, 100, 999, 12345, 54321, 77777, 65536];
     let turn_count = 120;
 
-    println!("\n=== Deterministic Turn Replay ({} seeds x {} turns) ===", seeds.len(), turn_count);
+    println!(
+        "\n=== Deterministic Turn Replay ({} seeds x {} turns) ===",
+        seeds.len(),
+        turn_count
+    );
 
     for &seed in &seeds {
         let commands = generate_stress_commands(turn_count, seed ^ 0xDEAD);

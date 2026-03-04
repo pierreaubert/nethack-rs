@@ -106,11 +106,7 @@ pub fn do_mapping(level: &mut Level) -> DetectResult {
 /// Matches C `do_vicinity_map()` in detect.c. Reveals an 11x12 area
 /// centered on the player. Blessed version also reveals objects and
 /// marks monsters as detected.
-pub fn do_vicinity_map(
-    level: &mut Level,
-    player: &You,
-    blessed: bool,
-) -> DetectResult {
+pub fn do_vicinity_map(level: &mut Level, player: &You, blessed: bool) -> DetectResult {
     let px = player.pos.x as i32;
     let py = player.pos.y as i32;
     let mut count = 0;
@@ -182,22 +178,20 @@ pub fn do_vicinity_map(
 /// - Blessed: also identifies discovered objects
 /// - Cursed: no useful effect
 /// - `class`: if Some, only detect objects of that class
-pub fn object_detect(
-    level: &mut Level,
-    class: Option<ObjectClass>,
-    cursed: bool,
-) -> DetectResult {
+pub fn object_detect(level: &mut Level, class: Option<ObjectClass>, cursed: bool) -> DetectResult {
     if cursed {
-        return DetectResult::nothing("You sense the presence of objects, but the feeling is vague.");
+        return DetectResult::nothing(
+            "You sense the presence of objects, but the feeling is vague.",
+        );
     }
 
     let mut count = 0;
 
     for obj in &level.objects {
-        if let Some(cls) = class {
-            if obj.class != cls {
-                continue;
-            }
+        if let Some(cls) = class
+            && obj.class != cls
+        {
+            continue;
         }
         let x = obj.x as usize;
         let y = obj.y as usize;
@@ -220,11 +214,7 @@ pub fn object_detect(
 /// - Blessed: detects all gold-material objects
 /// - Unblessed: detects coins only
 /// - Cursed: no useful detection
-pub fn gold_detect(
-    level: &mut Level,
-    blessed: bool,
-    cursed: bool,
-) -> DetectResult {
+pub fn gold_detect(level: &mut Level, blessed: bool, cursed: bool) -> DetectResult {
     if cursed {
         return DetectResult::nothing("You feel very greedy, but can't find anything.");
     }
@@ -262,11 +252,7 @@ pub fn gold_detect(
 /// Matches C `food_detect()` in detect.c.
 /// - Blessed: grants sense of edibility
 /// - Cursed: detects potions instead of food
-pub fn food_detect(
-    level: &mut Level,
-    blessed: bool,
-    cursed: bool,
-) -> DetectResult {
+pub fn food_detect(level: &mut Level, blessed: bool, cursed: bool) -> DetectResult {
     let target_class = if cursed {
         ObjectClass::Potion
     } else {
@@ -373,10 +359,7 @@ pub fn monster_detect(
 /// level. Also detects trapped containers.
 /// - Blessed: also reveals trap types
 /// - Cursed: shows misleading information
-pub fn trap_detect(
-    level: &mut Level,
-    cursed: bool,
-) -> DetectResult {
+pub fn trap_detect(level: &mut Level, cursed: bool) -> DetectResult {
     if cursed {
         return DetectResult::nothing("You feel very anxious, but see nothing unusual.");
     }
@@ -398,11 +381,7 @@ pub fn trap_detect(
     }
 
     // Check for trapped containers on the floor
-    let trapped_objects: usize = level
-        .objects
-        .iter()
-        .filter(|obj| obj.trapped)
-        .count();
+    let trapped_objects: usize = level.objects.iter().filter(|obj| obj.trapped).count();
     count += trapped_objects;
 
     if count > 0 {
@@ -588,13 +567,17 @@ pub fn use_crystal_ball(
 
     // Check charges
     if ball.enchantment <= 0 {
-        result.messages.push("The crystal ball is dark.".to_string());
+        result
+            .messages
+            .push("The crystal ball is dark.".to_string());
         return result;
     }
 
     // Check for misuse damage (cursed ball, or intelligence-based failure)
     if ball.is_cursed() && rng.one_in(5) {
-        result.messages.push("The crystal ball explodes!".to_string());
+        result
+            .messages
+            .push("The crystal ball explodes!".to_string());
         result.ball_broken = true;
         result.player_harmed = true;
         result.damage = rng.dice(3, 6) as i32;
@@ -667,11 +650,7 @@ fn object_class_from_symbol(symbol: char) -> Option<ObjectClass> {
 ///
 /// Searches all 8 adjacent squares for secret doors, traps, and hidden monsters.
 /// Uses search_bonus from player stats (enhanced searching ability).
-pub fn dosearch(
-    level: &mut Level,
-    player: &You,
-    rng: &mut GameRng,
-) -> DetectResult {
+pub fn dosearch(level: &mut Level, player: &You, rng: &mut GameRng) -> DetectResult {
     // dosearch calls dosearch0 with search_bonus = 0 and autosearch = false
     dosearch0(level, player, 0, false, rng)
 }
@@ -683,10 +662,7 @@ pub fn dosearch(
 /// Check if containers in a list are trapped (detect_obj_traps from detect.c:1442).
 ///
 /// Returns the number of trapped containers found and messages.
-pub fn detect_obj_traps(
-    objects: &[Object],
-    known: bool,
-) -> (usize, Vec<String>) {
+pub fn detect_obj_traps(objects: &[Object], known: bool) -> (usize, Vec<String>) {
     let mut count = 0;
     let mut messages = Vec::new();
 
@@ -715,10 +691,7 @@ pub fn trapped_chest_at(objects: &[Object]) -> bool {
 ///
 /// Shows the map without monsters or objects — just terrain features.
 /// Used by the #terrain extended command and some scrolls.
-pub fn reveal_terrain(
-    level: &mut Level,
-    full: bool,
-) -> DetectResult {
+pub fn reveal_terrain(level: &mut Level, full: bool) -> DetectResult {
     let mut count = 0;
 
     for x in 1..COLNO as i8 {

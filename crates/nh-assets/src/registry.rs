@@ -1,7 +1,7 @@
-use std::path::Path;
-use serde_json;
-use nh_core::object::{Object, o_material};
 use crate::mapping::{AssetMapping, AssetMappingEntry, ItemIconDefinition, ItemIdentifier};
+use nh_core::object::{Object, o_material};
+use serde_json;
+use std::path::Path;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -36,17 +36,20 @@ impl AssetRegistry {
 
     /// Validate that all basic object classes have at least one mapping.
     fn validate_coverage(&self) -> Result<(), RegistryError> {
-        use nh_core::object::{ObjectClass, ObjectId, Object};
+        use nh_core::object::{Object, ObjectClass, ObjectId};
         use strum::IntoEnumIterator;
 
         for class in ObjectClass::iter() {
             if matches!(class, ObjectClass::Random | ObjectClass::IllObj) {
                 continue;
             }
-            
+
             let obj = Object::new(ObjectId(0), 0, class);
             if self.get_icon(&obj).is_err() {
-                return Err(RegistryError::NotFound(format!("Missing mapping for class: {:?}", class)));
+                return Err(RegistryError::NotFound(format!(
+                    "Missing mapping for class: {:?}",
+                    class
+                )));
             }
         }
         Ok(())
@@ -74,32 +77,46 @@ impl AssetRegistry {
     }
 
     fn matches(&self, obj: &Object, id: &ItemIdentifier) -> bool {
-        if let Some(class) = id.class {
-            if obj.class != class { return false; }
+        if let Some(class) = id.class
+            && obj.class != class
+        {
+            return false;
         }
-        if let Some(obj_type) = id.object_type {
-            if obj.object_type != obj_type { return false; }
+        if let Some(obj_type) = id.object_type
+            && obj.object_type != obj_type
+        {
+            return false;
         }
-        if let Some(mat) = id.material {
-            if o_material(obj) != mat { return false; }
+        if let Some(mat) = id.material
+            && o_material(obj) != mat
+        {
+            return false;
         }
         if let Some(is_id) = id.is_identified {
             // NetHack items are considered identified if known flag is set.
             // Some frontends might care about desc_known too.
-            if obj.known != is_id { return false; }
+            if obj.known != is_id {
+                return false;
+            }
         }
-        if let Some(artifact) = id.artifact {
-            if obj.artifact != artifact { return false; }
+        if let Some(artifact) = id.artifact
+            && obj.artifact != artifact
+        {
+            return false;
         }
-        if let Some(corpse) = id.corpse_type {
-            if obj.corpse_type != corpse { return false; }
+        if let Some(corpse) = id.corpse_type
+            && obj.corpse_type != corpse
+        {
+            return false;
         }
         true
     }
 
     /// Return the bevy_sprite path for an object, if a mapping exists.
     pub fn get_sprite_path(&self, obj: &Object) -> Option<&str> {
-        self.get_icon(obj).ok().map(|icon| icon.bevy_sprite.as_str())
+        self.get_icon(obj)
+            .ok()
+            .map(|icon| icon.bevy_sprite.as_str())
     }
 
     /// Helper to convert a color string to a ratatui color.

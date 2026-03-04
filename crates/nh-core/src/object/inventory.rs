@@ -711,10 +711,7 @@ pub fn filter_inventory(inventory: &[Object], filter: &ItemFilter) -> Vec<usize>
 
 /// Convenience: get references to matching items
 pub fn matching_items<'a>(inventory: &'a [Object], filter: &ItemFilter) -> Vec<&'a Object> {
-    inventory
-        .iter()
-        .filter(|obj| filter.matches(obj))
-        .collect()
+    inventory.iter().filter(|obj| filter.matches(obj)).collect()
 }
 
 // ============================================================================

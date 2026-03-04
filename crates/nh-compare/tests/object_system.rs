@@ -6,9 +6,9 @@
 
 use std::collections::HashMap;
 
-use nh_core::object::*;
 use nh_core::GameRng;
 use nh_core::data::objects::OBJECTS;
+use nh_core::object::*;
 
 // ============================================================================
 // Object creation determinism (Step 3.1)
@@ -26,21 +26,44 @@ fn test_object_creation_deterministic() {
         let mut ctx2 = MkObjContext::new();
 
         for _ in 0..100 {
-            let obj1 = mkobj_with_data(OBJECTS, &bases, &mut ctx1, &mut rng1,
-                ObjectClass::Weapon, true);
-            let obj2 = mkobj_with_data(OBJECTS, &bases, &mut ctx2, &mut rng2,
-                ObjectClass::Weapon, true);
+            let obj1 = mkobj_with_data(
+                OBJECTS,
+                &bases,
+                &mut ctx1,
+                &mut rng1,
+                ObjectClass::Weapon,
+                true,
+            );
+            let obj2 = mkobj_with_data(
+                OBJECTS,
+                &bases,
+                &mut ctx2,
+                &mut rng2,
+                ObjectClass::Weapon,
+                true,
+            );
 
-            assert_eq!(obj1.object_type, obj2.object_type,
-                "Object type mismatch for seed {}", seed);
-            assert_eq!(obj1.enchantment, obj2.enchantment,
-                "Enchantment mismatch for seed {}", seed);
-            assert_eq!(obj1.buc, obj2.buc,
-                "BUC mismatch for seed {}", seed);
-            assert_eq!(obj1.quantity, obj2.quantity,
-                "Quantity mismatch for seed {}", seed);
-            assert_eq!(obj1.poisoned, obj2.poisoned,
-                "Poisoned mismatch for seed {}", seed);
+            assert_eq!(
+                obj1.object_type, obj2.object_type,
+                "Object type mismatch for seed {}",
+                seed
+            );
+            assert_eq!(
+                obj1.enchantment, obj2.enchantment,
+                "Enchantment mismatch for seed {}",
+                seed
+            );
+            assert_eq!(obj1.buc, obj2.buc, "BUC mismatch for seed {}", seed);
+            assert_eq!(
+                obj1.quantity, obj2.quantity,
+                "Quantity mismatch for seed {}",
+                seed
+            );
+            assert_eq!(
+                obj1.poisoned, obj2.poisoned,
+                "Poisoned mismatch for seed {}",
+                seed
+            );
         }
     }
     println!("OK: Object creation is deterministic across 5 seeds x 100 objects");
@@ -75,8 +98,11 @@ fn test_create_all_classes() {
     for class in &classes {
         for _ in 0..50 {
             let obj = mkobj_with_data(OBJECTS, &bases, &mut ctx, &mut rng, *class, true);
-            assert_eq!(obj.class, *class,
-                "Created object class {:?} doesn't match requested {:?}", obj.class, class);
+            assert_eq!(
+                obj.class, *class,
+                "Created object class {:?} doesn't match requested {:?}",
+                obj.class, class
+            );
             *counts.entry(*class).or_insert(0) += 1;
         }
     }
@@ -85,7 +111,10 @@ fn test_create_all_classes() {
     for class in &classes {
         println!("  {:?}: {} objects created", class, counts[class]);
     }
-    println!("OK: All {} classes create objects successfully", classes.len());
+    println!(
+        "OK: All {} classes create objects successfully",
+        classes.len()
+    );
 }
 
 /// Test object creation uses probability-weighted selection.
@@ -98,22 +127,37 @@ fn test_probability_weighted_selection() {
     // Create 10000 weapons and check distribution
     let mut type_counts: HashMap<i16, usize> = HashMap::new();
     for _ in 0..10_000 {
-        let obj = mkobj_with_data(OBJECTS, &bases, &mut ctx, &mut rng,
-            ObjectClass::Weapon, false);
+        let obj = mkobj_with_data(
+            OBJECTS,
+            &bases,
+            &mut ctx,
+            &mut rng,
+            ObjectClass::Weapon,
+            false,
+        );
         *type_counts.entry(obj.object_type).or_insert(0) += 1;
     }
 
     // Should have multiple different weapon types
-    assert!(type_counts.len() > 10,
-        "Expected >10 weapon types, got {}", type_counts.len());
+    assert!(
+        type_counts.len() > 10,
+        "Expected >10 weapon types, got {}",
+        type_counts.len()
+    );
 
     // No single type should dominate >50%
     let max_count = type_counts.values().max().unwrap();
-    assert!(*max_count < 5000,
-        "Single weapon type dominates with {} out of 10000", max_count);
+    assert!(
+        *max_count < 5000,
+        "Single weapon type dominates with {} out of 10000",
+        max_count
+    );
 
-    println!("OK: {} distinct weapon types created, max frequency = {}",
-        type_counts.len(), max_count);
+    println!(
+        "OK: {} distinct weapon types created, max frequency = {}",
+        type_counts.len(),
+        max_count
+    );
 }
 
 // ============================================================================
@@ -134,8 +178,14 @@ fn test_weapon_enchantment_distribution() {
     let total = 10_000u32;
 
     for _ in 0..total {
-        let obj = mkobj_with_data(OBJECTS, &bases, &mut ctx, &mut rng,
-            ObjectClass::Weapon, true);
+        let obj = mkobj_with_data(
+            OBJECTS,
+            &bases,
+            &mut ctx,
+            &mut rng,
+            ObjectClass::Weapon,
+            true,
+        );
         if obj.enchantment > 0 {
             positive += 1;
         } else if obj.enchantment < 0 {
@@ -150,15 +200,27 @@ fn test_weapon_enchantment_distribution() {
     let zero_pct = zero as f64 / total as f64 * 100.0;
 
     println!("\n=== Weapon Enchantment Distribution (n={}) ===", total);
-    println!("  Positive: {} ({:.1}%) -- C expected ~9%", positive, pos_pct);
-    println!("  Negative: {} ({:.1}%) -- C expected ~10%", negative, neg_pct);
+    println!(
+        "  Positive: {} ({:.1}%) -- C expected ~9%",
+        positive, pos_pct
+    );
+    println!(
+        "  Negative: {} ({:.1}%) -- C expected ~10%",
+        negative, neg_pct
+    );
     println!("  Zero:     {} ({:.1}%) -- C expected ~81%", zero, zero_pct);
 
     // Sanity bounds: positive should be ~5-15%, negative ~5-15%
-    assert!(pos_pct > 3.0 && pos_pct < 20.0,
-        "Positive enchantment rate {:.1}% out of expected range", pos_pct);
-    assert!(neg_pct > 3.0 && neg_pct < 20.0,
-        "Negative enchantment rate {:.1}% out of expected range", neg_pct);
+    assert!(
+        pos_pct > 3.0 && pos_pct < 20.0,
+        "Positive enchantment rate {:.1}% out of expected range",
+        pos_pct
+    );
+    assert!(
+        neg_pct > 3.0 && neg_pct < 20.0,
+        "Negative enchantment rate {:.1}% out of expected range",
+        neg_pct
+    );
 }
 
 /// Test BUC distribution for weapons.
@@ -174,8 +236,14 @@ fn test_weapon_buc_distribution() {
     let total = 10_000u32;
 
     for _ in 0..total {
-        let obj = mkobj_with_data(OBJECTS, &bases, &mut ctx, &mut rng,
-            ObjectClass::Weapon, true);
+        let obj = mkobj_with_data(
+            OBJECTS,
+            &bases,
+            &mut ctx,
+            &mut rng,
+            ObjectClass::Weapon,
+            true,
+        );
         match obj.buc {
             BucStatus::Blessed => blessed += 1,
             BucStatus::Uncursed => uncursed += 1,
@@ -208,9 +276,15 @@ fn test_object_naming_basic() {
     let mut ctx = MkObjContext::new();
 
     let classes = [
-        ObjectClass::Weapon, ObjectClass::Armor, ObjectClass::Food,
-        ObjectClass::Tool, ObjectClass::Potion, ObjectClass::Scroll,
-        ObjectClass::Wand, ObjectClass::Ring, ObjectClass::Amulet,
+        ObjectClass::Weapon,
+        ObjectClass::Armor,
+        ObjectClass::Food,
+        ObjectClass::Tool,
+        ObjectClass::Potion,
+        ObjectClass::Scroll,
+        ObjectClass::Wand,
+        ObjectClass::Ring,
+        ObjectClass::Amulet,
     ];
 
     for class in &classes {
@@ -218,8 +292,12 @@ fn test_object_naming_basic() {
             let obj = mkobj_with_data(OBJECTS, &bases, &mut ctx, &mut rng, *class, true);
             let base_name = obj.name.as_deref().unwrap_or("unknown");
             let name = obj.doname(base_name);
-            assert!(!name.is_empty(),
-                "Object of class {:?} (type {}) has empty name", class, obj.object_type);
+            assert!(
+                !name.is_empty(),
+                "Object of class {:?} (type {}) has empty name",
+                class,
+                obj.object_type
+            );
         }
     }
     println!("OK: All object classes produce non-empty names");
@@ -238,9 +316,17 @@ fn test_doname_components() {
     obj.quantity = 1;
 
     let name = obj.doname("long sword");
-    assert!(name.contains("blessed"), "doname missing 'blessed': {}", name);
+    assert!(
+        name.contains("blessed"),
+        "doname missing 'blessed': {}",
+        name
+    );
     assert!(name.contains("+3"), "doname missing '+3': {}", name);
-    assert!(name.contains("long sword"), "doname missing 'long sword': {}", name);
+    assert!(
+        name.contains("long sword"),
+        "doname missing 'long sword': {}",
+        name
+    );
 
     // Multiple quantity
     obj.quantity = 5;
@@ -256,7 +342,11 @@ fn test_xname_basic() {
     obj.quantity = 1;
 
     let name = obj.xname("dagger");
-    assert!(name.contains("dagger"), "xname should contain 'dagger': {}", name);
+    assert!(
+        name.contains("dagger"),
+        "xname should contain 'dagger': {}",
+        name
+    );
 }
 
 // ============================================================================
@@ -282,9 +372,11 @@ fn test_inventory_letter_assignment() {
     // First 26 should have letters a-z
     for (i, obj) in inv.iter().enumerate() {
         let expected = (b'a' + i as u8) as char;
-        assert_eq!(obj.inv_letter, expected,
+        assert_eq!(
+            obj.inv_letter, expected,
             "Item {} should have letter '{}', got '{}'",
-            i, expected, obj.inv_letter);
+            i, expected, obj.inv_letter
+        );
     }
 
     println!("OK: Inventory letter assignment a-z works correctly");
@@ -336,8 +428,11 @@ fn test_inventory_weight() {
 
     // 30*2 + 100*1 = 160
     let total = inventory::total_weight(&inv);
-    assert_eq!(total, 160,
-        "inventory::total_weight should multiply weight by quantity, got {}", total);
+    assert_eq!(
+        total, 160,
+        "inventory::total_weight should multiply weight by quantity, got {}",
+        total
+    );
 }
 
 /// Test inventory is_full at 52 slots.
@@ -356,7 +451,11 @@ fn test_inventory_capacity() {
         inv.push(obj);
     }
 
-    assert!(is_full(&inv), "Inventory should be full at {} slots", MAX_INVENTORY_SLOTS);
+    assert!(
+        is_full(&inv),
+        "Inventory should be full at {} slots",
+        MAX_INVENTORY_SLOTS
+    );
     assert_eq!(slot_count(&inv), MAX_INVENTORY_SLOTS);
 
     println!("OK: Inventory capacity is {} slots", MAX_INVENTORY_SLOTS);
@@ -377,13 +476,21 @@ fn test_mass_object_creation() {
     let mut total_created = 0u32;
 
     for _ in 0..1000 {
-        let obj = mkobj_random_with_data(OBJECTS, &bases, &mut ctx, &mut rng,
-            LocationType::Normal, true);
+        let obj = mkobj_random_with_data(
+            OBJECTS,
+            &bases,
+            &mut ctx,
+            &mut rng,
+            LocationType::Normal,
+            true,
+        );
 
         // Verify basic invariants
         assert!(obj.quantity >= 1, "Object has quantity 0");
-        assert!(obj.weight > 0 || obj.class == ObjectClass::Coin,
-            "Non-coin object has weight 0");
+        assert!(
+            obj.weight > 0 || obj.class == ObjectClass::Coin,
+            "Non-coin object has weight 0"
+        );
 
         *class_counts.entry(format!("{:?}", obj.class)).or_insert(0) += 1;
         total_created += 1;
@@ -393,15 +500,26 @@ fn test_mass_object_creation() {
     let mut sorted: Vec<_> = class_counts.iter().collect();
     sorted.sort_by(|a, b| b.1.cmp(a.1));
     for (class, count) in &sorted {
-        println!("  {:<15} {:>5} ({:.1}%)", class, count,
-            (**count) as f64 / total_created as f64 * 100.0);
+        println!(
+            "  {:<15} {:>5} ({:.1}%)",
+            class,
+            count,
+            (**count) as f64 / total_created as f64 * 100.0
+        );
     }
 
     // Should have at least 5 different classes
-    assert!(class_counts.len() >= 5,
-        "Expected >=5 object classes, got {}", class_counts.len());
+    assert!(
+        class_counts.len() >= 5,
+        "Expected >=5 object classes, got {}",
+        class_counts.len()
+    );
 
-    println!("OK: {} objects created across {} classes", total_created, class_counts.len());
+    println!(
+        "OK: {} objects created across {} classes",
+        total_created,
+        class_counts.len()
+    );
 }
 
 /// Verify wand charges are within expected bounds.
@@ -412,11 +530,13 @@ fn test_wand_charges_bounds() {
     let mut ctx = MkObjContext::new();
 
     for _ in 0..1000 {
-        let obj = mkobj_with_data(OBJECTS, &bases, &mut ctx, &mut rng,
-            ObjectClass::Wand, true);
+        let obj = mkobj_with_data(OBJECTS, &bases, &mut ctx, &mut rng, ObjectClass::Wand, true);
         // C: wands get rn1(5, 4-11) = 4..16 or so
-        assert!(obj.enchantment >= 0 && obj.enchantment <= 20,
-            "Wand charges {} out of range", obj.enchantment);
+        assert!(
+            obj.enchantment >= 0 && obj.enchantment <= 20,
+            "Wand charges {} out of range",
+            obj.enchantment
+        );
     }
     println!("OK: All wand charges within bounds");
 }
@@ -429,10 +549,12 @@ fn test_ring_enchantment_bounds() {
     let mut ctx = MkObjContext::new();
 
     for _ in 0..1000 {
-        let obj = mkobj_with_data(OBJECTS, &bases, &mut ctx, &mut rng,
-            ObjectClass::Ring, true);
-        assert!(obj.enchantment >= -10 && obj.enchantment <= 10,
-            "Ring enchantment {} out of range", obj.enchantment);
+        let obj = mkobj_with_data(OBJECTS, &bases, &mut ctx, &mut rng, ObjectClass::Ring, true);
+        assert!(
+            obj.enchantment >= -10 && obj.enchantment <= 10,
+            "Ring enchantment {} out of range",
+            obj.enchantment
+        );
     }
     println!("OK: All ring enchantments within bounds");
 }

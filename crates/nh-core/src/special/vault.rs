@@ -281,7 +281,7 @@ pub fn move_vault_guard(guard_id: MonsterId, level: &mut Level, _player: &You) -
 }
 
 /// Handle player leaving vault (uleftvault equivalent)
-pub fn handle_vault_exit(guard: &mut Monster, level: &Level) {
+pub fn handle_vault_exit(guard: &mut Monster, _level: &Level) {
     if let Some(ext) = get_guard_ext_mut(guard) {
         // Clear fake corridors
         ext.clear_corridors();
@@ -515,10 +515,10 @@ pub fn attack_guard(vault: &mut Vault, level: &mut Level) -> GuardInteraction {
     vault.guard_state = GuardState::Angry;
 
     // Make guard hostile
-    if let Some(guard_id) = vault.guard_id {
-        if let Some(guard) = level.monster_mut(guard_id) {
-            guard.state.peaceful = false;
-        }
+    if let Some(guard_id) = vault.guard_id
+        && let Some(guard) = level.monster_mut(guard_id)
+    {
+        guard.state.peaceful = false;
     }
 
     GuardInteraction::Angry {

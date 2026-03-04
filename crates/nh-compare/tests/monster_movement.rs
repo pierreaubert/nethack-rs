@@ -4,11 +4,11 @@
 //! door handling, pet following, gold pickup, lava avoidance, guard behavior, and
 //! grave disturbance.
 
+use nh_core::GameRng;
 use nh_core::dungeon::{CellType, DLevel, DoorState, Level, TrapType};
 use nh_core::monster::{Monster, MonsterId, monflee, should_flee_from_damage};
 use nh_core::player::You;
 use nh_core::special::dog;
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -88,7 +88,10 @@ fn test_monster_trapped_in_pit() {
     // A monster at this location would be held by the pit
     // (trap holding is checked via is_holding_trap)
     assert!(
-        matches!(TrapType::Pit, TrapType::Pit | TrapType::SpikedPit | TrapType::BearTrap | TrapType::Web),
+        matches!(
+            TrapType::Pit,
+            TrapType::Pit | TrapType::SpikedPit | TrapType::BearTrap | TrapType::Web
+        ),
         "Pit should be a holding trap type"
     );
 }
@@ -99,7 +102,7 @@ fn test_monster_trapped_in_pit() {
 
 #[test]
 fn test_covetous_teleports_to_player() {
-    use nh_core::monster::ai::{STRAT_HEAL, STRAT_AMULET, strategy};
+    use nh_core::monster::ai::{STRAT_AMULET, STRAT_HEAL, strategy};
 
     let mut level = movement_test_level();
     let mut monster = Monster::new(MonsterId(1), 0, 5, 5);
@@ -118,7 +121,10 @@ fn test_covetous_teleports_to_player() {
     level2.add_monster(monster2);
 
     let strat2 = strategy(MonsterId(1), &level2);
-    assert_eq!(strat2, STRAT_AMULET, "Healthy covetous monster should pursue amulet");
+    assert_eq!(
+        strat2, STRAT_AMULET,
+        "Healthy covetous monster should pursue amulet"
+    );
 }
 
 // ============================================================================
@@ -144,10 +150,7 @@ fn test_monster_opens_door() {
 
     // Open the door
     level.cell_mut(15, 10).set_door_state(DoorState::OPEN);
-    assert!(
-        level.cell(15, 10).is_open_door(),
-        "Door should now be open"
-    );
+    assert!(level.cell(15, 10).is_open_door(), "Door should now be open");
     assert!(
         level.cell(15, 10).is_walkable(),
         "Open door should be walkable"
@@ -248,7 +251,10 @@ fn test_monster_avoids_lava() {
 
     let result = minliquid(&mut m, &level);
     assert!(
-        matches!(result, MinliquidResult::Burned | MinliquidResult::Damaged(_)),
+        matches!(
+            result,
+            MinliquidResult::Burned | MinliquidResult::Damaged(_)
+        ),
         "Non-resistant monster on lava should burn or take damage, got {:?}",
         result,
     );

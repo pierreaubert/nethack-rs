@@ -462,7 +462,7 @@ pub fn touch_artifact(
                 can_hold: true,
                 blast_damage: 0,
                 message: None,
-            }
+            };
         }
     };
 
@@ -476,8 +476,7 @@ pub fn touch_artifact(
     // Check if wrong alignment for restricted artifacts
     let badalign = art.spfx.contains(ArtifactFlags::RESTR)
         && art.alignment != ArtifactAlignment::None
-        && (!art.alignment.matches_alignment(player.alignment.typ)
-            || player.alignment.record < 0);
+        && (!art.alignment.matches_alignment(player.alignment.typ) || player.alignment.record < 0);
 
     // Bane artifacts are bad for matching targets
     let bane_bad = !badalign && bane_applies(art, player);
@@ -553,7 +552,10 @@ fn bane_applies(art: &Artifact, player: &You) -> bool {
 /// Based on spec_applies() in artifact.c.
 pub fn spec_applies(art: &Artifact, target: &Monster) -> bool {
     // If no damage bonus flags and no attack flag, just check physical
-    if !art.spfx.intersects(ArtifactFlags::DBONUS.union(ArtifactFlags::ATTK)) {
+    if !art
+        .spfx
+        .intersects(ArtifactFlags::DBONUS.union(ArtifactFlags::ATTK))
+    {
         return art.attk.damage_type == DamageType::Physical;
     }
 
@@ -736,30 +738,26 @@ pub fn artifact_hit(
         match art.attk.damage_type {
             DamageType::Fire => {
                 if applies {
-                    result.messages.push(format!(
-                        "The fiery blade burns {}!",
-                        target_name
-                    ));
+                    result
+                        .messages
+                        .push(format!("The fiery blade burns {}!", target_name));
                 } else {
-                    result.messages.push(format!(
-                        "The fiery blade hits {}.",
-                        target_name
-                    ));
+                    result
+                        .messages
+                        .push(format!("The fiery blade hits {}.", target_name));
                 }
                 result.had_effect = true;
                 return result;
             }
             DamageType::Cold => {
                 if applies {
-                    result.messages.push(format!(
-                        "The ice-cold blade freezes {}!",
-                        target_name
-                    ));
+                    result
+                        .messages
+                        .push(format!("The ice-cold blade freezes {}!", target_name));
                 } else {
-                    result.messages.push(format!(
-                        "The ice-cold blade hits {}.",
-                        target_name
-                    ));
+                    result
+                        .messages
+                        .push(format!("The ice-cold blade hits {}.", target_name));
                 }
                 result.had_effect = true;
                 return result;
@@ -771,20 +769,18 @@ pub fn artifact_hit(
                         target_name
                     ));
                 } else {
-                    result.messages.push(format!(
-                        "The massive hammer hits {}.",
-                        target_name
-                    ));
+                    result
+                        .messages
+                        .push(format!("The massive hammer hits {}.", target_name));
                 }
                 result.had_effect = true;
                 return result;
             }
             DamageType::MagicMissile => {
                 if applies {
-                    result.messages.push(format!(
-                        "A hail of magic missiles strikes {}!",
-                        target_name
-                    ));
+                    result
+                        .messages
+                        .push(format!("A hail of magic missiles strikes {}!", target_name));
                 }
                 result.had_effect = true;
                 return result;
@@ -828,7 +824,9 @@ pub fn artifact_hit(
             // Beheading
             // Check if target has a head (simplified: most monsters do)
             let has_head = !target.flags.contains(crate::monster::MonsterFlags::NOHEAD)
-                && !target.flags.contains(crate::monster::MonsterFlags::AMORPHOUS);
+                && !target
+                    .flags
+                    .contains(crate::monster::MonsterFlags::AMORPHOUS);
             if has_head {
                 *dmg = 2 * target.hp + FATAL_DAMAGE_MODIFIER;
                 let msg = if rng.rn2(2) == 0 {
@@ -839,10 +837,9 @@ pub fn artifact_hit(
                 result.messages.push(msg);
                 result.instant_kill = true;
             } else {
-                result.messages.push(format!(
-                    "Vorpal Blade slices through {}.",
-                    target_name
-                ));
+                result
+                    .messages
+                    .push(format!("Vorpal Blade slices through {}.", target_name));
             }
             result.had_effect = true;
             return result;
@@ -907,10 +904,9 @@ fn magicbane_hit(
         *dmg += rng.dice(1, 4) as i32;
     } else if dieroll <= 6 {
         // Scare/probe
-        result.messages.push(format!(
-            "The magic blade scares {}!",
-            target.name
-        ));
+        result
+            .messages
+            .push(format!("The magic blade scares {}!", target.name));
         *dmg += rng.dice(1, 4) as i32;
     } else {
         // Regular extra damage
@@ -1203,7 +1199,9 @@ pub fn arti_invoke(
                 result.messages.push("You feel much better.".to_string());
                 result.success = true;
             } else {
-                result.messages.push("You feel quite well already.".to_string());
+                result
+                    .messages
+                    .push("You feel quite well already.".to_string());
             }
             // Cure blindness, sickness, etc.
             player.sick = 0;
@@ -1273,7 +1271,9 @@ pub fn arti_invoke(
                 player.properties.set_timeout(Property::Invisibility, 100);
                 result.messages.push("You vanish!".to_string());
             } else {
-                result.messages.push("You feel quite invisible already.".to_string());
+                result
+                    .messages
+                    .push("You feel quite invisible already.".to_string());
             }
             result.success = true;
         }
@@ -1282,7 +1282,9 @@ pub fn arti_invoke(
                 player.properties.set_timeout(Property::Levitation, 100);
                 result.messages.push("You float up!".to_string());
             } else {
-                result.messages.push("You are already levitating.".to_string());
+                result
+                    .messages
+                    .push("You are already levitating.".to_string());
             }
             result.success = true;
         }
@@ -1560,7 +1562,15 @@ mod tests {
         obj.object_type = 10; // Long sword (matches Excalibur and Frost Brand)
 
         // Excalibur is NOGEN so only Frost Brand should be eligible
-        let result = mk_artifact(&mut obj, None, NON_PM, NON_PM, &artifacts, &mut tracker, &mut rng);
+        let result = mk_artifact(
+            &mut obj,
+            None,
+            NON_PM,
+            NON_PM,
+            &artifacts,
+            &mut tracker,
+            &mut rng,
+        );
         assert!(result);
         assert_eq!(obj.artifact, 3); // Frost Brand
         assert!(tracker.is_created(3));
@@ -1602,7 +1612,15 @@ mod tests {
         obj.object_type = 10;
 
         // No more artifacts available
-        let result = mk_artifact(&mut obj, None, NON_PM, NON_PM, &artifacts, &mut tracker, &mut rng);
+        let result = mk_artifact(
+            &mut obj,
+            None,
+            NON_PM,
+            NON_PM,
+            &artifacts,
+            &mut tracker,
+            &mut rng,
+        );
         assert!(!result);
         assert_eq!(obj.artifact, 0); // Unchanged
     }
@@ -1616,10 +1634,7 @@ mod tests {
 
         let grants = artifact_properties(&obj, &artifacts);
         assert!(grants.wielded.contains(&Property::Searching));
-        assert_eq!(
-            grants.wielded_resistance,
-            Some(Property::DrainResistance)
-        );
+        assert_eq!(grants.wielded_resistance, Some(Property::DrainResistance));
     }
 
     #[test]

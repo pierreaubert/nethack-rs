@@ -6,8 +6,8 @@
 use crate::compat::*;
 
 use crate::data::objects::OBJECTS;
-use crate::dungeon::{DLevel, Level};
-use crate::object::{Object, ObjectClass, DirectionType};
+use crate::dungeon::Level;
+use crate::object::{DirectionType, Object, ObjectClass};
 use crate::player::{Property, You};
 use crate::rng::GameRng;
 
@@ -145,7 +145,9 @@ pub fn read_scroll(
         ScrollType::Taming => scroll_taming(level, player, blessed, cursed, confused),
         ScrollType::Genocide => scroll_genocide(blessed, cursed),
         ScrollType::Light => scroll_light(level, player, blessed, cursed, confused, rng),
-        ScrollType::Teleportation => scroll_teleportation(player, level, blessed, cursed, confused, rng),
+        ScrollType::Teleportation => {
+            scroll_teleportation(player, level, blessed, cursed, confused, rng)
+        }
         ScrollType::Gold => scroll_gold_detection(level, player, cursed, rng),
         ScrollType::Food => scroll_food_detection(level, player, rng),
         ScrollType::Identify => scroll_identify(player, blessed, confused),
@@ -202,7 +204,9 @@ fn scroll_destroy(
         // Confused: make armor erodeproof instead of destroying it
         // C: otmp->oerodeproof = !scursed
         if !cursed {
-            result.messages.push("Your armor glows purple for a moment.".to_string());
+            result
+                .messages
+                .push("Your armor glows purple for a moment.".to_string());
             // Would set erodeproof on a random armor piece
         } else {
             result.messages.push("Your armor vibrates.".to_string());
@@ -210,10 +214,14 @@ fn scroll_destroy(
         }
     } else if cursed {
         // Cursed: destroy player's armor (AC penalty)
-        result.messages.push("You feel like you need some new armor.".to_string());
+        result
+            .messages
+            .push("You feel like you need some new armor.".to_string());
         player.armor_class = player.armor_class.saturating_add(3);
     } else if blessed {
-        result.messages.push("Everything around you shatters and crumbles!".to_string());
+        result
+            .messages
+            .push("Everything around you shatters and crumbles!".to_string());
         for monster in &mut level.monsters {
             let dx = (monster.x - player.pos.x).abs();
             let dy = (monster.y - player.pos.y).abs();
@@ -222,7 +230,9 @@ fn scroll_destroy(
             }
         }
     } else {
-        result.messages.push("You hear crashing and tearing sounds!".to_string());
+        result
+            .messages
+            .push("You hear crashing and tearing sounds!".to_string());
         for monster in &mut level.monsters {
             if rng.one_in(3) {
                 monster.ac = monster.ac.saturating_add(2);
@@ -277,7 +287,9 @@ fn scroll_scare(
 
     if confused || cursed {
         // C: confused/cursed wakes and unfreezes monsters instead of scaring
-        result.messages.push("You hear sad wailing close by.".to_string());
+        result
+            .messages
+            .push("You hear sad wailing close by.".to_string());
         for monster in &mut level.monsters {
             if cansee_monster(monster, player) {
                 monster.state.fleeing = false;
@@ -295,27 +307,42 @@ fn scroll_scare(
             }
         }
         if ct > 0 {
-            result.messages.push("You hear maniacal laughter close by.".to_string());
+            result
+                .messages
+                .push("You hear maniacal laughter close by.".to_string());
         } else {
-            result.messages.push("You hear maniacal laughter in the distance.".to_string());
+            result
+                .messages
+                .push("You hear maniacal laughter in the distance.".to_string());
         }
     }
 
     result
 }
 
-fn scroll_remove_curse(player: &mut You, _blessed: bool, cursed: bool, confused: bool) -> ScrollResult {
+fn scroll_remove_curse(
+    player: &mut You,
+    _blessed: bool,
+    cursed: bool,
+    confused: bool,
+) -> ScrollResult {
     let mut result = ScrollResult::new();
 
     if confused {
-        result.messages.push("You feel like you need some help.".to_string());
+        result
+            .messages
+            .push("You feel like you need some help.".to_string());
         // Confused: randomly bless/curse worn items instead of uncursing
     } else {
-        result.messages.push("You feel like someone is helping you.".to_string());
+        result
+            .messages
+            .push("You feel like someone is helping you.".to_string());
     }
 
     if cursed {
-        result.messages.push("The scroll disintegrates.".to_string());
+        result
+            .messages
+            .push("The scroll disintegrates.".to_string());
         return result;
     }
 
@@ -373,13 +400,21 @@ fn scroll_create(
     //                    confused ? &mons[PM_ACID_BLOB] : NULL, FALSE)
     let base_count = 1;
     let extra = if confused || cursed { 12 } else { 0 };
-    let bonus = if blessed || rng.rn2(73) != 0 { 0 } else { rng.rnd(4) };
+    let bonus = if blessed || rng.rn2(73) != 0 {
+        0
+    } else {
+        rng.rnd(4)
+    };
     let count = base_count + extra + bonus;
 
     if confused {
-        result.messages.push(format!("{} acid blobs appear around you!", count));
+        result
+            .messages
+            .push(format!("{} acid blobs appear around you!", count));
     } else {
-        result.messages.push(format!("{} monster(s) appear around you!", count));
+        result
+            .messages
+            .push(format!("{} monster(s) appear around you!", count));
     }
     // Actual monster spawning requires makemon infrastructure
     let _ = (level, player);
@@ -387,7 +422,13 @@ fn scroll_create(
     result
 }
 
-fn scroll_taming(level: &mut Level, player: &You, _blessed: bool, cursed: bool, confused: bool) -> ScrollResult {
+fn scroll_taming(
+    level: &mut Level,
+    player: &You,
+    _blessed: bool,
+    cursed: bool,
+    confused: bool,
+) -> ScrollResult {
     let mut result = ScrollResult::new();
 
     // C: confused -> 5x5 radius, normal -> adjacent (1x1)
@@ -415,11 +456,17 @@ fn scroll_taming(level: &mut Level, player: &You, _blessed: bool, cursed: bool, 
     }
 
     if results == 0 {
-        result.messages.push("Nothing interesting seems to happen.".to_string());
+        result
+            .messages
+            .push("Nothing interesting seems to happen.".to_string());
     } else if results > 0 {
-        result.messages.push("The neighborhood is friendlier.".to_string());
+        result
+            .messages
+            .push("The neighborhood is friendlier.".to_string());
     } else {
-        result.messages.push("The neighborhood is unfriendlier.".to_string());
+        result
+            .messages
+            .push("The neighborhood is unfriendlier.".to_string());
     }
 
     result
@@ -448,7 +495,14 @@ fn scroll_genocide(blessed: bool, cursed: bool) -> ScrollResult {
     result
 }
 
-fn scroll_light(level: &mut Level, player: &You, blessed: bool, cursed: bool, confused: bool, rng: &mut GameRng) -> ScrollResult {
+fn scroll_light(
+    level: &mut Level,
+    player: &You,
+    blessed: bool,
+    cursed: bool,
+    confused: bool,
+    rng: &mut GameRng,
+) -> ScrollResult {
     let mut result = ScrollResult::new();
 
     if confused && rng.rn2(5) == 0 {
@@ -467,7 +521,9 @@ fn scroll_light(level: &mut Level, player: &You, blessed: bool, cursed: bool, co
 
     if do_light {
         if blessed {
-            result.messages.push("The entire level is illuminated!".to_string());
+            result
+                .messages
+                .push("The entire level is illuminated!".to_string());
             for x in 0..crate::COLNO {
                 for y in 0..crate::ROWNO {
                     level.cells[x][y].lit = true;
@@ -518,16 +574,22 @@ fn scroll_teleportation(
 
     if confused || cursed {
         // C: confused/cursed -> level_tele() (change dungeon level)
-        result.messages.push("You feel very disoriented for a moment.".to_string());
+        result
+            .messages
+            .push("You feel very disoriented for a moment.".to_string());
         // Level teleport requires dungeon infrastructure
         // For now, mark the effect
-        result.messages.push("You are yanked in a new direction!".to_string());
+        result
+            .messages
+            .push("You are yanked in a new direction!".to_string());
         return result;
     }
 
     // Normal/blessed: position teleport on current level
     if blessed {
-        result.messages.push("You feel in control of where you teleport.".to_string());
+        result
+            .messages
+            .push("You feel in control of where you teleport.".to_string());
     }
 
     // Find random walkable position
@@ -539,18 +601,27 @@ fn scroll_teleportation(
             player.prev_pos = player.pos;
             player.pos.x = x;
             player.pos.y = y;
-            result.messages.push("You find yourself somewhere else.".to_string());
+            result
+                .messages
+                .push("You find yourself somewhere else.".to_string());
             return result;
         }
     }
 
-    result.messages.push("You feel disoriented for a moment.".to_string());
+    result
+        .messages
+        .push("You feel disoriented for a moment.".to_string());
     result
 }
 
 /// Scroll of gold detection - detects gold on the level (NOT creates gold)
 /// C: gold_detect(sobj) for normal, trap_detect(sobj) for confused/cursed
-fn scroll_gold_detection(level: &Level, player: &You, cursed: bool, rng: &mut GameRng) -> ScrollResult {
+fn scroll_gold_detection(
+    level: &Level,
+    player: &You,
+    cursed: bool,
+    rng: &mut GameRng,
+) -> ScrollResult {
     let mut result = ScrollResult::new();
 
     if cursed {
@@ -562,9 +633,13 @@ fn scroll_gold_detection(level: &Level, player: &You, cursed: bool, rng: &mut Ga
             }
         }
         if trap_count > 0 {
-            result.messages.push(format!("You sense {} trap(s) on this level.", trap_count));
+            result
+                .messages
+                .push(format!("You sense {} trap(s) on this level.", trap_count));
         } else {
-            result.messages.push("You feel a strange sense of loss.".to_string());
+            result
+                .messages
+                .push("You feel a strange sense of loss.".to_string());
             result.identify = false;
         }
     } else {
@@ -589,9 +664,13 @@ fn scroll_gold_detection(level: &Level, player: &You, cursed: bool, rng: &mut Ga
             }
         }
         if gold_found {
-            result.messages.push("You sense the presence of gold.".to_string());
+            result
+                .messages
+                .push("You sense the presence of gold.".to_string());
         } else {
-            result.messages.push("You feel materially poor.".to_string());
+            result
+                .messages
+                .push("You feel materially poor.".to_string());
             result.identify = false;
         }
     }
@@ -616,9 +695,13 @@ fn scroll_food_detection(level: &Level, player: &You, _rng: &mut GameRng) -> Scr
         }
     }
     if food_found {
-        result.messages.push("You sense the presence of food.".to_string());
+        result
+            .messages
+            .push("You sense the presence of food.".to_string());
     } else {
-        result.messages.push("You feel a strange sense of loss.".to_string());
+        result
+            .messages
+            .push("You feel a strange sense of loss.".to_string());
         result.identify = false;
     }
 
@@ -631,14 +714,20 @@ fn scroll_identify(player: &mut You, blessed: bool, confused: bool) -> ScrollRes
 
     if confused {
         // C: "You identify this as an identify scroll."
-        result.messages.push("You identify this as an identify scroll.".to_string());
+        result
+            .messages
+            .push("You identify this as an identify scroll.".to_string());
     } else if blessed {
         // C: blessed -> identify all items (cval=0 means identify_pack(0))
-        result.messages.push("All your possessions glow briefly!".to_string());
+        result
+            .messages
+            .push("All your possessions glow briefly!".to_string());
         // Full identify_pack requires inventory infrastructure
     } else {
         // C: normal -> identify 1 item (sometimes more with luck)
-        result.messages.push("This is an identify scroll.".to_string());
+        result
+            .messages
+            .push("This is an identify scroll.".to_string());
         // identify_pack(cval) requires UI interaction from caller
     }
 
@@ -697,7 +786,13 @@ fn scroll_magic_mapping(
 /// Scroll of amnesia - C: forget() with howmuch flags
 /// Always forgets: traps, 6/7 of map
 /// Flags: ALL_SPELLS = forget all spells, ALL_MAP = forget whole map
-fn scroll_amnesia(player: &mut You, level: &mut Level, blessed: bool, cursed: bool, rng: &mut GameRng) -> ScrollResult {
+fn scroll_amnesia(
+    player: &mut You,
+    level: &mut Level,
+    blessed: bool,
+    cursed: bool,
+    rng: &mut GameRng,
+) -> ScrollResult {
     let mut result = ScrollResult::new();
 
     // C: forget((!sblessed ? ALL_SPELLS : 0) | (!confused || scursed ? ALL_MAP : 0))
@@ -748,9 +843,13 @@ fn scroll_amnesia(player: &mut You, level: &mut Level, blessed: bool, cursed: bo
 
     // Messages (C: various)
     if rng.rn2(2) != 0 {
-        result.messages.push("Who was that Maud person anyway?".to_string());
+        result
+            .messages
+            .push("Who was that Maud person anyway?".to_string());
     } else {
-        result.messages.push("Thinking of Maud you forget everything else.".to_string());
+        result
+            .messages
+            .push("Thinking of Maud you forget everything else.".to_string());
     }
 
     result
@@ -769,9 +868,13 @@ fn scroll_fire(
     if confused {
         // C: confused -> scroll catches fire, burn your hands
         if player.properties.has(Property::FireResistance) {
-            result.messages.push("Oh, look, what a pretty fire in your hands.".to_string());
+            result
+                .messages
+                .push("Oh, look, what a pretty fire in your hands.".to_string());
         } else {
-            result.messages.push("The scroll catches fire and you burn your hands.".to_string());
+            result
+                .messages
+                .push("The scroll catches fire and you burn your hands.".to_string());
             player.hp -= 1;
         }
         return result;
@@ -780,7 +883,13 @@ fn scroll_fire(
     // C: dam = (2 * (rn1(3, 3) + 2 * cval) + 1) / 3
     // where cval = bcsign(sobj) -> blessed=1, uncursed=0, cursed=-1
     // rn1(3,3) = rnd(3) + 2 = [3,5]
-    let cval = if blessed { 1i32 } else if cursed { -1 } else { 0 };
+    let cval = if blessed {
+        1i32
+    } else if cursed {
+        -1
+    } else {
+        0
+    };
     let base_roll = rng.rnd(3) as i32 + 2; // [3,5]
     let dam = (2 * (base_roll + 2 * cval) + 1) / 3;
     let dam = dam.max(1);
@@ -788,7 +897,9 @@ fn scroll_fire(
     if blessed {
         // C: blessed -> player chooses target, 5x damage
         // Without targeting UI, center on player but protect player
-        result.messages.push("The scroll erupts in a tower of flame!".to_string());
+        result
+            .messages
+            .push("The scroll erupts in a tower of flame!".to_string());
         let actual_dam = dam * 5;
         // Damage nearby monsters with explosion
         for monster in &mut level.monsters {
@@ -799,11 +910,15 @@ fn scroll_fire(
             }
         }
     } else {
-        result.messages.push("The scroll erupts in a tower of flame!".to_string());
+        result
+            .messages
+            .push("The scroll erupts in a tower of flame!".to_string());
         // Damage player if not fire resistant
         if !player.properties.has(Property::FireResistance) {
             player.hp -= dam;
-            result.messages.push(format!("You are burned for {} damage!", dam));
+            result
+                .messages
+                .push(format!("You are burned for {} damage!", dam));
         }
         // Damage nearby monsters
         for monster in &mut level.monsters {
@@ -871,7 +986,12 @@ fn scroll_earth(
     result
 }
 
-fn scroll_punishment(player: &mut You, blessed: bool, _cursed: bool, confused: bool) -> ScrollResult {
+fn scroll_punishment(
+    player: &mut You,
+    blessed: bool,
+    _cursed: bool,
+    confused: bool,
+) -> ScrollResult {
     let mut result = ScrollResult::new();
 
     // C: confused || sblessed -> "You feel guilty." and nothing else
@@ -888,7 +1008,13 @@ fn scroll_punishment(player: &mut You, blessed: bool, _cursed: bool, confused: b
 
 /// Scroll of charging
 /// C: confused -> energy restore/drain; normal -> recharge an item
-fn scroll_charging(player: &mut You, blessed: bool, cursed: bool, confused: bool, rng: &mut GameRng) -> ScrollResult {
+fn scroll_charging(
+    player: &mut You,
+    blessed: bool,
+    cursed: bool,
+    confused: bool,
+    rng: &mut GameRng,
+) -> ScrollResult {
     let mut result = ScrollResult::new();
 
     if confused {
@@ -917,7 +1043,9 @@ fn scroll_charging(player: &mut You, blessed: bool, cursed: bool, confused: bool
 
     // Not confused: recharge an item
     // This requires UI interaction to pick an item, so signal the caller
-    result.messages.push("This is a scroll of charging.".to_string());
+    result
+        .messages
+        .push("This is a scroll of charging.".to_string());
     // The actual recharge() will be called from the action layer with a selected item
     result
 }
@@ -1009,7 +1137,7 @@ pub fn recharge(obj: &mut Object, curse_bless: i32, rng: &mut GameRng) -> Vec<St
         let lim: i32 = if is_wishing {
             3
         } else if obj_def.direction != DirectionType::NonDirectional {
-            8  // Directional wands (ray/immediate)
+            8 // Directional wands (ray/immediate)
         } else {
             15 // Non-directional wands
         };
@@ -1049,7 +1177,11 @@ pub fn recharge(obj: &mut Object, curse_bless: i32, rng: &mut GameRng) -> Vec<St
                 3i8
             } else {
                 let base = rng.rnd(5) as i8 + (lim as i8 - 5); // [lim-4, lim]
-                if is_blessed { base } else { rng.rnd(base.max(1) as u32) as i8 }
+                if is_blessed {
+                    base
+                } else {
+                    rng.rnd(base.max(1) as u32) as i8
+                }
             };
 
             if obj.enchantment < new_charges {
@@ -1060,7 +1192,7 @@ pub fn recharge(obj: &mut Object, curse_bless: i32, rng: &mut GameRng) -> Vec<St
 
             // Wand of wishing max 3 charges
             if is_wishing && obj.enchantment > 3 {
-                messages.push(format!("Your wand explodes!"));
+                messages.push("Your wand explodes!".to_string());
                 obj.enchantment = -1;
                 return messages;
             }
@@ -1084,7 +1216,10 @@ pub fn recharge(obj: &mut Object, curse_bless: i32, rng: &mut GameRng) -> Vec<St
         // Destruction check: if spe > rn2(7) or spe <= -5
         if obj.enchantment > rng.rn2(7) as i8 || obj.enchantment <= -5 {
             let dam = rng.rnd((3 * obj.enchantment.unsigned_abs() as u32).max(1));
-            messages.push(format!("Your ring pulsates momentarily, then explodes! ({} damage)", dam));
+            messages.push(format!(
+                "Your ring pulsates momentarily, then explodes! ({} damage)",
+                dam
+            ));
             obj.enchantment = -128; // Mark as destroyed
         } else {
             if s < 0 {
@@ -1380,7 +1515,12 @@ mod tests {
         let mut rng = crate::rng::GameRng::new(12345);
 
         let result = scroll_teleportation(&mut player, &level, false, false, true, &mut rng);
-        assert!(result.messages.iter().any(|m| m.contains("disoriented") || m.contains("yanked")));
+        assert!(
+            result
+                .messages
+                .iter()
+                .any(|m| m.contains("disoriented") || m.contains("yanked"))
+        );
     }
 
     #[test]
@@ -1439,7 +1579,10 @@ mod tests {
 
         // Confused=true gives bd=5. Monsters at (0,0)...(4,4) are all within range.
         let result = scroll_taming(&mut level, &player, true, false, true);
-        let all_tame = level.monsters.iter().all(|m| m.state.peaceful && m.state.tame);
+        let all_tame = level
+            .monsters
+            .iter()
+            .all(|m| m.state.peaceful && m.state.tame);
         assert!(all_tame);
         assert!(result.messages[0].contains("friendlier"));
     }
@@ -1460,7 +1603,12 @@ mod tests {
 
         let result = scroll_punishment(&mut player, false, false, false);
         assert!(player.punishment.punished);
-        assert!(result.messages.iter().any(|m| m.contains("punished") || m.contains("iron ball")));
+        assert!(
+            result
+                .messages
+                .iter()
+                .any(|m| m.contains("punished") || m.contains("iron ball"))
+        );
     }
 
     #[test]
@@ -1516,7 +1664,9 @@ mod tests {
 
         let result = scroll_fire(&mut player, &mut level, true, false, false, &mut rng);
         assert_eq!(player.hp, 100); // Blessed protects player
-        assert!(result.messages[0].contains("tower of flame") || result.messages[0].contains("erupts"));
+        assert!(
+            result.messages[0].contains("tower of flame") || result.messages[0].contains("erupts")
+        );
 
         // Normal fire should damage non-fire-resistant player
         player.hp = 100;

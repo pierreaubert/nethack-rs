@@ -10,12 +10,12 @@ use crossterm::{
     event, execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::Terminal;
-use ratatui::backend::CrosstermBackend;
 use nh_core::player::{AlignmentType, Gender, Race, Role};
 use nh_core::save::{default_save_path, delete_save, load_game, save_game};
 use nh_core::{GameLoopResult, GameRng, GameState};
-use nh_tui::{App, AppEvent, Theme, GraphicsMode, StartMenuAction};
+use nh_tui::{App, AppEvent, GraphicsMode, StartMenuAction, Theme};
+use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 /// NetHack clone in Rust
 #[derive(Parser, Debug)]
@@ -252,36 +252,36 @@ fn run_startup_menu(
 
         if event::poll(Duration::from_millis(100))? {
             let ev = event::read()?;
-            if let Some(app_event) = app.handle_event(ev) {
-                if let AppEvent::StartMenu(action) = app_event {
-                    match action {
-                        StartMenuAction::NewGame => {
-                            return run_character_creation(terminal, args);
-                        }
-                        StartMenuAction::LoadGame => {
-                            // For now, load default if exists, or show error?
-                            // Better: prompt for name if not provided?
-                            // For simplicity, let's look for a save if name was provided, 
-                            // or ask for name if not.
-                            let player_name = args.name.clone().unwrap_or_else(|| "Player".to_string());
-                            let save_path = default_save_path(&player_name);
-                            if save_path.exists() {
-                                match load_game(&save_path) {
-                                    Ok(loaded_state) => return Ok(loaded_state),
-                                    Err(_) => {
-                                        // TODO: show error message in UI
-                                    }
+            if let Some(app_event) = app.handle_event(ev)
+                && let AppEvent::StartMenu(action) = app_event
+            {
+                match action {
+                    StartMenuAction::NewGame => {
+                        return run_character_creation(terminal, args);
+                    }
+                    StartMenuAction::LoadGame => {
+                        // For now, load default if exists, or show error?
+                        // Better: prompt for name if not provided?
+                        // For simplicity, let's look for a save if name was provided,
+                        // or ask for name if not.
+                        let player_name = args.name.clone().unwrap_or_else(|| "Player".to_string());
+                        let save_path = default_save_path(&player_name);
+                        if save_path.exists() {
+                            match load_game(&save_path) {
+                                Ok(loaded_state) => return Ok(loaded_state),
+                                Err(_) => {
+                                    // TODO: show error message in UI
                                 }
-                            } else {
-                                // TODO: show "No save found" message in UI
                             }
+                        } else {
+                            // TODO: show "No save found" message in UI
                         }
-                        StartMenuAction::Quit => {
-                            disable_raw_mode()?;
-                            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-                            terminal.show_cursor()?;
-                            std::process::exit(0);
-                        }
+                    }
+                    StartMenuAction::Quit => {
+                        disable_raw_mode()?;
+                        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+                        terminal.show_cursor()?;
+                        std::process::exit(0);
                     }
                 }
             }
@@ -325,13 +325,7 @@ fn run_character_creation(
     let alignment = args.alignment.as_ref().and_then(|s| parse_alignment(s));
 
     // Start character creation - with any provided CLI options
-    app.start_character_creation_with_choices(
-        args.name.clone(),
-        role,
-        race,
-        gender,
-        alignment,
-    );
+    app.start_character_creation_with_choices(args.name.clone(), role, race, gender, alignment);
 
     // Character creation loop
     loop {
@@ -479,17 +473,11 @@ fn create_new_game_with_choices(
     let rng = GameRng::from_entropy();
 
     // Create game state with proper initialization via u_init()
-    let mut state = GameState::new_with_identity(
-        rng,
-        name.to_string(),
-        role,
-        race,
-        gender,
-        alignment,
-    );
+    let mut state =
+        GameState::new_with_identity(rng, name.to_string(), role, race, gender, alignment);
 
     // Post-creation setup matching C's newgame() in allmain.c
-    state.spawn_starting_pet();          // C: makedog()
+    state.spawn_starting_pet(); // C: makedog()
     state.player.next_attrib_check = 600; // C: context.next_attrib_check = 600L
 
     state.flags.started = true;
@@ -602,9 +590,7 @@ fn handle_recovery_mode(args: &Args) -> io::Result<()> {
     } else {
         println!(
             "No save file found for player: {}",
-            args.name
-                .as_deref()
-                .unwrap_or("(none specified)")
+            args.name.as_deref().unwrap_or("(none specified)")
         );
         println!("\nTo start a new game, run: nethack");
     }

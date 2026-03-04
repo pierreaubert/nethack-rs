@@ -19,7 +19,10 @@ fn test_stoning_timeout_field() {
     let player = You::default();
 
     // Both the u16 status-effect timeout and the i32 countdown field exist
-    assert_eq!(player.stoning_timeout, 0, "stoning_timeout should default to 0");
+    assert_eq!(
+        player.stoning_timeout, 0,
+        "stoning_timeout should default to 0"
+    );
     assert_eq!(player.stoning, 0, "stoning countdown should default to 0");
 
     // The TimeoutManager supports scheduling a Stoning event
@@ -69,7 +72,10 @@ fn test_stoning_countdown() {
 #[test]
 fn test_sliming_timeout_field() {
     let player = You::default();
-    assert_eq!(player.sliming_timeout, 0, "sliming_timeout should default to 0");
+    assert_eq!(
+        player.sliming_timeout, 0,
+        "sliming_timeout should default to 0"
+    );
 
     // TimeoutManager supports Sliming events
     let mut tm = TimeoutManager::new();
@@ -94,14 +100,24 @@ fn test_illness_timeout_field() {
 
     // Multiple illness-related fields exist
     assert_eq!(player.sickness_timeout, 0, "sickness_timeout defaults to 0");
-    assert_eq!(player.sick_food_timeout, 0, "sick_food_timeout defaults to 0");
-    assert_eq!(player.sick_illness_timeout, 0, "sick_illness_timeout defaults to 0");
+    assert_eq!(
+        player.sick_food_timeout, 0,
+        "sick_food_timeout defaults to 0"
+    );
+    assert_eq!(
+        player.sick_illness_timeout, 0,
+        "sick_illness_timeout defaults to 0"
+    );
     assert_eq!(player.sick, 0, "sick countdown defaults to 0");
     assert!(player.sick_reason.is_none(), "sick_reason defaults to None");
 
     // TimerFunc::Illness exists for the timer queue
     let mut queue = TimerQueue::new();
-    let id = queue.start_timer(100, nh_core::world::timeout::TimerKind::Global, TimerFunc::Illness);
+    let id = queue.start_timer(
+        100,
+        nh_core::world::timeout::TimerKind::Global,
+        TimerFunc::Illness,
+    );
     assert!(id.is_some(), "Should be able to create an Illness timer");
     assert_eq!(queue.peek_timer(&TimerFunc::Illness), 100);
 }
@@ -177,7 +193,10 @@ fn test_multi_turn_occupation() {
 
     // multi defaults to 0 (not occupied)
     assert_eq!(player.multi, 0, "multi should default to 0");
-    assert!(player.multi_reason.is_none(), "multi_reason should default to None");
+    assert!(
+        player.multi_reason.is_none(),
+        "multi_reason should default to None"
+    );
 
     // Negative multi = helpless (paralyzed, sleeping, etc.)
     player.multi = -5;
@@ -201,8 +220,14 @@ fn test_multi_turn_occupation() {
     assert_eq!(timer.remaining(), 1);
     timer.tick();
     assert_eq!(timer.remaining(), 0);
-    assert!(!timer.is_occupied(), "Occupation should end when remaining reaches 0");
-    assert!(timer.activity().is_none(), "Activity clears when occupation ends");
+    assert!(
+        !timer.is_occupied(),
+        "Occupation should end when remaining reaches 0"
+    );
+    assert!(
+        timer.activity().is_none(),
+        "Activity clears when occupation ends"
+    );
 }
 
 // ============================================================================
@@ -274,7 +299,10 @@ fn test_wounded_legs_timeout() {
 
     // Wounded legs default to 0 duration
     assert_eq!(player.wounded_legs_left, 0, "Left leg should default to 0");
-    assert_eq!(player.wounded_legs_right, 0, "Right leg should default to 0");
+    assert_eq!(
+        player.wounded_legs_right, 0,
+        "Right leg should default to 0"
+    );
     assert!(
         !player.properties.has(Property::WoundedLegs),
         "WoundedLegs property should not be active by default"

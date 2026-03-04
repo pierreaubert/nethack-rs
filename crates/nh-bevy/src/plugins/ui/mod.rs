@@ -109,7 +109,6 @@ fn debug_egui_input(mut contexts: EguiContexts) {
     }
 }
 
-
 /// System to transition UiState to Ready once essential assets are loaded.
 fn check_ui_ready(
     mut next_state: ResMut<NextState<UiState>>,

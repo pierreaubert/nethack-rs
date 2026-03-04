@@ -4,12 +4,12 @@
 //! Quest, Endgame planes) generate correctly with expected terrain features,
 //! level flags, and structural properties.
 
+use nh_core::GameRng;
 use nh_core::dungeon::{
-    CellType, DLevel, Level, Plane, QuestInfo, SpecialLevelId, TrapType,
-    generate_plane, generate_quest_home, generate_special_level, get_special_level,
+    CellType, DLevel, Level, Plane, QuestInfo, SpecialLevelId, TrapType, generate_plane,
+    generate_quest_home, generate_special_level, get_special_level,
 };
 use nh_core::player::Role;
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -206,10 +206,7 @@ fn test_mines_end_generation() {
     );
 
     // Should have stairs
-    assert!(
-        !level.stairs.is_empty(),
-        "Mines End should have stairs"
-    );
+    assert!(!level.stairs.is_empty(), "Mines End should have stairs");
 
     // Verify the display name
     assert_eq!(SpecialLevelId::MinesEnd1.name(), "Mines End");
@@ -242,10 +239,7 @@ fn test_sanctum_generation() {
 
     // Sanctum has exactly one high altar (to Moloch)
     let altar_count = count_cell_type(&level, CellType::Altar);
-    assert_eq!(
-        altar_count, 1,
-        "Sanctum should have exactly one high altar"
-    );
+    assert_eq!(altar_count, 1, "Sanctum should have exactly one high altar");
 
     // Sanctum has iron bars separating chambers
     let bars_count = count_cell_type(&level, CellType::IronBars);
@@ -262,7 +256,10 @@ fn test_sanctum_generation() {
     );
 
     // Critical flags must be set
-    assert!(level.flags.no_teleport, "Sanctum must have no_teleport flag");
+    assert!(
+        level.flags.no_teleport,
+        "Sanctum must have no_teleport flag"
+    );
     assert!(level.flags.hard_floor, "Sanctum must have hard_floor flag");
     assert!(
         level.flags.no_magic_map,
@@ -310,10 +307,7 @@ fn test_wizard_tower_generation() {
 
     // Should have magic traps
     let magic_traps = count_trap_type(&level, TrapType::MagicTrap);
-    assert!(
-        magic_traps > 0,
-        "Wizard Tower should have magic traps"
-    );
+    assert!(magic_traps > 0, "Wizard Tower should have magic traps");
 
     // Must have no_teleport flag
     assert!(
@@ -395,10 +389,7 @@ fn test_quest_level_exists() {
 
     // Valkyrie quest home should have a throne (Shrine of Destiny)
     let throne_count = count_cell_type(&level, CellType::Throne);
-    assert_eq!(
-        throne_count, 1,
-        "Valkyrie quest home should have a throne"
-    );
+    assert_eq!(throne_count, 1, "Valkyrie quest home should have a throne");
 
     // Should have stairs to quest and back to main dungeon
     assert!(
@@ -485,10 +476,7 @@ fn test_fire_plane_generation() {
 
     // Fire Plane should have fire traps
     let fire_traps = count_trap_type(&level, TrapType::FireTrap);
-    assert!(
-        fire_traps > 0,
-        "Fire Plane should have fire traps"
-    );
+    assert!(fire_traps > 0, "Fire Plane should have fire traps");
 
     // Must have no_teleport flag (all planes block teleport)
     assert!(
@@ -555,7 +543,13 @@ fn test_special_level_flags() {
     assert!(earth.flags.no_teleport, "Earth Plane: no_teleport");
 
     // --- All endgame planes have no_teleport ---
-    for plane in [Plane::Earth, Plane::Air, Plane::Fire, Plane::Water, Plane::Astral] {
+    for plane in [
+        Plane::Earth,
+        Plane::Air,
+        Plane::Fire,
+        Plane::Water,
+        Plane::Astral,
+    ] {
         let mut lvl = Level::new(plane.dlevel());
         generate_plane(&mut lvl, plane, &mut rng);
         assert!(

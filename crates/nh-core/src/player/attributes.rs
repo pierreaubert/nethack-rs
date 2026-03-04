@@ -253,192 +253,6 @@ impl Attributes {
     }
 }
 
-/// Extended attribute tracking with modifiers
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
-pub struct AttributeModifiers {
-    /// Base attribute values
-    pub base: [i8; NUM_ATTRS],
-    /// Maximum attainable values
-    pub max: [i8; NUM_ATTRS],
-    /// Temporary modifiers (equipment, effects)
-    pub temp: [i8; NUM_ATTRS],
-    /// Equipment bonuses
-    pub bonus: [i8; NUM_ATTRS],
-    /// Exercise values (for attribute growth)
-    pub exercise: [i8; NUM_ATTRS],
-}
-
-impl AttributeModifiers {
-    /// Create new modifiers with given base values (init_attr equivalent)
-    ///
-    /// Initializes attributes based on role base values and distribution points.
-    /// The points parameter represents ability points to distribute.
-    pub fn init(role_base: [i8; NUM_ATTRS], dist_points: i32) -> Self {
-        let mut result = Self {
-            base: role_base,
-            max: role_base,
-            temp: [0; NUM_ATTRS],
-            bonus: [0; NUM_ATTRS],
-            exercise: [0; NUM_ATTRS],
-        };
-
-        // Distribute bonus points according to role distribution weights
-        let mut remaining = dist_points;
-        let mut try_count = 0;
-
-        while remaining > 0 && try_count < 100 {
-            // Pick random attribute biased toward role strengths
-            let idx = (try_count % NUM_ATTRS) as usize;
-
-            // Can't go above max
-            if result.base[idx] >= 25 {
-                try_count += 1;
-                continue;
-            }
-
-            try_count = 0;
-            result.base[idx] = result.base[idx].saturating_add(1);
-            result.max[idx] = result.max[idx].saturating_add(1);
-            remaining -= 1;
-        }
-
-        result
-    }
-
-    /// Get current attribute value with all modifiers applied (acurr equivalent)
-    pub fn current(&self, attr: Attribute) -> i8 {
-        let idx = attr.index();
-        let sum = self.base[idx]
-            .saturating_add(self.temp[idx])
-            .saturating_add(self.bonus[idx]);
-
-        // Clamp to valid range
-        sum.clamp(3, 25)
-    }
-
-    /// Get current strength with special handling (acurrstr equivalent)
-    ///
-    /// Condenses strength values > 18 into formula-friendly range.
-    /// Maps strength >= 18 to condensed values:
-    /// - 18 -> 18
-    /// - 18/01..18/50 -> 19
-    /// - 18/51..18/99 -> 20
-    /// - 18/100 -> 21
-    /// - 19..24 -> 22..25
-    pub fn current_strength_condensed(&self) -> i8 {
-        let str_val = self.current(Attribute::Strength);
-
-        if str_val <= 18 {
-            str_val
-        } else if str_val <= 121 {
-            19 + (str_val - 18) / 50
-        } else {
-            (str_val - 100).min(25)
-        }
-    }
-
-    /// Check if attribute is at extreme (min or max) (extremeattr equivalent)
-    pub fn is_extreme(&self, attr: Attribute) -> bool {
-        let current = self.current(attr);
-        current <= 3 || current >= 25
-    }
-
-    /// Adjust attribute value (adjattrib equivalent - simplified)
-    ///
-    /// Returns true if the attribute changed.
-    /// This is a simplified version without message generation.
-    pub fn adjust(&mut self, attr: Attribute, delta: i8) -> bool {
-        if delta == 0 {
-            return false;
-        }
-
-        let idx = attr.index();
-        let old_current = self.current(attr);
-
-        if delta > 0 {
-            // Increasing attribute
-            self.base[idx] = self.base[idx].saturating_add(delta);
-            if self.base[idx] > self.max[idx] {
-                self.max[idx] = self.base[idx];
-                if self.max[idx] > 25 {
-                    self.base[idx] = 25;
-                    self.max[idx] = 25;
-                }
-            }
-        } else {
-            // Decreasing attribute
-            self.base[idx] = self.base[idx].saturating_sub(delta.abs() as i8);
-            if self.base[idx] < 3 {
-                // If base drops below minimum, reduce max instead (permanent loss)
-                let loss = 3 - self.base[idx];
-                self.base[idx] = 3;
-                self.max[idx] = (self.max[idx] - loss).max(3);
-            }
-        }
-
-        self.current(attr) != old_current
-    }
-
-
-    /// Redistribute attributes (redist_attr equivalent - simplified)
-    ///
-    /// Called when polymorphing to adjust physical attributes.
-    /// Int and Wis are not changed.
-    pub fn redistribute(&mut self) {
-        for attr in [
-            Attribute::Strength,
-            Attribute::Dexterity,
-            Attribute::Constitution,
-        ] {
-            let idx = attr.index();
-            let old_max = self.max[idx];
-
-            // Adjust max by -2 to +2
-            let delta = ((idx as i8) % 5) - 2; // Pseudo-random
-            self.max[idx] = (self.max[idx].saturating_add(delta)).clamp(3, 25);
-
-            // Adjust base proportionally
-            if old_max > 0 {
-                self.base[idx] =
-                    (self.base[idx] as i32 * self.max[idx] as i32 / old_max as i32) as i8;
-            }
-            self.base[idx] = self.base[idx].clamp(3, 25);
-        }
-    }
-
-    /// Get to-hit/damage bonus from ability scores (abon equivalent - simplified)
-    ///
-    /// Calculates contribution to attack roll from Strength and Dexterity.
-    /// Returns modifier that should be added to roll.
-    pub fn ability_bonus(&self, player_level: i32) -> i8 {
-        let str_val = self.current(Attribute::Strength);
-        let dex_val = self.current(Attribute::Dexterity);
-
-        let str_bonus = match str_val {
-            ..=5 => -2,
-            6..=7 => -1,
-            8..=16 => 0,
-            17..=18 => 1,
-            19..=100 => 2,
-            _ => 3,
-        };
-
-        let dex_bonus = match dex_val {
-            ..=3 => -3,
-            4 => -2,
-            5 => -1,
-            6..=14 => 0,
-            15 => 1,
-            16 => 2,
-            _ => 3,
-        };
-
-        let low_level_bonus = if player_level < 3 { 1 } else { 0 };
-
-        (str_bonus + dex_bonus + low_level_bonus).clamp(-3, 3)
-    }
-}
-
 // Utility functions
 
 /// Format strength value for display (get_strength_str equivalent)
@@ -450,107 +264,8 @@ pub fn format_strength(strength: i8) -> String {
         format!("18/{:02}", strength - 18)
     } else {
         // 18/100 or higher
-        format!("18/**")
+        "18/**".to_string()
     }
-}
-
-/// Adjust attribute from worn item (adj_abon equivalent - stub)
-///
-/// Handles specific items that modify attributes (e.g., Gauntlets of Dexterity).
-/// This is a stub - full implementation requires object types.
-pub fn adjust_from_item(modifiers: &mut AttributeModifiers, item_type: &str, equipping: bool) {
-    let delta = if equipping { 1 } else { -1 };
-
-    match item_type {
-        "gauntlets_of_dexterity" => {
-            modifiers.bonus[Attribute::Dexterity.index()] =
-                modifiers.bonus[Attribute::Dexterity.index()].saturating_add(delta);
-        }
-        "helm_of_brilliance" => {
-            modifiers.bonus[Attribute::Intelligence.index()] =
-                modifiers.bonus[Attribute::Intelligence.index()].saturating_add(delta);
-            modifiers.bonus[Attribute::Wisdom.index()] =
-                modifiers.bonus[Attribute::Wisdom.index()].saturating_add(delta);
-        }
-        _ => {}
-    }
-}
-
-/// Check if an innate ability source matches requirements (innately equivalent - stub)
-///
-/// Determines if an ability is innate (from role, race, or form).
-/// Full implementation requires tracking ability sources.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InnatSource {
-    /// Not innate
-    None = 0,
-    /// From character role
-    Role = 1,
-    /// From character race
-    Race = 2,
-    /// From form/polymorph
-    Form = 3,
-    /// External source (cursed item, etc.)
-    External = 4,
-}
-
-pub fn check_innate_ability(ability_id: u32, player_level: u32) -> InnatSource {
-    // Check if an ability is innate to role/race at a given level
-    // Ability ID would map to specific abilities in full implementation
-
-    match ability_id {
-        1 => {
-            // Example: Some role-specific ability at level 1
-            if player_level >= 1 {
-                InnatSource::Role
-            } else {
-                InnatSource::None
-            }
-        }
-        2 => {
-            // Example: Some race-specific ability at level 1
-            if player_level >= 1 {
-                InnatSource::Race
-            } else {
-                InnatSource::None
-            }
-        }
-        3 => {
-            // Example: Some ability gained at higher level
-            if player_level >= 5 {
-                InnatSource::Role
-            } else {
-                InnatSource::None
-            }
-        }
-        _ => InnatSource::None,
-    }
-}
-
-/// Apply random intrinsic curse effect (attrcurse equivalent)
-///
-/// Removes a random intrinsic property (curse effect).
-/// Returns the name of the property removed, if any.
-pub fn apply_attribute_curse(rng: &mut crate::GameRng) -> Option<&'static str> {
-    // Randomly remove an intrinsic property (curse effect)
-    // Examples: Fire resistance, Teleportation, Poison resistance, etc.
-    let curses = [
-        "fire resistance",
-        "teleportation",
-        "poison resistance",
-        "telepathy",
-        "cold resistance",
-        "invisibility",
-        "see invisible",
-        "speed",
-        "regeneration",
-        "magical resistance",
-        "a special power",
-    ];
-
-    // Pick a random curse from the list
-    let idx = (rng.rn2(curses.len() as u32) as usize).min(curses.len() - 1);
-    Some(curses[idx])
 }
 
 /// Record attribute exercise (C: exercise() from attrib.c:413)
@@ -600,12 +315,18 @@ pub fn record_exercise(
 /// Returns the message shown when an attribute changes due to exercise/abuse.
 pub fn exercise_message(attr_idx: usize, gained: bool) -> Option<String> {
     let texts: [(Option<&str>, Option<&str>); 6] = [
-        (Some("exercising diligently"), Some("exercising properly")),           // Str
-        (None, None),                                                           // Int
-        (Some("very observant"), Some("paying attention")),                     // Wis
-        (Some("working on your reflexes"), Some("working on reflexes lately")), // Dex
-        (Some("leading a healthy life-style"), Some("watching your health")),   // Con
-        (None, None),                                                           // Cha
+        (Some("exercising diligently"), Some("exercising properly")), // Str
+        (None, None),                                                 // Int
+        (Some("very observant"), Some("paying attention")),           // Wis
+        (
+            Some("working on your reflexes"),
+            Some("working on reflexes lately"),
+        ), // Dex
+        (
+            Some("leading a healthy life-style"),
+            Some("watching your health"),
+        ), // Con
+        (None, None),                                                 // Cha
     ];
 
     if attr_idx >= 6 {

@@ -7,8 +7,8 @@ use nh_core::dungeon::{CellType, Level};
 use nh_core::player::You;
 use nh_core::{COLNO, ROWNO};
 
-use crate::theme::Theme;
 use crate::display::GlyphSet;
+use crate::theme::Theme;
 
 /// Widget for rendering the dungeon map
 pub struct MapWidget<'a> {

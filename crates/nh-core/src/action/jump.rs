@@ -197,7 +197,7 @@ pub fn is_valid_jump_pos(state: &mut GameState, x: i8, y: i8, magic: i32, show_m
 
     // Maximum jump distance
     let max_dist_sq = if magic > 0 {
-        (6 + magic * 3) as i32 * (6 + magic * 3) as i32
+        (6 + magic * 3) * (6 + magic * 3)
     } else {
         9 * 9 // 9 squares for physical jump
     };

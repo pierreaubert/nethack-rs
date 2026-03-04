@@ -190,22 +190,22 @@ impl Theme {
 
         if is_light {
             match index {
-                0 => Color::DarkGray,      // Black → visible dark
-                7 => Color::Black,         // White → Black
-                15 => Color::Black,        // Bright White → Black
+                0 => Color::DarkGray, // Black → visible dark
+                7 => Color::Black,    // White → Black
+                15 => Color::Black,   // Bright White → Black
                 1 => Color::Red,
                 2 => Color::Green,
                 3 => Color::Yellow,
                 4 => Color::Blue,
                 5 => Color::Magenta,
-                6 => Color::Blue,          // Cyan → Blue (more contrast)
+                6 => Color::Blue, // Cyan → Blue (more contrast)
                 8 => Color::DarkGray,
-                9 => Color::Red,           // LightRed → Red
-                10 => Color::Green,        // LightGreen → Green
+                9 => Color::Red,    // LightRed → Red
+                10 => Color::Green, // LightGreen → Green
                 11 => Color::Yellow,
-                12 => Color::Blue,         // LightBlue → Blue
+                12 => Color::Blue, // LightBlue → Blue
                 13 => Color::Magenta,
-                14 => Color::Blue,         // LightCyan → Blue
+                14 => Color::Blue, // LightCyan → Blue
                 _ => Color::Black,
             }
         } else {

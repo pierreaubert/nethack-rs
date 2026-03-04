@@ -85,9 +85,7 @@ pub fn do_apply(state: &mut GameState, obj_letter: char) -> ActionResult {
         // Bag of tricks (225)
         225 => apply_bag_of_tricks(state, obj_letter),
         // Instruments: flutes (192-193), harps (194, 202), bugle (204), drums (208-209)
-        192 | 193 | 194 | 202 | 204 | 208 | 209 => {
-            apply_instrument(state, obj_letter, &obj)
-        }
+        192 | 193 | 194 | 202 | 204 | 208 | 209 => apply_instrument(state, obj_letter, &obj),
         _ => {
             state.message(format!("You apply the {}.", obj_name));
             ActionResult::Success
@@ -108,7 +106,9 @@ pub fn dig_check(state: &GameState, x: i8, y: i8) -> bool {
     }
     // Can dig walls but not special terrain
     let cell = state.current_level.cells[x as usize][y as usize];
-    cell.typ.is_wall() || cell.typ == crate::dungeon::CellType::Stone || cell.typ == crate::dungeon::CellType::Room
+    cell.typ.is_wall()
+        || cell.typ == crate::dungeon::CellType::Stone
+        || cell.typ == crate::dungeon::CellType::Room
 }
 
 /// Apply a digging tool (pickaxe or mattock).
@@ -139,12 +139,7 @@ pub struct DigResult {
 ///
 /// Based on C dig() — pickaxe/mattock mechanics.
 /// Time to dig depends on tool type and player strength.
-pub fn dig_at(
-    state: &mut GameState,
-    x: i8,
-    y: i8,
-    tool_type: i16,
-) -> DigResult {
+pub fn dig_at(state: &mut GameState, x: i8, y: i8, tool_type: i16) -> DigResult {
     let mut result = DigResult {
         messages: Vec::new(),
         success: false,
@@ -167,12 +162,16 @@ pub fn dig_at(
         t if t.is_wall() || t == crate::dungeon::CellType::Stone => {
             result.success = true;
             result.terrain_changed = true;
-            result.messages.push("You dig through the wall.".to_string());
+            result
+                .messages
+                .push("You dig through the wall.".to_string());
         }
         crate::dungeon::CellType::Room => {
             // Dig a pit or hole
             result.success = true;
-            result.messages.push("You dig a pit in the floor.".to_string());
+            result
+                .messages
+                .push("You dig a pit in the floor.".to_string());
         }
         _ => {
             result.messages.push("You can't dig there.".to_string());
@@ -181,8 +180,7 @@ pub fn dig_at(
 
     // Apply terrain change
     if result.terrain_changed {
-        state.current_level.cells[x as usize][y as usize].typ =
-            crate::dungeon::CellType::Corridor;
+        state.current_level.cells[x as usize][y as usize].typ = crate::dungeon::CellType::Corridor;
     }
 
     result
@@ -209,15 +207,8 @@ pub struct LockPickResult {
 ///
 /// Based on C pick_lock() in lock.c.
 /// Skeleton keys always work, lock picks have a chance, credit cards work on doors.
-fn apply_lock_tool(
-    state: &mut GameState,
-    _obj_letter: char,
-    obj_name: &str,
-) -> ActionResult {
-    state.message(format!(
-        "You try to pick a lock with the {}.",
-        obj_name
-    ));
+fn apply_lock_tool(state: &mut GameState, _obj_letter: char, obj_name: &str) -> ActionResult {
+    state.message(format!("You try to pick a lock with the {}.", obj_name));
     // In full implementation: get direction, find door/container
     state.message("There's nothing here to unlock.");
     ActionResult::NoTime
@@ -243,9 +234,9 @@ pub fn pick_lock(
 
     // Success chance depends on tool type
     let base_chance = match tool_type {
-        205 => 100, // Skeleton key: always works
+        205 => 100,          // Skeleton key: always works
         206 => 50 + dex * 2, // Lock pick: dex-based
-        207 => 30 + dex, // Credit card: harder
+        207 => 30 + dex,     // Credit card: harder
         _ => 10,
     };
 
@@ -259,9 +250,13 @@ pub fn pick_lock(
     let roll = rng.rn2(100) as i32;
     if roll < chance {
         result.opened = true;
-        result.messages.push("You succeed in picking the lock.".to_string());
+        result
+            .messages
+            .push("You succeed in picking the lock.".to_string());
     } else {
-        result.messages.push("You fail to pick the lock.".to_string());
+        result
+            .messages
+            .push("You fail to pick the lock.".to_string());
         // Lock pick has a chance to break on failure
         if tool_type == 206 && rng.rn2(15) == 0 {
             result.tool_broke = true;
@@ -293,11 +288,7 @@ pub struct InstrumentResult {
 ///
 /// Based on C do_play_instrument() in music.c.
 /// Magic instruments have special effects; ordinary ones just make noise.
-fn apply_instrument(
-    state: &mut GameState,
-    obj_letter: char,
-    obj: &Object,
-) -> ActionResult {
+fn apply_instrument(state: &mut GameState, obj_letter: char, obj: &Object) -> ActionResult {
     let obj_name = obj.name.clone().unwrap_or_else(|| "instrument".to_string());
     let is_magic = matches!(obj.object_type, 193 | 202 | 209); // Magic flute, harp, drum
 
@@ -346,7 +337,9 @@ fn magic_instrument_effect(
     };
 
     if obj.enchantment <= 0 {
-        result.messages.push("The instrument plays a note but nothing happens.".to_string());
+        result
+            .messages
+            .push("The instrument plays a note but nothing happens.".to_string());
         return result;
     }
 
@@ -357,7 +350,9 @@ fn magic_instrument_effect(
     match obj.object_type {
         193 => {
             // Magic flute: put monsters to sleep
-            result.messages.push("You produce a lilting melody.".to_string());
+            result
+                .messages
+                .push("You produce a lilting melody.".to_string());
             result.magical_effect = true;
             for monster in &mut state.current_level.monsters {
                 let dx = (monster.x - px).abs();
@@ -371,16 +366,16 @@ fn magic_instrument_effect(
         }
         202 => {
             // Magic harp: charm monsters
-            result.messages.push("You produce a mesmerizing melody.".to_string());
+            result
+                .messages
+                .push("You produce a mesmerizing melody.".to_string());
             result.magical_effect = true;
             for monster in &mut state.current_level.monsters {
                 let dx = (monster.x - px).abs();
                 let dy = (monster.y - py).abs();
                 if dx <= 5 && dy <= 5 && !monster.state.tame {
                     // Chance to tame based on level difference
-                    if monster.level as i32 <= state.player.exp_level + 3
-                        && state.rng.rn2(3) != 0
-                    {
+                    if monster.level as i32 <= state.player.exp_level + 3 && state.rng.rn2(3) != 0 {
                         monster.state.tame = true;
                         monster.state.peaceful = true;
                         monster.tameness = 5;
@@ -391,7 +386,9 @@ fn magic_instrument_effect(
         }
         209 => {
             // Drum of earthquake: shake the level
-            result.messages.push("The ground shakes violently!".to_string());
+            result
+                .messages
+                .push("The ground shakes violently!".to_string());
             result.magical_effect = true;
             // Damage nearby monsters
             for monster in &mut state.current_level.monsters {
@@ -420,11 +417,7 @@ fn magic_instrument_effect(
 ///
 /// Based on C use_container() in pickup.c.
 /// Opens the bag's inventory for the player to interact with.
-fn apply_bag(
-    state: &mut GameState,
-    obj_letter: char,
-    obj_name: &str,
-) -> ActionResult {
+fn apply_bag(state: &mut GameState, obj_letter: char, obj_name: &str) -> ActionResult {
     let obj = match state.get_inventory_item(obj_letter) {
         Some(o) => o.clone(),
         None => return ActionResult::NoTime,
@@ -448,10 +441,7 @@ fn apply_bag(
 ///
 /// Based on C bagotricks(). Creates a random monster when applied.
 /// Charges are consumed (stored in enchantment/spe).
-fn apply_bag_of_tricks(
-    state: &mut GameState,
-    obj_letter: char,
-) -> ActionResult {
+fn apply_bag_of_tricks(state: &mut GameState, obj_letter: char) -> ActionResult {
     let charges = match state.get_inventory_item(obj_letter) {
         Some(o) => o.enchantment,
         None => return ActionResult::NoTime,
@@ -512,11 +502,7 @@ fn apply_bag_of_tricks(
 /// Apply a camera to flash-blind monsters.
 ///
 /// Based on C use_camera(). Uses charges; cursed may flash self.
-fn apply_camera(
-    state: &mut GameState,
-    obj_letter: char,
-    obj_name: &str,
-) -> ActionResult {
+fn apply_camera(state: &mut GameState, obj_letter: char, obj_name: &str) -> ActionResult {
     let (charges, is_cursed) = match state.get_inventory_item(obj_letter) {
         Some(o) => (o.enchantment, o.buc == BucStatus::Cursed),
         None => return ActionResult::NoTime,
@@ -550,9 +536,7 @@ fn apply_camera(
         let dx = (monster.x - px).abs();
         let dy = (monster.y - py).abs();
         // Flash affects monsters within 5 squares in front
-        if dx <= 5 && dy <= 5
-            && monster.blinded_timeout == 0
-        {
+        if dx <= 5 && dy <= 5 && monster.blinded_timeout == 0 {
             monster.blinded_timeout = state.rng.rnd(15) as u16 + 10;
             blinded_count += 1;
         }
@@ -622,19 +606,12 @@ fn apply_towel(state: &mut GameState, obj_letter: char) -> ActionResult {
 /// Apply a blindfold or lenses (toggle wearing).
 ///
 /// Based on C Blindf_on()/Blindf_off() routing.
-fn apply_blindfold(
-    state: &mut GameState,
-    obj_letter: char,
-    obj_name: &str,
-) -> ActionResult {
+fn apply_blindfold(state: &mut GameState, obj_letter: char, obj_name: &str) -> ActionResult {
     if let Some(obj) = state.get_inventory_item_mut(obj_letter) {
         if obj.is_worn() {
             // Take off
             if obj.buc == BucStatus::Cursed {
-                state.message(format!(
-                    "The {} is stuck to your face!",
-                    obj_name
-                ));
+                state.message(format!("The {} is stuck to your face!", obj_name));
                 return ActionResult::NoTime;
             }
             obj.worn_mask = 0;
@@ -750,8 +727,7 @@ fn apply_unicorn_horn(state: &mut GameState, obj: &Object) -> ActionResult {
     // Deaf timeout not tracked yet, but slot reserved
 
     // Collect attribute troubles: up to 3 points per attribute
-    for idx in 0..A_MAX {
-        let attr = ALL_ATTRIBUTES[idx];
+    for (idx, &attr) in ALL_ATTRIBUTES.iter().enumerate().take(A_MAX) {
         let base = state.player.attr_current.get(attr);
         let max_val = state.player.attr_max.get(attr);
         if base >= max_val {
@@ -791,9 +767,7 @@ fn apply_unicorn_horn(state: &mut GameState, obj: &Object) -> ActionResult {
     let mut did_attr = 0;
 
     // Fix troubles
-    for val in 0..val_limit {
-        let idx = trouble_list[val];
-
+    for &idx in trouble_list.iter().take(val_limit) {
         if idx >= A_MAX {
             // Property trouble
             match idx - A_MAX {
@@ -873,10 +847,7 @@ const ALL_ATTRIBUTES: [Attribute; 6] = [
 ///
 /// Based on C use_leash(). Can leash up to 2 tame pets.
 /// Applying again to a leashed pet unleashes it (unless cursed).
-fn apply_leash(
-    state: &mut GameState,
-    _obj_letter: char,
-) -> ActionResult {
+fn apply_leash(state: &mut GameState, _obj_letter: char) -> ActionResult {
     let px = state.player.pos.x;
     let py = state.player.pos.y;
 
@@ -969,11 +940,7 @@ const MAX_LEASHED_APPLY: usize = 2;
 /// Based on C use_bell(). Regular bells wake monsters.
 /// Bell of Opening: blessed opens doors/removes chains,
 /// cursed creates undead, uncursed searches for hidden.
-fn apply_bell(
-    state: &mut GameState,
-    obj_letter: char,
-    obj: &Object,
-) -> ActionResult {
+fn apply_bell(state: &mut GameState, obj_letter: char, obj: &Object) -> ActionResult {
     let is_bell_of_opening = obj.object_type == 198;
 
     if is_bell_of_opening {
@@ -999,10 +966,11 @@ fn apply_bell(
                         let nx = px + dx;
                         let ny = py + dy;
                         if state.current_level.is_valid_pos(nx, ny) {
-                            let cell =
-                                &mut state.current_level.cells[nx as usize][ny as usize];
+                            let cell = &mut state.current_level.cells[nx as usize][ny as usize];
                             if cell.typ == crate::dungeon::CellType::Door
-                                && cell.door_state().contains(crate::dungeon::DoorState::CLOSED)
+                                && cell
+                                    .door_state()
+                                    .contains(crate::dungeon::DoorState::CLOSED)
                             {
                                 cell.set_door_state(crate::dungeon::DoorState::OPEN);
                             }
@@ -1045,10 +1013,7 @@ fn apply_bell(
 ///
 /// Based on C use_candelabrum(). Holds up to 7 candles.
 /// At the invocation position, gives full brightness.
-fn apply_candelabrum(
-    state: &mut GameState,
-    obj_letter: char,
-) -> ActionResult {
+fn apply_candelabrum(state: &mut GameState, obj_letter: char) -> ActionResult {
     let (candles, is_lit, is_cursed) = match state.get_inventory_item(obj_letter) {
         Some(o) => (o.enchantment, o.lit, o.buc == BucStatus::Cursed),
         None => return ActionResult::NoTime,
@@ -1081,10 +1046,7 @@ fn apply_candelabrum(
     if candles >= 7 {
         state.message("The candelabrum blazes with brilliant light!");
     } else {
-        state.message(format!(
-            "The candelabrum glows with {} candle(s).",
-            candles
-        ));
+        state.message(format!("The candelabrum glows with {} candle(s).", candles));
     }
 
     ActionResult::Success
@@ -1107,10 +1069,7 @@ fn apply_candelabrum(
 /// - Blessed: 80% tame, 10% peaceful, 10% hostile
 /// - Uncursed: 10% tame, 80% peaceful, 10% hostile
 /// - Cursed: 10% tame, 10% peaceful, 80% hostile
-fn apply_figurine(
-    state: &mut GameState,
-    obj_letter: char,
-) -> ActionResult {
+fn apply_figurine(state: &mut GameState, obj_letter: char) -> ActionResult {
     let obj = match state.get_inventory_item(obj_letter) {
         Some(o) => o.clone(),
         None => return ActionResult::NoTime,
@@ -1201,13 +1160,13 @@ fn apply_figurine(
     }
 
     // Copy figurine name to monster if it had one
-    if let Some(ref fig_name) = obj.name {
-        if !fig_name.is_empty() {
-            monster.name = fig_name.clone();
-        }
+    if let Some(ref fig_name) = obj.name
+        && !fig_name.is_empty()
+    {
+        monster.name = fig_name.clone();
     }
 
-    state.message(format!("You set the figurine beside you and it transforms."));
+    state.message("You set the figurine beside you and it transforms.".to_string());
 
     if monster.state.tame {
         state.message(format!("The {} looks tame.", monster_name));
@@ -1231,10 +1190,7 @@ fn apply_figurine(
 /// Port of C use_grease() from apply.c lines 2292-2344.
 /// Consumes a charge. Cursed: 50% chance makes hands glib.
 /// Otherwise greases a target inventory item, protecting it from erosion.
-fn apply_grease(
-    state: &mut GameState,
-    obj_letter: char,
-) -> ActionResult {
+fn apply_grease(state: &mut GameState, obj_letter: char) -> ActionResult {
     let (charges, is_cursed) = match state.get_inventory_item(obj_letter) {
         Some(o) => (o.enchantment, o.buc == BucStatus::Cursed),
         None => return ActionResult::NoTime,
@@ -1258,7 +1214,9 @@ fn apply_grease(
 
     // In C, this prompts for a target item. For now, grease the first
     // non-greased worn item found.
-    let target_letter = state.inventory.iter()
+    let target_letter = state
+        .inventory
+        .iter()
         .find(|item| item.worn_mask != 0 && !item.greased)
         .map(|item| item.inv_letter);
 
@@ -1266,7 +1224,10 @@ fn apply_grease(
         if let Some(target) = state.get_inventory_item_mut(letter) {
             let name = target.display_name();
             target.greased = true;
-            state.message(format!("You grease the {}, protecting it from erosion.", name));
+            state.message(format!(
+                "You grease the {}, protecting it from erosion.",
+                name
+            ));
         }
     } else {
         // No valid worn target, grease ourselves (fingers)
@@ -1297,11 +1258,7 @@ pub struct TrapSetResult {
 ///
 /// Based on C use_trap(). Setting a trap takes multiple turns
 /// based on dexterity. Cursed/fumbling may trigger it on yourself.
-fn apply_trap_tool(
-    state: &mut GameState,
-    obj_letter: char,
-    obj: &Object,
-) -> ActionResult {
+fn apply_trap_tool(state: &mut GameState, obj_letter: char, obj: &Object) -> ActionResult {
     let is_bear_trap = obj.object_type == 218;
     let trap_name = if is_bear_trap {
         "bear trap"
@@ -1404,7 +1361,9 @@ pub fn set_trap(
         result.success = false;
         result.messages.push("You bungle the trap!".to_string());
     } else {
-        result.messages.push("You carefully set the trap.".to_string());
+        result
+            .messages
+            .push("You carefully set the trap.".to_string());
     }
 
     result
@@ -1424,10 +1383,7 @@ pub fn set_trap(
 /// Finds a corpse at the player's feet, consumes a charge, removes the corpse,
 /// and creates a tin in inventory. The tin stores the monster type from the corpse
 /// (corpsenm) for later consumption.
-fn apply_tinning_kit(
-    state: &mut GameState,
-    obj_letter: char,
-) -> ActionResult {
+fn apply_tinning_kit(state: &mut GameState, obj_letter: char) -> ActionResult {
     let charges = match state.get_inventory_item(obj_letter) {
         Some(o) => o.enchantment,
         None => return ActionResult::NoTime,
@@ -1464,7 +1420,11 @@ fn apply_tinning_kit(
             state.message("You attempt to tin the cockatrice corpse...");
             // In C, tinning a cockatrice without gloves = stoning
             // Simplified: just warn
-            if !state.player.properties.has(crate::player::Property::StoneResistance) {
+            if !state
+                .player
+                .properties
+                .has(crate::player::Property::StoneResistance)
+            {
                 state.message("You turn to stone while handling the corpse!");
                 state.player.hp = 0;
                 return ActionResult::Success;
@@ -1714,10 +1674,7 @@ pub fn apply_mirror_at(state: &mut GameState, x: i8, y: i8) -> ActionResult {
             monster.hp = 0;
         }
     } else if is_vampire {
-        state.message(format!(
-            "The {} doesn't have a reflection!",
-            monster_name
-        ));
+        state.message(format!("The {} doesn't have a reflection!", monster_name));
     } else if is_nymph {
         state.message(format!(
             "The {} is mesmerized by her reflection.",
@@ -1835,7 +1792,11 @@ pub fn apply_crystal_ball(state: &mut GameState, obj: &Object) -> ActionResult {
                 state.player.confused_timeout += state.rng.rnd(100) as u16;
             }
             3 => {
-                if !state.player.properties.has(crate::player::Property::SleepResistance) {
+                if !state
+                    .player
+                    .properties
+                    .has(crate::player::Property::SleepResistance)
+                {
                     state.message("The crystal ball damages your vision!");
                     state.player.blinded_timeout += state.rng.rnd(100) as u16;
                 } else {
@@ -1870,7 +1831,9 @@ pub fn apply_crystal_ball(state: &mut GameState, obj: &Object) -> ActionResult {
                 2 => state.message("Whoa! Psychedelic colors!"),
                 3 => state.message("The crystal pulses with sinister light!"),
                 4 => state.message("You see goldfish swimming above fluorescent rocks."),
-                5 => state.message("You see tiny snowflakes spinning around a miniature farmhouse."),
+                5 => {
+                    state.message("You see tiny snowflakes spinning around a miniature farmhouse.")
+                }
                 _ => state.message("Oh wow... like a kaleidoscope!"),
             }
             // Consume a charge
@@ -2024,7 +1987,7 @@ pub fn use_tinning_kit(state: &mut GameState, _obj_letter: char, obj_name: &str)
         .objects_at(state.player.pos.x, state.player.pos.y)
         .iter()
         .any(|o| {
-            o.class == ObjectClass::Food && o.name.as_ref().map_or(false, |n| n.contains("corpse"))
+            o.class == ObjectClass::Food && o.name.as_ref().is_some_and(|n| n.contains("corpse"))
         });
 
     if !has_corpse {
@@ -2052,11 +2015,7 @@ pub fn use_trap(state: &mut GameState) -> ActionResult {
 
 pub fn use_unicorn_horn(state: &mut GameState) -> ActionResult {
     // Default to uncursed horn when called without object context
-    let obj = Object::new(
-        ObjectId(0),
-        0,
-        ObjectClass::Tool,
-    );
+    let obj = Object::new(ObjectId(0), 0, ObjectClass::Tool);
     apply_unicorn_horn(state, &obj)
 }
 
@@ -2092,74 +2051,6 @@ pub fn hornoplenty(state: &mut GameState, obj_letter: char) -> ActionResult {
 
 pub fn figurine_location_checks() -> bool {
     true
-}
-
-fn apply_magic_harp(state: &mut GameState) -> ActionResult {
-    state.message("You play the magic harp...");
-
-    // Nearby monsters might be tamed
-    let px = state.player.pos.x;
-    let py = state.player.pos.y;
-    let mut tamed = 0;
-
-    for monster in &mut state.current_level.monsters {
-        let dx = (monster.x - px).abs();
-        let dy = (monster.y - py).abs();
-        if dx <= 8 && dy <= 8 && state.rng.one_in(3) {
-            monster.state.tame = true;
-            tamed += 1;
-        }
-    }
-
-    if tamed > 0 {
-        state.message(format!("The music tames {} monster(s)!", tamed));
-    } else {
-        state.message("The music has no effect.");
-    }
-
-    ActionResult::Success
-}
-
-fn apply_bugle(state: &mut GameState) -> ActionResult {
-    state.message("You blow the bugle loudly!");
-
-    for monster in &mut state.current_level.monsters {
-        monster.state.sleeping = false;
-    }
-
-    state.message("All nearby creatures are awakened!");
-    ActionResult::Success
-}
-
-fn apply_frost_horn(state: &mut GameState) -> ActionResult {
-    state.message("You blow the frost horn, and a chill spreads...");
-
-    let px = state.player.pos.x;
-    let py = state.player.pos.y;
-    let mut slowed = 0;
-
-    for monster in &mut state.current_level.monsters {
-        let dx = (monster.x - px).abs();
-        let dy = (monster.y - py).abs();
-        if dx <= 6 && dy <= 6 {
-            // Slow nearby monsters
-            monster.state.slowed = true;
-            slowed += 1;
-        }
-    }
-
-    if slowed > 0 {
-        state.message(format!("You slow {} creature(s) with the frost!", slowed));
-    }
-
-    ActionResult::Success
-}
-
-fn apply_rope(state: &mut GameState) -> ActionResult {
-    state.message("You unwind the rope.");
-    state.message("You could use this for climbing or to bind something.");
-    // Would require direction selection in full implementation
-    ActionResult::NoTime
 }
 
 // ============================================================================
@@ -2293,12 +2184,12 @@ pub fn snuff_light_source(state: &mut GameState, x: i8, y: i8) {
             .objects
             .iter_mut()
             .find(|o| o.id == obj_id)
+            && obj.lit
+            && !is_artifact_light(obj)
         {
-            if obj.lit && !is_artifact_light(obj) {
-                obj.lit = false;
-                del_light_source_for_object(state, obj_id);
-                state.message("A light is snuffed out!");
-            }
+            obj.lit = false;
+            del_light_source_for_object(state, obj_id);
+            state.message("A light is snuffed out!");
         }
     }
 }
@@ -2310,10 +2201,12 @@ pub fn snuff_lit(state: &mut GameState, obj_letter: char) {
 
 /// Show lamp flickering message (low fuel warning)
 pub fn see_lamp_flicker(state: &mut GameState, obj_letter: char) {
-    if let Some(obj) = state.get_inventory_item(obj_letter) {
-        if obj.lit && obj.age > 0 && obj.age < 50 {
-            state.message(format!("Your {} flickers.", obj.display_name()));
-        }
+    if let Some(obj) = state.get_inventory_item(obj_letter)
+        && obj.lit
+        && obj.age > 0
+        && obj.age < 50
+    {
+        state.message(format!("Your {} flickers.", obj.display_name()));
     }
 }
 
@@ -2929,7 +2822,10 @@ mod tests {
         }
         // Uncursed: d(2,2) = 2-4, rn2 of that => 0-3 fixes.
         // With 1 trouble, chance of fixing = P(rn2(dice) >= 1) ≈ 65-75%
-        assert!(cured_count > 10, "Horn should cure confusion at least sometimes, got {cured_count}/50");
+        assert!(
+            cured_count > 10,
+            "Horn should cure confusion at least sometimes, got {cured_count}/50"
+        );
     }
 
     #[test]
@@ -2956,7 +2852,10 @@ mod tests {
                 all_cured_count += 1;
             }
         }
-        assert!(all_cured_count > 5, "Blessed horn should cure all 4 troubles often, got {all_cured_count}/50");
+        assert!(
+            all_cured_count > 5,
+            "Blessed horn should cure all 4 troubles often, got {all_cured_count}/50"
+        );
     }
 
     #[test]
@@ -2981,13 +2880,19 @@ mod tests {
                 || state.player.stunned_timeout > 0
                 || state.player.blinded_timeout > 0
                 || state.player.hallucinating_timeout > 0
-                || state.messages.iter().any(|m| m.contains("deaf") || m.contains("worse"));
+                || state
+                    .messages
+                    .iter()
+                    .any(|m| m.contains("deaf") || m.contains("worse"));
             if had_observable_effect {
                 had_effect_count += 1;
             }
         }
         // Most should cause an observable effect
-        assert!(had_effect_count > 40, "Cursed horn should usually cause observable harm, got {had_effect_count}/50");
+        assert!(
+            had_effect_count > 40,
+            "Cursed horn should usually cause observable harm, got {had_effect_count}/50"
+        );
     }
 
     #[test]
@@ -2998,7 +2903,12 @@ mod tests {
         state.player.attr_max.set(Attribute::Strength, 18);
         let horn = Object::new(ObjectId(1), 213, ObjectClass::Tool);
         apply_unicorn_horn(&mut state, &horn);
-        assert!(state.messages.iter().any(|m| m.contains("Nothing seems to happen")));
+        assert!(
+            state
+                .messages
+                .iter()
+                .any(|m| m.contains("Nothing seems to happen"))
+        );
     }
 
     #[test]
@@ -3016,7 +2926,10 @@ mod tests {
                 restored_count += 1;
             }
         }
-        assert!(restored_count > 10, "Horn should restore attributes sometimes, got {restored_count}/50");
+        assert!(
+            restored_count > 10,
+            "Horn should restore attributes sometimes, got {restored_count}/50"
+        );
     }
 
     // ---- Dig tests ----
@@ -3411,12 +3324,18 @@ mod tests {
                 || state.player.blinded_timeout > 0
                 || state.player.hallucinating_timeout > 0
                 || state.player.hp < state.player.hp_max
-                || state.messages.iter().any(|m| m.contains("too much to comprehend"));
+                || state
+                    .messages
+                    .iter()
+                    .any(|m| m.contains("too much to comprehend"));
             if had_effect {
                 had_effect_count += 1;
             }
         }
-        assert_eq!(had_effect_count, 20, "Cursed ball should always cause bad effect");
+        assert_eq!(
+            had_effect_count, 20,
+            "Cursed ball should always cause bad effect"
+        );
     }
 
     #[test]
@@ -3428,7 +3347,12 @@ mod tests {
         ball.enchantment = 5;
         apply_crystal_ball(&mut state, &ball);
         // Should see visions or peer messages, not failure
-        assert!(state.messages.iter().any(|m| m.contains("peer") || m.contains("visions")));
+        assert!(
+            state
+                .messages
+                .iter()
+                .any(|m| m.contains("peer") || m.contains("visions"))
+        );
     }
 
     // ---- Figurine tests ----
@@ -3451,7 +3375,10 @@ mod tests {
             }
         }
         // Blessed = 80% tame
-        assert!(tame_count > 25, "Blessed figurine should tame ~80% of the time, got {tame_count}/50");
+        assert!(
+            tame_count > 25,
+            "Blessed figurine should tame ~80% of the time, got {tame_count}/50"
+        );
     }
 
     #[test]
@@ -3467,12 +3394,20 @@ mod tests {
             state.inventory.push(fig);
 
             apply_figurine(&mut state, 'f');
-            if state.current_level.monsters.iter().any(|m| !m.state.tame && !m.state.peaceful) {
+            if state
+                .current_level
+                .monsters
+                .iter()
+                .any(|m| !m.state.tame && !m.state.peaceful)
+            {
                 hostile_count += 1;
             }
         }
         // Cursed = 80% hostile
-        assert!(hostile_count > 25, "Cursed figurine should be hostile ~80% of the time, got {hostile_count}/50");
+        assert!(
+            hostile_count > 25,
+            "Cursed figurine should be hostile ~80% of the time, got {hostile_count}/50"
+        );
     }
 
     // ---- Mirror tests ----
@@ -3493,6 +3428,9 @@ mod tests {
             }
         }
         // 1/3 chance to flee
-        assert!(scared_count > 3, "Mirror should scare ~33% of the time, got {scared_count}/30");
+        assert!(
+            scared_count > 3,
+            "Mirror should scare ~33% of the time, got {scared_count}/30"
+        );
     }
 }

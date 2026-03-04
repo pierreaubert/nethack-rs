@@ -83,31 +83,31 @@ pub fn zapwrapup() {
     // Stub
 }
 
-pub fn zapyourself(state: &mut GameState, obj: &Object) {
+pub fn zapyourself(state: &mut GameState, _obj: &Object) {
     // Apply wand effect to self
     state.message("You zap yourself!");
     // Stub: need to call appropriate effect
 }
 
-pub fn zap_hit(state: &mut GameState, x: i8, y: i8) -> i32 {
+pub fn zap_hit(_state: &mut GameState, _x: i8, _y: i8) -> i32 {
     // Stub
     0
 }
 
-pub fn zap_over_floor(state: &mut GameState, x: i8, y: i8, type_: i32, shop_check: bool) {
+pub fn zap_over_floor(_state: &mut GameState, _x: i8, _y: i8, _type_: i32, _shop_check: bool) {
     // Stub
 }
 
-pub fn zap_updown(state: &mut GameState, obj: &Object) -> bool {
+pub fn zap_updown(_state: &mut GameState, _obj: &Object) -> bool {
     // Zap up/down logic
     false
 }
 
-pub fn zap_dig(state: &mut GameState) {
+pub fn zap_dig(_state: &mut GameState) {
     // Digging zap logic
 }
 
-pub fn zap_steed(state: &mut GameState, obj: &Object) -> bool {
+pub fn zap_steed(_state: &mut GameState, _obj: &Object) -> bool {
     false
 }
 
@@ -300,15 +300,14 @@ pub fn bhito(state: &mut GameState, obj: &mut Object, wand: &Object) -> i32 {
 }
 
 /// Hit a pile of objects at a position
-pub fn bhitpile(state: &mut GameState, wand: &Object, x: i8, y: i8) -> i32 {
-    let mut destroyed = 0;
+pub fn bhitpile(_state: &mut GameState, _wand: &Object, _x: i8, _y: i8) -> i32 {
     // In full implementation, would iterate through objects at position
     // and apply bhito to each one
-    destroyed
+    0
 }
 
 /// Monster beam hits monster
-pub fn mbhit(state: &mut GameState, attacker_id: u32, target_id: u32, obj: &Object) -> i32 {
+pub fn mbhit(state: &mut GameState, _attacker_id: u32, target_id: u32, obj: &Object) -> i32 {
     bhitm(state, target_id, obj)
 }
 
@@ -475,7 +474,7 @@ pub fn zhitu(state: &mut GameState, type_: i32, damage: i32, beam_name: &str, _x
     }
 }
 
-pub fn recharge(state: &mut GameState, obj: &mut Object, val: i32) {
+pub fn recharge(state: &mut GameState, _obj: &mut Object, _val: i32) {
     state.message("You recharge the item.");
     // Stub
 }
@@ -484,14 +483,14 @@ pub fn is_chargeable(obj: &Object) -> bool {
     obj.class == ObjectClass::Wand
 }
 
-pub fn drain_item(state: &mut GameState, obj: &mut Object) {
+pub fn drain_item(_state: &mut GameState, _obj: &mut Object) {
     // Drain charges
 }
 
-pub fn weffects(state: &mut GameState, obj: &Object) {
+pub fn weffects(_state: &mut GameState, _obj: &Object) {
     // Wand effects
 }
 
-pub fn boomhit(state: &mut GameState, x: i8, y: i8) {
+pub fn boomhit(_state: &mut GameState, _x: i8, _y: i8) {
     // Boom effect
 }

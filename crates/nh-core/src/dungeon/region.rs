@@ -39,7 +39,10 @@ impl RegionType {
 
     /// Whether this region blocks vision
     pub const fn blocks_vision(&self) -> bool {
-        matches!(self, RegionType::StinkingCloud | RegionType::GasCloud | RegionType::FogCloud)
+        matches!(
+            self,
+            RegionType::StinkingCloud | RegionType::GasCloud | RegionType::FogCloud
+        )
     }
 
     /// Whether this region blocks movement
@@ -76,14 +79,7 @@ pub struct Region {
 
 impl Region {
     /// Create a new region
-    pub fn new(
-        region_type: RegionType,
-        x1: i8,
-        y1: i8,
-        x2: i8,
-        y2: i8,
-        duration: u32,
-    ) -> Self {
+    pub fn new(region_type: RegionType, x1: i8, y1: i8, x2: i8, y2: i8, duration: u32) -> Self {
         let damage = match region_type {
             RegionType::StinkingCloud => 2,
             RegionType::GasCloud => 4,
@@ -223,9 +219,7 @@ mod tests {
 
     #[test]
     fn test_process_regions_damage() {
-        let mut regions = vec![
-            Region::new(RegionType::StinkingCloud, 5, 5, 10, 10, 5),
-        ];
+        let mut regions = vec![Region::new(RegionType::StinkingCloud, 5, 5, 10, 10, 5)];
         let effects = process_regions(&mut regions, 7, 7);
         assert_eq!(effects.len(), 1);
         assert!(effects[0].2 > 0); // Should deal damage
@@ -233,18 +227,14 @@ mod tests {
 
     #[test]
     fn test_process_regions_outside() {
-        let mut regions = vec![
-            Region::new(RegionType::StinkingCloud, 5, 5, 10, 10, 5),
-        ];
+        let mut regions = vec![Region::new(RegionType::StinkingCloud, 5, 5, 10, 10, 5)];
         let effects = process_regions(&mut regions, 20, 20);
         assert!(effects.is_empty());
     }
 
     #[test]
     fn test_process_regions_expiry() {
-        let mut regions = vec![
-            Region::new(RegionType::GasCloud, 5, 5, 10, 10, 1),
-        ];
+        let mut regions = vec![Region::new(RegionType::GasCloud, 5, 5, 10, 10, 1)];
         process_regions(&mut regions, 0, 0);
         assert!(regions.is_empty()); // Should have expired
     }

@@ -8,27 +8,26 @@
 //! - Equipment (do_wear.c)
 //! - Traps (trap.c)
 
+use nh_core::GameRng;
+use nh_core::GameState;
+use nh_core::action::ActionResult;
 use nh_core::action::eat::{
-    apply_corpse_effects, calculate_nutrition, corpse_effects, gethungry, is_edible, is_rotten,
-    lesshungry, newuhs, CorpseEffect,
+    CorpseEffect, apply_corpse_effects, calculate_nutrition, corpse_effects, gethungry, is_edible,
+    is_rotten, lesshungry, newuhs,
 };
-use nh_core::player::Race;
 use nh_core::action::pickup::{
-    do_autopickup, do_drop, do_pickup, gold_weight, matches_autopickup_type,
-    parse_autopickup_types, should_autopickup, within_pickup_burden, PickupBurden,
-    DEFAULT_AUTOPICKUP_TYPES,
+    DEFAULT_AUTOPICKUP_TYPES, PickupBurden, do_drop, do_pickup, gold_weight,
+    matches_autopickup_type, parse_autopickup_types, should_autopickup,
 };
 use nh_core::action::trap::trigger_trap;
-use nh_core::dungeon::TrapType;
 use nh_core::action::wear::{
     amulet_off, amulet_on, do_puton, do_remove, do_takeoff, do_wear, do_wield, ring_off, ring_on,
     worn_mask::*,
 };
-use nh_core::action::ActionResult;
+use nh_core::dungeon::TrapType;
 use nh_core::object::{BucStatus, Object, ObjectClass, ObjectId};
+use nh_core::player::Race;
 use nh_core::player::{Encumbrance, HungerState, Property};
-use nh_core::GameRng;
-use nh_core::GameState;
 
 // ============================================================================
 // Helper: create a GameState with a deterministic RNG seed
@@ -104,7 +103,7 @@ fn test_eat_food_increases_nutrition() {
     let food = make_food('a');
     state.inventory.push(food);
 
-    let result = nh_core::action::eat::do_eat(&mut state, 'a');
+    let result = nh_core::action::eat::do_eat(&mut state, Some('a'));
     assert!(matches!(result, ActionResult::Success));
     assert!(
         state.player.nutrition > initial_nutrition,
@@ -120,7 +119,7 @@ fn test_eat_non_food_fails() {
     obj.inv_letter = 'a';
     state.inventory.push(obj);
 
-    let result = nh_core::action::eat::do_eat(&mut state, 'a');
+    let result = nh_core::action::eat::do_eat(&mut state, Some('a'));
     assert!(matches!(result, ActionResult::Failed(_)));
 }
 
@@ -131,7 +130,7 @@ fn test_eat_removes_item_from_inventory() {
     state.inventory.push(food);
     assert_eq!(state.inventory.len(), 1);
 
-    nh_core::action::eat::do_eat(&mut state, 'a');
+    nh_core::action::eat::do_eat(&mut state, Some('a'));
     assert_eq!(
         state.inventory.len(),
         0,
@@ -238,9 +237,7 @@ fn test_corpse_effects_known_monsters() {
     // Wraith (index 241) -> gain level
     let effects = corpse_effects(241);
     assert!(
-        effects
-            .iter()
-            .any(|e| matches!(e, CorpseEffect::GainLevel)),
+        effects.iter().any(|e| matches!(e, CorpseEffect::GainLevel)),
         "Wraith corpse should grant a level"
     );
 
@@ -312,9 +309,7 @@ fn test_corpse_effects_known_monsters() {
     // Nurse (index 290) -> full heal + poison resistance
     let effects = corpse_effects(290);
     assert!(
-        effects
-            .iter()
-            .any(|e| matches!(e, CorpseEffect::FullHeal)),
+        effects.iter().any(|e| matches!(e, CorpseEffect::FullHeal)),
         "Nurse corpse should grant full heal"
     );
 }
@@ -407,7 +402,6 @@ fn test_gethungry_decrements_nutrition() {
     let mut state = test_state(42);
     state.player.nutrition = 500;
     state.player.hunger_state = HungerState::NotHungry;
-    let mut rng = GameRng::new(42);
 
     let initial = state.player.nutrition;
     gethungry(&mut state);
@@ -426,7 +420,6 @@ fn test_slow_digestion_prevents_hunger() {
         .player
         .properties
         .grant_intrinsic(Property::SlowDigestion);
-    let mut rng = GameRng::new(42);
 
     let initial = state.player.nutrition;
     gethungry(&mut state);

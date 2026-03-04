@@ -6,8 +6,8 @@ use crate::compat::*;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
-use super::objname::makeplural;
 use super::ObjectClass;
+use super::objname::makeplural;
 
 /// Unique identifier for object instances
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -490,8 +490,7 @@ impl Object {
 
         // For weapons/armor: erosion-proof and rust_known must match
         if matches!(self.class, ObjectClass::Weapon | ObjectClass::Armor)
-            && (self.erosion_proof != other.erosion_proof
-                || self.rust_known != other.rust_known)
+            && (self.erosion_proof != other.erosion_proof || self.rust_known != other.rust_known)
         {
             return false;
         }
@@ -581,10 +580,7 @@ impl Object {
             count < self.quantity,
             "split: count must be less than total quantity"
         );
-        assert!(
-            self.contents.is_empty(),
-            "split: cannot split containers"
-        );
+        assert!(self.contents.is_empty(), "split: cannot split containers");
 
         // Calculate per-unit weight before modifying quantities
         let original_qty = self.quantity;
@@ -1482,13 +1478,7 @@ impl Object {
 
         // Base magic cancellation depends on enchantment level
         // For simplicity: +1 per point of enchantment, capped at 3
-        if self.enchantment <= 0 {
-            0
-        } else if self.enchantment > 3 {
-            3
-        } else {
-            self.enchantment
-        }
+        self.enchantment.clamp(0, 3)
     }
 
     // ========================================================================
@@ -1802,8 +1792,8 @@ pub fn obj_scatter(
             let dx = (rng.rn2(radius as u32 * 2 + 1) as i8) - radius;
             let dy = (rng.rn2(radius as u32 * 2 + 1) as i8) - radius;
 
-            let new_x = (center_x + dx).max(0).min(79); // Map bounds
-            let new_y = (center_y + dy).max(0).min(20); // Map bounds
+            let new_x = (center_x + dx).clamp(0, 79); // Map bounds
+            let new_y = (center_y + dy).clamp(0, 20); // Map bounds
 
             place_object(&mut obj, new_x, new_y);
             obj
@@ -2294,10 +2284,8 @@ pub fn snuff_candles(objects: &mut [Object], x: i8, y: i8, radius: i8) {
             let dx = (obj.x - x).abs();
             let dy = (obj.y - y).abs();
 
-            if dx <= radius && dy <= radius {
-                if obj.lit && matches!(obj.class, ObjectClass::Tool) {
-                    end_burn(obj);
-                }
+            if dx <= radius && dy <= radius && obj.lit && matches!(obj.class, ObjectClass::Tool) {
+                end_burn(obj);
             }
         }
     }
@@ -2359,7 +2347,7 @@ pub fn is_rottable(obj: &Object) -> bool {
     matches!(
         obj.class,
         ObjectClass::Food | ObjectClass::Armor | ObjectClass::Tool
-    ) && obj.erosion_proof == false
+    ) && !obj.erosion_proof
 }
 
 /// Check if an object's material is rust-prone.
@@ -2376,7 +2364,7 @@ pub fn is_rustprone(obj: &Object) -> bool {
     matches!(
         obj.class,
         ObjectClass::Weapon | ObjectClass::Armor | ObjectClass::Tool
-    ) && obj.erosion_proof == false
+    ) && !obj.erosion_proof
 }
 
 /// Check if an object's material can corrode.
@@ -2393,7 +2381,7 @@ pub fn is_corrodeable(obj: &Object) -> bool {
     matches!(
         obj.class,
         ObjectClass::Weapon | ObjectClass::Armor | ObjectClass::Tool
-    ) && obj.erosion_proof == false
+    ) && !obj.erosion_proof
 }
 
 /// Check if an object can take any erosion damage.
@@ -2465,7 +2453,7 @@ pub fn obj_material_is_rustprone(material: ObjectClass) -> bool {
 ///
 /// # Returns
 /// Resistance percentage (0-100, where 100 = immune)
-pub fn obj_resists(obj: &Object, damage_type: i32) -> i32 {
+pub fn obj_resists(obj: &Object, _damage_type: i32) -> i32 {
     // Base resistance from blessing
     let mut resistance = match obj.buc {
         BucStatus::Blessed => 75,  // 75% chance to resist
@@ -2515,26 +2503,20 @@ pub fn erode_obj(obj: &mut Object, damage_type: i32, rng: &mut crate::rng::GameR
     match damage_type {
         1 => {
             // Fire/rust damage → erosion1
-            if is_rustprone(obj) || is_flammable(obj) {
-                if obj.erosion1 < 3 {
-                    obj.erosion1 += 1;
-                }
+            if (is_rustprone(obj) || is_flammable(obj)) && obj.erosion1 < 3 {
+                obj.erosion1 += 1;
             }
         }
         2 => {
             // Acid/corrode → erosion2
-            if is_corrodeable(obj) {
-                if obj.erosion2 < 3 {
-                    obj.erosion2 += 1;
-                }
+            if is_corrodeable(obj) && obj.erosion2 < 3 {
+                obj.erosion2 += 1;
             }
         }
         3 => {
             // Water/rot → erosion1
-            if is_rottable(obj) {
-                if obj.erosion1 < 3 {
-                    obj.erosion1 += 1;
-                }
+            if is_rottable(obj) && obj.erosion1 < 3 {
+                obj.erosion1 += 1;
             }
         }
         _ => {} // Unknown damage type
@@ -2850,10 +2832,10 @@ pub fn obj_is_pname(obj: &Object) -> bool {
         return true;
     }
     // Objects with custom names that start with uppercase are proper names
-    if let Some(ref name) = obj.name {
-        if let Some(first_char) = name.chars().next() {
-            return first_char.is_uppercase();
-        }
+    if let Some(ref name) = obj.name
+        && let Some(first_char) = name.chars().next()
+    {
+        return first_char.is_uppercase();
     }
     false
 }
@@ -3066,7 +3048,7 @@ pub fn merge_choice(obj1: &Object, obj2: &Object) -> bool {
 ///
 /// # Returns
 /// Some(index) if merged with object at index, None if not merged
-pub fn stackobj(obj: &Object, objects: &mut Vec<Object>) -> Option<usize> {
+pub fn stackobj(obj: &Object, objects: &mut [Object]) -> Option<usize> {
     for (idx, existing) in objects.iter_mut().enumerate() {
         if merge_choice(obj, existing) {
             existing.quantity += obj.quantity;
@@ -3345,10 +3327,7 @@ mod tests {
         obj.known = true;
         obj.enchantment = -1;
         obj.erosion1 = 2; // very rusty
-        assert_eq!(
-            obj.doname("long sword"),
-            "cursed -1 very rusty long sword"
-        );
+        assert_eq!(obj.doname("long sword"), "cursed -1 very rusty long sword");
     }
 
     #[test]
@@ -3377,10 +3356,7 @@ mod tests {
         obj.known = true;
         obj.enchantment = 0;
         obj.poisoned = true;
-        assert_eq!(
-            obj.doname("dart"),
-            "12 uncursed +0 poisoned darts"
-        );
+        assert_eq!(obj.doname("dart"), "12 uncursed +0 poisoned darts");
     }
 
     #[test]
@@ -3410,10 +3386,7 @@ mod tests {
         obj.known = true;
         obj.enchantment = 4;
         obj.recharged = 0;
-        assert_eq!(
-            obj.doname("wand of fire"),
-            "uncursed wand of fire (0:4)"
-        );
+        assert_eq!(obj.doname("wand of fire"), "uncursed wand of fire (0:4)");
     }
 
     #[test]
@@ -3446,10 +3419,7 @@ mod tests {
         obj.known = true;
         obj.contents.push(Object::default());
         obj.contents.push(Object::default());
-        assert_eq!(
-            obj.doname("sack"),
-            "sack (containing 2 items)"
-        );
+        assert_eq!(obj.doname("sack"), "sack (containing 2 items)");
     }
 
     #[test]
@@ -3485,10 +3455,7 @@ mod tests {
         obj.enchantment = 2;
         obj.rust_known = true;
         obj.erosion_proof = true;
-        assert_eq!(
-            obj.doname("long sword"),
-            "uncursed +2 rustproof long sword"
-        );
+        assert_eq!(obj.doname("long sword"), "uncursed +2 rustproof long sword");
     }
 
     #[test]

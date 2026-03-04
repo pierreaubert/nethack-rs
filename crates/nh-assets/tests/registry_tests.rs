@@ -1,28 +1,26 @@
-use nh_assets::registry::*;
 use nh_assets::mapping::*;
-use nh_core::object::{Object, ObjectClass, Material, ObjectId};
+use nh_assets::registry::*;
+use nh_core::object::{Material, Object, ObjectClass, ObjectId};
 
 #[test]
 fn test_registry_lookup_by_type() {
     let mapping = AssetMapping {
-        mappings: vec![
-            AssetMappingEntry {
-                identifier: ItemIdentifier {
-                    object_type: Some(100),
-                    ..Default::default()
-                },
-                icon: ItemIconDefinition {
-                    tui_char: '(',
-                    tui_color: "gray".to_string(),
-                    bevy_sprite: "sword.png".to_string(),
-                },
-            }
-        ],
+        mappings: vec![AssetMappingEntry {
+            identifier: ItemIdentifier {
+                object_type: Some(100),
+                ..Default::default()
+            },
+            icon: ItemIconDefinition {
+                tui_char: '(',
+                tui_color: "gray".to_string(),
+                bevy_sprite: "sword.png".to_string(),
+            },
+        }],
     };
-    
+
     let registry = AssetRegistry::new(mapping);
     let mut obj = Object::new(ObjectId(1), 100, ObjectClass::Weapon);
-    
+
     let icon = registry.get_icon(&obj).expect("Icon should be found");
     assert_eq!(icon.tui_char, '(');
 }
@@ -30,25 +28,25 @@ fn test_registry_lookup_by_type() {
 #[test]
 fn test_registry_fallback_to_class() {
     let mapping = AssetMapping {
-        mappings: vec![
-            AssetMappingEntry {
-                identifier: ItemIdentifier {
-                    class: Some(ObjectClass::Weapon),
-                    ..Default::default()
-                },
-                icon: ItemIconDefinition {
-                    tui_char: ')',
-                    tui_color: "white".to_string(),
-                    bevy_sprite: "weapon.png".to_string(),
-                },
-            }
-        ],
+        mappings: vec![AssetMappingEntry {
+            identifier: ItemIdentifier {
+                class: Some(ObjectClass::Weapon),
+                ..Default::default()
+            },
+            icon: ItemIconDefinition {
+                tui_char: ')',
+                tui_color: "white".to_string(),
+                bevy_sprite: "weapon.png".to_string(),
+            },
+        }],
     };
-    
+
     let registry = AssetRegistry::new(mapping);
     let mut obj = Object::new(ObjectId(1), 999, ObjectClass::Weapon);
-    
-    let icon = registry.get_icon(&obj).expect("Icon should be found by class fallback");
+
+    let icon = registry
+        .get_icon(&obj)
+        .expect("Icon should be found by class fallback");
     assert_eq!(icon.tui_char, ')');
 }
 
@@ -77,13 +75,13 @@ fn test_registry_specificity_priority() {
                     tui_color: "gray".to_string(),
                     bevy_sprite: "sword.png".to_string(),
                 },
-            }
+            },
         ],
     };
-    
+
     let registry = AssetRegistry::new(mapping);
     let mut obj = Object::new(ObjectId(1), 100, ObjectClass::Weapon);
-    
+
     let icon = registry.get_icon(&obj).expect("Icon should be found");
     // Should prefer object_type (specificity 10) over class (specificity 1)
     assert_eq!(icon.tui_char, '(');
@@ -116,17 +114,17 @@ fn test_registry_identified_matching() {
                     tui_color: "red".to_string(),
                     bevy_sprite: "potion_id.png".to_string(),
                 },
-            }
+            },
         ],
     };
-    
+
     let registry = AssetRegistry::new(mapping);
     let mut obj = Object::new(ObjectId(1), 200, ObjectClass::Potion);
-    
+
     obj.known = false;
     let icon = registry.get_icon(&obj).unwrap();
     assert_eq!(icon.tui_color, "gray");
-    
+
     obj.known = true;
     let icon = registry.get_icon(&obj).unwrap();
     assert_eq!(icon.tui_color, "red");

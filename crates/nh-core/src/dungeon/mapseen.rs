@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use super::DLevel;
 use super::room::RoomType;
-use super::topology::{Branch, DungeonSystem};
+use super::topology::DungeonSystem;
 
 /// Maximum number of rooms tracked per level
 pub const MAXNROFROOMS: usize = 40;
@@ -544,15 +544,15 @@ pub fn format_mapseen(mapseen: &MapSeen, dungeon_system: &DungeonSystem, show_al
     }
 
     // Branch
-    if let Some(branch_id) = mapseen.branch_id {
-        if let Some(branch) = dungeon_system.branches.iter().find(|b| b.id == branch_id) {
-            let dest_name = dungeon_system
-                .dungeons
-                .get(branch.end2.dungeon_num as usize)
-                .map(|d| d.name.as_str())
-                .unwrap_or("Unknown");
-            output.push_str(&format!(", branch to {}", dest_name));
-        }
+    if let Some(branch_id) = mapseen.branch_id
+        && let Some(branch) = dungeon_system.branches.iter().find(|b| b.id == branch_id)
+    {
+        let dest_name = dungeon_system
+            .dungeons
+            .get(branch.end2.dungeon_num as usize)
+            .map(|d| d.name.as_str())
+            .unwrap_or("Unknown");
+        output.push_str(&format!(", branch to {}", dest_name));
     }
 
     // Custom annotation

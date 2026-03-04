@@ -18,11 +18,13 @@ pub struct CharacterPlugin;
 impl Plugin for CharacterPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CharacterSheetState>()
-            .add_systems(Update, toggle_character_sheet.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                Update,
+                toggle_character_sheet.run_if(in_state(AppState::Playing)),
+            )
             .add_systems(
                 EguiPrimaryContextPass,
-                render_character_sheet
-                    .run_if(in_state(AppState::Playing)),
+                render_character_sheet.run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -70,10 +72,12 @@ fn render_character_sheet(
     mut sheet_state: ResMut<CharacterSheetState>,
 ) {
     if !sheet_state.open {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     let state = &game_state.0;
     let player = &state.player;
 
@@ -145,8 +149,6 @@ fn render_character_sheet(
                 }
             });
         });
-
-    
 }
 
 /// Render the stats tab

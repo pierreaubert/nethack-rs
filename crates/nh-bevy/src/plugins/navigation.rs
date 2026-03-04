@@ -338,15 +338,13 @@ fn process_navigation_queue(
         .is_walkable(next_pos.0, next_pos.1)
     {
         // Path blocked - recalculate or stop
-        if let Some(target) = nav_state.target {
-            if let Some(new_path) =
+        if let Some(target) = nav_state.target
+            && let Some(new_path) =
                 find_path(&game_state.0.current_level, (player_x, player_y), target)
-            {
-                if !new_path.is_empty() {
-                    nav_state.path = new_path;
-                    return; // Try again next frame with new path
-                }
-            }
+            && !new_path.is_empty()
+        {
+            nav_state.path = new_path;
+            return; // Try again next frame with new path
         }
         nav_state.clear();
         return;

@@ -7,9 +7,9 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use crate::rng::GameRng;
-use super::room::Room;
 use super::level::Level;
+use super::room::Room;
+use crate::rng::GameRng;
 
 /// Maximum number of rectangles to track
 pub const MAXRECT: usize = 50;
@@ -159,7 +159,12 @@ impl RectManager {
     }
 
     /// Port of NetHack's create_room() total random logic
-    pub fn create_room_random(&mut self, level: &Level, rng: &mut GameRng, num_rooms: usize) -> Option<Room> {
+    pub fn create_room_random(
+        &mut self,
+        level: &Level,
+        rng: &mut GameRng,
+        num_rooms: usize,
+    ) -> Option<Room> {
         let mut trycnt: i32 = 0;
         let xlim = XLIM;
         let ylim = YLIM;
@@ -167,7 +172,7 @@ impl RectManager {
         // Lighting RNG calls to match NetHack
         // C: rlit = (rnd(1 + abs(depth(&u.uz))) < 11 && rn2(77)) ? TRUE : FALSE;
         let depth = level.dlevel.depth();
-        if rng.rnd(1 + depth.abs() as u32) < 11 {
+        if rng.rnd(1 + depth.unsigned_abs()) < 11 {
             let _ = rng.rn2(77);
         }
 
@@ -175,10 +180,7 @@ impl RectManager {
         // trycnt starts at 0, body runs first, then checks ++trycnt <= 100
         // This means 101 iterations (trycnt 0..=100)
         loop {
-            let r1 = match self.rnd_rect(rng) {
-                Some(r) => r,
-                None => return None, // No more free rectangles
-            };
+            let r1 = self.rnd_rect(rng)?;
 
             let hx = r1.hx;
             let hy = r1.hy;
@@ -191,24 +193,39 @@ impl RectManager {
                 dy = 50 / dx;
             }
 
-            let xborder = if lx > 0 && hx < crate::COLNO as u8 - 1 { 2 * xlim } else { xlim + 1 };
-            let yborder = if ly > 0 && hy < crate::ROWNO as u8 - 1 { 2 * ylim } else { ylim + 1 };
+            let xborder = if lx > 0 && hx < crate::COLNO as u8 - 1 {
+                2 * xlim
+            } else {
+                xlim + 1
+            };
+            let yborder = if ly > 0 && hy < crate::ROWNO as u8 - 1 {
+                2 * ylim
+            } else {
+                ylim + 1
+            };
 
             if hx - lx < dx + 3 + xborder || hy - ly < dy + 3 + yborder {
                 // C: r1 = 0; continue; — then while (++trycnt <= 100 && !r1)
                 trycnt += 1;
-                if trycnt > 100 { break; }
+                if trycnt > 100 {
+                    break;
+                }
                 continue;
             }
 
-            let mut xabs = lx + (if lx > 0 { xlim } else { 3 })
+            let mut xabs = lx
+                + (if lx > 0 { xlim } else { 3 })
                 + rng.rn2((hx - (if lx > 0 { lx } else { 3 }) - dx - xborder + 1) as u32) as u8;
-            let mut yabs = ly + (if ly > 0 { ylim } else { 2 })
+            let mut yabs = ly
+                + (if ly > 0 { ylim } else { 2 })
                 + rng.rn2((hy - (if ly > 0 { ly } else { 2 }) - dy - yborder + 1) as u32) as u8;
 
             // Big room logic (sp_lev.c:1203-1208 in 3.6.7)
-            if ly == 0 && hy >= crate::ROWNO as u8 - 1 && (num_rooms == 0 || rng.rn2(num_rooms as u32) == 0)
-                && (yabs + dy > crate::ROWNO as u8 / 2) {
+            if ly == 0
+                && hy >= crate::ROWNO as u8 - 1
+                && (num_rooms == 0 || rng.rn2(num_rooms as u32) == 0)
+                && (yabs + dy > crate::ROWNO as u8 / 2)
+            {
                 yabs = 2 + rng.rn2(3) as u8;
                 if num_rooms < 4 && dy > 1 {
                     dy -= 1;
@@ -218,19 +235,31 @@ impl RectManager {
             if !self.check_room(level, &mut xabs, &mut dx, &mut yabs, &mut dy, false, rng) {
                 // C: r1 = 0; continue; — then while (++trycnt <= 100 && !r1)
                 trycnt += 1;
-                if trycnt > 100 { break; }
+                if trycnt > 100 {
+                    break;
+                }
                 continue;
             }
 
             let wtmp = dx + 1;
             let htmp = dy + 1;
 
-            let r2 = NhRect::new(xabs.saturating_sub(1), yabs.saturating_sub(1), xabs + wtmp, yabs + htmp);
+            let r2 = NhRect::new(
+                xabs.saturating_sub(1),
+                yabs.saturating_sub(1),
+                xabs + wtmp,
+                yabs + htmp,
+            );
 
             // split_rects in C uses r1 (the original rect) and r2 (the room rect)
             self.split_rects(r1, &r2);
 
-            return Some(Room::new(xabs as usize, yabs as usize, wtmp as usize, htmp as usize));
+            return Some(Room::new(
+                xabs as usize,
+                yabs as usize,
+                wtmp as usize,
+                htmp as usize,
+            ));
         }
         None
     }
@@ -251,10 +280,18 @@ impl RectManager {
         let xlim = XLIM + (if vault { 1 } else { 0 });
         let ylim = YLIM + (if vault { 1 } else { 0 });
 
-        if *lowx < 3 { *lowx = 3; }
-        if *lowy < 2 { *lowy = 2; }
-        if hix > crate::COLNO as u8 - 3 { hix = crate::COLNO as u8 - 3; }
-        if hiy > crate::ROWNO as u8 - 3 { hiy = crate::ROWNO as u8 - 3; }
+        if *lowx < 3 {
+            *lowx = 3;
+        }
+        if *lowy < 2 {
+            *lowy = 2;
+        }
+        if hix > crate::COLNO as u8 - 3 {
+            hix = crate::COLNO as u8 - 3;
+        }
+        if hiy > crate::ROWNO as u8 - 3 {
+            hiy = crate::ROWNO as u8 - 3;
+        }
 
         'chk: loop {
             if hix <= *lowx || hiy <= *lowy {
@@ -265,28 +302,28 @@ impl RectManager {
                 if x <= 0 || x >= crate::COLNO as i16 {
                     continue;
                 }
-                
+
                 let ymin = (*lowy as i16 - ylim as i16).max(0) as usize;
                 let ymax = (hiy as i16 + ylim as i16).min(crate::ROWNO as i16 - 1) as usize;
-                
+
                 for y in ymin..=ymax {
                     if level.cells[x as usize][y].typ != crate::dungeon::CellType::Stone {
                         if rng.rn2(3) == 0 {
                             return false;
                         }
-                        
+
                         if (x as u8) < *lowx {
                             *lowx = (x as u8) + xlim + 1;
                         } else {
                             hix = (x as u8).saturating_sub(xlim).saturating_sub(1);
                         }
-                        
+
                         if (y as u8) < *lowy {
                             *lowy = (y as u8) + ylim + 1;
                         } else {
                             hiy = (y as u8).saturating_sub(ylim).saturating_sub(1);
                         }
-                        
+
                         continue 'chk;
                     }
                 }
@@ -320,27 +357,44 @@ impl RectManager {
                 }
             }
 
-            if r2.ly as i16 - r1.ly as i16 - 1 > (if r1.hy < crate::ROWNO as u8 - 1 { 2 * YLIM } else { YLIM + 1 }) as i16 + 4 {
+            if r2.ly as i16 - r1.ly as i16 - 1
+                > (if r1.hy < crate::ROWNO as u8 - 1 {
+                    2 * YLIM
+                } else {
+                    YLIM + 1
+                }) as i16
+                    + 4
+            {
                 let mut r = r1;
                 r.hy = r2.ly.saturating_sub(2);
                 self.add_rect(r);
             }
-            if r2.lx as i16 - r1.lx as i16 - 1 > (if r1.hx < crate::COLNO as u8 - 1 { 2 * XLIM } else { XLIM + 1 }) as i16 + 4 {
+            if r2.lx as i16 - r1.lx as i16 - 1
+                > (if r1.hx < crate::COLNO as u8 - 1 {
+                    2 * XLIM
+                } else {
+                    XLIM + 1
+                }) as i16
+                    + 4
+            {
                 let mut r = r1;
                 r.hx = r2.lx.saturating_sub(2);
                 self.add_rect(r);
             }
-            if r1.hy as i16 - r2.hy as i16 - 1 > (if r1.ly > 0 { 2 * YLIM } else { YLIM + 1 }) as i16 + 4 {
+            if r1.hy as i16 - r2.hy as i16 - 1
+                > (if r1.ly > 0 { 2 * YLIM } else { YLIM + 1 }) as i16 + 4
+            {
                 let mut r = r1;
                 r.ly = r2.hy.saturating_add(2);
                 self.add_rect(r);
             }
-            if r1.hx as i16 - r2.hx as i16 - 1 > (if r1.lx > 0 { 2 * XLIM } else { XLIM + 1 }) as i16 + 4 {
+            if r1.hx as i16 - r2.hx as i16 - 1
+                > (if r1.lx > 0 { 2 * XLIM } else { XLIM + 1 }) as i16 + 4
+            {
                 let mut r = r1;
                 r.lx = r2.hx.saturating_add(2);
                 self.add_rect(r);
             }
-        } else {
         }
     }
 
@@ -354,39 +408,63 @@ impl RectManager {
                 to_remove.push(i);
                 if rect.lx < room.lx {
                     let left = NhRect::new(rect.lx, rect.ly, room.lx.saturating_sub(1), rect.hy);
-                    if left.is_valid() && left.is_room_size() { to_add.push(left); }
+                    if left.is_valid() && left.is_room_size() {
+                        to_add.push(left);
+                    }
                 }
                 if rect.hx > room.hx {
                     let right = NhRect::new(room.hx + 1, rect.ly, rect.hx, rect.hy);
-                    if right.is_valid() && right.is_room_size() { to_add.push(right); }
+                    if right.is_valid() && right.is_room_size() {
+                        to_add.push(right);
+                    }
                 }
                 if rect.ly < room.ly {
-                    let top = NhRect::new(rect.lx.max(room.lx), rect.ly, rect.hx.min(room.hx), room.ly.saturating_sub(1));
-                    if top.is_valid() && top.is_room_size() { to_add.push(top); }
+                    let top = NhRect::new(
+                        rect.lx.max(room.lx),
+                        rect.ly,
+                        rect.hx.min(room.hx),
+                        room.ly.saturating_sub(1),
+                    );
+                    if top.is_valid() && top.is_room_size() {
+                        to_add.push(top);
+                    }
                 }
                 if rect.hy > room.hy {
-                    let bot = NhRect::new(rect.lx.max(room.lx), room.hy + 1, rect.hx.min(room.hx), rect.hy);
-                    if bot.is_valid() && bot.is_room_size() { to_add.push(bot); }
+                    let bot = NhRect::new(
+                        rect.lx.max(room.lx),
+                        room.hy + 1,
+                        rect.hx.min(room.hx),
+                        rect.hy,
+                    );
+                    if bot.is_valid() && bot.is_room_size() {
+                        to_add.push(bot);
+                    }
                 }
             }
         }
         to_remove.sort_unstable();
-        for i in to_remove.into_iter().rev() { self.remove_rect(i); }
-        for r in to_add { self.add_rect(r); }
+        for i in to_remove.into_iter().rev() {
+            self.remove_rect(i);
+        }
+        for r in to_add {
+            self.add_rect(r);
+        }
     }
 
     /// Create a vault room (2x2 fixed size) - port of C's create_vault()
     /// which calls create_room(-1,-1,2,2,-1,-1,VAULT,TRUE)
-    pub fn create_room_vault(&mut self, level: &Level, rng: &mut GameRng, num_rooms: usize) -> Option<Room> {
+    pub fn create_room_vault(
+        &mut self,
+        level: &Level,
+        rng: &mut GameRng,
+        num_rooms: usize,
+    ) -> Option<Room> {
         let mut trycnt: i32 = 0;
 
         // C uses: do { ... } while (++trycnt <= 100 && !r1);
         // Vault has rlit=TRUE so no lighting RNG consumed.
         loop {
-            let r1 = match self.rnd_rect(rng) {
-                Some(r) => r,
-                None => return None,
-            };
+            let r1 = self.rnd_rect(rng)?;
 
             let hx = r1.hx;
             let hy = r1.hy;
@@ -400,29 +478,40 @@ impl RectManager {
             let xlim = XLIM + 1;
             let ylim = YLIM + 1;
 
-            let xborder = if lx > 0 && hx < crate::COLNO as u8 - 1 { 2 * xlim } else { xlim + 1 };
-            let yborder = if ly > 0 && hy < crate::ROWNO as u8 - 1 { 2 * ylim } else { ylim + 1 };
+            let xborder = if lx > 0 && hx < crate::COLNO as u8 - 1 {
+                2 * xlim
+            } else {
+                xlim + 1
+            };
+            let yborder = if ly > 0 && hy < crate::ROWNO as u8 - 1 {
+                2 * ylim
+            } else {
+                ylim + 1
+            };
 
             if hx - lx < dx + 3 + xborder || hy - ly < dy + 3 + yborder {
                 trycnt += 1;
-                if trycnt > 100 { break; }
+                if trycnt > 100 {
+                    break;
+                }
                 continue;
             }
 
             let xarg = (hx - (if lx > 0 { lx } else { 3 }) - dx - xborder + 1) as u32;
             let yarg = (hy - (if ly > 0 { ly } else { 2 }) - dy - yborder + 1) as u32;
-            let mut xabs = lx + (if lx > 0 { xlim } else { 3 })
-                + rng.rn2(xarg) as u8;
-            let mut yabs = ly + (if ly > 0 { ylim } else { 2 })
-                + rng.rn2(yarg) as u8;
+            let mut xabs = lx + (if lx > 0 { xlim } else { 3 }) + rng.rn2(xarg) as u8;
+            let mut yabs = ly + (if ly > 0 { ylim } else { 2 }) + rng.rn2(yarg) as u8;
 
             // Big room logic — same check as create_room_random (sp_lev.c:1210-1215)
             // C uses the same create_room() for vaults, so this check applies.
             // For vaults, yabs+dy is small so the adjustment never fires,
             // but rn2(nroom) is still consumed when ly==0 && hy>=ROWNO-1 && nroom>0.
             let mut ddy = dy;
-            if ly == 0 && hy >= crate::ROWNO as u8 - 1 && (num_rooms == 0 || rng.rn2(num_rooms as u32) == 0)
-                && (yabs + ddy > crate::ROWNO as u8 / 2) {
+            if ly == 0
+                && hy >= crate::ROWNO as u8 - 1
+                && (num_rooms == 0 || rng.rn2(num_rooms as u32) == 0)
+                && (yabs + ddy > crate::ROWNO as u8 / 2)
+            {
                 yabs = 2 + rng.rn2(3) as u8;
                 if num_rooms < 4 && ddy > 1 {
                     ddy -= 1;
@@ -432,14 +521,21 @@ impl RectManager {
             let mut ddx = dx;
             if !self.check_room(level, &mut xabs, &mut ddx, &mut yabs, &mut ddy, true, rng) {
                 trycnt += 1;
-                if trycnt > 100 { break; }
+                if trycnt > 100 {
+                    break;
+                }
                 continue;
             }
 
             let wtmp = ddx + 1;
             let htmp = ddy + 1;
 
-            let r2 = NhRect::new(xabs.saturating_sub(1), yabs.saturating_sub(1), xabs + wtmp, yabs + htmp);
+            let r2 = NhRect::new(
+                xabs.saturating_sub(1),
+                yabs.saturating_sub(1),
+                xabs + wtmp,
+                yabs + htmp,
+            );
             self.split_rects(r1, &r2);
 
             let mut room = Room::new(xabs as usize, yabs as usize, wtmp as usize, htmp as usize);
@@ -449,35 +545,56 @@ impl RectManager {
         None
     }
 
-    pub fn pick_room_position(&self, width: u8, height: u8, rng: &mut GameRng) -> Option<(NhRect, u8, u8)> {
+    pub fn pick_room_position(
+        &self,
+        width: u8,
+        height: u8,
+        rng: &mut GameRng,
+    ) -> Option<(NhRect, u8, u8)> {
         let margin = 2;
         let needed_w = width + margin * 2;
         let needed_h = height + margin * 2;
 
-        let valid: Vec<_> = self.rects.iter()
+        let valid: Vec<_> = self
+            .rects
+            .iter()
             .filter(|r| r.width() >= needed_w && r.height() >= needed_h)
             .copied()
             .collect();
 
-        if valid.is_empty() { return None; }
+        if valid.is_empty() {
+            return None;
+        }
         let rect = valid[rng.rn2(valid.len() as u32) as usize];
         let max_x = rect.hx.saturating_sub(width + margin);
         let max_y = rect.hy.saturating_sub(height + margin);
-        if max_x < rect.lx + margin || max_y < rect.ly + margin { return None; }
+        if max_x < rect.lx + margin || max_y < rect.ly + margin {
+            return None;
+        }
         let x = rect.lx + margin + rng.rn2((max_x - rect.lx - margin + 1) as u32) as u8;
         let y = rect.ly + margin + rng.rn2((max_y - rect.ly - margin + 1) as u32) as u8;
         Some((rect, x, y))
     }
 
-    pub fn count(&self) -> usize { self.rects.len() }
-    pub fn room_rect_count(&self) -> usize { self.rects.iter().filter(|r| r.is_room_size()).count() }
-    pub fn has_space(&self) -> bool { self.room_rect_count() > 0 }
-    pub fn rects(&self) -> &[NhRect] { &self.rects }
+    pub fn count(&self) -> usize {
+        self.rects.len()
+    }
+    pub fn room_rect_count(&self) -> usize {
+        self.rects.iter().filter(|r| r.is_room_size()).count()
+    }
+    pub fn has_space(&self) -> bool {
+        self.room_rect_count() > 0
+    }
+    pub fn rects(&self) -> &[NhRect] {
+        &self.rects
+    }
 }
 
 /// Find the index of a rectangle in a list by exact match
 pub fn get_rect_ind(rect_list: &[NhRect], target: &NhRect) -> Option<usize> {
-    rect_list.iter().position(|r| r.lx == target.lx && r.ly == target.ly && r.hx == target.hx && r.hy == target.hy)
+    rect_list.iter().position(|r| {
+        r.lx == target.lx && r.ly == target.ly && r.hx == target.hx && r.hy == target.hy
+    })
 }
 
 /// Check if a point is inside a rectangle
@@ -486,12 +603,26 @@ pub fn inside_rect(rect: &NhRect, x: u8, y: u8) -> bool {
 }
 
 /// Add a rectangle to a list and update bounding box
-pub fn add_rect_to_reg(rect_list: &mut Vec<NhRect>, bounding_box: &mut NhRect, new_rect: &NhRect) -> bool {
-    if rect_list.len() >= MAXRECT { return false; }
+pub fn add_rect_to_reg(
+    rect_list: &mut Vec<NhRect>,
+    bounding_box: &mut NhRect,
+    new_rect: &NhRect,
+) -> bool {
+    if rect_list.len() >= MAXRECT {
+        return false;
+    }
     rect_list.push(*new_rect);
-    if bounding_box.lx > new_rect.lx { bounding_box.lx = new_rect.lx; }
-    if bounding_box.ly > new_rect.ly { bounding_box.ly = new_rect.ly; }
-    if bounding_box.hx < new_rect.hx { bounding_box.hx = new_rect.hx; }
-    if bounding_box.hy < new_rect.hy { bounding_box.hy = new_rect.hy; }
+    if bounding_box.lx > new_rect.lx {
+        bounding_box.lx = new_rect.lx;
+    }
+    if bounding_box.ly > new_rect.ly {
+        bounding_box.ly = new_rect.ly;
+    }
+    if bounding_box.hx < new_rect.hx {
+        bounding_box.hx = new_rect.hx;
+    }
+    if bounding_box.hy < new_rect.hy {
+        bounding_box.hy = new_rect.hy;
+    }
     true
 }

@@ -11,9 +11,7 @@ use crate::compat::*;
 
 use crate::action::ActionResult;
 use crate::dungeon::TrapType;
-use crate::dungeon::trap::{
-    self, is_holding_trap, roll_trap_damage, trap_name,
-};
+use crate::dungeon::trap::{self, roll_trap_damage, trap_name};
 use crate::dungeon::{CellType, Trap};
 use crate::gameloop::GameState;
 use crate::monster::{Monster, MonsterResistances};
@@ -40,11 +38,12 @@ pub fn check_trap(state: &mut GameState, x: i8, y: i8) -> ActionResult {
     };
 
     // Build player resistances for dotrap
-    let dex = state.player.attr_current.get(crate::player::Attribute::Dexterity);
-    let resistances = trap::resistances_from_properties(
-        |prop| state.player.properties.has(prop),
-        dex,
-    );
+    let dex = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Dexterity);
+    let resistances =
+        trap::resistances_from_properties(|prop| state.player.properties.has(prop), dex);
 
     // Trigger the trap
     if let Some(trap) = state.current_level.trap_at_mut(x, y) {
@@ -108,11 +107,8 @@ pub fn check_trap(state: &mut GameState, x: i8, y: i8) -> ActionResult {
 
 /// Trigger a specific trap type on the player (convenience wrapper for tests/gameloop)
 pub fn trigger_trap(state: &mut GameState, trap_type: TrapType) -> ActionResult {
-    let mut temp_trap = crate::dungeon::trap::create_trap(
-        state.player.pos.x,
-        state.player.pos.y,
-        trap_type,
-    );
+    let mut temp_trap =
+        crate::dungeon::trap::create_trap(state.player.pos.x, state.player.pos.y, trap_type);
     let effect = crate::dungeon::trap::trigger_trap(&mut state.rng, &mut temp_trap);
 
     match effect {
@@ -254,7 +250,14 @@ pub fn move_into_trap(state: &mut GameState, trap: &Trap) -> bool {
     true
 }
 
-pub fn sense_trap(_state: &mut GameState, _trap: &Trap, _x: i8, _y: i8, _src_x: i8, _src_y: i8) -> bool {
+pub fn sense_trap(
+    _state: &mut GameState,
+    _trap: &Trap,
+    _x: i8,
+    _y: i8,
+    _src_x: i8,
+    _src_y: i8,
+) -> bool {
     false
 }
 
@@ -345,7 +348,10 @@ pub fn pooleffects(state: &mut GameState, by_magic: bool) {
         return;
     }
 
-    let str_val = state.player.attr_current.get(crate::player::Attribute::Strength) as i32;
+    let str_val = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Strength) as i32;
     let swim_chance = 20 + str_val;
     let roll = state.rng.rnd(100) as i32;
 
@@ -392,9 +398,13 @@ pub fn lava_effects(state: &mut GameState) {
         for item in &state.inventory {
             if !item.erosion_proof {
                 use crate::object::ObjectClass;
-                if matches!(item.class, ObjectClass::Scroll | ObjectClass::Potion
-                    | ObjectClass::Food | ObjectClass::Spellbook)
-                {
+                if matches!(
+                    item.class,
+                    ObjectClass::Scroll
+                        | ObjectClass::Potion
+                        | ObjectClass::Food
+                        | ObjectClass::Spellbook
+                ) {
                     destroyed_letters.push(item.inv_letter);
                 }
             }
@@ -439,9 +449,13 @@ pub fn sink_into_lava(state: &mut GameState) {
 
 pub fn flooreffects(state: &mut GameState, x: i8, y: i8, touch: bool) {
     let cell = state.current_level.cell(x as usize, y as usize);
-    if !touch { return; }
+    if !touch {
+        return;
+    }
     match cell.typ {
-        CellType::Lava => { state.message("The floor is extremely hot!"); }
+        CellType::Lava => {
+            state.message("The floor is extremely hot!");
+        }
         CellType::Ice => {
             state.message("The floor is slippery!");
             if state.rng.one_in(10) {
@@ -456,11 +470,21 @@ pub fn flooreffects(state: &mut GameState, x: i8, y: i8, touch: bool) {
 pub fn trapmove(_state: &mut GameState, _x: i8, _y: i8, _dest_x: i8, _dest_y: i8) {}
 pub fn trapnote(_state: &mut GameState, _trap: &Trap, _boolean: bool) {}
 
-pub fn trapped_chest_at(_state: &GameState, _trap_type: i32, _x: i8, _y: i8) -> bool { false }
+pub fn trapped_chest_at(_state: &GameState, _trap_type: i32, _x: i8, _y: i8) -> bool {
+    false
+}
 
 pub fn trapped_door_at(state: &GameState, x: i8, y: i8) -> bool {
-    if let Some(cell) = state.current_level.cells.get(x as usize).and_then(|col| col.get(y as usize)) {
-        cell.typ == CellType::Door && cell.door_state().contains(crate::dungeon::DoorState::TRAPPED)
+    if let Some(cell) = state
+        .current_level
+        .cells
+        .get(x as usize)
+        .and_then(|col| col.get(y as usize))
+    {
+        cell.typ == CellType::Door
+            && cell
+                .door_state()
+                .contains(crate::dungeon::DoorState::TRAPPED)
     } else {
         false
     }
@@ -496,7 +520,11 @@ pub fn dofiretrap(state: &mut GameState, from_box: bool) {
 
     if is_underwater {
         state.message("A cascade of steamy bubbles erupts!");
-        if state.player.properties.has(crate::player::Property::FireResistance) {
+        if state
+            .player
+            .properties
+            .has(crate::player::Property::FireResistance)
+        {
             state.message("You are uninjured.");
         } else {
             let damage = state.rng.rnd(3) as i32;
@@ -513,7 +541,10 @@ pub fn dofiretrap(state: &mut GameState, from_box: bool) {
         state.message("A tower of flame erupts from the floor!");
     }
 
-    let has_fire_resist = state.player.properties.has(crate::player::Property::FireResistance);
+    let has_fire_resist = state
+        .player
+        .properties
+        .has(crate::player::Property::FireResistance);
 
     let damage = if has_fire_resist {
         // Fire resistance: minimal damage
@@ -523,11 +554,13 @@ pub fn dofiretrap(state: &mut GameState, from_box: bool) {
         // Normal: d(2,4) damage
         let dmg = state.rng.dice(2, 4) as i32;
         // Reduce max HP if damaged significantly
-        if state.player.hp_max > state.player.exp_level as i32 {
+        if state.player.hp_max > state.player.exp_level {
             let loss = state.rng.rn2(dmg.min(state.player.hp_max) as u32 + 1) as i32;
             if loss > 0 {
                 state.player.hp_max -= loss;
-                state.message(format!("You feel your life force diminish! (max HP -{loss})"));
+                state.message(format!(
+                    "You feel your life force diminish! (max HP -{loss})"
+                ));
             }
         }
         dmg
@@ -646,8 +679,14 @@ pub fn domagictrap(state: &mut GameState) {
             19 => {
                 // Tame nearby monsters + CHA+1
                 state.message("You feel charismatic!");
-                let cha = state.player.attr_current.get(crate::player::Attribute::Charisma);
-                state.player.attr_current.set(crate::player::Attribute::Charisma, cha + 1);
+                let cha = state
+                    .player
+                    .attr_current
+                    .get(crate::player::Attribute::Charisma);
+                state
+                    .player
+                    .attr_current
+                    .set(crate::player::Attribute::Charisma, cha + 1);
 
                 let px = state.player.pos.x;
                 let py = state.player.pos.y;
@@ -704,11 +743,12 @@ pub fn chest_trap_action(state: &mut GameState, chest: &mut Object) {
         return;
     }
 
-    let dex = state.player.attr_current.get(crate::player::Attribute::Dexterity);
-    let resistances = trap::resistances_from_properties(
-        |prop| state.player.properties.has(prop),
-        dex,
-    );
+    let dex = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Dexterity);
+    let resistances =
+        trap::resistances_from_properties(|prop| state.player.properties.has(prop), dex);
 
     let result = trap::chest_trap(&mut state.rng, trap_type, &resistances);
 
@@ -808,7 +848,10 @@ pub fn drown(state: &mut GameState) {
     }
 
     // Strength-based crawl escape (C: 3825-3870)
-    let str_val = state.player.attr_current.get(crate::player::Attribute::Strength) as i32;
+    let str_val = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Strength) as i32;
     let escape_chance = 20 + str_val * 2;
     let roll = state.rng.rn2(100) as i32;
 
@@ -836,7 +879,13 @@ pub fn drown(state: &mut GameState) {
                         state.player.pos.x = nx;
                         state.player.pos.y = ny;
                         // Emergency disrobe: may need to drop items to survive
-                        if matches!(state.player.encumbrance(), crate::player::Encumbrance::Stressed | crate::player::Encumbrance::Strained | crate::player::Encumbrance::Overtaxed | crate::player::Encumbrance::Overloaded) {
+                        if matches!(
+                            state.player.encumbrance(),
+                            crate::player::Encumbrance::Stressed
+                                | crate::player::Encumbrance::Strained
+                                | crate::player::Encumbrance::Overtaxed
+                                | crate::player::Encumbrance::Overloaded
+                        ) {
                             state.message("You had to drop some items to survive!");
                         }
                         found_escape = true;
@@ -866,16 +915,14 @@ fn water_damage_inventory(state: &mut GameState) {
     for item in &state.inventory {
         if !item.erosion_proof {
             // Scrolls and spellbooks can be blanked
-            if matches!(item.class, ObjectClass::Scroll | ObjectClass::Spellbook) {
-                if state.rng.rn2(3) == 0 {
-                    damaged.push((item.inv_letter, "gets soaked"));
-                }
+            if matches!(item.class, ObjectClass::Scroll | ObjectClass::Spellbook)
+                && state.rng.rn2(3) == 0
+            {
+                damaged.push((item.inv_letter, "gets soaked"));
             }
             // Potions can be diluted
-            if item.class == ObjectClass::Potion {
-                if state.rng.rn2(4) == 0 {
-                    damaged.push((item.inv_letter, "is diluted"));
-                }
+            if item.class == ObjectClass::Potion && state.rng.rn2(4) == 0 {
+                damaged.push((item.inv_letter, "is diluted"));
             }
         }
     }
@@ -887,20 +934,46 @@ fn water_damage_inventory(state: &mut GameState) {
     }
 }
 
-pub fn climb_pit(state: &mut GameState) { state.message("You climb out of the pit."); }
-pub fn fill_pit(state: &mut GameState, _x: i8, _y: i8) { state.message("You fill the pit."); }
+pub fn climb_pit(state: &mut GameState) {
+    state.message("You climb out of the pit.");
+}
+pub fn fill_pit(state: &mut GameState, _x: i8, _y: i8) {
+    state.message("You fill the pit.");
+}
 pub fn pit_flow(_state: &mut GameState, _trap: &mut Trap, _dist: i32) {}
-pub fn conjoined_pits(_state: &mut GameState, _trap: &mut Trap, _trap2: &mut Trap, _boolean: bool) {}
-pub fn adj_nonconjoined_pit(_state: &mut GameState, _trap: &mut Trap) -> bool { false }
-pub fn adj_pit_checks(_state: &mut GameState, _trap: &mut Trap, _trap2: &mut Trap) -> bool { false }
+pub fn conjoined_pits(_state: &mut GameState, _trap: &mut Trap, _trap2: &mut Trap, _boolean: bool) {
+}
+pub fn adj_nonconjoined_pit(_state: &mut GameState, _trap: &mut Trap) -> bool {
+    false
+}
+pub fn adj_pit_checks(_state: &mut GameState, _trap: &mut Trap, _trap2: &mut Trap) -> bool {
+    false
+}
 pub fn clear_conjoined_pits(_state: &mut GameState, _trap: &mut Trap) {}
 pub fn join_adjacent_pits(_state: &mut GameState, _trap: &mut Trap, _boolean: bool) {}
 
-pub fn reward_untrap(_state: &mut GameState, _trap: &mut Trap, _monster: &mut crate::monster::Monster) {}
-pub fn untrap_prob(_state: &mut GameState, _trap: &mut Trap) -> i32 { 50 }
+pub fn reward_untrap(
+    _state: &mut GameState,
+    _trap: &mut Trap,
+    _monster: &mut crate::monster::Monster,
+) {
+}
+pub fn untrap_prob(_state: &mut GameState, _trap: &mut Trap) -> i32 {
+    50
+}
 
-pub fn cnv_trap_obj(_state: &mut GameState, _otyp: i32, _count: i32, _trap: &mut Trap, _boolean: bool) -> bool { false }
-pub fn holetime() -> i32 { 0 }
+pub fn cnv_trap_obj(
+    _state: &mut GameState,
+    _otyp: i32,
+    _count: i32,
+    _trap: &mut Trap,
+    _boolean: bool,
+) -> bool {
+    false
+}
+pub fn holetime() -> i32 {
+    0
+}
 pub fn t_warn(_state: &mut GameState, _trap: &mut Trap) {}
 pub fn t_missile(_state: &mut GameState, _trap_type: i32, _trap: &mut Trap) {}
 
@@ -910,7 +983,15 @@ pub const FUSE: i32 = 0x02;
 pub const NEED_PICK: i32 = 0x04;
 
 /// Launch an object from one position toward another
-pub fn launch_obj(state: &mut GameState, obj: &mut Object, x: i8, y: i8, x2: i8, y2: i8, style: i32) {
+pub fn launch_obj(
+    state: &mut GameState,
+    obj: &mut Object,
+    x: i8,
+    y: i8,
+    x2: i8,
+    y2: i8,
+    style: i32,
+) {
     let obj_name = obj.display_name();
     let dx = (x2 - x).signum();
     let dy = (y2 - y).signum();
@@ -921,10 +1002,16 @@ pub fn launch_obj(state: &mut GameState, obj: &mut Object, x: i8, y: i8, x2: i8,
     for _ in 0..range {
         cur_x += dx;
         cur_y += dy;
-        if !state.current_level.is_valid_pos(cur_x, cur_y) { break; }
+        if !state.current_level.is_valid_pos(cur_x, cur_y) {
+            break;
+        }
         if cur_x == state.player.pos.x && cur_y == state.player.pos.y {
             state.message(format!("The {} hits you!", obj_name));
-            let damage = if style & ROLL != 0 { state.rng.dice(2, 10) as i32 + 10 } else { state.rng.dice(1, 6) as i32 };
+            let damage = if style & ROLL != 0 {
+                state.rng.dice(2, 10) as i32 + 10
+            } else {
+                state.rng.dice(1, 6) as i32
+            };
             state.player.take_damage(damage);
             launch_drop_spot(state, obj, cur_x, cur_y);
             return;
@@ -933,7 +1020,11 @@ pub fn launch_obj(state: &mut GameState, obj: &mut Object, x: i8, y: i8, x2: i8,
             let monster_id = monster.id;
             let monster_name = monster.name.clone();
             state.message(format!("The {} hits the {}!", obj_name, monster_name));
-            let damage = if style & ROLL != 0 { state.rng.dice(2, 10) as i32 + 10 } else { state.rng.dice(1, 6) as i32 };
+            let damage = if style & ROLL != 0 {
+                state.rng.dice(2, 10) as i32 + 10
+            } else {
+                state.rng.dice(1, 6) as i32
+            };
             if let Some(mon) = state.current_level.monster_mut(monster_id) {
                 mon.hp -= damage;
                 if mon.hp <= 0 {
@@ -960,14 +1051,30 @@ pub fn launch_drop_spot(state: &mut GameState, obj: &mut Object, x: i8, y: i8) {
     state.current_level.add_object(dropped, x, y);
 }
 
-pub fn launch_in_progress() -> bool { false }
+pub fn launch_in_progress() -> bool {
+    false
+}
 pub fn force_launch_placement() {}
 
-pub fn mkroll_launch(state: &mut GameState, trap: &mut Trap, x: i8, y: i8, toward_player: bool, _unused: i64) {
-    let mut boulder = Object::new(crate::object::ObjectId(state.rng.rn2(10000)), 0, crate::object::ObjectClass::Rock);
+pub fn mkroll_launch(
+    state: &mut GameState,
+    trap: &mut Trap,
+    x: i8,
+    y: i8,
+    toward_player: bool,
+    _unused: i64,
+) {
+    let mut boulder = Object::new(
+        crate::object::ObjectId(state.rng.rn2(10000)),
+        0,
+        crate::object::ObjectClass::Rock,
+    );
     boulder.weight = 6000;
     let (dx, dy) = if toward_player {
-        ((state.player.pos.x - x).signum(), (state.player.pos.y - y).signum())
+        (
+            (state.player.pos.x - x).signum(),
+            (state.player.pos.y - y).signum(),
+        )
     } else {
         let dirs = [(1, 0), (-1, 0), (0, 1), (0, -1)];
         dirs[state.rng.rn2(4) as usize]
@@ -1026,7 +1133,11 @@ pub fn mintrap(
     // Flying monsters avoid ground traps (C: 2181-2190)
     let is_flying = monster.flies();
     if is_flying && is_ground_trap(trap_type) {
-        result.messages.push(format!("The {} flies over the {}.", mon_name, trap_name(trap_type)));
+        result.messages.push(format!(
+            "The {} flies over the {}.",
+            mon_name,
+            trap_name(trap_type)
+        ));
         result.avoided = true;
         return result;
     }
@@ -1048,10 +1159,14 @@ pub fn mintrap(
             // 15% chance to disarm if seen; otherwise dodge 1/4
             let damage = roll_trap_damage(rng, trap_type);
             if rng.one_in(4) {
-                result.messages.push(format!("An arrow misses the {}.", mon_name));
+                result
+                    .messages
+                    .push(format!("An arrow misses the {}.", mon_name));
                 result.avoided = true;
             } else {
-                result.messages.push(format!("An arrow hits the {}!", mon_name));
+                result
+                    .messages
+                    .push(format!("An arrow hits the {}!", mon_name));
                 result.damage = damage;
             }
         }
@@ -1059,14 +1174,20 @@ pub fn mintrap(
         TrapType::Dart => {
             let damage = roll_trap_damage(rng, trap_type);
             if rng.one_in(4) {
-                result.messages.push(format!("A dart misses the {}.", mon_name));
+                result
+                    .messages
+                    .push(format!("A dart misses the {}.", mon_name));
                 result.avoided = true;
             } else {
-                result.messages.push(format!("A dart hits the {}!", mon_name));
+                result
+                    .messages
+                    .push(format!("A dart hits the {}!", mon_name));
                 result.damage = damage;
                 // Poison check: 1/6 chance (C: dart trap poison is rn2(6))
                 if rng.one_in(6) && !monster.resistances.contains(MonsterResistances::POISON) {
-                    result.messages.push(format!("The {} is poisoned!", mon_name));
+                    result
+                        .messages
+                        .push(format!("The {} is poisoned!", mon_name));
                     result.damage += rng.rnd(6) as i32;
                 }
             }
@@ -1074,23 +1195,31 @@ pub fn mintrap(
 
         TrapType::RockFall => {
             let damage = roll_trap_damage(rng, trap_type);
-            result.messages.push(format!("A rock falls on the {}!", mon_name));
+            result
+                .messages
+                .push(format!("A rock falls on the {}!", mon_name));
             result.damage = damage;
         }
 
         TrapType::Squeaky => {
-            result.messages.push("A board beneath it squeaks loudly.".to_string());
+            result
+                .messages
+                .push("A board beneath it squeaks loudly.".to_string());
             // Wakes up sleeping monsters nearby (handled by caller)
         }
 
         TrapType::BearTrap => {
             // Metallivore eats the trap (C: 2142-2148)
             if is_metallivore {
-                result.messages.push(format!("The {} eats the bear trap!", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} eats the bear trap!", mon_name));
                 result.trap_destroyed = true;
             } else {
                 let damage = roll_trap_damage(rng, trap_type);
-                result.messages.push(format!("The {} is caught in a bear trap!", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} is caught in a bear trap!", mon_name));
                 result.damage = damage;
                 result.held_turns = (rng.rnd(5) + 3) as i32;
             }
@@ -1098,37 +1227,52 @@ pub fn mintrap(
 
         TrapType::LandMine => {
             let damage = roll_trap_damage(rng, trap_type);
-            result.messages.push(format!("KAABLAMM!!! The {} triggers a land mine!", mon_name));
+            result.messages.push(format!(
+                "KAABLAMM!!! The {} triggers a land mine!",
+                mon_name
+            ));
             result.damage = damage;
             result.trap_destroyed = true;
         }
 
         TrapType::RollingBoulder => {
             if rng.one_in(4) {
-                result.messages.push(format!("A boulder misses the {}.", mon_name));
+                result
+                    .messages
+                    .push(format!("A boulder misses the {}.", mon_name));
                 result.avoided = true;
             } else {
                 let damage = roll_trap_damage(rng, trap_type);
-                result.messages.push(format!("A boulder hits the {}!", mon_name));
+                result
+                    .messages
+                    .push(format!("A boulder hits the {}!", mon_name));
                 result.damage = damage;
             }
         }
 
         TrapType::SleepingGas => {
             if monster.resistances.contains(MonsterResistances::SLEEP) {
-                result.messages.push(format!("The {} resists the gas.", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} resists the gas.", mon_name));
                 result.avoided = true;
             } else {
-                result.messages.push(format!("The {} falls asleep!", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} falls asleep!", mon_name));
                 result.held_turns = (rng.rnd(25) + 10) as i32;
             }
         }
 
         TrapType::RustTrap => {
-            result.messages.push(format!("A gush of water hits the {}!", mon_name));
+            result
+                .messages
+                .push(format!("A gush of water hits the {}!", mon_name));
             // Iron golem: instant death from rust (C: 2375-2380)
             if mon_name.to_lowercase().contains("iron golem") {
-                result.messages.push(format!("The {} is destroyed!", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} is destroyed!", mon_name));
                 result.damage = monster.hp; // lethal
             }
             // Otherwise: rust equipment, no HP damage
@@ -1137,7 +1281,9 @@ pub fn mintrap(
         TrapType::FireTrap => {
             // C: 2383-2443 — fire trap with golem variants
             if monster.resistances.contains(MonsterResistances::FIRE) {
-                result.messages.push(format!("The {} is unaffected by the fire.", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} is unaffected by the fire.", mon_name));
                 result.avoided = true;
             } else {
                 let base_damage = rng.dice(2, 4) as i32;
@@ -1157,38 +1303,50 @@ pub fn mintrap(
                 };
 
                 result.damage = base_damage.max(golem_damage);
-                result.messages.push(format!("The {} is engulfed in flames!", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} is engulfed in flames!", mon_name));
             }
         }
 
         TrapType::Pit | TrapType::SpikedPit => {
             let damage = roll_trap_damage(rng, trap_type);
             let pit_name = trap_name(trap_type);
-            result.messages.push(format!("The {} falls into a {}!", mon_name, pit_name));
+            result
+                .messages
+                .push(format!("The {} falls into a {}!", mon_name, pit_name));
             result.damage = damage;
             result.held_turns = (rng.rnd(6) + 2) as i32;
 
             if trap_type == TrapType::SpikedPit {
                 // Metallivore can eat the spikes (reduces held time)
                 if is_metallivore {
-                    result.messages.push(format!("The {} gnaws at the spikes!", mon_name));
+                    result
+                        .messages
+                        .push(format!("The {} gnaws at the spikes!", mon_name));
                     result.held_turns = result.held_turns.saturating_sub(2);
                 }
                 if rng.one_in(6) && !monster.resistances.contains(MonsterResistances::POISON) {
-                    result.messages.push("The spikes were poisoned!".to_string());
+                    result
+                        .messages
+                        .push("The spikes were poisoned!".to_string());
                     result.damage += rng.rnd(8) as i32;
                 }
             }
         }
 
         TrapType::Hole | TrapType::TrapDoor => {
-            result.messages.push(format!("The {} falls through!", mon_name));
+            result
+                .messages
+                .push(format!("The {} falls through!", mon_name));
             result.fell_through = true;
             result.damage = rng.rnd(6) as i32;
         }
 
         TrapType::Teleport => {
-            result.messages.push(format!("The {} is teleported!", mon_name));
+            result
+                .messages
+                .push(format!("The {} is teleported!", mon_name));
             let x = (rng.rn2(77) + 1) as i8;
             let y = (rng.rn2(19) + 1) as i8;
             result.teleport = Some((x, y));
@@ -1208,16 +1366,22 @@ pub fn mintrap(
         TrapType::Web => {
             // Amorphous monsters pass through (C: 2474)
             if is_amorphous {
-                result.messages.push(format!("The {} flows through the web.", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} flows through the web.", mon_name));
                 result.avoided = true;
             } else {
-                result.messages.push(format!("The {} is caught in a web!", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} is caught in a web!", mon_name));
                 result.held_turns = (rng.rnd(10) + 5) as i32;
             }
         }
 
         TrapType::MagicTrap => {
-            result.messages.push(format!("The {} is caught in a magical light!", mon_name));
+            result
+                .messages
+                .push(format!("The {} is caught in a magical light!", mon_name));
             // Random minor effect
         }
 
@@ -1228,10 +1392,14 @@ pub fn mintrap(
 
         TrapType::Polymorph => {
             if monster.resistances.contains(MonsterResistances::MAGIC) {
-                result.messages.push(format!("The {} resists the transformation.", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} resists the transformation.", mon_name));
                 result.avoided = true;
             } else {
-                result.messages.push(format!("The {} undergoes a transformation!", mon_name));
+                result
+                    .messages
+                    .push(format!("The {} undergoes a transformation!", mon_name));
                 // Polymorph handled by caller
             }
         }
@@ -1290,10 +1458,10 @@ pub fn float_up(state: &mut GameState) {
                 // Fill the pit if needed
                 let px = state.player.pos.x;
                 let py = state.player.pos.y;
-                if let Some(trap) = state.current_level.trap_at_mut(px, py) {
-                    if matches!(trap.trap_type, TrapType::Pit | TrapType::SpikedPit) {
-                        trap.activated = false; // Reset for next visitor
-                    }
+                if let Some(trap) = state.current_level.trap_at_mut(px, py)
+                    && matches!(trap.trap_type, TrapType::Pit | TrapType::SpikedPit)
+                {
+                    trap.activated = false; // Reset for next visitor
                 }
             }
             PlayerTrapType::BearTrap => {
@@ -1368,8 +1536,7 @@ pub fn float_down(state: &mut GameState) {
             state.message("You land on the slippery ice.");
             if state.rng.one_in(5) {
                 state.message("You slip and fall!");
-                state.player.stunned_timeout =
-                    (state.player.stunned_timeout + 2).min(u16::MAX);
+                state.player.stunned_timeout += 2;
             }
         }
         _ => {
@@ -1391,18 +1558,14 @@ pub fn float_down(state: &mut GameState) {
         }
 
         // Other traps: trigger normally
-        let dex = state.player.attr_current.get(crate::player::Attribute::Dexterity);
-        let resistances = trap::resistances_from_properties(
-            |prop| state.player.properties.has(prop),
-            dex,
-        );
+        let dex = state
+            .player
+            .attr_current
+            .get(crate::player::Attribute::Dexterity);
+        let resistances =
+            trap::resistances_from_properties(|prop| state.player.properties.has(prop), dex);
         if let Some(trap) = state.current_level.trap_at_mut(px, py) {
-            let result = trap::dotrap(
-                &mut state.rng,
-                trap,
-                &resistances,
-                false,
-            );
+            let result = trap::dotrap(&mut state.rng, trap, &resistances, false);
 
             for msg in &result.messages {
                 state.message(msg.clone());
@@ -1426,7 +1589,10 @@ pub fn float_down(state: &mut GameState) {
 
 /// Disarm a holding trap (bear trap -> iron chain)
 pub fn disarm_holdingtrap(state: &mut GameState, x: i8, y: i8) -> bool {
-    let dex = state.player.attr_current.get(crate::player::Attribute::Dexterity);
+    let dex = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Dexterity);
     let trap_type = match state.current_level.trap_at(x, y) {
         Some(t) => t.trap_type,
         None => return false,
@@ -1448,7 +1614,10 @@ pub fn disarm_holdingtrap(state: &mut GameState, x: i8, y: i8) -> bool {
 
 /// Disarm a shooting trap (arrow/dart -> get projectiles)
 pub fn disarm_shooting_trap(state: &mut GameState, x: i8, y: i8) -> bool {
-    let dex = state.player.attr_current.get(crate::player::Attribute::Dexterity);
+    let dex = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Dexterity);
     let trap_type = match state.current_level.trap_at(x, y) {
         Some(t) => t.trap_type,
         None => return false,
@@ -1464,7 +1633,11 @@ pub fn disarm_shooting_trap(state: &mut GameState, x: i8, y: i8) -> bool {
         state.current_level.remove_trap(x, y);
         // Create projectile objects on the ground
         let quantity = (state.rng.rnd(5) + 1) as i32;
-        let proj_name = if trap_type == TrapType::Arrow { "arrow" } else { "dart" };
+        let proj_name = if trap_type == TrapType::Arrow {
+            "arrow"
+        } else {
+            "dart"
+        };
         let mut proj = crate::object::Object::new(
             crate::object::ObjectId(state.rng.rn2(10000)),
             0,
@@ -1500,7 +1673,7 @@ pub fn disarm_squeaky_board(state: &mut GameState, x: i8, y: i8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::monster::{Monster, MonsterId, MonsterFlags, MonsterResistances};
+    use crate::monster::{Monster, MonsterFlags, MonsterId, MonsterResistances};
     use crate::rng::GameRng;
 
     fn make_monster(name: &str) -> Monster {
@@ -1580,9 +1753,18 @@ mod tests {
         let mut monster = make_monster("bat");
         monster.flags = MonsterFlags::FLY;
         // Ground traps: pit, bear trap, web, squeaky board
-        for trap_type in [TrapType::Pit, TrapType::BearTrap, TrapType::Web, TrapType::Squeaky] {
+        for trap_type in [
+            TrapType::Pit,
+            TrapType::BearTrap,
+            TrapType::Web,
+            TrapType::Squeaky,
+        ] {
             let result = mintrap(&mut rng, &monster, trap_type, false);
-            assert!(result.avoided, "Flying monster should avoid {:?}", trap_type);
+            assert!(
+                result.avoided,
+                "Flying monster should avoid {:?}",
+                trap_type
+            );
         }
         // Non-ground traps should still trigger
         let result = mintrap(&mut rng, &monster, TrapType::Arrow, false);
@@ -1617,7 +1799,10 @@ mod tests {
             }
         }
         // Should avoid roughly 75% — allow wide margin
-        assert!(avoided > 50, "Expected >50% avoidance with seen trap, got {avoided}/100");
+        assert!(
+            avoided > 50,
+            "Expected >50% avoidance with seen trap, got {avoided}/100"
+        );
         assert!(triggered > 5, "Expected some triggers, got {triggered}/100");
     }
 
@@ -1637,7 +1822,10 @@ mod tests {
         monster.hp = 20;
         let result = mintrap(&mut rng, &monster, TrapType::FireTrap, false);
         // Paper golem takes full HP as damage
-        assert!(result.damage >= 20, "Paper golem should take lethal fire damage");
+        assert!(
+            result.damage >= 20,
+            "Paper golem should take lethal fire damage"
+        );
     }
 
     #[test]
@@ -1655,7 +1843,10 @@ mod tests {
         let mut monster = make_monster("arch-lich");
         monster.resistances = MonsterResistances::MAGIC;
         let result = mintrap(&mut rng, &monster, TrapType::LevelTeleport, false);
-        assert!(result.avoided, "Magic-resistant monster should resist level teleport");
+        assert!(
+            result.avoided,
+            "Magic-resistant monster should resist level teleport"
+        );
     }
 
     #[test]
@@ -1664,7 +1855,10 @@ mod tests {
         let mut monster = make_monster("arch-lich");
         monster.resistances = MonsterResistances::MAGIC;
         let result = mintrap(&mut rng, &monster, TrapType::Polymorph, false);
-        assert!(result.avoided, "Magic-resistant monster should resist polymorph");
+        assert!(
+            result.avoided,
+            "Magic-resistant monster should resist polymorph"
+        );
     }
 
     // ── dofiretrap tests ──
@@ -1672,7 +1866,10 @@ mod tests {
     #[test]
     fn test_dofiretrap_with_fire_resistance() {
         let mut state = GameState::new(GameRng::from_entropy());
-        state.player.properties.grant_intrinsic(crate::player::Property::FireResistance);
+        state
+            .player
+            .properties
+            .grant_intrinsic(crate::player::Property::FireResistance);
         let hp_before = state.player.hp;
         dofiretrap(&mut state, false);
         // With fire resistance: 0 or 1 damage
@@ -1722,19 +1919,27 @@ mod tests {
             state.current_level.monsters.clear();
             state.player.pos.x = 10;
             state.player.pos.y = 10;
-            let cha_before = state.player.attr_current.get(crate::player::Attribute::Charisma);
+            let cha_before = state
+                .player
+                .attr_current
+                .get(crate::player::Attribute::Charisma);
             let mut mon = Monster::new(MonsterId(99), 0, 10, 11);
             mon.name = "rat".to_string();
             mon.state.tame = false;
             state.current_level.monsters.push(mon);
 
             domagictrap(&mut state);
-            let cha_after = state.player.attr_current.get(crate::player::Attribute::Charisma);
+            let cha_after = state
+                .player
+                .attr_current
+                .get(crate::player::Attribute::Charisma);
 
             if cha_after > cha_before {
                 // fate=19: CHA went up, our rat at (10,11) should be tamed
-                assert!(state.current_level.monsters[0].state.tame,
-                    "Rat at (10,11) should be tamed when player at (10,10)");
+                assert!(
+                    state.current_level.monsters[0].state.tame,
+                    "Rat at (10,11) should be tamed when player at (10,10)"
+                );
                 return;
             }
         }
@@ -1743,7 +1948,7 @@ mod tests {
 
     #[test]
     fn test_domagictrap_fate_20_uncurse() {
-        use crate::object::{Object, ObjectClass, ObjectId, BucStatus};
+        use crate::object::{BucStatus, Object, ObjectClass, ObjectId};
         for seed in 0..1000u64 {
             let mut state = GameState::new(GameRng::new(seed));
             // Add cursed item
@@ -1755,7 +1960,12 @@ mod tests {
             domagictrap(&mut state);
 
             // If item got uncursed, we hit fate=20
-            if state.inventory.first().map(|i| i.buc == BucStatus::Uncursed).unwrap_or(false) {
+            if state
+                .inventory
+                .first()
+                .map(|i| i.buc == BucStatus::Uncursed)
+                .unwrap_or(false)
+            {
                 return; // Test passed
             }
         }
@@ -1798,7 +2008,10 @@ mod tests {
     #[test]
     fn test_float_down_with_flying() {
         let mut state = GameState::new(GameRng::from_entropy());
-        state.player.properties.grant_intrinsic(crate::player::Property::Flying);
+        state
+            .player
+            .properties
+            .grant_intrinsic(crate::player::Property::Flying);
         let hp_before = state.player.hp;
         float_down(&mut state);
         // Flying: no damage, just message
@@ -1811,17 +2024,26 @@ mod tests {
     #[test]
     fn test_drown_with_magic_breathing() {
         let mut state = GameState::new(GameRng::from_entropy());
-        state.player.properties.grant_intrinsic(crate::player::Property::MagicBreathing);
+        state
+            .player
+            .properties
+            .grant_intrinsic(crate::player::Property::MagicBreathing);
         let hp_before = state.player.hp;
         drown(&mut state);
-        assert!(state.player.hp > 0, "Magic breathing should prevent drowning");
+        assert!(
+            state.player.hp > 0,
+            "Magic breathing should prevent drowning"
+        );
         assert_eq!(state.player.hp, hp_before);
     }
 
     #[test]
     fn test_drown_with_swimming() {
         let mut state = GameState::new(GameRng::from_entropy());
-        state.player.properties.grant_intrinsic(crate::player::Property::Swimming);
+        state
+            .player
+            .properties
+            .grant_intrinsic(crate::player::Property::Swimming);
         let hp_before = state.player.hp;
         drown(&mut state);
         assert!(state.player.hp > 0, "Swimming should prevent drowning");
@@ -1833,7 +2055,10 @@ mod tests {
         // Use a weak character with no escape options
         let mut state = GameState::new(GameRng::new(999));
         state.player.hp = 10;
-        state.player.attr_current.set(crate::player::Attribute::Strength, 3);
+        state
+            .player
+            .attr_current
+            .set(crate::player::Attribute::Strength, 3);
         // Surround with water so no escape tile
         for x in 0..5usize {
             for y in 0..5usize {
@@ -1851,7 +2076,10 @@ mod tests {
     #[test]
     fn test_lava_effects_with_fire_resistance() {
         let mut state = GameState::new(GameRng::from_entropy());
-        state.player.properties.grant_intrinsic(crate::player::Property::FireResistance);
+        state
+            .player
+            .properties
+            .grant_intrinsic(crate::player::Property::FireResistance);
         state.player.hp = 100;
         lava_effects(&mut state);
         assert!(state.player.hp > 0, "Fire resistance should survive lava");
@@ -1862,13 +2090,19 @@ mod tests {
         let mut state = GameState::new(GameRng::from_entropy());
         state.player.hp = 100;
         lava_effects(&mut state);
-        assert_eq!(state.player.hp, 0, "Lava should be lethal without fire resistance");
+        assert_eq!(
+            state.player.hp, 0,
+            "Lava should be lethal without fire resistance"
+        );
     }
 
     #[test]
     fn test_lava_effects_with_levitation() {
         let mut state = GameState::new(GameRng::from_entropy());
-        state.player.properties.grant_intrinsic(crate::player::Property::Levitation);
+        state
+            .player
+            .properties
+            .grant_intrinsic(crate::player::Property::Levitation);
         let hp_before = state.player.hp;
         lava_effects(&mut state);
         assert_eq!(state.player.hp, hp_before, "Levitation should avoid lava");
@@ -1889,8 +2123,10 @@ mod tests {
 
         lava_effects(&mut state);
         // Items should be destroyed (they are organic/flammable)
-        assert!(state.inventory.is_empty() || state.inventory.len() < 2,
-            "Lava should destroy flammable inventory items");
+        assert!(
+            state.inventory.is_empty() || state.inventory.len() < 2,
+            "Lava should destroy flammable inventory items"
+        );
     }
 
     // ── chest_trap_action tests ──
@@ -1903,7 +2139,10 @@ mod tests {
         chest.trapped = false;
         let hp_before = state.player.hp;
         chest_trap_action(&mut state, &mut chest);
-        assert_eq!(state.player.hp, hp_before, "Untrapped chest should not damage");
+        assert_eq!(
+            state.player.hp, hp_before,
+            "Untrapped chest should not damage"
+        );
     }
 
     #[test]
@@ -1940,7 +2179,7 @@ pub fn do_disarm(state: &mut GameState, x: i8, y: i8) -> ActionResult {
         .get(crate::player::Attribute::Dexterity) as i32;
     let skill = 0; // Disarm skill not yet tracked; defaults to 0 (untrained)
 
-    let success = crate::dungeon::trap::try_disarm(&mut state.rng, &trap, dex, skill);
+    let success = crate::dungeon::trap::try_disarm(&mut state.rng, trap, dex, skill);
 
     if success {
         state.message(format!(
@@ -1969,6 +2208,6 @@ pub fn try_escape(state: &mut GameState, trap_type: crate::dungeon::TrapType) ->
     let str_val = state
         .player
         .attr_current
-        .get(crate::player::Attribute::Strength) as i8;
+        .get(crate::player::Attribute::Strength);
     crate::dungeon::trap::try_escape_trap(&mut state.rng, trap_type, str_val)
 }

@@ -530,7 +530,7 @@ pub fn has_branch_from_level(system: &DungeonSystem, dlevel: &DLevel) -> bool {
 
 /// Get the index of a dungeon by number
 pub fn dungeon_index(dnum: i8) -> Option<usize> {
-    if dnum >= 0 && dnum < 8 {
+    if (0..8).contains(&dnum) {
         Some(dnum as usize)
     } else {
         None

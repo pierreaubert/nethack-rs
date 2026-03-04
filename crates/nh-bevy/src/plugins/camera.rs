@@ -1,8 +1,8 @@
 //! Camera plugin with multiple view modes, zoom, and pan
 
+use bevy::camera::ScalingMode;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
-use bevy::camera::ScalingMode;
 use bevy_egui::{EguiContexts, PrimaryEguiContext};
 
 use crate::components::{CameraMode, PlayerMarker};

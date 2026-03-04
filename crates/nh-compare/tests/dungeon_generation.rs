@@ -3,21 +3,22 @@
 //! Tests level generation, room placement, corridor connectivity,
 //! special rooms, and feature generation.
 
-use nh_core::dungeon::{
-    CellType, DLevel, Level, Room, RoomType, TrapType,
-    generate_rooms_with_rects,
-    generate_irregular_room, create_subroom,
-};
-use nh_core::{COLNO, ROWNO};
 use nh_core::GameRng;
+use nh_core::dungeon::{
+    CellType, DLevel, Level, Room, RoomType, TrapType, create_subroom, generate_irregular_room,
+    generate_rooms_with_rects,
+};
 use nh_core::magic::MonsterVitals;
+use nh_core::{COLNO, ROWNO};
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
 fn count_cells(level: &Level, typ: CellType) -> usize {
-    level.cells.iter()
+    level
+        .cells
+        .iter()
         .flat_map(|col| col.iter())
         .filter(|cell| cell.typ == typ)
         .count()
@@ -37,7 +38,11 @@ fn test_level_dimensions() {
 #[test]
 fn test_generated_level_has_rooms() {
     let mut rng = GameRng::new(42);
-    let level = Level::new_generated(DLevel::main_dungeon_start(), &mut rng, &MonsterVitals::default());
+    let level = Level::new_generated(
+        DLevel::main_dungeon_start(),
+        &mut rng,
+        &MonsterVitals::default(),
+    );
 
     let room_cells = count_cells(&level, CellType::Room);
     assert!(
@@ -50,7 +55,11 @@ fn test_generated_level_has_rooms() {
 #[test]
 fn test_generated_level_has_corridors() {
     let mut rng = GameRng::new(42);
-    let level = Level::new_generated(DLevel::main_dungeon_start(), &mut rng, &MonsterVitals::default());
+    let level = Level::new_generated(
+        DLevel::main_dungeon_start(),
+        &mut rng,
+        &MonsterVitals::default(),
+    );
 
     let corridor_cells = count_cells(&level, CellType::Corridor);
     assert!(
@@ -63,7 +72,11 @@ fn test_generated_level_has_corridors() {
 #[test]
 fn test_generated_level_has_walls() {
     let mut rng = GameRng::new(42);
-    let level = Level::new_generated(DLevel::main_dungeon_start(), &mut rng, &MonsterVitals::default());
+    let level = Level::new_generated(
+        DLevel::main_dungeon_start(),
+        &mut rng,
+        &MonsterVitals::default(),
+    );
 
     let wall_cells = count_cells(&level, CellType::VWall)
         + count_cells(&level, CellType::HWall)
@@ -82,10 +95,18 @@ fn test_generated_level_has_walls() {
 fn test_level_generation_deterministic() {
     // Same seed must produce identical levels
     let mut rng1 = GameRng::new(123);
-    let level1 = Level::new_generated(DLevel::main_dungeon_start(), &mut rng1, &MonsterVitals::default());
+    let level1 = Level::new_generated(
+        DLevel::main_dungeon_start(),
+        &mut rng1,
+        &MonsterVitals::default(),
+    );
 
     let mut rng2 = GameRng::new(123);
-    let level2 = Level::new_generated(DLevel::main_dungeon_start(), &mut rng2, &MonsterVitals::default());
+    let level2 = Level::new_generated(
+        DLevel::main_dungeon_start(),
+        &mut rng2,
+        &MonsterVitals::default(),
+    );
 
     for x in 0..COLNO {
         for y in 0..ROWNO {
@@ -101,10 +122,18 @@ fn test_level_generation_deterministic() {
 #[test]
 fn test_level_generation_varies_with_seed() {
     let mut rng1 = GameRng::new(42);
-    let level1 = Level::new_generated(DLevel::main_dungeon_start(), &mut rng1, &MonsterVitals::default());
+    let level1 = Level::new_generated(
+        DLevel::main_dungeon_start(),
+        &mut rng1,
+        &MonsterVitals::default(),
+    );
 
     let mut rng2 = GameRng::new(999);
-    let level2 = Level::new_generated(DLevel::main_dungeon_start(), &mut rng2, &MonsterVitals::default());
+    let level2 = Level::new_generated(
+        DLevel::main_dungeon_start(),
+        &mut rng2,
+        &MonsterVitals::default(),
+    );
 
     // Count differences - different seeds should produce different layouts
     let mut diff_count = 0;
@@ -147,14 +176,14 @@ fn test_room_center() {
     let room = Room::new(10, 5, 6, 4);
     let (cx, cy) = room.center();
     assert_eq!(cx, 13); // 10 + 6/2
-    assert_eq!(cy, 7);  // 5 + 4/2
+    assert_eq!(cy, 7); // 5 + 4/2
 }
 
 #[test]
 fn test_room_contains() {
     let room = Room::new(10, 5, 6, 4);
     assert!(room.contains(10, 5));
-    assert!(room.contains(15, 8));  // 10+6-1, 5+4-1
+    assert!(room.contains(15, 8)); // 10+6-1, 5+4-1
     assert!(!room.contains(9, 5));
     assert!(!room.contains(16, 5));
     assert!(!room.contains(10, 4));
@@ -183,7 +212,7 @@ fn test_room_overlap_with_buffer() {
     let room2 = Room::new(17, 5, 6, 4); // 1 cell gap
 
     assert!(!room1.overlaps(&room2, 0)); // no overlap without buffer
-    assert!(room1.overlaps(&room2, 2));  // overlaps with buffer of 2
+    assert!(room1.overlaps(&room2, 2)); // overlaps with buffer of 2
 }
 
 #[test]
@@ -196,7 +225,8 @@ fn test_room_random_point() {
         assert!(
             room.contains(x, y),
             "Random point ({},{}) should be inside room",
-            x, y
+            x,
+            y
         );
     }
 }
@@ -275,9 +305,16 @@ fn test_generate_rooms_with_rects_deterministic() {
     let mut level2 = Level::new(DLevel::main_dungeon_start());
     let rooms2 = generate_rooms_with_rects(&mut level2, &mut rng2);
 
-    assert_eq!(rooms1.len(), rooms2.len(), "Same seed should produce same room count");
+    assert_eq!(
+        rooms1.len(),
+        rooms2.len(),
+        "Same seed should produce same room count"
+    );
     for (r1, r2) in rooms1.iter().zip(rooms2.iter()) {
-        assert_eq!((r1.x, r1.y, r1.width, r1.height), (r2.x, r2.y, r2.width, r2.height));
+        assert_eq!(
+            (r1.x, r1.y, r1.width, r1.height),
+            (r2.x, r2.y, r2.width, r2.height)
+        );
     }
 }
 
@@ -334,7 +371,11 @@ fn test_create_subroom() {
 #[test]
 fn test_level_has_stairs() {
     let mut rng = GameRng::new(42);
-    let level = Level::new_generated(DLevel::main_dungeon_start(), &mut rng, &MonsterVitals::default());
+    let level = Level::new_generated(
+        DLevel::main_dungeon_start(),
+        &mut rng,
+        &MonsterVitals::default(),
+    );
 
     assert!(
         !level.stairs.is_empty(),
@@ -350,8 +391,8 @@ fn test_level_valid_pos() {
     assert!(level.is_valid_pos(79, 20)); // COLNO-1, ROWNO-1
     assert!(!level.is_valid_pos(-1, 0));
     assert!(!level.is_valid_pos(0, -1));
-    assert!(!level.is_valid_pos(80, 0));  // COLNO
-    assert!(!level.is_valid_pos(0, 21));  // ROWNO
+    assert!(!level.is_valid_pos(80, 0)); // COLNO
+    assert!(!level.is_valid_pos(0, 21)); // ROWNO
 }
 
 #[test]
@@ -369,7 +410,11 @@ fn test_level_default_is_all_stone() {
 fn test_multiple_seeds_produce_valid_levels() {
     for seed in 0..20u64 {
         let mut rng = GameRng::new(seed);
-        let level = Level::new_generated(DLevel::main_dungeon_start(), &mut rng, &MonsterVitals::default());
+        let level = Level::new_generated(
+            DLevel::main_dungeon_start(),
+            &mut rng,
+            &MonsterVitals::default(),
+        );
 
         let room_cells = count_cells(&level, CellType::Room);
         let corridor_cells = count_cells(&level, CellType::Corridor);
@@ -382,7 +427,9 @@ fn test_multiple_seeds_produce_valid_levels() {
         assert!(
             room_cells + corridor_cells > 30,
             "Seed {} produced too few walkable cells: {} rooms + {} corridors",
-            seed, room_cells, corridor_cells
+            seed,
+            room_cells,
+            corridor_cells
         );
     }
 }
@@ -441,15 +488,39 @@ fn test_trap_type_coverage() {
 #[test]
 fn test_dungeon_generation_summary() {
     println!("\n=== Dungeon Generation Summary ===");
-    println!("{:<25} {:<10} {:<10} {:<10}", "Module", "Lines", "Coverage", "Status");
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "Module", "Lines", "Coverage", "Status"
+    );
     println!("{}", "-".repeat(55));
-    println!("{:<25} {:<10} {:<10} {:<10}", "dungeon/generation.rs", "1489", "85%", "Strong");
-    println!("{:<25} {:<10} {:<10} {:<10}", "dungeon/level.rs", "400+", "80%", "Good");
-    println!("{:<25} {:<10} {:<10} {:<10}", "dungeon/room.rs", "200+", "90%", "Strong");
-    println!("{:<25} {:<10} {:<10} {:<10}", "dungeon/corridor.rs", "350+", "75%", "Good");
-    println!("{:<25} {:<10} {:<10} {:<10}", "dungeon/cell.rs", "100+", "95%", "Complete");
-    println!("{:<25} {:<10} {:<10} {:<10}", "dungeon/special_level.rs", "300+", "60%", "Partial");
-    println!("{:<25} {:<10} {:<10} {:<10}", "dungeon/maze.rs", "200+", "50%", "Partial");
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "dungeon/generation.rs", "1489", "85%", "Strong"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "dungeon/level.rs", "400+", "80%", "Good"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "dungeon/room.rs", "200+", "90%", "Strong"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "dungeon/corridor.rs", "350+", "75%", "Good"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "dungeon/cell.rs", "100+", "95%", "Complete"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "dungeon/special_level.rs", "300+", "60%", "Partial"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "dungeon/maze.rs", "200+", "50%", "Partial"
+    );
     println!();
     println!("=== Known Divergences from C ===");
     println!("1. sp_lev.c (6,059 lines) vs special_level.rs (~300) - major gap");

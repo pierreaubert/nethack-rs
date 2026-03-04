@@ -21,8 +21,7 @@ impl Plugin for MonsterPickerPlugin {
         );
         app.add_systems(
             EguiPrimaryContextPass,
-            render_picker
-                .run_if(in_state(AppState::Playing)),
+            render_picker.run_if(in_state(AppState::Playing)),
         );
     }
 }
@@ -56,7 +55,7 @@ pub struct PickerMonsterInfo {
 impl PickerMonsterInfo {
     fn new(index: usize, target: TargetInfo) -> Self {
         let health_percent = target.health_percent();
-        let filled = (health_percent / 10).max(1).min(10) as usize;
+        let filled = (health_percent / 10).clamp(1, 10) as usize;
         let empty = 10 - filled;
         let health_bar = format!(
             "[{}{}] {}%",
@@ -73,25 +72,13 @@ impl PickerMonsterInfo {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct MonsterPickerState {
     pub active: bool,
     pub action: Option<TargetAction>,
     pub selected_index: usize,
     pub monsters: Vec<PickerMonsterInfo>,
     pub last_refresh: u32,
-}
-
-impl Default for MonsterPickerState {
-    fn default() -> Self {
-        Self {
-            active: false,
-            action: None,
-            selected_index: 0,
-            monsters: Vec::new(),
-            last_refresh: 0,
-        }
-    }
 }
 
 /// Update the monster list (refresh every frame when active)
@@ -167,29 +154,29 @@ fn handle_picker_input(
 
         // Selection with Enter or Space - trigger spell/zap with calculated direction
         if input.just_pressed(KeyCode::Enter) || input.just_pressed(KeyCode::Space) {
-            if let Some(monster_info) = picker_state.monsters.get(picker_state.selected_index) {
-                if let Some(action) = picker_state.action {
-                    // Get the target position
-                    let target = &monster_info.target;
+            if let Some(monster_info) = picker_state.monsters.get(picker_state.selected_index)
+                && let Some(action) = picker_state.action
+            {
+                // Get the target position
+                let target = &monster_info.target;
 
-                    // Calculate direction from player to target
-                    let dx = (target.x - game_state.0.player.pos.x).signum() as i8;
-                    let dy = (target.y - game_state.0.player.pos.y).signum() as i8;
-                    let direction = vector_to_direction(dx, dy);
+                // Calculate direction from player to target
+                let dx = (target.x - game_state.0.player.pos.x).signum();
+                let dy = (target.y - game_state.0.player.pos.y).signum();
+                let direction = vector_to_direction(dx, dy);
 
-                    // Send the appropriate command
-                    let command = match action {
-                        TargetAction::Zap(c) => Command::Zap(c, Some(direction)),
-                        TargetAction::Throw(c) => Command::Throw(c, direction),
-                        TargetAction::Spell => {
-                            // Spell targeting would be handled differently
-                            // For now, treat like zap
-                            Command::Zap('?', Some(direction))
-                        }
-                    };
+                // Send the appropriate command
+                let command = match action {
+                    TargetAction::Zap(c) => Command::Zap(c, Some(direction)),
+                    TargetAction::Throw(c) => Command::Throw(c, direction),
+                    TargetAction::Spell => {
+                        // Spell targeting would be handled differently
+                        // For now, treat like zap
+                        Command::Zap('?', Some(direction))
+                    }
+                };
 
-                    game_commands.write(GameCommand(command));
-                }
+                game_commands.write(GameCommand(command));
             }
 
             // Clear state
@@ -200,15 +187,14 @@ fn handle_picker_input(
     }
 }
 
-fn render_picker(
-    mut contexts: EguiContexts,
-    picker_state: Res<MonsterPickerState>,
-) {
+fn render_picker(mut contexts: EguiContexts, picker_state: Res<MonsterPickerState>) {
     if !picker_state.active {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     let action_name = picker_state.action.map(|a| a.name()).unwrap_or("target");
 
     egui::Window::new(format!("Select monster to {}", action_name))
@@ -264,7 +250,7 @@ fn render_picker(
                         target.health_percent()
                     );
 
-                    ui.label(egui::RichText::new(&format!("Selected: {}", target.name)).strong());
+                    ui.label(egui::RichText::new(format!("Selected: {}", target.name)).strong());
                     ui.label(format!("Distance: {}", target.distance));
                     ui.label(format!("Health: {}", hp_info));
                 }
@@ -279,6 +265,4 @@ fn render_picker(
                 .color(egui::Color32::GRAY),
             );
         });
-
-    
 }

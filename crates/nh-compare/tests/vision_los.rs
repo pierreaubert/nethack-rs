@@ -60,7 +60,11 @@ fn test_dark_room_not_lit() {
     for x in 10..15 {
         for y in 5..10 {
             let cell = level.cell(x, y);
-            assert!(!cell.lit, "Dark room cell at ({},{}) should NOT be lit", x, y);
+            assert!(
+                !cell.lit,
+                "Dark room cell at ({},{}) should NOT be lit",
+                x, y
+            );
             assert_eq!(cell.typ, CellType::Room);
         }
     }
@@ -82,10 +86,19 @@ fn test_corridor_default_dark() {
     // Cell::corridor() creates a corridor cell that is not lit,
     // matching NetHack's behavior where corridors are always dark.
     let corridor_cell = Cell::corridor();
-    assert!(!corridor_cell.lit, "Corridor cell should default to not lit");
+    assert!(
+        !corridor_cell.lit,
+        "Corridor cell should default to not lit"
+    );
     assert_eq!(corridor_cell.typ, CellType::Corridor);
-    assert!(!corridor_cell.was_lit, "Corridor should not have was_lit set");
-    assert_eq!(corridor_cell.seen_from, 0, "Fresh corridor should have no seen_from");
+    assert!(
+        !corridor_cell.was_lit,
+        "Corridor should not have was_lit set"
+    );
+    assert_eq!(
+        corridor_cell.seen_from, 0,
+        "Fresh corridor should have no seen_from"
+    );
 
     // Verify on an actual level
     let mut level = Level::new(DLevel::default());
@@ -133,7 +146,10 @@ fn test_infravision_property() {
     );
 
     // Infravision is classified as a vision property
-    assert!(Property::Infravision.is_vision(), "Infravision should be a vision property");
+    assert!(
+        Property::Infravision.is_vision(),
+        "Infravision should be a vision property"
+    );
 }
 
 // ============================================================================
@@ -157,7 +173,10 @@ fn test_telepathy_property() {
     );
 
     // Telepathy is a vision property
-    assert!(Property::Telepathy.is_vision(), "Telepathy should be a vision property");
+    assert!(
+        Property::Telepathy.is_vision(),
+        "Telepathy should be a vision property"
+    );
 
     // Can also be timed (e.g., from potion of ESP)
     let mut player2 = You::default();
@@ -195,7 +214,9 @@ fn test_light_source_creation() {
     // Light sources can be added to a level
     let mut level = Level::new(DLevel::default());
     assert!(level.light_sources.is_empty());
-    level.light_sources.push(LightSource::from_object(10, 10, 5, ObjectId(1)));
+    level
+        .light_sources
+        .push(LightSource::from_object(10, 10, 5, ObjectId(1)));
     assert_eq!(level.light_sources.len(), 1);
     assert_eq!(level.light_sources[0].range, 5);
 }

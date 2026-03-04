@@ -2,6 +2,7 @@
 //!
 //! Shopkeepers, priests, vault guards, quests, mail, etc.
 
+pub mod ball; // Ball and chain mechanics
 pub mod dog; // Pet handling
 pub mod integration; // Integration guide for all systems
 pub mod mail; // Mail daemon delivery system
@@ -9,11 +10,10 @@ pub mod priest; // Priests and temples
 pub mod quest; // Quest system
 pub mod shk; // Shopkeepers
 pub mod sounds; // Monster sounds and speech
+pub mod steal; // Monster stealing
+pub mod steed; // Riding/mounting
 pub mod summon; // Summoning monsters
 pub mod vault; // Vault guards
-pub mod ball; // Ball and chain mechanics
-pub mod steed; // Riding/mounting
-pub mod steal; // Monster stealing
 pub mod wizard; // Wizard of Yendor AI
 
 pub use summon::{SummonResult, dosummon, msummon, nasty};

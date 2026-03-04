@@ -20,7 +20,6 @@ std = [
     "rand/std_rng",
     "strum/std",
 ]
-extensions = []
 polkadot = ["parity-scale-codec", "parity-scale-codec/derive"]
 
 [dependencies]
@@ -45,6 +44,10 @@ parity-scale-codec = { version = "3", default-features = false, optional = true 
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ['cfg(feature, values("panictrace", "git-version"))']
 
 [dev-dependencies]
 proptest.workspace = true

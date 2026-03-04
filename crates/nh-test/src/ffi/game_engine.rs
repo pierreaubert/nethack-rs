@@ -161,8 +161,21 @@ unsafe extern "C" {
     pub fn nh_ffi_clear_rng_trace();
 
     // Function-level isolation testing (Phase 1)
-    pub fn nh_ffi_test_finddpos(xl: c_int, yl: c_int, xh: c_int, yh: c_int, out_x: *mut c_int, out_y: *mut c_int);
-    pub fn nh_ffi_test_dig_corridor(sx: c_int, sy: c_int, dx: c_int, dy: c_int, nxcor: c_int) -> c_int;
+    pub fn nh_ffi_test_finddpos(
+        xl: c_int,
+        yl: c_int,
+        xh: c_int,
+        yh: c_int,
+        out_x: *mut c_int,
+        out_y: *mut c_int,
+    );
+    pub fn nh_ffi_test_dig_corridor(
+        sx: c_int,
+        sy: c_int,
+        dx: c_int,
+        dy: c_int,
+        nxcor: c_int,
+    ) -> c_int;
     pub fn nh_ffi_test_makecorridors();
     pub fn nh_ffi_test_join(a: c_int, b: c_int, nxcor: c_int);
     pub fn nh_ffi_get_smeq() -> *mut c_char;
@@ -181,6 +194,12 @@ unsafe extern "C" {
 
 pub struct CGameEngine {
     initialized: bool,
+}
+
+impl Default for CGameEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CGameEngine {
@@ -358,26 +377,51 @@ impl CGameEngine {
     pub fn get_visibility(&self) -> Vec<Vec<bool>> {
         let mut buffer = vec![0i8; 16384];
         unsafe { nh_ffi_get_visibility(buffer.as_mut_ptr()) };
-        let json = unsafe { CStr::from_ptr(buffer.as_ptr()).to_string_lossy().into_owned() };
+        let json = unsafe {
+            CStr::from_ptr(buffer.as_ptr())
+                .to_string_lossy()
+                .into_owned()
+        };
         serde_json::from_str(&json).unwrap_or_else(|_| vec![vec![false; 21]; 80])
     }
 
     pub fn get_couldsee(&self) -> Vec<Vec<bool>> {
         let mut buffer = vec![0i8; 16384];
         unsafe { nh_ffi_get_couldsee(buffer.as_mut_ptr()) };
-        let json = unsafe { CStr::from_ptr(buffer.as_ptr()).to_string_lossy().into_owned() };
+        let json = unsafe {
+            CStr::from_ptr(buffer.as_ptr())
+                .to_string_lossy()
+                .into_owned()
+        };
         serde_json::from_str(&json).unwrap_or_else(|_| vec![vec![false; 21]; 80])
     }
 
     pub fn test_finddpos(&self, xl: i32, yl: i32, xh: i32, yh: i32) -> (i32, i32) {
         let mut x: c_int = 0;
         let mut y: c_int = 0;
-        unsafe { nh_ffi_test_finddpos(xl as c_int, yl as c_int, xh as c_int, yh as c_int, &mut x, &mut y) };
+        unsafe {
+            nh_ffi_test_finddpos(
+                xl as c_int,
+                yl as c_int,
+                xh as c_int,
+                yh as c_int,
+                &mut x,
+                &mut y,
+            )
+        };
         (x as i32, y as i32)
     }
 
     pub fn test_dig_corridor(&self, sx: i32, sy: i32, dx: i32, dy: i32, nxcor: bool) -> bool {
-        unsafe { nh_ffi_test_dig_corridor(sx as c_int, sy as c_int, dx as c_int, dy as c_int, if nxcor { 1 } else { 0 }) != 0 }
+        unsafe {
+            nh_ffi_test_dig_corridor(
+                sx as c_int,
+                sy as c_int,
+                dx as c_int,
+                dy as c_int,
+                if nxcor { 1 } else { 0 },
+            ) != 0
+        }
     }
 
     pub fn test_makecorridors(&self) {
@@ -403,7 +447,8 @@ impl CGameEngine {
     }
 
     pub fn get_cell_region(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> String {
-        let ptr = unsafe { nh_ffi_get_cell_region(x1 as c_int, y1 as c_int, x2 as c_int, y2 as c_int) };
+        let ptr =
+            unsafe { nh_ffi_get_cell_region(x1 as c_int, y1 as c_int, x2 as c_int, y2 as c_int) };
         if ptr.is_null() {
             return "[]".to_string();
         }
@@ -421,7 +466,15 @@ impl CGameEngine {
     }
 
     pub fn add_room(&self, lx: i32, ly: i32, hx: i32, hy: i32, rtype: i32) -> i32 {
-        unsafe { nh_ffi_add_room(lx as c_int, ly as c_int, hx as c_int, hy as c_int, rtype as c_int) as i32 }
+        unsafe {
+            nh_ffi_add_room(
+                lx as c_int,
+                ly as c_int,
+                hx as c_int,
+                hy as c_int,
+                rtype as c_int,
+            ) as i32
+        }
     }
 
     pub fn carve_room(&self, lx: i32, ly: i32, hx: i32, hy: i32) {
@@ -460,13 +513,7 @@ impl CGameEngine {
 }
 
 impl nh_core::CGameEngineTrait for CGameEngine {
-    fn init(
-        &mut self,
-        role: &str,
-        race: &str,
-        gender: i32,
-        alignment: i32,
-    ) -> Result<(), String> {
+    fn init(&mut self, role: &str, race: &str, gender: i32, alignment: i32) -> Result<(), String> {
         let role_c = CString::new(role).map_err(|e| format!("Invalid role: {}", e))?;
         let race_c = CString::new(race).map_err(|e| format!("Invalid race: {}", e))?;
 
@@ -697,7 +744,6 @@ impl nh_core::CGameEngineTrait for CGameEngine {
     }
 }
 
-
 impl Drop for CGameEngine {
     fn drop(&mut self) {
         if self.initialized {
@@ -730,7 +776,7 @@ mod tests {
         assert!(engine.max_hp() > 0);
         assert!(!engine.is_dead());
         assert!(!engine.is_game_over());
-        
+
         #[cfg(not(real_nethack))]
         assert_eq!(engine.position(), (40, 10));
         #[cfg(real_nethack)]

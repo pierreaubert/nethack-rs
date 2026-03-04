@@ -44,29 +44,79 @@ impl CGameEngineTrait for CGameEngine {
         Err("CGameEngine stub".into())
     }
 
-    fn hp(&self) -> i32 { 0 }
-    fn max_hp(&self) -> i32 { 0 }
-    fn energy(&self) -> i32 { 0 }
-    fn max_energy(&self) -> i32 { 0 }
-    fn position(&self) -> (i32, i32) { (0, 0) }
+    fn hp(&self) -> i32 {
+        0
+    }
+    fn max_hp(&self) -> i32 {
+        0
+    }
+    fn energy(&self) -> i32 {
+        0
+    }
+    fn max_energy(&self) -> i32 {
+        0
+    }
+    fn position(&self) -> (i32, i32) {
+        (0, 0)
+    }
     fn set_state(&self, _hp: i32, _hpmax: i32, _x: i32, _y: i32, _ac: i32, _moves: i64) {}
-    fn armor_class(&self) -> i32 { 10 }
-    fn gold(&self) -> i32 { 0 }
-    fn experience_level(&self) -> i32 { 1 }
-    fn current_level(&self) -> i32 { 1 }
-    fn dungeon_depth(&self) -> i32 { 1 }
-    fn turn_count(&self) -> u64 { 0 }
-    fn is_dead(&self) -> bool { false }
-    fn is_game_over(&self) -> bool { false }
-    fn is_won(&self) -> bool { false }
-    fn state_json(&self) -> String { "{}".into() }
-    fn last_message(&self) -> String { String::new() }
-    fn inventory_json(&self) -> String { "[]".into() }
-    fn monsters_json(&self) -> String { "[]".into() }
-    fn role(&self) -> String { "Unknown".into() }
-    fn race(&self) -> String { "Unknown".into() }
-    fn gender_string(&self) -> String { "Unknown".into() }
-    fn alignment_string(&self) -> String { "Unknown".into() }
+    fn armor_class(&self) -> i32 {
+        10
+    }
+    fn gold(&self) -> i32 {
+        0
+    }
+    fn experience_level(&self) -> i32 {
+        1
+    }
+    fn current_level(&self) -> i32 {
+        1
+    }
+    fn dungeon_depth(&self) -> i32 {
+        1
+    }
+    fn turn_count(&self) -> u64 {
+        0
+    }
+    fn is_dead(&self) -> bool {
+        false
+    }
+    fn is_game_over(&self) -> bool {
+        false
+    }
+    fn is_won(&self) -> bool {
+        false
+    }
+    fn state_json(&self) -> String {
+        "{}".into()
+    }
+    fn last_message(&self) -> String {
+        String::new()
+    }
+    fn inventory_json(&self) -> String {
+        "[]".into()
+    }
+    fn monsters_json(&self) -> String {
+        "[]".into()
+    }
+    fn role(&self) -> String {
+        "Unknown".into()
+    }
+    fn race(&self) -> String {
+        "Unknown".into()
+    }
+    fn gender_string(&self) -> String {
+        "Unknown".into()
+    }
+    fn alignment_string(&self) -> String {
+        "Unknown".into()
+    }
+}
+
+impl Default for CGameEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CGameEngine {

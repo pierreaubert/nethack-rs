@@ -8,12 +8,10 @@
 use crate::compat::*;
 
 use super::{
-    ArmorProficiency, ArmorType, Attack, AttackType, CombatEffect, CombatResult, CriticalHitType,
-    DamageType, DefenseCalculation, DodgeSkill, RangedAttack, RangedCombatResult, RangedWeaponType,
-    SkillLevel, SpecialCombatEffect, StatusEffect, apply_damage_reduction, apply_special_effect,
-    apply_status_effect, attempt_dodge, award_monster_xp, calculate_armor_damage_reduction,
-    calculate_skill_enhanced_damage, calculate_status_damage, determine_critical_hit,
-    effect_severity_from_skill, execute_ranged_attack, should_trigger_special_effect,
+    Attack, AttackType, CombatEffect, CombatResult, CriticalHitType, DamageType, SkillLevel,
+    SpecialCombatEffect, apply_special_effect, calculate_skill_enhanced_damage,
+    calculate_status_damage, determine_critical_hit, effect_severity_from_skill,
+    should_trigger_special_effect,
 };
 use crate::dungeon::Level;
 use crate::monster::{Monster, MonsterId};
@@ -37,8 +35,6 @@ pub struct MonsterAttackResult {
     /// Special effects triggered
     pub effects: Vec<CombatEffect>,
 }
-
-
 
 // ============================================================================
 // Message Functions (hitmsg, missmu, wildmiss, mswings)
@@ -303,19 +299,17 @@ pub fn mattacku(
             // Add weapon swing message for weapon attacks (before hit message)
             if attack.attack_type == AttackType::Weapon {
                 // Check if monster has a wielded weapon
-                if let Some(weapon_idx) = attacker.wielded {
-                    if let Some(weapon) = attacker.inventory.get(weapon_idx) {
-                        let weapon_name_str = weapon.name.as_deref().unwrap_or("weapon");
-                        let is_thrust = weapon_name_str.contains("spear")
-                            || weapon_name_str.contains("lance")
-                            || weapon_name_str.contains("trident");
-                        let display = weapon.display_name();
-                        result.messages.push(weapon_swing_message(
-                            &attacker_name,
-                            &display,
-                            is_thrust,
-                        ));
-                    }
+                if let Some(weapon_idx) = attacker.wielded
+                    && let Some(weapon) = attacker.inventory.get(weapon_idx)
+                {
+                    let weapon_name_str = weapon.name.as_deref().unwrap_or("weapon");
+                    let is_thrust = weapon_name_str.contains("spear")
+                        || weapon_name_str.contains("lance")
+                        || weapon_name_str.contains("trident");
+                    let display = weapon.display_name();
+                    result
+                        .messages
+                        .push(weapon_swing_message(&attacker_name, &display, is_thrust));
                 }
             }
 
@@ -333,30 +327,12 @@ pub fn mattacku(
             if let Some(effect) = attack_result.special_effect {
                 result.effects.push(effect);
             }
-
-            #[cfg(feature = "extensions")]
-            {
-                use crate::monster::combat_hooks;
-                combat_hooks::on_monster_hit_player(
-                    attacker.id,
-                    level,
-                    attack_result.damage,
-                    attack.attack_type,
-                    attack.damage_type,
-                );
-            }
         } else {
             // Miss message
             let near_miss = rng.one_in(2);
             result
                 .messages
                 .push(miss_message(&attacker_name, near_miss));
-
-            #[cfg(feature = "extensions")]
-            {
-                use crate::monster::combat_hooks;
-                combat_hooks::on_monster_miss_player(attacker.id, level, attack.attack_type);
-            }
         }
 
         // Check for player death
@@ -764,7 +740,7 @@ pub fn monster_attack_player(
     }
 
     // Phase 13: Apply passive damage from monster's status effects
-    let monster_status_damage = calculate_status_damage(&attacker.status_effects);
+    let _monster_status_damage = calculate_status_damage(&attacker.status_effects);
     // Note: Can't damage monster here (immutable reference), would need separate call
 
     CombatResult {
@@ -1213,7 +1189,10 @@ pub fn monster_attack_player_full(
         DamageType::Seduce | DamageType::SeduceSpecial => {
             match doseduce(player, attacker, inventory, rng) {
                 SeduceResult::Yes => Some(format!("The {} seduces you!", attacker.name)),
-                SeduceResult::WrongGender => Some(format!("The {} ugly thing tries to seduce you.", attacker.name)),
+                SeduceResult::WrongGender => Some(format!(
+                    "The {} ugly thing tries to seduce you.",
+                    attacker.name
+                )),
                 SeduceResult::No => None,
             }
         }
@@ -1230,239 +1209,6 @@ pub fn monster_attack_player_full(
     };
 
     (result, message)
-}
-
-// ============================================================================
-// Enhanced Ranged Attack System (Phase 11)
-// ============================================================================
-
-/// Monster ranged attack with distance considerations
-pub fn monster_ranged_attack_enhanced(
-    attacker: &Monster,
-    player: &mut You,
-    distance: i32,
-    rng: &mut GameRng,
-) -> CombatResult {
-    // Get monster skill level
-    let skill_level = get_monster_attack_skill(attacker);
-
-    // Monster ranged attack (thrown rocks, etc.)
-    let base_to_hit = attacker.level as i32;
-
-    let ranged_attack = RangedAttack {
-        weapon_type: RangedWeaponType::Thrown,
-        distance,
-        skill_level,
-        base_to_hit,
-    };
-
-    // Check if in range
-    if !ranged_attack.in_range() {
-        return CombatResult::MISS;
-    }
-
-    // Execute ranged attack
-    let mut ranged_result = execute_ranged_attack(&ranged_attack, player.armor_class, rng);
-
-    if !ranged_result.hit {
-        return CombatResult::MISS;
-    }
-
-    // Calculate damage
-    let base_damage = rng.dice(1, 4) as i32;
-    let damage = ranged_attack.calculate_damage(base_damage, ranged_result.critical);
-
-    // Apply damage to player
-    let player_died = if ranged_result.critical == CriticalHitType::InstantKill {
-        player.hp = 0;
-        true
-    } else {
-        player.hp -= damage;
-        player.hp <= 0
-    };
-
-    // Apply special effects on critical ranged hits
-    let mut special_effect = None;
-    if ranged_result.critical.is_critical() && skill_level as u8 >= SkillLevel::Skilled as u8 {
-        if rng.one_in(3) {
-            special_effect = Some(CombatEffect::ItemDestroyed);
-        }
-    }
-
-    CombatResult {
-        hit: true,
-        defender_died: player_died,
-        attacker_died: false,
-        damage,
-        special_effect,
-    }
-}
-
-/// Improved process_ranged_attack with new system
-pub fn process_ranged_attack_enhanced(
-    attacker: &Monster,
-    player: &mut You,
-    rng: &mut GameRng,
-) -> CombatResult {
-    // Calculate distance (Chebyshev distance for grid)
-    let distance = (attacker.x - player.pos.x)
-        .abs()
-        .max(attacker.y - player.pos.y) as i32;
-
-    // Use enhanced ranged attack
-    monster_ranged_attack_enhanced(attacker, player, distance, rng)
-}
-
-// ============================================================================
-// Monster Defense System (Phase 12 Integration)
-// ============================================================================
-
-/// Get monster armor proficiency based on level
-pub fn get_monster_armor_proficiency(monster: &Monster) -> ArmorProficiency {
-    match monster.level {
-        0..=2 => ArmorProficiency::Untrained,
-        3..=6 => ArmorProficiency::Novice,
-        7..=12 => ArmorProficiency::Trained,
-        13..=20 => ArmorProficiency::Expert,
-        _ => ArmorProficiency::Master,
-    }
-}
-
-/// Get monster dodge skill
-pub fn get_monster_dodge_skill(monster: &Monster) -> DodgeSkill {
-    match monster.level {
-        0..=2 => DodgeSkill::Untrained,
-        3..=6 => DodgeSkill::Basic,
-        7..=12 => DodgeSkill::Practiced,
-        13..=20 => DodgeSkill::Expert,
-        _ => DodgeSkill::Master,
-    }
-}
-
-/// Calculate monster defense
-pub fn calculate_monster_defense(monster: &Monster) -> DefenseCalculation {
-    let armor_prof = get_monster_armor_proficiency(monster);
-    let dodge_skill = get_monster_dodge_skill(monster);
-
-    // Base AC from monster
-    let base_ac = monster.ac as i32;
-
-    // Monster armor degradation
-    let degradation = super::ArmorDegradation::new(5);
-
-    DefenseCalculation::calculate(base_ac, armor_prof, dodge_skill, degradation)
-}
-
-/// Apply monster defense to incoming player damage
-pub fn apply_monster_defense(
-    monster: &Monster,
-    incoming_damage: i32,
-    damage_type: DamageType,
-    rng: &mut crate::rng::GameRng,
-) -> i32 {
-    let defense = calculate_monster_defense(monster);
-
-    // Try to dodge
-    let dodge_skill = get_monster_dodge_skill(monster);
-    if attempt_dodge(dodge_skill, 0, rng) {
-        return 0;
-    }
-
-    // Calculate armor reduction
-    let armor_type = ArmorType::Medium; // Most monsters have medium natural armor
-    let reduction = calculate_armor_damage_reduction(
-        defense.base_ac,
-        defense.proficiency,
-        damage_type,
-        armor_type,
-    );
-
-    // Apply reduction
-    apply_damage_reduction(incoming_damage, reduction)
-}
-
-// ============================================================================
-// Phase 15: Monster Spell Casting in Combat
-// ============================================================================
-
-/// Check if a monster can cast a specific combat spell
-pub fn can_monster_cast_spell(monster: &Monster, spell: super::CombatSpell) -> bool {
-    // Simple heuristic: high-level monsters can cast spells
-    // Spellcasting monsters (wizards, clerics, priests) have level >= 5
-    monster.level >= 5
-}
-
-/// Monster attempts to cast a combat spell at the player
-pub fn monster_cast_spell(
-    attacker: &mut Monster,
-    target: &mut You,
-    spell: super::CombatSpell,
-    rng: &mut crate::rng::GameRng,
-) -> super::SpellCastResult {
-    // Check if monster can cast (simplified)
-    if !can_monster_cast_spell(attacker, spell) {
-        return super::SpellCastResult::failed();
-    }
-
-    // Simulate "mana" as energy (monsters use a simple pool)
-    // Assume monsters have enough energy
-    let mana_cost = spell.mana_cost() / 2; // Monsters pay half cost
-
-    // Monster spell failure chance based on level
-    let failure_chance = 20 - (attacker.level as i32);
-    if rng.rnd(100) as i32 <= failure_chance {
-        return super::SpellCastResult::failed();
-    }
-
-    // Calculate damage - monsters do fixed damage based on spell
-    let base_damage = spell.base_damage() / 2; // Monsters do half damage
-    let damage = (base_damage as f32 * (attacker.level as f32 / 10.0)).max(1.0) as i32;
-
-    let mut result = super::SpellCastResult::success().with_damage(damage);
-
-    // Apply spell effects
-    match spell {
-        super::CombatSpell::ForceBolt | super::CombatSpell::MagicMissile => {
-            target.hp -= damage;
-        }
-        super::CombatSpell::Fireball => {
-            target.hp -= damage;
-            apply_status_effect(
-                &mut target.status_effects,
-                StatusEffect::Stunned,
-                1,
-                "spell",
-            );
-        }
-        super::CombatSpell::Sleep => {
-            apply_status_effect(
-                &mut target.status_effects,
-                StatusEffect::Stunned,
-                2,
-                "sleep spell",
-            );
-            result = result.with_effect(StatusEffect::Stunned);
-        }
-        super::CombatSpell::Slow => {
-            apply_status_effect(
-                &mut target.status_effects,
-                StatusEffect::Paralyzed,
-                1,
-                "slow spell",
-            );
-        }
-        super::CombatSpell::Confuse => {
-            apply_status_effect(
-                &mut target.status_effects,
-                StatusEffect::Paralyzed,
-                2,
-                "confusion",
-            );
-        }
-        _ => {}
-    }
-
-    result
 }
 
 // ============================================================================
@@ -1588,7 +1334,7 @@ pub fn diseasemu(player: &mut You, attacker_name: &str, rng: &mut GameRng) -> (S
 /// Combat result with messages
 pub fn gulpmu(
     player: &mut You,
-    attacker: &Monster,
+    _attacker: &Monster,
     attack: &Attack,
     rng: &mut GameRng,
 ) -> CombatResult {
@@ -1927,11 +1673,7 @@ pub fn stealamulet(inventory: &mut Vec<Object>) -> Option<Object> {
         .iter()
         .position(|obj| obj.class == crate::object::ObjectClass::Amulet && obj.worn_mask != 0);
 
-    if let Some(idx) = amulet_idx {
-        Some(inventory.remove(idx))
-    } else {
-        None
-    }
+    amulet_idx.map(|idx| inventory.remove(idx))
 }
 
 /// Steal armor from the player (stealarm in C).

@@ -5,8 +5,8 @@
 
 use std::collections::HashMap;
 
-use bevy::prelude::*;
 use crate::resources::AssetsConfig;
+use bevy::prelude::*;
 
 pub struct ModelAssetsPlugin;
 
@@ -85,6 +85,9 @@ fn load_model_assets(
         models.insert(name.to_string(), ModelEntry { mesh, texture });
     }
 
-    info!("Loaded {} 3D model entries from assets/models/", models.len());
+    info!(
+        "Loaded {} 3D model entries from assets/models/",
+        models.len()
+    );
     commands.insert_resource(ModelAssets { models });
 }

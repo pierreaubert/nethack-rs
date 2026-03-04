@@ -88,10 +88,8 @@ pub fn determine_item_properties(obj: &Object) -> Vec<Property> {
     }
 
     // Amulets grant protection
-    if matches!(obj.class, ObjectClass::Amulet) {
-        if obj.enchantment > 0 {
-            properties.push(Property::Protection);
-        }
+    if matches!(obj.class, ObjectClass::Amulet) && obj.enchantment > 0 {
+        properties.push(Property::Protection);
     }
 
     // Blessed items grant various benefits
@@ -180,10 +178,10 @@ pub fn calculate_property_bonus(
     let mut count = 0;
 
     for &object_id in equipped_items {
-        if let Some(properties) = bindings.get_item_properties(object_id) {
-            if properties.iter().any(|p| *p == property) {
-                count += 1;
-            }
+        if let Some(properties) = bindings.get_item_properties(object_id)
+            && properties.contains(&property)
+        {
+            count += 1;
         }
     }
 

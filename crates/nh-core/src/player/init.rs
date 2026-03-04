@@ -34,7 +34,13 @@ const UNDEF_BLESS: u8 = 2;
 
 impl StartingItem {
     const fn new(otyp: i16, spe: i8, class: ObjectClass, quantity: u8, bless: u8) -> Self {
-        Self { otyp, spe, class, quantity, bless }
+        Self {
+            otyp,
+            spe,
+            class,
+            quantity,
+            bless,
+        }
     }
 }
 
@@ -44,141 +50,663 @@ impl StartingItem {
 
 /// Archeologist starting inventory
 static ARCHEOLOGIST_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::Bullwhip as i16, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),   // BULLWHIP
-    StartingItem::new(crate::data::objects::ObjectType::LeatherJacket as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_JACKET
-    StartingItem::new(crate::data::objects::ObjectType::Fedora as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // FEDORA
-    StartingItem::new(crate::data::objects::ObjectType::FoodRation as i16, 0, ObjectClass::Food, 3, 0),               // FOOD_RATION
-    StartingItem::new(crate::data::objects::ObjectType::PickAxe as i16, UNDEF_SPE, ObjectClass::Tool, 1, UNDEF_BLESS), // PICK_AXE
-    StartingItem::new(crate::data::objects::ObjectType::TinningKit as i16, UNDEF_SPE, ObjectClass::Tool, 1, UNDEF_BLESS), // TINNING_KIT
-    StartingItem::new(crate::data::objects::ObjectType::Touchstone as i16, 0, ObjectClass::Gem, 1, 0),                // TOUCHSTONE
-    StartingItem::new(crate::data::objects::ObjectType::Sack as i16, 0, ObjectClass::Tool, 1, 0),               // SACK
+    StartingItem::new(
+        crate::data::objects::ObjectType::Bullwhip as i16,
+        2,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // BULLWHIP
+    StartingItem::new(
+        crate::data::objects::ObjectType::LeatherJacket as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // LEATHER_JACKET
+    StartingItem::new(
+        crate::data::objects::ObjectType::Fedora as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // FEDORA
+    StartingItem::new(
+        crate::data::objects::ObjectType::FoodRation as i16,
+        0,
+        ObjectClass::Food,
+        3,
+        0,
+    ), // FOOD_RATION
+    StartingItem::new(
+        crate::data::objects::ObjectType::PickAxe as i16,
+        UNDEF_SPE,
+        ObjectClass::Tool,
+        1,
+        UNDEF_BLESS,
+    ), // PICK_AXE
+    StartingItem::new(
+        crate::data::objects::ObjectType::TinningKit as i16,
+        UNDEF_SPE,
+        ObjectClass::Tool,
+        1,
+        UNDEF_BLESS,
+    ), // TINNING_KIT
+    StartingItem::new(
+        crate::data::objects::ObjectType::Touchstone as i16,
+        0,
+        ObjectClass::Gem,
+        1,
+        0,
+    ), // TOUCHSTONE
+    StartingItem::new(
+        crate::data::objects::ObjectType::Sack as i16,
+        0,
+        ObjectClass::Tool,
+        1,
+        0,
+    ), // SACK
 ];
 
 /// Barbarian starting inventory
 static BARBARIAN_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::TwoHandedSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // TWO_HANDED_SWORD
-    StartingItem::new(crate::data::objects::ObjectType::Axe as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // AXE
-    StartingItem::new(crate::data::objects::ObjectType::RingMail as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // RING_MAIL
-    StartingItem::new(crate::data::objects::ObjectType::FoodRation as i16, 0, ObjectClass::Food, 1, 0),               // FOOD_RATION
+    StartingItem::new(
+        crate::data::objects::ObjectType::TwoHandedSword as i16,
+        0,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // TWO_HANDED_SWORD
+    StartingItem::new(
+        crate::data::objects::ObjectType::Axe as i16,
+        0,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // AXE
+    StartingItem::new(
+        crate::data::objects::ObjectType::RingMail as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // RING_MAIL
+    StartingItem::new(
+        crate::data::objects::ObjectType::FoodRation as i16,
+        0,
+        ObjectClass::Food,
+        1,
+        0,
+    ), // FOOD_RATION
 ];
 
 /// Caveman starting inventory
 static CAVEMAN_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::Club as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // CLUB
-    StartingItem::new(crate::data::objects::ObjectType::Sling as i16, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SLING
-    StartingItem::new(crate::data::objects::ObjectType::Flint as i16, 0, ObjectClass::Gem, 15, UNDEF_BLESS),     // FLINT (qty variable)
-    StartingItem::new(crate::data::objects::ObjectType::Rock as i16, 0, ObjectClass::Gem, 3, 0),                // ROCK
-    StartingItem::new(crate::data::objects::ObjectType::LeatherArmor as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_ARMOR
+    StartingItem::new(
+        crate::data::objects::ObjectType::Club as i16,
+        1,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // CLUB
+    StartingItem::new(
+        crate::data::objects::ObjectType::Sling as i16,
+        2,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // SLING
+    StartingItem::new(
+        crate::data::objects::ObjectType::Flint as i16,
+        0,
+        ObjectClass::Gem,
+        15,
+        UNDEF_BLESS,
+    ), // FLINT (qty variable)
+    StartingItem::new(
+        crate::data::objects::ObjectType::Rock as i16,
+        0,
+        ObjectClass::Gem,
+        3,
+        0,
+    ), // ROCK
+    StartingItem::new(
+        crate::data::objects::ObjectType::LeatherArmor as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // LEATHER_ARMOR
 ];
 
 /// Healer starting inventory
 static HEALER_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::Scalpel as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SCALPEL
-    StartingItem::new(crate::data::objects::ObjectType::LeatherGloves as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
-    StartingItem::new(crate::data::objects::ObjectType::Stethoscope as i16, 0, ObjectClass::Tool, 1, 0),               // STETHOSCOPE
-    StartingItem::new(crate::data::objects::ObjectType::Healing as i16, 0, ObjectClass::Potion, 4, UNDEF_BLESS),   // POT_HEALING
-    StartingItem::new(crate::data::objects::ObjectType::ExtraHealing as i16, 0, ObjectClass::Potion, 4, UNDEF_BLESS),   // POT_EXTRA_HEALING
-    StartingItem::new(crate::data::objects::ObjectType::Sleep as i16, UNDEF_SPE, ObjectClass::Wand, 1, UNDEF_BLESS), // WAN_SLEEP
-    StartingItem::new(crate::data::objects::ObjectType::Healing as i16, 0, ObjectClass::Spellbook, 1, 1),          // SPE_HEALING
-    StartingItem::new(crate::data::objects::ObjectType::ExtraHealing as i16, 0, ObjectClass::Spellbook, 1, 1),          // SPE_EXTRA_HEALING
-    StartingItem::new(crate::data::objects::ObjectType::StoneToFlesh as i16, 0, ObjectClass::Spellbook, 1, 1),          // SPE_STONE_TO_FLESH
-    StartingItem::new(crate::data::objects::ObjectType::Apple as i16, 0, ObjectClass::Food, 5, 0),               // APPLE
+    StartingItem::new(
+        crate::data::objects::ObjectType::Scalpel as i16,
+        0,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // SCALPEL
+    StartingItem::new(
+        crate::data::objects::ObjectType::LeatherGloves as i16,
+        1,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // LEATHER_GLOVES
+    StartingItem::new(
+        crate::data::objects::ObjectType::Stethoscope as i16,
+        0,
+        ObjectClass::Tool,
+        1,
+        0,
+    ), // STETHOSCOPE
+    StartingItem::new(
+        crate::data::objects::ObjectType::Healing as i16,
+        0,
+        ObjectClass::Potion,
+        4,
+        UNDEF_BLESS,
+    ), // POT_HEALING
+    StartingItem::new(
+        crate::data::objects::ObjectType::ExtraHealing as i16,
+        0,
+        ObjectClass::Potion,
+        4,
+        UNDEF_BLESS,
+    ), // POT_EXTRA_HEALING
+    StartingItem::new(
+        crate::data::objects::ObjectType::Sleep as i16,
+        UNDEF_SPE,
+        ObjectClass::Wand,
+        1,
+        UNDEF_BLESS,
+    ), // WAN_SLEEP
+    StartingItem::new(
+        crate::data::objects::ObjectType::Healing as i16,
+        0,
+        ObjectClass::Spellbook,
+        1,
+        1,
+    ), // SPE_HEALING
+    StartingItem::new(
+        crate::data::objects::ObjectType::ExtraHealing as i16,
+        0,
+        ObjectClass::Spellbook,
+        1,
+        1,
+    ), // SPE_EXTRA_HEALING
+    StartingItem::new(
+        crate::data::objects::ObjectType::StoneToFlesh as i16,
+        0,
+        ObjectClass::Spellbook,
+        1,
+        1,
+    ), // SPE_STONE_TO_FLESH
+    StartingItem::new(
+        crate::data::objects::ObjectType::Apple as i16,
+        0,
+        ObjectClass::Food,
+        5,
+        0,
+    ), // APPLE
 ];
 
 /// Knight starting inventory
 static KNIGHT_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::LongSword as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LONG_SWORD
-    StartingItem::new(crate::data::objects::ObjectType::Lance as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LANCE
-    StartingItem::new(crate::data::objects::ObjectType::RingMail as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // RING_MAIL
-    StartingItem::new(crate::data::objects::ObjectType::Helmet as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // HELMET
-    StartingItem::new(crate::data::objects::ObjectType::SmallShield as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
-    StartingItem::new(crate::data::objects::ObjectType::LeatherGloves as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
-    StartingItem::new(crate::data::objects::ObjectType::Apple as i16, 0, ObjectClass::Food, 10, 0),              // APPLE
-    StartingItem::new(crate::data::objects::ObjectType::Carrot as i16, 0, ObjectClass::Food, 10, 0),              // CARROT
+    StartingItem::new(
+        crate::data::objects::ObjectType::LongSword as i16,
+        1,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // LONG_SWORD
+    StartingItem::new(
+        crate::data::objects::ObjectType::Lance as i16,
+        1,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // LANCE
+    StartingItem::new(
+        crate::data::objects::ObjectType::RingMail as i16,
+        1,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // RING_MAIL
+    StartingItem::new(
+        crate::data::objects::ObjectType::Helmet as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // HELMET
+    StartingItem::new(
+        crate::data::objects::ObjectType::SmallShield as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // SMALL_SHIELD
+    StartingItem::new(
+        crate::data::objects::ObjectType::LeatherGloves as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // LEATHER_GLOVES
+    StartingItem::new(
+        crate::data::objects::ObjectType::Apple as i16,
+        0,
+        ObjectClass::Food,
+        10,
+        0,
+    ), // APPLE
+    StartingItem::new(
+        crate::data::objects::ObjectType::Carrot as i16,
+        0,
+        ObjectClass::Food,
+        10,
+        0,
+    ), // CARROT
 ];
 
 /// Monk starting inventory
 static MONK_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::LeatherGloves as i16, 2, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_GLOVES
-    StartingItem::new(crate::data::objects::ObjectType::Robe as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // ROBE
-    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Spellbook, 1, 1),    // Random spellbook
-    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Scroll, 1, UNDEF_BLESS), // Random scroll
-    StartingItem::new(crate::data::objects::ObjectType::Healing as i16, 0, ObjectClass::Potion, 3, UNDEF_BLESS),   // POT_HEALING
-    StartingItem::new(crate::data::objects::ObjectType::FoodRation as i16, 0, ObjectClass::Food, 3, 0),               // FOOD_RATION
-    StartingItem::new(crate::data::objects::ObjectType::Apple as i16, 0, ObjectClass::Food, 5, UNDEF_BLESS),     // APPLE
-    StartingItem::new(crate::data::objects::ObjectType::Orange as i16, 0, ObjectClass::Food, 5, UNDEF_BLESS),     // ORANGE
-    StartingItem::new(crate::data::objects::ObjectType::FortuneCookie as i16, 0, ObjectClass::Food, 3, UNDEF_BLESS),     // FORTUNE_COOKIE
+    StartingItem::new(
+        crate::data::objects::ObjectType::LeatherGloves as i16,
+        2,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // LEATHER_GLOVES
+    StartingItem::new(
+        crate::data::objects::ObjectType::Robe as i16,
+        1,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // ROBE
+    StartingItem::new(
+        crate::data::objects::ObjectType::StrangeObject as i16,
+        UNDEF_SPE,
+        ObjectClass::Spellbook,
+        1,
+        1,
+    ), // Random spellbook
+    StartingItem::new(
+        crate::data::objects::ObjectType::StrangeObject as i16,
+        UNDEF_SPE,
+        ObjectClass::Scroll,
+        1,
+        UNDEF_BLESS,
+    ), // Random scroll
+    StartingItem::new(
+        crate::data::objects::ObjectType::Healing as i16,
+        0,
+        ObjectClass::Potion,
+        3,
+        UNDEF_BLESS,
+    ), // POT_HEALING
+    StartingItem::new(
+        crate::data::objects::ObjectType::FoodRation as i16,
+        0,
+        ObjectClass::Food,
+        3,
+        0,
+    ), // FOOD_RATION
+    StartingItem::new(
+        crate::data::objects::ObjectType::Apple as i16,
+        0,
+        ObjectClass::Food,
+        5,
+        UNDEF_BLESS,
+    ), // APPLE
+    StartingItem::new(
+        crate::data::objects::ObjectType::Orange as i16,
+        0,
+        ObjectClass::Food,
+        5,
+        UNDEF_BLESS,
+    ), // ORANGE
+    StartingItem::new(
+        crate::data::objects::ObjectType::FortuneCookie as i16,
+        0,
+        ObjectClass::Food,
+        3,
+        UNDEF_BLESS,
+    ), // FORTUNE_COOKIE
 ];
 
 /// Priest starting inventory
 static PRIEST_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::Mace as i16, 1, ObjectClass::Weapon, 1, 1),             // MACE (blessed)
-    StartingItem::new(crate::data::objects::ObjectType::Robe as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // ROBE
-    StartingItem::new(crate::data::objects::ObjectType::SmallShield as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
-    StartingItem::new(crate::data::objects::ObjectType::Water as i16, 0, ObjectClass::Potion, 4, 1),             // POT_WATER (holy)
-    StartingItem::new(crate::data::objects::ObjectType::CloveOfGarlic as i16, 0, ObjectClass::Food, 1, 0),               // CLOVE_OF_GARLIC
-    StartingItem::new(crate::data::objects::ObjectType::SprigOfWolfsbane as i16, 0, ObjectClass::Food, 1, 0),               // SPRIG_OF_WOLFSBANE
-    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Spellbook, 2, UNDEF_BLESS), // Random spellbooks
+    StartingItem::new(
+        crate::data::objects::ObjectType::Mace as i16,
+        1,
+        ObjectClass::Weapon,
+        1,
+        1,
+    ), // MACE (blessed)
+    StartingItem::new(
+        crate::data::objects::ObjectType::Robe as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // ROBE
+    StartingItem::new(
+        crate::data::objects::ObjectType::SmallShield as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // SMALL_SHIELD
+    StartingItem::new(
+        crate::data::objects::ObjectType::Water as i16,
+        0,
+        ObjectClass::Potion,
+        4,
+        1,
+    ), // POT_WATER (holy)
+    StartingItem::new(
+        crate::data::objects::ObjectType::CloveOfGarlic as i16,
+        0,
+        ObjectClass::Food,
+        1,
+        0,
+    ), // CLOVE_OF_GARLIC
+    StartingItem::new(
+        crate::data::objects::ObjectType::SprigOfWolfsbane as i16,
+        0,
+        ObjectClass::Food,
+        1,
+        0,
+    ), // SPRIG_OF_WOLFSBANE
+    StartingItem::new(
+        crate::data::objects::ObjectType::StrangeObject as i16,
+        UNDEF_SPE,
+        ObjectClass::Spellbook,
+        2,
+        UNDEF_BLESS,
+    ), // Random spellbooks
 ];
 
 /// Ranger starting inventory
 static RANGER_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::Dagger as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // DAGGER
-    StartingItem::new(crate::data::objects::ObjectType::Bow as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // BOW
-    StartingItem::new(crate::data::objects::ObjectType::Arrow as i16, 2, ObjectClass::Weapon, 50, UNDEF_BLESS),  // ARROW (qty variable)
-    StartingItem::new(crate::data::objects::ObjectType::Arrow as i16, 0, ObjectClass::Weapon, 30, UNDEF_BLESS),  // ARROW
-    StartingItem::new(crate::data::objects::ObjectType::CloakOfDisplacement as i16, 2, ObjectClass::Armor, 1, UNDEF_BLESS),    // CLOAK_OF_DISPLACEMENT
-    StartingItem::new(crate::data::objects::ObjectType::CramRation as i16, 0, ObjectClass::Food, 4, 0),               // CRAM_RATION
+    StartingItem::new(
+        crate::data::objects::ObjectType::Dagger as i16,
+        1,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // DAGGER
+    StartingItem::new(
+        crate::data::objects::ObjectType::Bow as i16,
+        1,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // BOW
+    StartingItem::new(
+        crate::data::objects::ObjectType::Arrow as i16,
+        2,
+        ObjectClass::Weapon,
+        50,
+        UNDEF_BLESS,
+    ), // ARROW (qty variable)
+    StartingItem::new(
+        crate::data::objects::ObjectType::Arrow as i16,
+        0,
+        ObjectClass::Weapon,
+        30,
+        UNDEF_BLESS,
+    ), // ARROW
+    StartingItem::new(
+        crate::data::objects::ObjectType::CloakOfDisplacement as i16,
+        2,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // CLOAK_OF_DISPLACEMENT
+    StartingItem::new(
+        crate::data::objects::ObjectType::CramRation as i16,
+        0,
+        ObjectClass::Food,
+        4,
+        0,
+    ), // CRAM_RATION
 ];
 
 /// Rogue starting inventory
 static ROGUE_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SHORT_SWORD
-    StartingItem::new(crate::data::objects::ObjectType::Dagger as i16, 0, ObjectClass::Weapon, 10, 0),            // DAGGER (qty variable)
-    StartingItem::new(crate::data::objects::ObjectType::LeatherArmor as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),    // LEATHER_ARMOR
-    StartingItem::new(crate::data::objects::ObjectType::Sickness as i16, 0, ObjectClass::Potion, 1, 0),             // POT_SICKNESS
-    StartingItem::new(crate::data::objects::ObjectType::LockPick as i16, 0, ObjectClass::Tool, 1, 0),               // LOCK_PICK
-    StartingItem::new(crate::data::objects::ObjectType::Sack as i16, 0, ObjectClass::Tool, 1, 0),               // SACK
+    StartingItem::new(
+        crate::data::objects::ObjectType::ShortSword as i16,
+        0,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // SHORT_SWORD
+    StartingItem::new(
+        crate::data::objects::ObjectType::Dagger as i16,
+        0,
+        ObjectClass::Weapon,
+        10,
+        0,
+    ), // DAGGER (qty variable)
+    StartingItem::new(
+        crate::data::objects::ObjectType::LeatherArmor as i16,
+        1,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // LEATHER_ARMOR
+    StartingItem::new(
+        crate::data::objects::ObjectType::Sickness as i16,
+        0,
+        ObjectClass::Potion,
+        1,
+        0,
+    ), // POT_SICKNESS
+    StartingItem::new(
+        crate::data::objects::ObjectType::LockPick as i16,
+        0,
+        ObjectClass::Tool,
+        1,
+        0,
+    ), // LOCK_PICK
+    StartingItem::new(
+        crate::data::objects::ObjectType::Sack as i16,
+        0,
+        ObjectClass::Tool,
+        1,
+        0,
+    ), // SACK
 ];
 
 /// Samurai starting inventory
 static SAMURAI_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::Katana as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // KATANA
-    StartingItem::new(crate::data::objects::ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // SHORT_SWORD (wakizashi)
-    StartingItem::new(crate::data::objects::ObjectType::Yumi as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // YUMI
-    StartingItem::new(crate::data::objects::ObjectType::Ya as i16, 0, ObjectClass::Weapon, 25, UNDEF_BLESS),  // YA (qty variable)
-    StartingItem::new(crate::data::objects::ObjectType::SplintMail as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // SPLINT_MAIL
+    StartingItem::new(
+        crate::data::objects::ObjectType::Katana as i16,
+        0,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // KATANA
+    StartingItem::new(
+        crate::data::objects::ObjectType::ShortSword as i16,
+        0,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // SHORT_SWORD (wakizashi)
+    StartingItem::new(
+        crate::data::objects::ObjectType::Yumi as i16,
+        0,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // YUMI
+    StartingItem::new(
+        crate::data::objects::ObjectType::Ya as i16,
+        0,
+        ObjectClass::Weapon,
+        25,
+        UNDEF_BLESS,
+    ), // YA (qty variable)
+    StartingItem::new(
+        crate::data::objects::ObjectType::SplintMail as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // SPLINT_MAIL
 ];
 
 /// Tourist starting inventory
 static TOURIST_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::Dart as i16, 2, ObjectClass::Weapon, 25, UNDEF_BLESS),  // DART (qty variable)
-    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Food, 10, 0),        // Random food
-    StartingItem::new(crate::data::objects::ObjectType::ExtraHealing as i16, 0, ObjectClass::Potion, 2, UNDEF_BLESS),   // POT_EXTRA_HEALING
-    StartingItem::new(crate::data::objects::ObjectType::MagicMapping as i16, 0, ObjectClass::Scroll, 4, UNDEF_BLESS),   // SCR_MAGIC_MAPPING
-    StartingItem::new(crate::data::objects::ObjectType::HawaiianShirt as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // HAWAIIAN_SHIRT
-    StartingItem::new(crate::data::objects::ObjectType::ExpensiveCamera as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0),       // EXPENSIVE_CAMERA
-    StartingItem::new(crate::data::objects::ObjectType::CreditCard as i16, 0, ObjectClass::Tool, 1, 0),               // CREDIT_CARD
+    StartingItem::new(
+        crate::data::objects::ObjectType::Dart as i16,
+        2,
+        ObjectClass::Weapon,
+        25,
+        UNDEF_BLESS,
+    ), // DART (qty variable)
+    StartingItem::new(
+        crate::data::objects::ObjectType::StrangeObject as i16,
+        UNDEF_SPE,
+        ObjectClass::Food,
+        10,
+        0,
+    ), // Random food
+    StartingItem::new(
+        crate::data::objects::ObjectType::ExtraHealing as i16,
+        0,
+        ObjectClass::Potion,
+        2,
+        UNDEF_BLESS,
+    ), // POT_EXTRA_HEALING
+    StartingItem::new(
+        crate::data::objects::ObjectType::MagicMapping as i16,
+        0,
+        ObjectClass::Scroll,
+        4,
+        UNDEF_BLESS,
+    ), // SCR_MAGIC_MAPPING
+    StartingItem::new(
+        crate::data::objects::ObjectType::HawaiianShirt as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // HAWAIIAN_SHIRT
+    StartingItem::new(
+        crate::data::objects::ObjectType::ExpensiveCamera as i16,
+        UNDEF_SPE,
+        ObjectClass::Tool,
+        1,
+        0,
+    ), // EXPENSIVE_CAMERA
+    StartingItem::new(
+        crate::data::objects::ObjectType::CreditCard as i16,
+        0,
+        ObjectClass::Tool,
+        1,
+        0,
+    ), // CREDIT_CARD
 ];
 
 /// Valkyrie starting inventory
 static VALKYRIE_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::LongSword as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),   // LONG_SWORD
-    StartingItem::new(crate::data::objects::ObjectType::Dagger as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),   // DAGGER
-    StartingItem::new(crate::data::objects::ObjectType::SmallShield as i16, 3, ObjectClass::Armor, 1, UNDEF_BLESS),    // SMALL_SHIELD
-    StartingItem::new(crate::data::objects::ObjectType::FoodRation as i16, 0, ObjectClass::Food, 1, 0),               // FOOD_RATION
+    StartingItem::new(
+        crate::data::objects::ObjectType::LongSword as i16,
+        1,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // LONG_SWORD
+    StartingItem::new(
+        crate::data::objects::ObjectType::Dagger as i16,
+        0,
+        ObjectClass::Weapon,
+        1,
+        UNDEF_BLESS,
+    ), // DAGGER
+    StartingItem::new(
+        crate::data::objects::ObjectType::SmallShield as i16,
+        3,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // SMALL_SHIELD
+    StartingItem::new(
+        crate::data::objects::ObjectType::FoodRation as i16,
+        0,
+        ObjectClass::Food,
+        1,
+        0,
+    ), // FOOD_RATION
 ];
 
 /// Wizard starting inventory
 static WIZARD_INV: &[StartingItem] = &[
-    StartingItem::new(crate::data::objects::ObjectType::Quarterstaff as i16, 1, ObjectClass::Weapon, 1, 1),             // QUARTERSTAFF (blessed)
-    StartingItem::new(crate::data::objects::ObjectType::CloakOfMagicResistance as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),    // CLOAK_OF_MAGIC_RESISTANCE
-    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Wand, 1, UNDEF_BLESS), // Random wand
-    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Ring, 2, UNDEF_BLESS), // Random rings
-    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Potion, 3, UNDEF_BLESS), // Random potions
-    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Scroll, 3, UNDEF_BLESS), // Random scrolls
-    StartingItem::new(crate::data::objects::ObjectType::ForceBolt as i16, 0, ObjectClass::Spellbook, 1, 1),          // SPE_FORCE_BOLT
-    StartingItem::new(crate::data::objects::ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Spellbook, 1, UNDEF_BLESS), // Random spellbook
+    StartingItem::new(
+        crate::data::objects::ObjectType::Quarterstaff as i16,
+        1,
+        ObjectClass::Weapon,
+        1,
+        1,
+    ), // QUARTERSTAFF (blessed)
+    StartingItem::new(
+        crate::data::objects::ObjectType::CloakOfMagicResistance as i16,
+        0,
+        ObjectClass::Armor,
+        1,
+        UNDEF_BLESS,
+    ), // CLOAK_OF_MAGIC_RESISTANCE
+    StartingItem::new(
+        crate::data::objects::ObjectType::StrangeObject as i16,
+        UNDEF_SPE,
+        ObjectClass::Wand,
+        1,
+        UNDEF_BLESS,
+    ), // Random wand
+    StartingItem::new(
+        crate::data::objects::ObjectType::StrangeObject as i16,
+        UNDEF_SPE,
+        ObjectClass::Ring,
+        2,
+        UNDEF_BLESS,
+    ), // Random rings
+    StartingItem::new(
+        crate::data::objects::ObjectType::StrangeObject as i16,
+        UNDEF_SPE,
+        ObjectClass::Potion,
+        3,
+        UNDEF_BLESS,
+    ), // Random potions
+    StartingItem::new(
+        crate::data::objects::ObjectType::StrangeObject as i16,
+        UNDEF_SPE,
+        ObjectClass::Scroll,
+        3,
+        UNDEF_BLESS,
+    ), // Random scrolls
+    StartingItem::new(
+        crate::data::objects::ObjectType::ForceBolt as i16,
+        0,
+        ObjectClass::Spellbook,
+        1,
+        1,
+    ), // SPE_FORCE_BOLT
+    StartingItem::new(
+        crate::data::objects::ObjectType::StrangeObject as i16,
+        UNDEF_SPE,
+        ObjectClass::Spellbook,
+        1,
+        UNDEF_BLESS,
+    ), // Random spellbook
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -481,9 +1009,9 @@ fn roll_attributes(player: &mut You, rng: &mut GameRng) {
     let mut values = [0i8; 6];
 
     // Initial base from role
-    for i in 0..6 {
-        values[i] = role_data.attrbase[i] as i8;
-        np -= values[i] as i32;
+    for (v, &base) in values.iter_mut().zip(role_data.attrbase.iter()) {
+        *v = base;
+        np -= *v as i32;
     }
 
     // Distribute remaining points based on role distribution
@@ -557,7 +1085,9 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
 
     // Give Knight intrinsic jumping
     if role == Role::Knight {
-        player.properties.grant_intrinsic(crate::player::Property::Jumping);
+        player
+            .properties
+            .grant_intrinsic(crate::player::Property::Jumping);
     }
 
     // Set initial nutrition
@@ -570,7 +1100,11 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
     let mut letter = b'a';
 
     // Helper closure to add an item
-    let mut add_item = |inv: &mut Vec<Object>, item: &StartingItem, rng: &mut GameRng, next_id: &mut u32, letter: &mut u8| {
+    let add_item = |inv: &mut Vec<Object>,
+                    item: &StartingItem,
+                    rng: &mut GameRng,
+                    next_id: &mut u32,
+                    letter: &mut u8| {
         let mut obj = make_starting_object(item, rng, next_id);
         obj.inv_letter = *letter as char;
         if *letter < b'z' {
@@ -590,13 +1124,21 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             }
             // Optional extras (C: u_init.c:669-674)
             if rng.rn2(10) == 0 {
-                let item = StartingItem::new(ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             } else if rng.rn2(4) == 0 {
-                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             } else if rng.rn2(10) == 0 {
-                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                let item = StartingItem::new(
+                    ObjectType::MagicMarker as i16,
+                    UNDEF_SPE,
+                    ObjectClass::Tool,
+                    1,
+                    0,
+                );
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -605,9 +1147,27 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             if rng.rn2(100) >= 50 {
                 // Use battle-axe + short-sword instead of two-handed sword + axe
                 let items: &[StartingItem] = &[
-                    StartingItem::new(ObjectType::BattleAxe as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                    StartingItem::new(ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                    StartingItem::new(ObjectType::RingMail as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),
+                    StartingItem::new(
+                        ObjectType::BattleAxe as i16,
+                        0,
+                        ObjectClass::Weapon,
+                        1,
+                        UNDEF_BLESS,
+                    ),
+                    StartingItem::new(
+                        ObjectType::ShortSword as i16,
+                        0,
+                        ObjectClass::Weapon,
+                        1,
+                        UNDEF_BLESS,
+                    ),
+                    StartingItem::new(
+                        ObjectType::RingMail as i16,
+                        0,
+                        ObjectClass::Armor,
+                        1,
+                        UNDEF_BLESS,
+                    ),
                     StartingItem::new(ObjectType::FoodRation as i16, 0, ObjectClass::Food, 1, 0),
                 ];
                 for item in items {
@@ -621,7 +1181,8 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             }
             // Optional lamp (C: u_init.c:685-686)
             if rng.rn2(6) == 0 {
-                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -629,11 +1190,35 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             // C: variable flint quantity rn1(11,10) = 10..20 (u_init.c:692)
             let flint_qty = (rng.rnd(11) + 9) as u8; // rn1(11,10) = rnd(11)+10-1 = 10..20
             let items: &[StartingItem] = &[
-                StartingItem::new(ObjectType::Club as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Sling as i16, 2, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Flint as i16, 0, ObjectClass::Gem, flint_qty, UNDEF_BLESS),
+                StartingItem::new(
+                    ObjectType::Club as i16,
+                    1,
+                    ObjectClass::Weapon,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Sling as i16,
+                    2,
+                    ObjectClass::Weapon,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Flint as i16,
+                    0,
+                    ObjectClass::Gem,
+                    flint_qty,
+                    UNDEF_BLESS,
+                ),
                 StartingItem::new(ObjectType::Rock as i16, 0, ObjectClass::Gem, 3, 0),
-                StartingItem::new(ObjectType::LeatherArmor as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(
+                    ObjectType::LeatherArmor as i16,
+                    0,
+                    ObjectClass::Armor,
+                    1,
+                    UNDEF_BLESS,
+                ),
             ];
             for item in items {
                 add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
@@ -648,7 +1233,8 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             }
             // Optional lamp (C: u_init.c:699-700)
             if rng.rn2(25) == 0 {
-                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -660,29 +1246,82 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
         }
         Role::Monk => {
             // C: select spellbook type rn2(90)/30 → [0..2] (u_init.c:715)
-            let spell_choices = [ObjectType::Healing, ObjectType::Protection, ObjectType::Sleep];
+            let spell_choices = [
+                ObjectType::Healing,
+                ObjectType::Protection,
+                ObjectType::Sleep,
+            ];
             let spell_idx = (rng.rn2(90) / 30) as usize;
             let spell_type = spell_choices[spell_idx.min(2)];
             let items: &[StartingItem] = &[
-                StartingItem::new(ObjectType::LeatherGloves as i16, 2, ObjectClass::Armor, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Robe as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(
+                    ObjectType::LeatherGloves as i16,
+                    2,
+                    ObjectClass::Armor,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Robe as i16,
+                    1,
+                    ObjectClass::Armor,
+                    1,
+                    UNDEF_BLESS,
+                ),
                 StartingItem::new(spell_type as i16, UNDEF_SPE, ObjectClass::Spellbook, 1, 1),
-                StartingItem::new(ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Scroll, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Healing as i16, 0, ObjectClass::Potion, 3, UNDEF_BLESS),
+                StartingItem::new(
+                    ObjectType::StrangeObject as i16,
+                    UNDEF_SPE,
+                    ObjectClass::Scroll,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Healing as i16,
+                    0,
+                    ObjectClass::Potion,
+                    3,
+                    UNDEF_BLESS,
+                ),
                 StartingItem::new(ObjectType::FoodRation as i16, 0, ObjectClass::Food, 3, 0),
-                StartingItem::new(ObjectType::Apple as i16, 0, ObjectClass::Food, 5, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Orange as i16, 0, ObjectClass::Food, 5, UNDEF_BLESS),
-                StartingItem::new(ObjectType::FortuneCookie as i16, 0, ObjectClass::Food, 3, UNDEF_BLESS),
+                StartingItem::new(
+                    ObjectType::Apple as i16,
+                    0,
+                    ObjectClass::Food,
+                    5,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Orange as i16,
+                    0,
+                    ObjectClass::Food,
+                    5,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::FortuneCookie as i16,
+                    0,
+                    ObjectClass::Food,
+                    3,
+                    UNDEF_BLESS,
+                ),
             ];
             for item in items {
                 add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
             }
             // Optional extras (C: u_init.c:717-720)
             if rng.rn2(5) == 0 {
-                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                let item = StartingItem::new(
+                    ObjectType::MagicMarker as i16,
+                    UNDEF_SPE,
+                    ObjectClass::Tool,
+                    1,
+                    0,
+                );
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             } else if rng.rn2(10) == 0 {
-                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -693,10 +1332,17 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             }
             // Optional extras (C: u_init.c:729-732)
             if rng.rn2(10) == 0 {
-                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                let item = StartingItem::new(
+                    ObjectType::MagicMarker as i16,
+                    UNDEF_SPE,
+                    ObjectClass::Tool,
+                    1,
+                    0,
+                );
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             } else if rng.rn2(10) == 0 {
-                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -705,11 +1351,41 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             let arrow2_qty = (rng.rnd(10) + 49) as u8; // rn1(10, 50) = 50..59
             let arrow0_qty = (rng.rnd(10) + 29) as u8; // rn1(10, 30) = 30..39
             let items: &[StartingItem] = &[
-                StartingItem::new(ObjectType::Dagger as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Bow as i16, 1, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Arrow as i16, 2, ObjectClass::Weapon, arrow2_qty, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Arrow as i16, 0, ObjectClass::Weapon, arrow0_qty, UNDEF_BLESS),
-                StartingItem::new(ObjectType::CloakOfDisplacement as i16, 2, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(
+                    ObjectType::Dagger as i16,
+                    1,
+                    ObjectClass::Weapon,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Bow as i16,
+                    1,
+                    ObjectClass::Weapon,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Arrow as i16,
+                    2,
+                    ObjectClass::Weapon,
+                    arrow2_qty,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Arrow as i16,
+                    0,
+                    ObjectClass::Weapon,
+                    arrow0_qty,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::CloakOfDisplacement as i16,
+                    2,
+                    ObjectClass::Armor,
+                    1,
+                    UNDEF_BLESS,
+                ),
                 StartingItem::new(ObjectType::CramRation as i16, 0, ObjectClass::Food, 4, 0),
             ];
             for item in items {
@@ -720,9 +1396,27 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             // C: variable dagger quantity rn1(10,6) = 6..15 (u_init.c:750)
             let dagger_qty = (rng.rnd(10) + 5) as u8; // rn1(10,6) = rnd(10)+6-1 = 6..15
             let items: &[StartingItem] = &[
-                StartingItem::new(ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Dagger as i16, 0, ObjectClass::Weapon, dagger_qty, 0),
-                StartingItem::new(ObjectType::LeatherArmor as i16, 1, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(
+                    ObjectType::ShortSword as i16,
+                    0,
+                    ObjectClass::Weapon,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Dagger as i16,
+                    0,
+                    ObjectClass::Weapon,
+                    dagger_qty,
+                    0,
+                ),
+                StartingItem::new(
+                    ObjectType::LeatherArmor as i16,
+                    1,
+                    ObjectClass::Armor,
+                    1,
+                    UNDEF_BLESS,
+                ),
                 StartingItem::new(ObjectType::Sickness as i16, 0, ObjectClass::Potion, 1, 0),
                 StartingItem::new(ObjectType::LockPick as i16, 0, ObjectClass::Tool, 1, 0),
                 StartingItem::new(ObjectType::Sack as i16, 0, ObjectClass::Tool, 1, 0),
@@ -732,7 +1426,8 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             }
             // Optional blindfold (C: u_init.c:753-754)
             if rng.rn2(5) == 0 {
-                let item = StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -740,18 +1435,49 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             // C: variable ya quantity rn1(20,26) = 26..45 (u_init.c:759)
             let ya_qty = (rng.rnd(20) + 25) as u8; // rn1(20,26) = rnd(20)+26-1 = 26..45
             let items: &[StartingItem] = &[
-                StartingItem::new(ObjectType::Katana as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::ShortSword as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Yumi as i16, 0, ObjectClass::Weapon, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::Ya as i16, 0, ObjectClass::Weapon, ya_qty, UNDEF_BLESS),
-                StartingItem::new(ObjectType::SplintMail as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),
+                StartingItem::new(
+                    ObjectType::Katana as i16,
+                    0,
+                    ObjectClass::Weapon,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::ShortSword as i16,
+                    0,
+                    ObjectClass::Weapon,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Yumi as i16,
+                    0,
+                    ObjectClass::Weapon,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::Ya as i16,
+                    0,
+                    ObjectClass::Weapon,
+                    ya_qty,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::SplintMail as i16,
+                    0,
+                    ObjectClass::Armor,
+                    1,
+                    UNDEF_BLESS,
+                ),
             ];
             for item in items {
                 add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
             }
             // Optional blindfold (C: u_init.c:761-762)
             if rng.rn2(5) == 0 {
-                let item = StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -761,12 +1487,48 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             // C: gold rnd(1000) (u_init.c:769)
             player.gold = rng.rnd(1000) as i32;
             let items: &[StartingItem] = &[
-                StartingItem::new(ObjectType::Dart as i16, 2, ObjectClass::Weapon, dart_qty, UNDEF_BLESS),
-                StartingItem::new(ObjectType::StrangeObject as i16, UNDEF_SPE, ObjectClass::Food, 10, 0),
-                StartingItem::new(ObjectType::ExtraHealing as i16, 0, ObjectClass::Potion, 2, UNDEF_BLESS),
-                StartingItem::new(ObjectType::MagicMapping as i16, 0, ObjectClass::Scroll, 4, UNDEF_BLESS),
-                StartingItem::new(ObjectType::HawaiianShirt as i16, 0, ObjectClass::Armor, 1, UNDEF_BLESS),
-                StartingItem::new(ObjectType::ExpensiveCamera as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0),
+                StartingItem::new(
+                    ObjectType::Dart as i16,
+                    2,
+                    ObjectClass::Weapon,
+                    dart_qty,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::StrangeObject as i16,
+                    UNDEF_SPE,
+                    ObjectClass::Food,
+                    10,
+                    0,
+                ),
+                StartingItem::new(
+                    ObjectType::ExtraHealing as i16,
+                    0,
+                    ObjectClass::Potion,
+                    2,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::MagicMapping as i16,
+                    0,
+                    ObjectClass::Scroll,
+                    4,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::HawaiianShirt as i16,
+                    0,
+                    ObjectClass::Armor,
+                    1,
+                    UNDEF_BLESS,
+                ),
+                StartingItem::new(
+                    ObjectType::ExpensiveCamera as i16,
+                    UNDEF_SPE,
+                    ObjectClass::Tool,
+                    1,
+                    0,
+                ),
                 StartingItem::new(ObjectType::CreditCard as i16, 0, ObjectClass::Tool, 1, 0),
             ];
             for item in items {
@@ -774,7 +1536,8 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             }
             // Optional extras (C: u_init.c:771-778)
             if rng.rn2(25) == 0 {
-                let item = StartingItem::new(ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             } else if rng.rn2(25) == 0 {
                 let item = StartingItem::new(ObjectType::Leash as i16, 0, ObjectClass::Tool, 1, 0);
@@ -783,7 +1546,13 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                 let item = StartingItem::new(ObjectType::Towel as i16, 0, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             } else if rng.rn2(25) == 0 {
-                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                let item = StartingItem::new(
+                    ObjectType::MagicMarker as i16,
+                    UNDEF_SPE,
+                    ObjectClass::Tool,
+                    1,
+                    0,
+                );
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -794,7 +1563,8 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             }
             // Optional lamp (C: u_init.c:783-784)
             if rng.rn2(6) == 0 {
-                let item = StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -805,11 +1575,18 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             }
             // Optional extras (C: u_init.c:791-794)
             if rng.rn2(5) == 0 {
-                let item = StartingItem::new(ObjectType::MagicMarker as i16, UNDEF_SPE, ObjectClass::Tool, 1, 0);
+                let item = StartingItem::new(
+                    ObjectType::MagicMarker as i16,
+                    UNDEF_SPE,
+                    ObjectClass::Tool,
+                    1,
+                    0,
+                );
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
             if rng.rn2(5) == 0 {
-                let item = StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
+                let item =
+                    StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
             }
         }
@@ -914,9 +1691,19 @@ mod tests {
     #[test]
     fn test_starting_inventory_all_roles() {
         for role in [
-            Role::Archeologist, Role::Barbarian, Role::Caveman, Role::Healer,
-            Role::Knight, Role::Monk, Role::Priest, Role::Ranger,
-            Role::Rogue, Role::Samurai, Role::Tourist, Role::Valkyrie, Role::Wizard,
+            Role::Archeologist,
+            Role::Barbarian,
+            Role::Caveman,
+            Role::Healer,
+            Role::Knight,
+            Role::Monk,
+            Role::Priest,
+            Role::Ranger,
+            Role::Rogue,
+            Role::Samurai,
+            Role::Tourist,
+            Role::Valkyrie,
+            Role::Wizard,
         ] {
             let items = starting_inventory(role);
             assert!(!items.is_empty(), "No inventory for {:?}", role);
@@ -991,8 +1778,18 @@ mod tests {
     #[test]
     fn test_u_init_hp_varies_by_role() {
         let mut rng = GameRng::new(42);
-        let mut wizard = crate::player::You::new("Test".into(), Role::Wizard, Race::Human, crate::player::Gender::Male);
-        let mut barb = crate::player::You::new("Test".into(), Role::Barbarian, Race::Human, crate::player::Gender::Male);
+        let mut wizard = crate::player::You::new(
+            "Test".into(),
+            Role::Wizard,
+            Race::Human,
+            crate::player::Gender::Male,
+        );
+        let mut barb = crate::player::You::new(
+            "Test".into(),
+            Role::Barbarian,
+            Race::Human,
+            crate::player::Gender::Male,
+        );
         u_init(&mut wizard, &mut rng);
         u_init(&mut barb, &mut rng);
         assert!(barb.hp_max > wizard.hp_max);
@@ -1001,8 +1798,18 @@ mod tests {
     #[test]
     fn test_u_init_energy_varies_by_role() {
         let mut rng = GameRng::new(42);
-        let mut wizard = crate::player::You::new("Test".into(), Role::Wizard, Race::Human, crate::player::Gender::Male);
-        let mut barb = crate::player::You::new("Test".into(), Role::Barbarian, Race::Human, crate::player::Gender::Male);
+        let mut wizard = crate::player::You::new(
+            "Test".into(),
+            Role::Wizard,
+            Race::Human,
+            crate::player::Gender::Male,
+        );
+        let mut barb = crate::player::You::new(
+            "Test".into(),
+            Role::Barbarian,
+            Race::Human,
+            crate::player::Gender::Male,
+        );
         u_init(&mut wizard, &mut rng);
         u_init(&mut barb, &mut rng);
         assert!(wizard.energy_max > barb.energy_max);
@@ -1011,7 +1818,12 @@ mod tests {
     #[test]
     fn test_u_init_knight_gets_jumping() {
         let mut rng = GameRng::new(42);
-        let mut knight = crate::player::You::new("Test".into(), Role::Knight, Race::Human, crate::player::Gender::Male);
+        let mut knight = crate::player::You::new(
+            "Test".into(),
+            Role::Knight,
+            Race::Human,
+            crate::player::Gender::Male,
+        );
         u_init(&mut knight, &mut rng);
         assert!(knight.properties.has(crate::player::Property::Jumping));
     }
@@ -1019,7 +1831,12 @@ mod tests {
     #[test]
     fn test_u_init_bless_count() {
         let mut rng = GameRng::new(42);
-        let mut player = crate::player::You::new("Test".into(), Role::Valkyrie, Race::Human, crate::player::Gender::Male);
+        let mut player = crate::player::You::new(
+            "Test".into(),
+            Role::Valkyrie,
+            Race::Human,
+            crate::player::Gender::Male,
+        );
         u_init(&mut player, &mut rng);
         assert_eq!(player.bless_count, 300);
     }
@@ -1027,32 +1844,62 @@ mod tests {
     #[test]
     fn test_u_init_healer_gold() {
         let mut rng = GameRng::new(42);
-        let mut healer = crate::player::You::new("Test".into(), Role::Healer, Race::Human, crate::player::Gender::Male);
+        let mut healer = crate::player::You::new(
+            "Test".into(),
+            Role::Healer,
+            Race::Human,
+            crate::player::Gender::Male,
+        );
         u_init(&mut healer, &mut rng);
-        assert!(healer.gold >= 1001, "Healer gold should be 1001..2000, got {}", healer.gold);
+        assert!(
+            healer.gold >= 1001,
+            "Healer gold should be 1001..2000, got {}",
+            healer.gold
+        );
     }
 
     #[test]
     fn test_restricted_spell_discipline_wizard() {
         // Wizard has Attack, Healing, Divination, Enchantment, Clerical, Escape, Matter
-        assert!(!restricted_spell_discipline(Role::Wizard, SkillType::AttackSpells));
-        assert!(!restricted_spell_discipline(Role::Wizard, SkillType::MatterSpells));
+        assert!(!restricted_spell_discipline(
+            Role::Wizard,
+            SkillType::AttackSpells
+        ));
+        assert!(!restricted_spell_discipline(
+            Role::Wizard,
+            SkillType::MatterSpells
+        ));
         // Non-spell skills always return false
-        assert!(!restricted_spell_discipline(Role::Wizard, SkillType::Dagger));
+        assert!(!restricted_spell_discipline(
+            Role::Wizard,
+            SkillType::Dagger
+        ));
     }
 
     #[test]
     fn test_restricted_spell_discipline_barbarian() {
         // Barbarian has no spell skills in table
-        assert!(restricted_spell_discipline(Role::Barbarian, SkillType::AttackSpells));
-        assert!(restricted_spell_discipline(Role::Barbarian, SkillType::HealingSpells));
+        assert!(restricted_spell_discipline(
+            Role::Barbarian,
+            SkillType::AttackSpells
+        ));
+        assert!(restricted_spell_discipline(
+            Role::Barbarian,
+            SkillType::HealingSpells
+        ));
     }
 
     #[test]
     fn test_make_starting_object_blessed() {
         let mut rng = GameRng::new(42);
         let mut next_id = 1;
-        let item = StartingItem::new(crate::data::objects::ObjectType::Mace as i16, 1, ObjectClass::Weapon, 1, 1); // blessed mace
+        let item = StartingItem::new(
+            crate::data::objects::ObjectType::Mace as i16,
+            1,
+            ObjectClass::Weapon,
+            1,
+            1,
+        ); // blessed mace
         let obj = make_starting_object(&item, &mut rng, &mut next_id);
         assert_eq!(obj.buc, BucStatus::Blessed);
         assert_eq!(obj.enchantment, 1);
@@ -1062,7 +1909,13 @@ mod tests {
     fn test_make_starting_object_uncursed() {
         let mut rng = GameRng::new(42);
         let mut next_id = 1;
-        let item = StartingItem::new(crate::data::objects::ObjectType::Light as i16, 0, ObjectClass::Food, 3, 0); // uncursed food
+        let item = StartingItem::new(
+            crate::data::objects::ObjectType::Light as i16,
+            0,
+            ObjectClass::Food,
+            3,
+            0,
+        ); // uncursed food
         let obj = make_starting_object(&item, &mut rng, &mut next_id);
         assert_eq!(obj.buc, BucStatus::Uncursed);
         assert_eq!(obj.quantity, 3);
@@ -1072,12 +1925,27 @@ mod tests {
     fn test_skill_tables_complete() {
         // Every role should have at least 4 skill entries
         for role in [
-            Role::Archeologist, Role::Barbarian, Role::Caveman, Role::Healer,
-            Role::Knight, Role::Monk, Role::Priest, Role::Ranger,
-            Role::Rogue, Role::Samurai, Role::Tourist, Role::Valkyrie, Role::Wizard,
+            Role::Archeologist,
+            Role::Barbarian,
+            Role::Caveman,
+            Role::Healer,
+            Role::Knight,
+            Role::Monk,
+            Role::Priest,
+            Role::Ranger,
+            Role::Rogue,
+            Role::Samurai,
+            Role::Tourist,
+            Role::Valkyrie,
+            Role::Wizard,
         ] {
             let table = skill_table_for_role(role);
-            assert!(table.len() >= 4, "Too few skills for {:?}: {}", role, table.len());
+            assert!(
+                table.len() >= 4,
+                "Too few skills for {:?}: {}",
+                role,
+                table.len()
+            );
         }
     }
 }

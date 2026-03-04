@@ -46,9 +46,7 @@ fn test_phase0_verification_infra() {
 
     // 0.4: stub_audit.rs exists
     assert!(
-        file_exists(
-            "/Users/pierre/src/games/nethack-rs/crates/nh-compare/tests/stub_audit.rs"
-        ),
+        file_exists("/Users/pierre/src/games/nethack-rs/crates/nh-compare/tests/stub_audit.rs"),
         "Phase 0.4: stub_audit.rs missing"
     );
 
@@ -180,7 +178,10 @@ fn test_phase5_inventory_complete() {
         total
     );
 
-    println!("Phase 5: PASSED — inventory deepened ({} lines across object modules)", total);
+    println!(
+        "Phase 5: PASSED — inventory deepened ({} lines across object modules)",
+        total
+    );
 }
 
 // ============================================================================
@@ -202,7 +203,10 @@ fn test_phase6_movement_complete() {
         movement_lines
     );
 
-    println!("Phase 6: PASSED — movement complete ({} lines)", movement_lines);
+    println!(
+        "Phase 6: PASSED — movement complete ({} lines)",
+        movement_lines
+    );
 }
 
 // ============================================================================
@@ -214,10 +218,7 @@ fn test_phase6_movement_complete() {
 fn test_phase7_weapons_skills() {
     // Weapon logic lives in combat/uhitm.rs (player attacks) and combat/mod.rs
     let uhitm_path = format!("{}/combat/uhitm.rs", NH_CORE_SRC);
-    assert!(
-        file_exists(&uhitm_path),
-        "Phase 7: combat/uhitm.rs missing"
-    );
+    assert!(file_exists(&uhitm_path), "Phase 7: combat/uhitm.rs missing");
     let uhitm_lines = count_lines(&uhitm_path);
     let combat_mod_lines = count_lines(&format!("{}/combat/mod.rs", NH_CORE_SRC));
     assert!(
@@ -277,10 +278,7 @@ fn test_phase9_prayer() {
 
 fn test_phase10_player_init() {
     let init_path = format!("{}/player/init.rs", NH_CORE_SRC);
-    assert!(
-        file_exists(&init_path),
-        "Phase 10: player/init.rs missing"
-    );
+    assert!(file_exists(&init_path), "Phase 10: player/init.rs missing");
     let init_lines = count_lines(&init_path);
     assert!(
         init_lines >= 300,
@@ -311,7 +309,10 @@ fn test_phase11_monster_lifecycle() {
         "Phase 11: monster/lifecycle.rs missing"
     );
 
-    println!("Phase 11: PASSED — monster lifecycle complete ({} lines)", makemon_lines);
+    println!(
+        "Phase 11: PASSED — monster lifecycle complete ({} lines)",
+        makemon_lines
+    );
 }
 
 // ============================================================================
@@ -385,7 +386,10 @@ fn test_phase14_locks() {
         "Phase 14: lock-related functions not found in open_close.rs"
     );
 
-    println!("Phase 14: PASSED — lock picking complete ({} lines)", oc_lines);
+    println!(
+        "Phase 14: PASSED — lock picking complete ({} lines)",
+        oc_lines
+    );
 }
 
 // ============================================================================
@@ -396,10 +400,7 @@ fn test_phase14_locks() {
 
 fn test_phase15_naming() {
     let name_path = format!("{}/action/name.rs", NH_CORE_SRC);
-    assert!(
-        file_exists(&name_path),
-        "Phase 15: action/name.rs missing"
-    );
+    assert!(file_exists(&name_path), "Phase 15: action/name.rs missing");
 
     println!("Phase 15: PASSED — naming complete");
 }
@@ -412,10 +413,7 @@ fn test_phase15_naming() {
 
 fn test_phase16_digging() {
     let dig_path = format!("{}/action/dig.rs", NH_CORE_SRC);
-    assert!(
-        file_exists(&dig_path),
-        "Phase 16: action/dig.rs missing"
-    );
+    assert!(file_exists(&dig_path), "Phase 16: action/dig.rs missing");
     let dig_lines = count_lines(&dig_path);
     assert!(
         dig_lines >= 400,
@@ -433,8 +431,7 @@ fn test_phase16_digging() {
 #[test]
 
 fn test_phase17_commands() {
-    let mod_content =
-        fs::read_to_string(format!("{}/action/mod.rs", NH_CORE_SRC)).unwrap();
+    let mod_content = fs::read_to_string(format!("{}/action/mod.rs", NH_CORE_SRC)).unwrap();
 
     let required = [
         "Loot",

@@ -437,7 +437,7 @@ pub fn try_disarm(rng: &mut GameRng, trap: &Trap, dex: i32, skill: i32) -> bool 
     let chance = 50 + (dex - 10) * 3 + skill * 5 - difficulty;
     let roll = rng.rn2(100) as i32;
 
-    roll < chance.max(5).min(95)
+    roll < chance.clamp(5, 95)
 }
 
 // ============================================================================
@@ -1000,7 +1000,7 @@ pub fn b_trapped(trapped: bool, rng: &mut GameRng) -> ContainerTrap {
 }
 
 /// Result of triggering a container trap
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ContainerTrapResult {
     /// Messages to display
     pub messages: Vec<String>,
@@ -1012,18 +1012,6 @@ pub struct ContainerTrapResult {
     pub contents_destroyed: bool,
     /// Whether to summon monsters
     pub summon_monsters: bool,
-}
-
-impl Default for ContainerTrapResult {
-    fn default() -> Self {
-        Self {
-            messages: Vec::new(),
-            damage: 0,
-            status: None,
-            contents_destroyed: false,
-            summon_monsters: false,
-        }
-    }
 }
 
 /// Trigger a container trap (chest_trap equivalent).
@@ -1100,7 +1088,7 @@ pub fn chest_trap(
 // ============================================================================
 
 /// Result of activating a statue trap
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct StatueTrapResult {
     /// Messages to display
     pub messages: Vec<String>,
@@ -1110,17 +1098,6 @@ pub struct StatueTrapResult {
     pub statue_destroyed: bool,
     /// Whether the trap triggered successfully
     pub triggered: bool,
-}
-
-impl Default for StatueTrapResult {
-    fn default() -> Self {
-        Self {
-            messages: Vec::new(),
-            monster_type: None,
-            statue_destroyed: false,
-            triggered: false,
-        }
-    }
 }
 
 /// Activate a statue trap, causing a monster to emerge.
@@ -1233,7 +1210,7 @@ pub fn avoid_container_trap(rng: &mut GameRng, dexterity: i8, luck: i8) -> bool 
 /// # Returns
 /// A random TrapType that is valid for placement in the current context
 pub fn rndtrap(rng: &mut GameRng, level: &crate::dungeon::level::Level) -> TrapType {
-    use crate::dungeon::level::{Level, TrapType as LevelTrapType};
+    use crate::dungeon::level::TrapType as LevelTrapType;
 
     // Define the pool of valid trap types for random placement
     let trap_pool = vec![

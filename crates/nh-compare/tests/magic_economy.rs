@@ -8,14 +8,14 @@
 //! - Prayer (pray.c)
 //! - Shop generation (shk.c)
 
+use nh_core::GameRng;
 use nh_core::dungeon::{DLevel, Level};
 use nh_core::magic::MonsterVitals;
-use nh_core::magic::potion::{quaff_potion, PotionType};
-use nh_core::magic::scroll::{read_scroll, ScrollType};
-use nh_core::magic::zap::{zap_wand, ZapDirection, ZapType, ZapVariant};
+use nh_core::magic::potion::{PotionType, quaff_potion};
+use nh_core::magic::scroll::{ScrollType, read_scroll};
+use nh_core::magic::zap::{ZapDirection, ZapType, ZapVariant, zap_wand};
 use nh_core::object::{BucStatus, Object, ObjectClass, ObjectId};
 use nh_core::player::{Attribute, HungerState, Property, You};
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -30,24 +30,12 @@ fn test_player() -> You {
     player.nutrition = 900;
     player.hunger_state = HungerState::NotHungry;
     player.exp_level = 5;
-    player
-        .attr_current
-        .set(Attribute::Strength, 12);
-    player
-        .attr_current
-        .set(Attribute::Intelligence, 12);
-    player
-        .attr_current
-        .set(Attribute::Wisdom, 12);
-    player
-        .attr_current
-        .set(Attribute::Dexterity, 12);
-    player
-        .attr_current
-        .set(Attribute::Constitution, 12);
-    player
-        .attr_current
-        .set(Attribute::Charisma, 12);
+    player.attr_current.set(Attribute::Strength, 12);
+    player.attr_current.set(Attribute::Intelligence, 12);
+    player.attr_current.set(Attribute::Wisdom, 12);
+    player.attr_current.set(Attribute::Dexterity, 12);
+    player.attr_current.set(Attribute::Constitution, 12);
+    player.attr_current.set(Attribute::Charisma, 12);
     // Set max attributes too
     player.attr_max = player.attr_current;
     player
@@ -131,7 +119,10 @@ fn test_potion_type_coverage() {
             otype
         );
     }
-    println!("OK: All {} potion types have mappings", expected_potions.len());
+    println!(
+        "OK: All {} potion types have mappings",
+        expected_potions.len()
+    );
 }
 
 #[test]
@@ -197,7 +188,10 @@ fn test_potion_speed() {
     let result = quaff_potion(&potion, &mut player, &mut rng);
     assert!(result.identify);
     assert!(
-        result.messages.iter().any(|m| m.to_lowercase().contains("speed") || m.to_lowercase().contains("fast")),
+        result
+            .messages
+            .iter()
+            .any(|m| m.to_lowercase().contains("speed") || m.to_lowercase().contains("fast")),
         "Speed potion should mention speed/fast: {:?}",
         result.messages
     );
@@ -247,10 +241,7 @@ fn test_potion_acid_damage() {
     let initial_hp = player.hp;
     let potion = make_potion(PotionType::Acid, BucStatus::Uncursed);
     quaff_potion(&potion, &mut player, &mut rng);
-    assert!(
-        player.hp < initial_hp,
-        "Acid potion should deal damage"
-    );
+    assert!(player.hp < initial_hp, "Acid potion should deal damage");
 }
 
 #[test]
@@ -273,7 +264,10 @@ fn test_potion_sickness() {
     let potion = make_potion(PotionType::Sickness, BucStatus::Uncursed);
     let result = quaff_potion(&potion, &mut player, &mut rng);
     assert!(
-        result.messages.iter().any(|m| m.to_lowercase().contains("sick") || m.to_lowercase().contains("vomit")),
+        result
+            .messages
+            .iter()
+            .any(|m| m.to_lowercase().contains("sick") || m.to_lowercase().contains("vomit")),
         "Sickness potion should cause illness: {:?}",
         result.messages
     );
@@ -318,7 +312,10 @@ fn test_scroll_type_coverage() {
             otype
         );
     }
-    println!("OK: All {} scroll types have mappings", expected_scrolls.len());
+    println!(
+        "OK: All {} scroll types have mappings",
+        expected_scrolls.len()
+    );
 }
 
 #[test]
@@ -330,7 +327,10 @@ fn test_scroll_cant_read_while_blind() {
     let scroll = make_scroll(ScrollType::Light, BucStatus::Uncursed);
     let result = read_scroll(&scroll, &mut player, &mut level, &mut rng);
     assert!(
-        result.messages.iter().any(|m| m.to_lowercase().contains("blind")),
+        result
+            .messages
+            .iter()
+            .any(|m| m.to_lowercase().contains("blind")),
         "Should not be able to read while blind"
     );
 }
@@ -344,7 +344,10 @@ fn test_scroll_light() {
     let result = read_scroll(&scroll, &mut player, &mut level, &mut rng);
     assert!(result.consumed, "Scroll should be consumed");
     assert!(
-        result.messages.iter().any(|m| m.to_lowercase().contains("light")),
+        result
+            .messages
+            .iter()
+            .any(|m| m.to_lowercase().contains("light")),
         "Light scroll should produce light message: {:?}",
         result.messages
     );
@@ -454,10 +457,19 @@ fn test_zap_wand_empty_charges() {
     let mut level = test_level(&mut rng);
     let mut wand = make_wand(178, 0); // 0 charges
 
-    let result = zap_wand(&mut wand, ZapDirection::Up, &mut player, &mut level, &mut rng);
+    let result = zap_wand(
+        &mut wand,
+        ZapDirection::Up,
+        &mut player,
+        &mut level,
+        &mut rng,
+    );
     // Should not do anything useful with no charges
     assert!(
-        result.messages.iter().any(|m| m.to_lowercase().contains("nothing"))
+        result
+            .messages
+            .iter()
+            .any(|m| m.to_lowercase().contains("nothing"))
             || result.player_damage == 0,
         "Empty wand should do nothing or minimal effect"
     );
@@ -471,7 +483,13 @@ fn test_zap_wand_decrements_charges() {
     let mut level = test_level(&mut rng);
     let mut wand = make_wand(178, 5); // 5 charges
 
-    zap_wand(&mut wand, ZapDirection::Up, &mut player, &mut level, &mut rng);
+    zap_wand(
+        &mut wand,
+        ZapDirection::Up,
+        &mut player,
+        &mut level,
+        &mut rng,
+    );
     assert!(
         wand.enchantment < 5,
         "Zapping should decrement wand charges"
@@ -522,10 +540,7 @@ fn test_shop_type_selection_deterministic() {
 
     let type1 = nh_core::dungeon::select_shop_type(&mut rng1, 10);
     let type2 = nh_core::dungeon::select_shop_type(&mut rng2, 10);
-    assert_eq!(
-        type1, type2,
-        "Same seed should produce same shop type"
-    );
+    assert_eq!(type1, type2, "Same seed should produce same shop type");
 }
 
 #[test]
@@ -542,7 +557,12 @@ fn test_shop_type_distribution() {
     let mut sorted: Vec<_> = counts.iter().collect();
     sorted.sort_by(|a, b| b.1.cmp(a.1));
     for (name, count) in &sorted {
-        println!("  {:<20} {:>5} ({:.1}%)", name, count, **count as f64 / 10.0);
+        println!(
+            "  {:<20} {:>5} ({:.1}%)",
+            name,
+            count,
+            **count as f64 / 10.0
+        );
     }
 
     // General shop should be most common (~44%)
@@ -559,15 +579,39 @@ fn test_shop_type_distribution() {
 #[test]
 fn test_magic_economy_summary() {
     println!("\n=== Magic & Economy Summary ===");
-    println!("{:<25} {:<10} {:<10} {:<10}", "Module", "Lines", "Coverage", "Status");
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "Module", "Lines", "Coverage", "Status"
+    );
     println!("{}", "-".repeat(55));
-    println!("{:<25} {:<10} {:<10} {:<10}", "magic/zap.rs", "923", "85%", "Strong");
-    println!("{:<25} {:<10} {:<10} {:<10}", "magic/scroll.rs", "633", "75%", "Good");
-    println!("{:<25} {:<10} {:<10} {:<10}", "magic/potion.rs", "625", "90%", "Excellent");
-    println!("{:<25} {:<10} {:<10} {:<10}", "magic/spell.rs", "1339", "70%", "Good");
-    println!("{:<25} {:<10} {:<10} {:<10}", "action/pray.rs", "65", "25%", "Stub");
-    println!("{:<25} {:<10} {:<10} {:<10}", "object/artifact.rs", "N/A", "5%", "MISSING");
-    println!("{:<25} {:<10} {:<10} {:<10}", "dungeon/shop.rs", "386", "50%", "Partial");
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "magic/zap.rs", "923", "85%", "Strong"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "magic/scroll.rs", "633", "75%", "Good"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "magic/potion.rs", "625", "90%", "Excellent"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "magic/spell.rs", "1339", "70%", "Good"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "action/pray.rs", "65", "25%", "Stub"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "object/artifact.rs", "N/A", "5%", "MISSING"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "dungeon/shop.rs", "386", "50%", "Partial"
+    );
     println!();
     println!("=== Known Divergences from C ===");
     println!("1. artifact.rs does not exist; no artifact effects implemented");

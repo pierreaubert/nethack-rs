@@ -28,11 +28,7 @@ pub const MAX_THROW_RANGE: i32 = 8;
 /// Check if a monster can throw an object at the player (thrwmu from mthrowu.c:50).
 ///
 /// Monsters need a clear line of sight and an appropriate item.
-pub fn can_monster_throw(
-    monster: &Monster,
-    player_x: i8,
-    player_y: i8,
-) -> bool {
+pub fn can_monster_throw(monster: &Monster, player_x: i8, player_y: i8) -> bool {
     let dx = (player_x - monster.x) as i32;
     let dy = (player_y - monster.y) as i32;
     let dist = dx.abs().max(dy.abs());
@@ -75,21 +71,32 @@ pub fn throw_to_hit(monster_level: i32, distance: i32) -> i32 {
 pub fn pick_throw_item(items: &[Object]) -> Option<usize> {
     // Priority: specific weapons first
     let priority_names = [
-        "dagger", "dart", "shuriken", "throwing star",
-        "spear", "javelin", "rock", "arrow", "crossbow bolt",
+        "dagger",
+        "dart",
+        "shuriken",
+        "throwing star",
+        "spear",
+        "javelin",
+        "rock",
+        "arrow",
+        "crossbow bolt",
     ];
 
     for priority in &priority_names {
-        if let Some(idx) = items.iter().position(|o| {
-            o.display_name().to_lowercase().contains(priority)
-        }) {
+        if let Some(idx) = items
+            .iter()
+            .position(|o| o.display_name().to_lowercase().contains(priority))
+        {
             return Some(idx);
         }
     }
 
     // Fall back to any weapon class item
     items.iter().position(|o| {
-        matches!(o.class, crate::object::ObjectClass::Weapon | crate::object::ObjectClass::Gem)
+        matches!(
+            o.class,
+            crate::object::ObjectClass::Weapon | crate::object::ObjectClass::Gem
+        )
     })
 }
 

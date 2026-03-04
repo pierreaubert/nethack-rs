@@ -90,7 +90,11 @@ impl Replay {
             } else if let Some(val) = line.strip_prefix("race:") {
                 race = val.trim().to_string();
             } else if let Some(val) = line.strip_prefix("tags:") {
-                tags = val.trim().split(',').map(|s| s.trim().to_string()).collect();
+                tags = val
+                    .trim()
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .collect();
             } else if let Some(val) = line.strip_prefix("commands:") {
                 commands = parse_command_string(val.trim());
             }
@@ -196,10 +200,10 @@ fn run_replay_rust_only(replay: &Replay) -> ReplayResult {
 
         // Check if game ended
         match loop_result {
-            nh_core::GameLoopResult::PlayerDied(_) |
-            nh_core::GameLoopResult::PlayerWon |
-            nh_core::GameLoopResult::PlayerQuit |
-            nh_core::GameLoopResult::SaveAndQuit => break,
+            nh_core::GameLoopResult::PlayerDied(_)
+            | nh_core::GameLoopResult::PlayerWon
+            | nh_core::GameLoopResult::PlayerQuit
+            | nh_core::GameLoopResult::SaveAndQuit => break,
             nh_core::GameLoopResult::Continue => {}
         }
     }
@@ -224,13 +228,13 @@ fn action_to_command(action: &GameAction) -> nh_core::action::Command {
         GameAction::GoUp => Command::GoUp,
         GameAction::GoDown => Command::GoDown,
         GameAction::Inventory => Command::Inventory,
-        GameAction::EatFirst => Command::Eat('a'),
+        GameAction::EatFirst => Command::Eat(Some('a')),
         GameAction::DropFirst => Command::Drop('a'),
         GameAction::WieldFirst => Command::Wield(Some('a')),
         GameAction::WearFirst => Command::Wear('a'),
         GameAction::TakeOffFirst => Command::TakeOff('a'),
-        GameAction::QuaffFirst => Command::Quaff('a'),
-        GameAction::ReadFirst => Command::Read('a'),
+        GameAction::QuaffFirst => Command::Quaff(Some('a')),
+        GameAction::ReadFirst => Command::Read(Some('a')),
         GameAction::ZapFirst => Command::Rest, // TODO: add ZapFirst when wand targeting is ready
         GameAction::Look => Command::Look,
     }
@@ -380,7 +384,10 @@ fn test_convergence_report() {
     ];
 
     println!("\n=== Convergence Report ===");
-    println!("{:<20} {:<8} {:<8} {:<8}", "Subsystem", "Turns", "Seed", "Status");
+    println!(
+        "{:<20} {:<8} {:<8} {:<8}",
+        "Subsystem", "Turns", "Seed", "Status"
+    );
     println!("{}", "-".repeat(50));
 
     for (name, seed, cmds) in &replays {

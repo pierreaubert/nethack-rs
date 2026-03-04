@@ -1,4 +1,4 @@
-use nh_core::data::tile::{Tile, TileId, DungeonTile};
+use nh_core::data::tile::{DungeonTile, Tile, TileId};
 
 #[test]
 fn test_tile_representations() {
@@ -15,8 +15,8 @@ fn test_tile_representations() {
 
 #[test]
 fn test_tile_registry() {
-    use nh_core::data::tile::get_tile_for_monster;
     use nh_core::data::monsters::find_monster;
+    use nh_core::data::tile::get_tile_for_monster;
 
     let (_, monster) = find_monster("kobold").expect("Kobold should exist");
     println!("Monster name: {}", monster.name);

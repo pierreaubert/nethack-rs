@@ -2,10 +2,10 @@
 
 use bevy::prelude::*;
 
-use nh_core::data::tile::DungeonTile;
 use crate::components::{DoorAnimation, DoorMarker, MapPosition, TileMarker, TileMaterialType};
 use crate::plugins::game::AppState;
 use crate::resources::GameStateResource;
+use nh_core::data::tile::DungeonTile;
 
 pub struct MapPlugin;
 

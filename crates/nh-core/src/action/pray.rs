@@ -135,9 +135,7 @@ pub fn in_trouble(state: &GameState) -> Option<Trouble> {
         return Some(Trouble::Strangled);
     }
     // Lava trap: utrap != 0 and utrap_type == Lava
-    if state.player.utrap > 0
-        && state.player.utrap_type == crate::player::PlayerTrapType::Lava
-    {
+    if state.player.utrap > 0 && state.player.utrap_type == crate::player::PlayerTrapType::Lava {
         return Some(Trouble::LavaTrapped);
     }
     if state.player.sick > 0 {
@@ -157,7 +155,10 @@ pub fn in_trouble(state: &GameState) -> Option<Trouble> {
     }
     // Collapsing: heavily encumbered with depleted strength
     if state.player.current_weight > state.player.carrying_capacity * 4 / 5 {
-        let str_loss = state.player.attr_max.get(crate::player::Attribute::Strength) as i32
+        let str_loss = state
+            .player
+            .attr_max
+            .get(crate::player::Attribute::Strength) as i32
             - state
                 .player
                 .attr_current
@@ -318,7 +319,10 @@ fn fix_worst_trouble(state: &mut GameState, trouble: Trouble) {
             // Restore strength
             state.player.attr_current.set(
                 crate::player::Attribute::Strength,
-                state.player.attr_max.get(crate::player::Attribute::Strength),
+                state
+                    .player
+                    .attr_max
+                    .get(crate::player::Attribute::Strength),
             );
             state.message("You feel your strength returning.");
         }
@@ -594,25 +598,37 @@ fn grant_favor(state: &mut GameState) {
             match grant {
                 0 => {
                     if !state.player.properties.has(Property::FireResistance) {
-                        state.player.properties.grant_intrinsic(Property::FireResistance);
+                        state
+                            .player
+                            .properties
+                            .grant_intrinsic(Property::FireResistance);
                         state.message("You feel a warm glow.");
                     }
                 }
                 1 => {
                     if !state.player.properties.has(Property::ColdResistance) {
-                        state.player.properties.grant_intrinsic(Property::ColdResistance);
+                        state
+                            .player
+                            .properties
+                            .grant_intrinsic(Property::ColdResistance);
                         state.message("You feel a cool breeze.");
                     }
                 }
                 2 => {
                     if !state.player.properties.has(Property::SeeInvisible) {
-                        state.player.properties.grant_intrinsic(Property::SeeInvisible);
+                        state
+                            .player
+                            .properties
+                            .grant_intrinsic(Property::SeeInvisible);
                         state.message("Your vision becomes clearer.");
                     }
                 }
                 _ => {
                     if !state.player.properties.has(Property::PoisonResistance) {
-                        state.player.properties.grant_intrinsic(Property::PoisonResistance);
+                        state
+                            .player
+                            .properties
+                            .grant_intrinsic(Property::PoisonResistance);
                         state.message("You feel healthy.");
                     }
                 }
@@ -717,7 +733,10 @@ fn god_zaps_you(state: &mut GameState) {
     } else {
         let damage = state.rng.rnd(20) as i32;
         state.player.hp -= damage;
-        state.message(format!("You are struck by {}'s lightning! ({} damage)", god, damage));
+        state.message(format!(
+            "You are struck by {}'s lightning! ({} damage)",
+            god, damage
+        ));
     }
 
     state.message(format!("{} is not deterred...", god));
@@ -757,12 +776,30 @@ pub fn crown_player(state: &mut GameState) {
     }
 
     // Grant intrinsics
-    state.player.properties.grant_intrinsic(Property::SeeInvisible);
-    state.player.properties.grant_intrinsic(Property::FireResistance);
-    state.player.properties.grant_intrinsic(Property::ColdResistance);
-    state.player.properties.grant_intrinsic(Property::ShockResistance);
-    state.player.properties.grant_intrinsic(Property::SleepResistance);
-    state.player.properties.grant_intrinsic(Property::PoisonResistance);
+    state
+        .player
+        .properties
+        .grant_intrinsic(Property::SeeInvisible);
+    state
+        .player
+        .properties
+        .grant_intrinsic(Property::FireResistance);
+    state
+        .player
+        .properties
+        .grant_intrinsic(Property::ColdResistance);
+    state
+        .player
+        .properties
+        .grant_intrinsic(Property::ShockResistance);
+    state
+        .player
+        .properties
+        .grant_intrinsic(Property::SleepResistance);
+    state
+        .player
+        .properties
+        .grant_intrinsic(Property::PoisonResistance);
 
     // Boost alignment record
     state.player.alignment.record = state.player.alignment.record.max(PIOUS);
@@ -799,8 +836,7 @@ pub fn do_sacrifice(state: &mut GameState, corpse_letter: char) -> ActionResult 
 
     // Find the corpse in inventory
     let corpse_idx = state.inventory.iter().position(|obj| {
-        obj.inv_letter == corpse_letter
-            && obj.class == crate::object::ObjectClass::Food
+        obj.inv_letter == corpse_letter && obj.class == crate::object::ObjectClass::Food
     });
 
     let corpse_idx = match corpse_idx {
@@ -848,8 +884,7 @@ pub fn do_sacrifice(state: &mut GameState, corpse_letter: char) -> ActionResult 
     };
     let mon_is_unicorn = {
         let idx = corpse_mon_idx as usize;
-        idx < crate::data::MONSTERS.len()
-            && crate::data::MONSTERS[idx].name.contains("unicorn")
+        idx < crate::data::MONSTERS.len() && crate::data::MONSTERS[idx].name.contains("unicorn")
     };
 
     // Base value from monster difficulty
@@ -934,7 +969,12 @@ pub fn do_sacrifice(state: &mut GameState, corpse_letter: char) -> ActionResult 
 
     if state.player.god_anger > 0 {
         // Mollify angry god
-        let reduction = value * (if player_align == AlignmentType::Chaotic { 2 } else { 3 })
+        let reduction = value
+            * (if player_align == AlignmentType::Chaotic {
+                2
+            } else {
+                3
+            })
             / MAXVALUE;
         let old_anger = state.player.god_anger;
         state.player.god_anger = (state.player.god_anger - reduction).max(0);
@@ -949,10 +989,7 @@ pub fn do_sacrifice(state: &mut GameState, corpse_letter: char) -> ActionResult 
                     state.player.change_luck(1);
                 }
             } else {
-                state.message(format!(
-                    "{} seems mollified.",
-                    player_align.default_god()
-                ));
+                state.message(format!("{} seems mollified.", player_align.default_god()));
                 if state.player.luck < 0 {
                     state.player.luck = 0;
                 }
@@ -1415,10 +1452,7 @@ pub fn altar_wrath(state: &mut GameState, x: i8, y: i8) {
     } else {
         // Non-coaligned: the other god threatens you
         let god = altar_align.default_god();
-        state.message(format!(
-            "A voice (could it be {}?) whispers:",
-            god
-        ));
+        state.message(format!("A voice (could it be {}?) whispers:", god));
         state.message("\"Thou shalt pay, infidel!\"");
         // Higher luck more likely to be reduced; as luck approaches -5
         // the chance to lose another point drops
@@ -1900,7 +1934,10 @@ mod tests {
         // Ensure all 8 neighbors are stone (non-walkable) regardless of level generation
         for dx in -1i32..=1 {
             for dy in -1i32..=1 {
-                state.current_level.cell_mut((5 + dx) as usize, (5 + dy) as usize).typ = CellType::Stone;
+                state
+                    .current_level
+                    .cell_mut((5 + dx) as usize, (5 + dy) as usize)
+                    .typ = CellType::Stone;
             }
         }
         assert!(stuck_in_wall(&state));
@@ -2335,8 +2372,14 @@ mod tests {
     #[test]
     fn test_god_zaps_with_shock_resistance() {
         let mut state = make_state();
-        state.player.properties.grant_intrinsic(Property::ShockResistance);
-        state.player.properties.grant_intrinsic(Property::DisintResistance);
+        state
+            .player
+            .properties
+            .grant_intrinsic(Property::ShockResistance);
+        state
+            .player
+            .properties
+            .grant_intrinsic(Property::DisintResistance);
         state.player.hp = 50;
         god_zaps_you(&mut state);
         // Should survive due to resistances
@@ -2492,8 +2535,14 @@ mod tests {
     fn test_in_trouble_poisoned_attr_drain() {
         let mut state = make_state();
         // Set max strength higher than current = poisoned
-        state.player.attr_max.set(crate::player::Attribute::Strength, 18);
-        state.player.attr_current.set(crate::player::Attribute::Strength, 14);
+        state
+            .player
+            .attr_max
+            .set(crate::player::Attribute::Strength, 18);
+        state
+            .player
+            .attr_current
+            .set(crate::player::Attribute::Strength, 14);
         assert_eq!(in_trouble(&state), Some(Trouble::Poisoned));
     }
 
@@ -2556,8 +2605,14 @@ mod tests {
     #[test]
     fn test_is_poisoned_drained() {
         let mut state = make_state();
-        state.player.attr_max.set(crate::player::Attribute::Dexterity, 16);
-        state.player.attr_current.set(crate::player::Attribute::Dexterity, 12);
+        state
+            .player
+            .attr_max
+            .set(crate::player::Attribute::Dexterity, 16);
+        state
+            .player
+            .attr_current
+            .set(crate::player::Attribute::Dexterity, 12);
         assert!(is_poisoned(&state));
     }
 }

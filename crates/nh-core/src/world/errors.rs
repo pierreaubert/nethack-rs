@@ -51,9 +51,9 @@ pub fn trickery(message: &str) -> ! {
 /// This function never returns - it always panics
 pub fn error4(format_str: &str, arg1: &str, arg2: &str, arg3: &str) -> ! {
     let message = format_str
-        .replace("{}", &arg1)
-        .replace("{}", &arg2)
-        .replace("{}", &arg3);
+        .replace("{}", arg1)
+        .replace("{}", arg2)
+        .replace("{}", arg3);
     panic!("NetHack error: {}", message);
 }
 

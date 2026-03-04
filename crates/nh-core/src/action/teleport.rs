@@ -13,12 +13,12 @@
 use crate::compat::*;
 
 use crate::action::ActionResult;
-use crate::dungeon::TrapType;
-use crate::dungeon::Level;
-use crate::gameloop::GameState;
 use crate::dungeon::CellType;
-use crate::monster::{Monster, MonsterId};
+use crate::dungeon::Level;
+use crate::dungeon::TrapType;
+use crate::gameloop::GameState;
 use crate::monster::makemon::enexto;
+use crate::monster::{Monster, MonsterId};
 use crate::object::Object;
 use crate::player::Property;
 use crate::{COLNO, ROWNO};
@@ -136,9 +136,10 @@ pub fn rloc_pos_ok(level: &Level, x: i8, y: i8, monster: &Monster) -> bool {
     }
     // Shopkeeper confinement: shopkeepers must stay in their shop
     if monster.is_shopkeeper {
-        let in_shop = level.shops.iter().any(|s| {
-            s.shopkeeper_id == Some(monster.id) && s.contains(x, y)
-        });
+        let in_shop = level
+            .shops
+            .iter()
+            .any(|s| s.shopkeeper_id == Some(monster.id) && s.contains(x, y));
         if !in_shop {
             return false;
         }
@@ -321,7 +322,7 @@ pub enum ScrollBuc {
 ///
 /// Note: This sets up the teleport but actual level change must be
 /// handled by the game loop checking the returned ActionResult.
-pub fn level_tele(state: &mut GameState, target_depth: i32) -> ActionResult {
+pub fn level_tele(state: &mut GameState, _target_depth: i32) -> ActionResult {
     let current_depth = state.current_level.dlevel.depth();
 
     // Check Sokoban restriction
@@ -329,7 +330,6 @@ pub fn level_tele(state: &mut GameState, target_depth: i32) -> ActionResult {
         state.message("Sorry, this level has no exit.");
         return ActionResult::NoTime;
     }
-
 
     // Check for teleport control
     let has_control = state.player.properties.has(Property::TeleportControl);
@@ -529,11 +529,7 @@ pub fn mtele_trap(level: &mut Level, monster_id: MonsterId, _in_sight: bool) -> 
 /// Returns whether the monster was teleported.
 /// For now, we relocate the monster on the current level since cross-level
 /// monster migration requires game loop integration.
-pub fn mlevel_tele_trap(
-    level: &mut Level,
-    monster_id: MonsterId,
-    _in_sight: bool,
-) -> bool {
+pub fn mlevel_tele_trap(level: &mut Level, monster_id: MonsterId, _in_sight: bool) -> bool {
     if level.flags.no_teleport {
         return false;
     }
@@ -571,7 +567,13 @@ pub fn rloc_monster(level: &mut Level, monster_id: MonsterId) -> bool {
             Some(m) => m,
             None => return false,
         };
-        (monster.x, monster.y, monster.is_shopkeeper, monster.is_priest, monster.id)
+        (
+            monster.x,
+            monster.y,
+            monster.is_shopkeeper,
+            monster.is_priest,
+            monster.id,
+        )
     };
 
     // Use expanding square search from monster position (like enexto)
@@ -621,9 +623,10 @@ fn find_rloc_target(
 
                 // Shopkeeper confinement
                 if is_shopkeeper {
-                    let in_shop = level.shops.iter().any(|s| {
-                        s.shopkeeper_id == Some(monster_id) && s.contains(x, y)
-                    });
+                    let in_shop = level
+                        .shops
+                        .iter()
+                        .any(|s| s.shopkeeper_id == Some(monster_id) && s.contains(x, y));
                     if !in_shop {
                         continue;
                     }
@@ -794,8 +797,7 @@ pub fn rloc_object(level: &mut Level, obj_id: crate::object::ObjectId) -> Option
                     let old_x = obj.x;
                     let old_y = obj.y;
                     // Update object grid
-                    level.object_grid[old_x as usize][old_y as usize]
-                        .retain(|&id| id != obj_id);
+                    level.object_grid[old_x as usize][old_y as usize].retain(|&id| id != obj_id);
                     obj.x = x;
                     obj.y = y;
                     level.object_grid[x as usize][y as usize].push(obj_id);
@@ -816,9 +818,10 @@ pub fn rloc_object(level: &mut Level, obj_id: crate::object::ObjectId) -> Option
 fn monster_has_amulet(monster: &Monster) -> bool {
     // Check monster inventory for Amulet of Yendor
     // The Amulet is object type 0 in the Amulet class
-    monster.inventory.iter().any(|obj| {
-        obj.class == crate::object::ObjectClass::Amulet && obj.object_type == 0
-    })
+    monster
+        .inventory
+        .iter()
+        .any(|obj| obj.class == crate::object::ObjectClass::Amulet && obj.object_type == 0)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -829,9 +832,9 @@ fn monster_has_amulet(monster: &Monster) -> bool {
 mod tests {
     use super::*;
     use crate::dungeon::{Cell, CellType, DLevel, Level};
-    use crate::object::Object;
     use crate::gameloop::GameState;
     use crate::monster::Monster;
+    use crate::object::Object;
     use crate::player::Position;
     use crate::rng::GameRng;
 
@@ -896,10 +899,8 @@ mod tests {
     #[test]
     fn test_could_tele_from_shop_with_unpaid() {
         let mut level = make_walkable_level();
-        let mut shop = crate::special::shk::Shop::new(
-            crate::special::ShopType::General,
-            (3, 3, 10, 8),
-        );
+        let mut shop =
+            crate::special::shk::Shop::new(crate::special::ShopType::General, (3, 3, 10, 8));
         shop.unpaid_items.push(crate::object::ObjectId(1));
         level.shops.push(shop);
         // Inside shop with unpaid items — can't teleport
@@ -909,10 +910,7 @@ mod tests {
     #[test]
     fn test_could_tele_from_shop_no_debt() {
         let mut level = make_walkable_level();
-        let shop = crate::special::shk::Shop::new(
-            crate::special::ShopType::General,
-            (3, 3, 10, 8),
-        );
+        let shop = crate::special::shk::Shop::new(crate::special::ShopType::General, (3, 3, 10, 8));
         level.shops.push(shop);
         // Inside shop but no unpaid items — can teleport
         assert!(could_tele_from(&level, 5, 5));
@@ -991,10 +989,8 @@ mod tests {
         let mut level = make_walkable_level();
         let mut m = Monster::new(MonsterId(1), 0, 5, 5);
         m.is_shopkeeper = true;
-        let mut shop = crate::special::shk::Shop::new(
-            crate::special::ShopType::General,
-            (3, 3, 8, 8),
-        );
+        let mut shop =
+            crate::special::shk::Shop::new(crate::special::ShopType::General, (3, 3, 8, 8));
         shop.shopkeeper_id = Some(MonsterId(1));
         level.shops.push(shop);
 
@@ -1113,7 +1109,10 @@ mod tests {
         let level = make_walkable_level();
         let mut state = make_state_with_level(level);
         state.player.properties.grant_intrinsic(Property::Flying);
-        state.player.properties.grant_intrinsic(Property::TeleportControl);
+        state
+            .player
+            .properties
+            .grant_intrinsic(Property::TeleportControl);
 
         let result = level_tele(&mut state, -5);
         assert!(matches!(result, ActionResult::Success));
@@ -1130,7 +1129,10 @@ mod tests {
         }
         let mut state = make_state_with_level(level);
         state.player.hp = 20;
-        state.player.properties.grant_intrinsic(Property::TeleportControl);
+        state
+            .player
+            .properties
+            .grant_intrinsic(Property::TeleportControl);
 
         // level_tele uses random_teleport_level which always produces a
         // valid positive depth, so the player survives
@@ -1217,7 +1219,10 @@ mod tests {
         let mut state = make_state_with_level(level);
 
         let result = trap_level_teleport(&mut state);
-        assert!(matches!(result, ActionResult::Success | ActionResult::NoTime));
+        assert!(matches!(
+            result,
+            ActionResult::Success | ActionResult::NoTime
+        ));
     }
 
     // ── rloc_monster ─────────────────────────────────────────────────────
@@ -1280,7 +1285,12 @@ mod tests {
         // Should be near player position (5,5)
         let dx = (monster.x - 5).abs();
         let dy = (monster.y - 5).abs();
-        assert!(dx <= 3 && dy <= 3, "Monster at ({},{}) too far from (5,5)", monster.x, monster.y);
+        assert!(
+            dx <= 3 && dy <= 3,
+            "Monster at ({},{}) too far from (5,5)",
+            monster.x,
+            monster.y
+        );
     }
 
     // ── maybe_mnexto ─────────────────────────────────────────────────────
@@ -1390,8 +1400,11 @@ mod tests {
             }
         }
         // Should block roughly 1/3 of the time
-        assert!(blocked > 50 && blocked < 150,
-            "Expected ~100 blocks out of 300, got {}", blocked);
+        assert!(
+            blocked > 50 && blocked < 150,
+            "Expected ~100 blocks out of 300, got {}",
+            blocked
+        );
     }
 
     // ── rloc_object ──────────────────────────────────────────────────────
@@ -1399,7 +1412,11 @@ mod tests {
     #[test]
     fn test_rloc_object_basic() {
         let mut level = make_walkable_level();
-        let obj = Object::new(crate::object::ObjectId(0), 0, crate::object::ObjectClass::Weapon);
+        let obj = Object::new(
+            crate::object::ObjectId(0),
+            0,
+            crate::object::ObjectClass::Weapon,
+        );
         let id = level.add_object(obj, 5, 5);
 
         let result = rloc_object(&mut level, id);
@@ -1447,7 +1464,11 @@ mod tests {
     #[test]
     fn test_monster_has_amulet_with_amulet() {
         let mut m = Monster::new(MonsterId(1), 0, 5, 5);
-        let mut amulet = Object::new(crate::object::ObjectId(0), 0, crate::object::ObjectClass::Amulet);
+        let mut amulet = Object::new(
+            crate::object::ObjectId(0),
+            0,
+            crate::object::ObjectClass::Amulet,
+        );
         amulet.object_type = 0;
         m.inventory.push(amulet);
         assert!(monster_has_amulet(&m));
@@ -1479,7 +1500,11 @@ mod tests {
     fn test_mlevel_tele_trap_amulet_carrier() {
         let mut level = make_walkable_level();
         let mut m = Monster::new(MonsterId(1), 0, 5, 5);
-        let mut amulet = Object::new(crate::object::ObjectId(0), 0, crate::object::ObjectClass::Amulet);
+        let mut amulet = Object::new(
+            crate::object::ObjectId(0),
+            0,
+            crate::object::ObjectClass::Amulet,
+        );
         amulet.object_type = 0;
         m.inventory.push(amulet);
         let id = level.add_monster(m);

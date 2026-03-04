@@ -297,14 +297,6 @@ pub struct Level {
     /// Next monster ID to assign
     next_monster_id: u32,
 
-    /// Extensions: Terrain modifications tracker
-    #[cfg(feature = "extensions")]
-    pub terrain_modifications: crate::magic::terrain_modification::TerrainModificationTracker,
-
-    /// Extensions: Persistent spell effects tracker
-    #[cfg(feature = "extensions")]
-    pub persistent_effects: crate::magic::spell_persistence::PersistentEffectTracker,
-
     /// Door positions in placement order (matches C's doors[] array)
     /// Each entry is (x, y) of a door. Room.first_door_idx indexes into this.
     #[serde(skip, default)]
@@ -528,11 +520,6 @@ impl Level {
             rooms: Vec::new(),
             next_object_id: 1,
             next_monster_id: 1,
-            #[cfg(feature = "extensions")]
-            terrain_modifications:
-                crate::magic::terrain_modification::TerrainModificationTracker::new(),
-            #[cfg(feature = "extensions")]
-            persistent_effects: crate::magic::spell_persistence::PersistentEffectTracker::new(),
             door_positions: Vec::new(),
             pending_messages: Vec::new(),
         }
@@ -636,16 +623,14 @@ impl Level {
 
         // Import monsters from fixture
         for fm in &fixture.monsters {
-            use crate::monster::{Monster, MonsterId, SpeedState};
             use crate::dungeon::generation::C_TO_RUST_MONS;
+            use crate::monster::{Monster, SpeedState};
             let id = level.alloc_monster_id();
             // Convert C mnum to Rust MONSTERS index for correct permonst() lookup
-            let rust_mndx = C_TO_RUST_MONS.get(fm.mnum as usize)
-                .copied()
-                .unwrap_or(0) as i16;
+            let rust_mndx = C_TO_RUST_MONS.get(fm.mnum as usize).copied().unwrap_or(0) as i16;
             let mut mon = Monster::new(id, rust_mndx, fm.x as i8, fm.y as i8);
-            mon.hp = fm.hp as i32;
-            mon.hp_max = fm.hpmax as i32;
+            mon.hp = fm.hp;
+            mon.hp_max = fm.hpmax;
             mon.state.peaceful = fm.peaceful;
             mon.state.sleeping = fm.asleep;
             mon.base_speed = fm.mmove;
@@ -784,16 +769,17 @@ impl Level {
         // Initialize combat resources based on level
         monster.resources.initialize(monster.level);
 
-        // Extensions: Initialize personality and combat systems on monster spawn
-        #[cfg(feature = "extensions")]
-        {
-            use crate::monster::{assign_personality, monster_intelligence};
-            let intelligence = monster_intelligence(monster.monster_type);
-            monster.personality = assign_personality(intelligence, id.0);
-        }
-
         let x = monster.x as usize;
         let y = monster.y as usize;
+        debug_assert!(
+            self.monster_grid[x][y].is_none(),
+            "add_monster: grid[{},{}] already has {:?} when placing {} '{}'",
+            x,
+            y,
+            self.monster_grid[x][y],
+            id.0,
+            monster.name,
+        );
         self.monster_grid[x][y] = Some(id);
         self.monsters.push(monster);
         id
@@ -812,16 +798,17 @@ impl Level {
         // Initialize combat resources based on level
         monster.resources.initialize(monster.level);
 
-        // Extensions: Initialize personality and combat systems on monster spawn
-        #[cfg(feature = "extensions")]
-        {
-            use crate::monster::{assign_personality, monster_intelligence};
-            let intelligence = monster_intelligence(monster.monster_type);
-            monster.personality = assign_personality(intelligence, id.0);
-        }
-
         let x = monster.x as usize;
         let y = monster.y as usize;
+        debug_assert!(
+            self.monster_grid[x][y].is_none(),
+            "add_monster_front: grid[{},{}] already has {:?} when placing {} '{}'",
+            x,
+            y,
+            self.monster_grid[x][y],
+            id.0,
+            monster.name,
+        );
         self.monster_grid[x][y] = Some(id);
         self.monsters.insert(0, monster);
         id
@@ -831,31 +818,6 @@ impl Level {
     pub fn remove_monster(&mut self, id: MonsterId) -> Option<Monster> {
         let idx = self.monsters.iter().position(|m| m.id == id)?;
         let monster = self.monsters.remove(idx);
-
-        // Extensions: Notify nearby monsters of ally death for morale tracking
-        #[cfg(feature = "extensions")]
-        {
-            let dead_x = monster.x;
-            let dead_y = monster.y;
-
-            for other in self.monsters.iter_mut() {
-                let dist_sq =
-                    ((other.x - dead_x) as i32).pow(2) + ((other.y - dead_y) as i32).pow(2);
-                if dist_sq <= 100 {
-                    if other.monster_type == monster.monster_type {
-                        use crate::monster::morale::MoraleEvent;
-                        other.morale.add_event(MoraleEvent::AlliedDeath);
-                        other.morale.ally_deaths_witnessed =
-                            other.morale.ally_deaths_witnessed.saturating_add(1);
-                    } else if dist_sq <= 25 {
-                        use crate::monster::morale::MoraleEvent;
-                        other.morale.add_event(MoraleEvent::AlliedDeath);
-                        other.morale.ally_deaths_witnessed =
-                            other.morale.ally_deaths_witnessed.saturating_add(1);
-                    }
-                }
-            }
-        }
 
         self.monster_grid[monster.x as usize][monster.y as usize] = None;
         Some(monster)
@@ -933,14 +895,13 @@ impl Level {
 
     /// Add a trap
     pub fn add_trap(&mut self, x: i8, y: i8, trap_type: TrapType) {
-        self.traps.push(crate::dungeon::trap::create_trap(x, y, trap_type));
+        self.traps
+            .push(crate::dungeon::trap::create_trap(x, y, trap_type));
     }
 
     /// Get a mutable reference to a trap at position
     pub fn trap_at_mut(&mut self, x: i8, y: i8) -> Option<&mut Trap> {
-        self.traps
-            .iter_mut()
-            .find(|t| t.x == x && t.y == y)
+        self.traps.iter_mut().find(|t| t.x == x && t.y == y)
     }
 
     /// Remove a trap at the given position
@@ -1097,11 +1058,11 @@ impl Level {
                 let target_x = player_x + dx as i8;
                 let target_y = player_y + dy as i8;
 
-                if self.is_valid_pos(target_x, target_y) {
-                    if self.has_line_of_sight(player_x, player_y, target_x, target_y) {
-                        self.visible[target_x as usize][target_y as usize] = true;
-                        self.explored[target_x as usize][target_y as usize] = true;
-                    }
+                if self.is_valid_pos(target_x, target_y)
+                    && self.has_line_of_sight(player_x, player_y, target_x, target_y)
+                {
+                    self.visible[target_x as usize][target_y as usize] = true;
+                    self.explored[target_x as usize][target_y as usize] = true;
                 }
             }
         }
@@ -1857,7 +1818,10 @@ impl Level {
         for x in 0..COLNO {
             for y in 0..ROWNO {
                 if let Some(grid_id) = self.monster_grid[x][y] {
-                    let found = self.monsters.iter().any(|m| m.id == grid_id && m.x == x as i8 && m.y == y as i8);
+                    let found = self
+                        .monsters
+                        .iter()
+                        .any(|m| m.id == grid_id && m.x == x as i8 && m.y == y as i8);
                     if !found {
                         violations.push(format!(
                             "monster_grid[{},{}] = {:?} but no such monster at that position",
@@ -1885,7 +1849,10 @@ impl Level {
             if !in_grid {
                 violations.push(format!(
                     "object {} '{}' at ({},{}) not found in object_grid",
-                    obj.id.0, obj.display_name(), ox, oy
+                    obj.id.0,
+                    obj.display_name(),
+                    ox,
+                    oy
                 ));
             }
         }

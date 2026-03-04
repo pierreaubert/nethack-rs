@@ -381,7 +381,7 @@ pub fn key2extcmddesc(key: &str) -> Option<&'static str> {
 pub fn key2txt(key: u32) -> String {
     match key {
         0..=26 => format!("Ctrl-{}", ((b'A' + key as u8) as char)),
-        27..=31 => format!("Ctrl-{}", (b'A' + (key as u8 - 27) as u8) as char),
+        27..=31 => format!("Ctrl-{}", (b'A' + (key as u8 - 27)) as char),
         127 => "Delete".to_string(),
         32..=126 => (key as u8 as char).to_string(),
         _ => format!("key-{}", key),
@@ -495,7 +495,7 @@ pub fn is_wizard_command(command_name: &str) -> bool {
     EXTENDED_COMMANDS_LIST
         .iter()
         .find(|cmd| cmd.name.eq_ignore_ascii_case(command_name))
-        .map_or(false, |cmd| cmd.flags.contains(CommandFlags::WIZARD_MODE))
+        .is_some_and(|cmd| cmd.flags.contains(CommandFlags::WIZARD_MODE))
 }
 
 /// Get all available wizard commands
@@ -683,23 +683,21 @@ impl InteractiveMode {
 
     /// Move selection to next option
     pub fn select_next(&mut self) {
-        if let Some(ref current) = self.selection {
-            if let Some(pos) = self.options.iter().position(|o| o == current) {
-                if pos + 1 < self.options.len() {
-                    self.selection = Some(self.options[pos + 1].clone());
-                }
-            }
+        if let Some(ref current) = self.selection
+            && let Some(pos) = self.options.iter().position(|o| o == current)
+            && pos + 1 < self.options.len()
+        {
+            self.selection = Some(self.options[pos + 1].clone());
         }
     }
 
     /// Move selection to previous option
     pub fn select_previous(&mut self) {
-        if let Some(ref current) = self.selection {
-            if let Some(pos) = self.options.iter().position(|o| o == current) {
-                if pos > 0 {
-                    self.selection = Some(self.options[pos - 1].clone());
-                }
-            }
+        if let Some(ref current) = self.selection
+            && let Some(pos) = self.options.iter().position(|o| o == current)
+            && pos > 0
+        {
+            self.selection = Some(self.options[pos - 1].clone());
         }
     }
 }

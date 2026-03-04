@@ -3,16 +3,14 @@
 //! Behavioral tests verifying that buzz() ray tracing, monster wand selection,
 //! monster healing, scroll usage, mbhit beams, and breath weapons work correctly.
 
+use nh_core::GameRng;
 use nh_core::dungeon::{DLevel, Level};
-use nh_core::magic::zap::{
-    BuzzResult, MbhitEffect, ZapType, ZapVariant, buzz, mbhit_effect,
-};
 use nh_core::magic::MonsterVitals;
-use nh_core::monster::{Monster, MonsterId, MonsterResistances};
+use nh_core::magic::zap::{BuzzResult, MbhitEffect, ZapType, ZapVariant, buzz, mbhit_effect};
 use nh_core::monster::item_usage;
+use nh_core::monster::{Monster, MonsterId, MonsterResistances};
 use nh_core::object::{Object, ObjectClass};
 use nh_core::player::{Property, You};
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -62,9 +60,11 @@ fn test_buzz_fire_ray_hits_player() {
     let result = buzz(
         ZapType::Fire,
         ZapVariant::Wand,
-        5, 5,  // start
-        1, 0,  // direction: right
-        20,    // range
+        5,
+        5, // start
+        1,
+        0,  // direction: right
+        20, // range
         &mut player,
         &mut level,
         &mut rng,
@@ -96,8 +96,10 @@ fn test_buzz_ray_stops_at_wall() {
     let result = buzz(
         ZapType::MagicMissile,
         ZapVariant::Wand,
-        5, 5,
-        1, 0,
+        5,
+        5,
+        1,
+        0,
         20,
         &mut player,
         &mut level,
@@ -109,7 +111,8 @@ fn test_buzz_ray_stops_at_wall() {
     assert!(
         result.player_damage == 0 || result.reflected,
         "Ray should not reach player past wall (damage={}, reflected={})",
-        result.player_damage, result.reflected,
+        result.player_damage,
+        result.reflected,
     );
 }
 
@@ -131,8 +134,10 @@ fn test_buzz_ray_bounces() {
     let result = buzz(
         ZapType::Cold,
         ZapVariant::Wand,
-        5, 5,
-        1, 0,
+        5,
+        5,
+        1,
+        0,
         12,
         &mut player,
         &mut level,
@@ -142,8 +147,10 @@ fn test_buzz_ray_bounces() {
     // With a long enough corridor and no walls, ray should either
     // hit player or reach end of range
     // The key test is that it doesn't crash and produces valid output
-    assert!(result.end_x > 5 || result.player_damage > 0,
-        "Ray should travel forward from start position");
+    assert!(
+        result.end_x > 5 || result.player_damage > 0,
+        "Ray should travel forward from start position"
+    );
 }
 
 // ============================================================================
@@ -164,15 +171,20 @@ fn test_buzz_death_ray_kills() {
     let result = buzz(
         ZapType::Death,
         ZapVariant::Wand,
-        5, 5,
-        1, 0,
+        5,
+        5,
+        1,
+        0,
         20,
         &mut player,
         &mut level,
         &mut rng,
     );
 
-    assert!(result.player_died, "Death ray should kill non-resistant player");
+    assert!(
+        result.player_died,
+        "Death ray should kill non-resistant player"
+    );
     assert!(player.hp <= 0, "Player HP should be 0 after death ray");
 }
 
@@ -194,8 +206,10 @@ fn test_buzz_cold_reflects_off_shield() {
     let result = buzz(
         ZapType::Cold,
         ZapVariant::Wand,
-        5, 5,
-        1, 0,
+        5,
+        5,
+        1,
+        0,
         20,
         &mut player,
         &mut level,
@@ -203,7 +217,10 @@ fn test_buzz_cold_reflects_off_shield() {
     );
 
     // Player should NOT be damaged because of reflection
-    assert_eq!(result.player_damage, 0, "Reflected ray should deal no damage");
+    assert_eq!(
+        result.player_damage, 0,
+        "Reflected ray should deal no damage"
+    );
     assert!(result.reflected, "Ray should be reflected");
     assert!(
         result.messages.iter().any(|m| m.contains("reflected")),
@@ -275,7 +292,10 @@ fn test_monster_uses_scroll_teleport() {
     m.inventory.push(scroll);
 
     let scroll_idx = item_usage::should_use_teleport_scroll(&m);
-    assert!(scroll_idx.is_some(), "Fleeing low-HP monster should want to teleport");
+    assert!(
+        scroll_idx.is_some(),
+        "Fleeing low-HP monster should want to teleport"
+    );
 
     // Execute teleportation
     let mut rng = GameRng::new(42);
@@ -286,7 +306,10 @@ fn test_monster_uses_scroll_teleport() {
 
     // Monster should have moved from original position
     let m = level.monster(mid).unwrap();
-    assert!(m.x != 5 || m.y != 5, "Monster should be at a different position");
+    assert!(
+        m.x != 5 || m.y != 5,
+        "Monster should be at a different position"
+    );
 }
 
 // ============================================================================
@@ -305,9 +328,11 @@ fn test_mbhit_speed_beam() {
 
     let result = mbhit_effect(
         MbhitEffect::Speed,
-        5, 5,  // start
-        1, 0,  // direction
-        20,    // range
+        5,
+        5, // start
+        1,
+        0,  // direction
+        20, // range
         &mut player,
         &mut level,
         &mut rng,
@@ -339,15 +364,23 @@ fn test_monster_breath_weapon() {
 
     // Monster at (5,5) breathes fire toward player at (15,5)
     let result = item_usage::monster_use_breath_weapon(
-        5, 5,           // monster position
-        ZapType::Fire,  // fire breath
-        10,             // monster level
+        5,
+        5,             // monster position
+        ZapType::Fire, // fire breath
+        10,            // monster level
         &mut player,
         &mut level,
         &mut rng,
     );
 
     // Fire breath should damage a non-resistant player
-    assert!(result.player_damage > 0, "Fire breath should damage player (got {})", result.player_damage);
-    assert!(player.hp < 100, "Player HP should decrease from fire breath");
+    assert!(
+        result.player_damage > 0,
+        "Fire breath should damage player (got {})",
+        result.player_damage
+    );
+    assert!(
+        player.hp < 100,
+        "Player HP should decrease from fire breath"
+    );
 }

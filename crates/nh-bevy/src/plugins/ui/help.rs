@@ -18,8 +18,7 @@ impl Plugin for HelpPlugin {
             .add_systems(Update, toggle_help.run_if(in_state(AppState::Playing)))
             .add_systems(
                 EguiPrimaryContextPass,
-                render_help
-                    .run_if(in_state(AppState::Playing)),
+                render_help.run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -58,15 +57,14 @@ fn toggle_help(input: Res<ButtonInput<KeyCode>>, mut state: ResMut<HelpState>) {
 }
 
 /// Render the help panel
-fn render_help(
-    mut contexts: EguiContexts,
-    mut help_state: ResMut<HelpState>,
-) {
+fn render_help(mut contexts: EguiContexts, mut help_state: ResMut<HelpState>) {
     if !help_state.open {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     egui::Window::new("Help")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(false)
@@ -122,8 +120,6 @@ fn render_help(
                 }
             });
         });
-
-    
 }
 
 /// Render a 2-column key reference section
@@ -207,7 +203,12 @@ fn render_actions_help(ui: &mut egui::Ui) {
         ("P", "Put on ring / amulet"),
         ("R", "Remove ring / amulet"),
     ];
-    render_two_column_keys(ui, "item_actions_grid", item_actions, egui::Color32::LIGHT_GREEN);
+    render_two_column_keys(
+        ui,
+        "item_actions_grid",
+        item_actions,
+        egui::Color32::LIGHT_GREEN,
+    );
 
     ui.add_space(6.0);
     ui.label(egui::RichText::new("World Commands").strong());
@@ -221,7 +222,12 @@ fn render_actions_help(ui: &mut egui::Ui) {
         (":", "Look at what's here"),
         ("i", "Open inventory"),
     ];
-    render_two_column_keys(ui, "world_actions_grid", world_actions, egui::Color32::LIGHT_GREEN);
+    render_two_column_keys(
+        ui,
+        "world_actions_grid",
+        world_actions,
+        egui::Color32::LIGHT_GREEN,
+    );
 }
 
 /// Render interface help tab

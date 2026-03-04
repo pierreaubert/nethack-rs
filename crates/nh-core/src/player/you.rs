@@ -159,18 +159,6 @@ pub struct You {
     pub property_binding: crate::magic::property_binding::PropertyBinding,
     pub equipped_items: Vec<u32>, // Track currently equipped item IDs for property binding
 
-    // Extensions: Spell mechanics (synergies, specialization, mastery)
-    #[cfg(feature = "extensions")]
-    pub spell_synergy_tracker: crate::magic::spell_synergies::SpellSynergyTracker,
-    #[cfg(feature = "extensions")]
-    pub specialization_tracker: crate::magic::school_specialization::SpecializationTracker,
-    #[cfg(feature = "extensions")]
-    pub mastery_tracker: crate::magic::mastery_advancement::MasteryAdvancementTracker,
-
-    // Extensions: Advanced spell system state
-    #[cfg(feature = "extensions")]
-    pub advanced_spell_state: crate::magic::advanced_spells::AdvancedSpellState,
-
     // Status effects
     pub confused_timeout: u16,
     pub stunned_timeout: u16,
@@ -324,17 +312,6 @@ impl Default for You {
             property_binding: crate::magic::property_binding::PropertyBinding::new(),
             equipped_items: Vec::new(),
 
-            #[cfg(feature = "extensions")]
-            spell_synergy_tracker: crate::magic::spell_synergies::SpellSynergyTracker::new(),
-            #[cfg(feature = "extensions")]
-            specialization_tracker: crate::magic::school_specialization::SpecializationTracker::new(
-            ),
-            #[cfg(feature = "extensions")]
-            mastery_tracker: crate::magic::mastery_advancement::MasteryAdvancementTracker::new(),
-
-            #[cfg(feature = "extensions")]
-            advanced_spell_state: crate::magic::advanced_spells::AdvancedSpellState::new(),
-
             confused_timeout: 0,
             stunned_timeout: 0,
             blinded_timeout: 0,
@@ -463,8 +440,8 @@ impl You {
     /// Levitation/flying/riding strong steed: MAX_CARR_CAP.
     /// Wounded legs (not flying): -100.
     pub fn weight_cap(&self) -> i32 {
-        use crate::player::Property;
         use crate::MAX_CARR_CAP;
+        use crate::player::Property;
 
         let mut cap = self.attr_current.base_carry_capacity();
 
@@ -474,8 +451,7 @@ impl You {
             if cap > MAX_CARR_CAP {
                 cap = MAX_CARR_CAP;
             }
-            if !self.properties.has(Property::Flying)
-                && self.properties.has(Property::WoundedLegs)
+            if !self.properties.has(Property::Flying) && self.properties.has(Property::WoundedLegs)
             {
                 cap -= 100;
             }
@@ -1002,9 +978,10 @@ impl You {
 
     /// Get current (effective) attribute value accounting for modifiers (acurr equivalent)
     /// This includes:
-    /// - Base attribute
-    /// - Temporary bonuses/penalties
-    /// - Equipment effects (rings of gain strength, etc.)
+    ///   - Base attribute
+    ///   - Temporary bonuses/penalties
+    ///   - Equipment effects (rings of gain strength, etc.)
+    ///
     /// For now, returns the current attribute value directly
     pub fn acurr(&self, attr: super::Attribute) -> i8 {
         // In full implementation, this would also account for:
@@ -1056,7 +1033,6 @@ impl You {
 
         old_value != new_value
     }
-
 
     /// Restore attribute to max value (from restore ability effects)
     pub fn restore_attr(&mut self, attr: super::Attribute) {
@@ -1686,14 +1662,14 @@ impl You {
 
         // Gain HP
         let con = self.acurr(super::Attribute::Constitution);
-        let hp_gain = (rng.rnd(8) as i8 + (con as i8 / 3)).max(1);
+        let hp_gain = (rng.rnd(8) as i8 + (con / 3)).max(1);
         self.hp_max += hp_gain as i32;
         self.hp += hp_gain as i32;
         self.hp_increases.push(hp_gain);
 
         // Gain energy
         let wis = self.acurr(super::Attribute::Wisdom);
-        let energy_gain = (rng.rnd(4) as i8 + (wis as i8 / 5)).max(1);
+        let energy_gain = (rng.rnd(4) as i8 + (wis / 5)).max(1);
         self.energy_max += energy_gain as i32;
         self.energy += energy_gain as i32;
         self.energy_increases.push(energy_gain);
@@ -1779,7 +1755,6 @@ impl You {
         }
         false
     }
-
 
     /// Calculate total armor class from worn equipment and modifiers
     ///
@@ -1871,6 +1846,7 @@ pub fn stone_luck(inventory: &[crate::object::Object], count_uncursed: bool) -> 
 }
 
 /// Lose hit points (losehp equivalent)
+#[allow(clippy::only_used_in_recursion)]
 pub fn losehp(player: &mut You, damage: i32, cause: Option<&str>) -> bool {
     if player.is_polymorphed() {
         // Losing monster form HP
@@ -2113,7 +2089,7 @@ pub fn adjabil(player: &mut You, old_level: i32, new_level: i32) {
 }
 
 /// Post-adjust abilities (postadjabil equivalent)
-pub fn postadjabil(player: &mut You, ability_changed: Option<super::Property>) {
+pub fn postadjabil(_player: &mut You, ability_changed: Option<super::Property>) {
     // Handle side effects of ability changes
     if let Some(ability) = ability_changed {
         match ability {
@@ -2163,7 +2139,7 @@ pub fn postadjabil(player: &mut You, ability_changed: Option<super::Property>) {
 /// Place player at a new map position (u_on_newpos equivalent)
 pub fn u_on_newpos(player: &mut You, x: i8, y: i8) {
     // Basic bounds checking (assumes 80x21 level typical)
-    if x >= 0 && x < 80 && y >= 0 && y < 21 {
+    if (0..80).contains(&x) && (0..21).contains(&y) {
         player.prev_pos = player.pos;
         player.pos = Position::new(x, y);
         player.moved = true;

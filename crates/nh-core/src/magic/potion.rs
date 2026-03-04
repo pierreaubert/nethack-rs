@@ -893,9 +893,7 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
                 _ => rng.dice(6, 4) as i32,
             };
             player.hp = (player.hp + heal).min(player.hp_max);
-            result
-                .messages
-                .push("You feel better.".to_string());
+            result.messages.push("You feel better.".to_string());
             // Cure blindness for blessed healing / extra healing / full healing
             let cureblind = matches!(ptype, PotionType::FullHealing)
                 || (matches!(ptype, PotionType::ExtraHealing) && !cursed)
@@ -908,36 +906,26 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
         PotionType::Sleeping => {
             if !player.properties.has(Property::SleepResistance) {
                 player.sleeping_timeout = rng.rnd(12) as u16;
-                result
-                    .messages
-                    .push("You fall asleep!".to_string());
+                result.messages.push("You fall asleep!".to_string());
             }
         }
         PotionType::Paralysis => {
             if !player.properties.has(Property::FreeAction) {
                 player.paralyzed_timeout =
                     player.paralyzed_timeout.saturating_add(rng.rnd(25) as u16);
-                result
-                    .messages
-                    .push("Your limbs freeze!".to_string());
+                result.messages.push("Your limbs freeze!".to_string());
             } else {
-                result
-                    .messages
-                    .push("You stiffen momentarily.".to_string());
+                result.messages.push("You stiffen momentarily.".to_string());
             }
         }
         PotionType::Confusion | PotionType::Booze => {
             player.confused_timeout = player.confused_timeout.saturating_add(rng.rnd(5) as u16);
-            result
-                .messages
-                .push("You feel somewhat dizzy.".to_string());
+            result.messages.push("You feel somewhat dizzy.".to_string());
         }
         PotionType::Blindness => {
             let duration = 64 + rng.rn2(32) as u16;
             player.blinded_timeout = player.blinded_timeout.saturating_add(duration);
-            result
-                .messages
-                .push("It suddenly gets dark.".to_string());
+            result.messages.push("It suddenly gets dark.".to_string());
         }
         PotionType::Speed => {
             let duration = rng.rnd(5);
@@ -948,7 +936,9 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
         }
         PotionType::Invisibility => {
             let duration = rng.rnd(15) + 31;
-            player.properties.set_timeout(Property::Invisibility, duration);
+            player
+                .properties
+                .set_timeout(Property::Invisibility, duration);
             result
                 .messages
                 .push("For an instant you couldn't see yourself.".to_string());
@@ -961,18 +951,14 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
                     .push("You feel a sense of purity.".to_string());
             } else if cursed {
                 // Unholy water
-                result
-                    .messages
-                    .push("You feel contaminated.".to_string());
+                result.messages.push("You feel contaminated.".to_string());
             }
         }
         PotionType::Sickness => {
             if !player.properties.has(Property::PoisonResistance) {
                 let hp_loss = if player.hp > 2 { player.hp / 2 } else { 1 };
                 player.hp -= hp_loss;
-                result
-                    .messages
-                    .push("You feel rather ill.".to_string());
+                result.messages.push("You feel rather ill.".to_string());
                 result.player_died = player.hp <= 0;
             }
         }
@@ -1005,7 +991,9 @@ pub fn potionhit_monster(
         monster.hp -= 1;
         result.damage = 1;
     }
-    result.messages.push("The bottle crashes and breaks into shards.".to_string());
+    result
+        .messages
+        .push("The bottle crashes and breaks into shards.".to_string());
 
     match ptype {
         PotionType::Healing
@@ -1018,7 +1006,7 @@ pub fn potionhit_monster(
                 monster.hp = monster.hp_max;
                 result
                     .messages
-                    .push(format!("The monster looks sound and hale again."));
+                    .push("The monster looks sound and hale again.".to_string());
             }
             // Cure blindness for healing potions
             let cureblind = matches!(ptype, PotionType::FullHealing)
@@ -1054,9 +1042,7 @@ pub fn potionhit_monster(
         }
         PotionType::Invisibility => {
             monster.state.invisible = true;
-            result
-                .messages
-                .push("The monster vanishes!".to_string());
+            result.messages.push("The monster vanishes!".to_string());
         }
         PotionType::Sleeping => {
             if !monster.resistances.contains(MonsterResistances::SLEEP) {
@@ -1083,9 +1069,7 @@ pub fn potionhit_monster(
         }
         PotionType::Blindness => {
             monster.state.blinded = true;
-            result
-                .messages
-                .push("The monster is blinded.".to_string());
+            result.messages.push("The monster is blinded.".to_string());
         }
         PotionType::Acid => {
             if !monster.resistances.contains(MonsterResistances::ACID) {
@@ -1250,9 +1234,7 @@ pub fn potionbreathe(potion: &Object, player: &mut You, rng: &mut GameRng) -> Po
         }
         PotionType::Confusion | PotionType::Booze => {
             if player.confused_timeout == 0 {
-                result
-                    .messages
-                    .push("You feel somewhat dizzy.".to_string());
+                result.messages.push("You feel somewhat dizzy.".to_string());
             }
             player.confused_timeout = player.confused_timeout.saturating_add(rng.rnd(5) as u16);
         }
@@ -1269,18 +1251,13 @@ pub fn potionbreathe(potion: &Object, player: &mut You, rng: &mut GameRng) -> Po
                 player.paralyzed_timeout =
                     player.paralyzed_timeout.saturating_add(rng.rnd(5) as u16);
             } else {
-                result
-                    .messages
-                    .push("You stiffen momentarily.".to_string());
+                result.messages.push("You stiffen momentarily.".to_string());
             }
         }
         PotionType::Sleeping => {
             if !player.properties.has(Property::SleepResistance) {
-                result
-                    .messages
-                    .push("You feel rather tired.".to_string());
-                player.sleeping_timeout =
-                    player.sleeping_timeout.saturating_add(rng.rnd(5) as u16);
+                result.messages.push("You feel rather tired.".to_string());
+                player.sleeping_timeout = player.sleeping_timeout.saturating_add(rng.rnd(5) as u16);
             } else {
                 result.messages.push("You yawn.".to_string());
             }
@@ -1294,9 +1271,7 @@ pub fn potionbreathe(potion: &Object, player: &mut You, rng: &mut GameRng) -> Po
         }
         PotionType::Blindness => {
             if player.blinded_timeout == 0 {
-                result
-                    .messages
-                    .push("It suddenly gets dark.".to_string());
+                result.messages.push("It suddenly gets dark.".to_string());
             }
             player.blinded_timeout = player.blinded_timeout.saturating_add(rng.rnd(5) as u16);
         }
@@ -1548,10 +1523,7 @@ mod tests {
             monster.state.paralyzed,
             "Paralysis potion should paralyze monster"
         );
-        assert!(
-            !monster.state.can_move,
-            "Paralyzed monster cannot move"
-        );
+        assert!(!monster.state.can_move, "Paralyzed monster cannot move");
     }
 
     #[test]
@@ -1560,10 +1532,7 @@ mod tests {
         let mut rng = GameRng::new(42);
         let potion = make_potion(PotionType::Speed, BucStatus::Uncursed);
         let _result = potionhit_monster(&potion, &mut monster, &mut rng);
-        assert!(
-            monster.state.hasted,
-            "Speed potion should haste monster"
-        );
+        assert!(monster.state.hasted, "Speed potion should haste monster");
     }
 
     #[test]

@@ -4,8 +4,8 @@
 //! sequence as the C ISAAC64 implementation for many seeds and many values.
 //! Also tests the NetHack RNG wrapper functions (rn2, rnd, d).
 
-use nh_test::rng::isaac64::Isaac64;
 use nh_test::ffi::CIsaac64;
+use nh_test::rng::isaac64::Isaac64;
 
 /// Test 100 different seeds, 10,000 values each, bitwise equality.
 #[test]
@@ -107,7 +107,17 @@ fn test_rnd_parity() {
 /// C implementation: tmp = n; while (n--) tmp += RND(x); return tmp;
 #[test]
 fn test_dice_parity() {
-    let dice_rolls = [(1, 6), (2, 6), (3, 6), (1, 4), (1, 8), (2, 8), (1, 10), (1, 12), (1, 20)];
+    let dice_rolls = [
+        (1, 6),
+        (2, 6),
+        (3, 6),
+        (1, 4),
+        (1, 8),
+        (2, 8),
+        (1, 10),
+        (1, 12),
+        (1, 20),
+    ];
 
     for &(n, x) in &dice_rolls {
         let mut rust = Isaac64::new(12345);
@@ -198,8 +208,16 @@ fn test_reseed_consistency() {
             let r2 = rng2.next_u64();
             let cv1 = c1.next_u64();
             let cv2 = c2.next_u64();
-            assert_eq!(r1, r2, "Rust reseed inconsistency at seed={}, pos={}", seed, i);
-            assert_eq!(cv1, cv2, "C reseed inconsistency at seed={}, pos={}", seed, i);
+            assert_eq!(
+                r1, r2,
+                "Rust reseed inconsistency at seed={}, pos={}",
+                seed, i
+            );
+            assert_eq!(
+                cv1, cv2,
+                "C reseed inconsistency at seed={}, pos={}",
+                seed, i
+            );
             assert_eq!(r1, cv1, "Cross-impl mismatch at seed={}, pos={}", seed, i);
         }
     }

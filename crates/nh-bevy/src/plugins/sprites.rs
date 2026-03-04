@@ -189,12 +189,13 @@ fn load_sprite_assets(
                 0,
                 obj_def.class,
             );
-            if let Some(path) = reg.0.get_sprite_path(&obj) {
-                if !path.is_empty() && !objects.contains_key(path) {
-                    let owned_path = path.to_string();
-                    let handle: Handle<Image> = asset_server.load(owned_path);
-                    objects.insert(path.to_string(), handle);
-                }
+            if let Some(path) = reg.0.get_sprite_path(&obj)
+                && !path.is_empty()
+                && !objects.contains_key(path)
+            {
+                let owned_path = path.to_string();
+                let handle: Handle<Image> = asset_server.load(owned_path);
+                objects.insert(path.to_string(), handle);
             }
         }
     }

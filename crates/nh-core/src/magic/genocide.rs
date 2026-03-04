@@ -8,8 +8,8 @@ use crate::compat::*;
 
 use crate::dungeon::Level;
 use crate::gameloop::GameState;
-use serde::{Deserialize, Serialize};
 use hashbrown::HashMap;
+use serde::{Deserialize, Serialize};
 
 /// Flags for genocide status of a monster type
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -290,7 +290,7 @@ pub fn do_reverse_genocide(
     }
 
     // Determine spawn count (4-6 monsters)
-    let spawn_count = 4 + game_state.rng.rn2(3) as u32;
+    let spawn_count = 4 + game_state.rng.rn2(3);
 
     // Try to spawn monsters around the player
     let mut spawned = 0u32;

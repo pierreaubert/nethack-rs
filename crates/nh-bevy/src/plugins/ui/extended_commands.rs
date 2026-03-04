@@ -107,7 +107,12 @@ fn handle_extended_commands_input(
             && state.selected_index < state.filtered_commands.len()
         {
             let cmd_name = &state.filtered_commands[state.selected_index].name;
-            dispatch_extended_command(cmd_name, &mut game_commands, &mut dir_state, &mut picker_state);
+            dispatch_extended_command(
+                cmd_name,
+                &mut game_commands,
+                &mut dir_state,
+                &mut picker_state,
+            );
             state.open = false;
         }
     }
@@ -202,7 +207,7 @@ fn dispatch_extended_command(
         picker_state.action = Some(action);
         picker_state.selected_index = 0;
         // Note: filtered_indices will be populated by the picker system or should be done here if possible
-        // For now, let's assume confirm_selection or render_picker handles it, or better, 
+        // For now, let's assume confirm_selection or render_picker handles it, or better,
         // we should really have a shared "open_picker" helper.
     }
 }
@@ -214,10 +219,12 @@ fn render_extended_commands(
     prev_search: Local<String>,
 ) {
     if !state.open {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     let mut needs_filter_update = false;
 
     egui::Window::new("Extended Commands (#)")
@@ -308,8 +315,6 @@ fn render_extended_commands(
                 ui.label("close");
             });
         });
-
-    
 }
 
 /// Update filtered commands based on search filter

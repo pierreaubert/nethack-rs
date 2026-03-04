@@ -607,6 +607,9 @@ const SOKOBAN_4B: &[&str] = &[
     "           ------            ",
 ];
 
+/// (boulders, stairs with up/down flag)
+type SokobanMapData = (Vec<(usize, usize)>, Vec<(usize, usize, bool)>);
+
 /// Parse a Sokoban map from ASCII art and apply it to a level.
 /// Returns boulder positions and stair positions for further processing.
 fn parse_sokoban_map(
@@ -614,7 +617,7 @@ fn parse_sokoban_map(
     map: &[&str],
     offset_x: usize,
     offset_y: usize,
-) -> (Vec<(usize, usize)>, Vec<(usize, usize, bool)>) {
+) -> SokobanMapData {
     let mut boulders = Vec::new();
     let mut stairs = Vec::new(); // (x, y, is_up)
 
@@ -667,7 +670,7 @@ fn parse_sokoban_map(
                     level.cells[x][y].typ = CellType::Corridor;
                     level.cells[x][y].lit = true;
                 }
-                ' ' | _ => {
+                _ => {
                     // Stone (default)
                 }
             }
@@ -678,12 +681,7 @@ fn parse_sokoban_map(
 }
 
 /// Set up a canonical Sokoban level from a map definition
-fn setup_sokoban_level(
-    level: &mut Level,
-    map: &[&str],
-    level_num: i8,
-    _rng: &mut GameRng,
-) {
+fn setup_sokoban_level(level: &mut Level, map: &[&str], level_num: i8, _rng: &mut GameRng) {
     fill_level(level, CellType::Stone);
 
     // Set Sokoban flags
@@ -732,23 +730,6 @@ fn setup_sokoban_level(
 /// Generate any Sokoban level from its canonical map
 fn generate_sokoban(level: &mut Level, map: &[&str], level_num: i8, rng: &mut GameRng) {
     setup_sokoban_level(level, map, level_num, rng);
-}
-
-/// Generate a placeholder level for unimplemented special levels
-fn generate_placeholder(level: &mut Level, rng: &mut GameRng) {
-    fill_level(level, CellType::Stone);
-
-    // Simple room
-    let cx = COLNO / 2;
-    let cy = ROWNO / 2;
-    for x in (cx - 10)..(cx + 10) {
-        for y in (cy - 5)..(cy + 5) {
-            level.cells[x][y].typ = CellType::Room;
-            level.cells[x][y].lit = true;
-        }
-    }
-
-    place_special_stairs(level, rng);
 }
 
 // Helper functions
@@ -1066,20 +1047,16 @@ fn generate_sanctum(level: &mut Level, _rng: &mut GameRng) {
     // Outer lava moat (2 cells wide)
     for x in (sanctum_x - 2)..(sanctum_x + sanctum_w + 2) {
         for y in (sanctum_y - 2)..(sanctum_y + sanctum_h + 2) {
-            if x < sanctum_x
+            if (x < sanctum_x
                 || x >= sanctum_x + sanctum_w
                 || y < sanctum_y
-                || y >= sanctum_y + sanctum_h
+                || y >= sanctum_y + sanctum_h)
+                && (((x < sanctum_x || x >= sanctum_x + sanctum_w)
+                    && (y >= sanctum_y - 2 && y < sanctum_y + sanctum_h + 2))
+                    || ((y < sanctum_y || y >= sanctum_y + sanctum_h)
+                        && (x >= sanctum_x - 2 && x < sanctum_x + sanctum_w + 2)))
             {
-                if (x < sanctum_x || x >= sanctum_x + sanctum_w)
-                    && (y >= sanctum_y - 2 && y < sanctum_y + sanctum_h + 2)
-                {
-                    level.cells[x][y].typ = CellType::Lava;
-                } else if (y < sanctum_y || y >= sanctum_y + sanctum_h)
-                    && (x >= sanctum_x - 2 && x < sanctum_x + sanctum_w + 2)
-                {
-                    level.cells[x][y].typ = CellType::Lava;
-                }
+                level.cells[x][y].typ = CellType::Lava;
             }
         }
     }
@@ -1252,16 +1229,13 @@ fn generate_asmodeus(level: &mut Level, rng: &mut GameRng) {
     // Lava moat (3 cells wide)
     for x in (keep_x - 3)..(keep_x + keep_w + 3) {
         for y in (keep_y - 3)..(keep_y + keep_h + 3) {
-            if x < keep_x || x >= keep_x + keep_w || y < keep_y || y >= keep_y + keep_h {
-                if (x < keep_x || x >= keep_x + keep_w)
-                    && (y >= keep_y - 3 && y < keep_y + keep_h + 3)
-                {
-                    level.cells[x][y].typ = CellType::Lava;
-                } else if (y < keep_y || y >= keep_y + keep_h)
-                    && (x >= keep_x - 3 && x < keep_x + keep_w + 3)
-                {
-                    level.cells[x][y].typ = CellType::Lava;
-                }
+            if (x < keep_x || x >= keep_x + keep_w || y < keep_y || y >= keep_y + keep_h)
+                && (((x < keep_x || x >= keep_x + keep_w)
+                    && (y >= keep_y - 3 && y < keep_y + keep_h + 3))
+                    || ((y < keep_y || y >= keep_y + keep_h)
+                        && (x >= keep_x - 3 && x < keep_x + keep_w + 3)))
+            {
+                level.cells[x][y].typ = CellType::Lava;
             }
         }
     }
@@ -1612,26 +1586,44 @@ mod tests {
         // Entry level (1a) has no hole traps - those are on higher floors
         // Should have stairs (up stairs '<')
         assert!(!level.stairs.is_empty(), "Sokoban 1a should have stairs");
-        assert!(level.stairs.iter().any(|s| s.up), "Sokoban 1a should have up stairs");
+        assert!(
+            level.stairs.iter().any(|s| s.up),
+            "Sokoban 1a should have up stairs"
+        );
 
         // Should have sokoban flags
         assert!(level.flags.sokoban_rules, "Should have sokoban_rules flag");
         assert!(level.flags.no_teleport, "Should have no_teleport flag");
-        assert!(level.flags.hard_floor, "Should have hard_floor (non-diggable) flag");
+        assert!(
+            level.flags.hard_floor,
+            "Should have hard_floor (non-diggable) flag"
+        );
 
         // Verify canonical layout has walls
-        let wall_count = level.cells.iter()
+        let wall_count = level
+            .cells
+            .iter()
             .flat_map(|col| col.iter())
             .filter(|c| c.typ == CellType::HWall || c.typ == CellType::VWall)
             .count();
-        assert!(wall_count > 20, "Sokoban 1a should have many walls from canonical layout, got {}", wall_count);
+        assert!(
+            wall_count > 20,
+            "Sokoban 1a should have many walls from canonical layout, got {}",
+            wall_count
+        );
 
         // Should have doors
-        let door_count = level.cells.iter()
+        let door_count = level
+            .cells
+            .iter()
             .flat_map(|col| col.iter())
             .filter(|c| c.typ == CellType::Door)
             .count();
-        assert!(door_count >= 1, "Sokoban 1a should have doors, got {}", door_count);
+        assert!(
+            door_count >= 1,
+            "Sokoban 1a should have doors, got {}",
+            door_count
+        );
     }
 
     #[test]
@@ -1653,10 +1645,16 @@ mod tests {
         generate_special_level(&mut level, SpecialLevelId::Sokoban2a, &mut rng);
 
         // Level 2a has 4 hole traps (^^^^)
-        let hole_count = level.traps.iter()
+        let hole_count = level
+            .traps
+            .iter()
             .filter(|t| t.trap_type == TrapType::Hole)
             .count();
-        assert_eq!(hole_count, 4, "Sokoban 2a should have exactly 4 hole traps, got {}", hole_count);
+        assert_eq!(
+            hole_count, 4,
+            "Sokoban 2a should have exactly 4 hole traps, got {}",
+            hole_count
+        );
         assert!(level.flags.sokoban_rules);
     }
 
@@ -1668,24 +1666,42 @@ mod tests {
         generate_special_level(&mut level, SpecialLevelId::Sokoban4a, &mut rng);
 
         // Prize level has hole traps ('^' in map) - 2 total (^^)
-        let hole_count = level.traps.iter()
+        let hole_count = level
+            .traps
+            .iter()
             .filter(|t| t.trap_type == TrapType::Hole)
             .count();
-        assert_eq!(hole_count, 2, "Sokoban 4a should have 2 hole traps, got {}", hole_count);
+        assert_eq!(
+            hole_count, 2,
+            "Sokoban 4a should have 2 hole traps, got {}",
+            hole_count
+        );
 
         // Should have corridors ('#' in map connecting rooms)
-        let corridor_count = level.cells.iter()
+        let corridor_count = level
+            .cells
+            .iter()
             .flat_map(|col| col.iter())
             .filter(|c| c.typ == CellType::Corridor)
             .count();
-        assert!(corridor_count > 10, "Sokoban 4a should have corridor connections, got {}", corridor_count);
+        assert!(
+            corridor_count > 10,
+            "Sokoban 4a should have corridor connections, got {}",
+            corridor_count
+        );
 
         // Should have doors ('+' in map)
-        let door_count = level.cells.iter()
+        let door_count = level
+            .cells
+            .iter()
             .flat_map(|col| col.iter())
             .filter(|c| c.typ == CellType::Door)
             .count();
-        assert!(door_count >= 4, "Sokoban 4a should have doors, got {}", door_count);
+        assert!(
+            door_count >= 4,
+            "Sokoban 4a should have doors, got {}",
+            door_count
+        );
 
         assert!(level.flags.sokoban_rules);
         assert!(level.flags.no_teleport);
@@ -1711,17 +1727,36 @@ mod tests {
 
             generate_special_level(&mut level, id, &mut rng);
 
-            assert!(level.flags.sokoban_rules, "Sokoban {} missing sokoban_rules", name);
-            assert!(level.flags.no_teleport, "Sokoban {} missing no_teleport", name);
-            assert!(level.flags.hard_floor, "Sokoban {} missing hard_floor", name);
+            assert!(
+                level.flags.sokoban_rules,
+                "Sokoban {} missing sokoban_rules",
+                name
+            );
+            assert!(
+                level.flags.no_teleport,
+                "Sokoban {} missing no_teleport",
+                name
+            );
+            assert!(
+                level.flags.hard_floor,
+                "Sokoban {} missing hard_floor",
+                name
+            );
             assert!(!level.stairs.is_empty(), "Sokoban {} has no stairs", name);
 
             // Every variant should have walls from the canonical layout
-            let wall_count = level.cells.iter()
+            let wall_count = level
+                .cells
+                .iter()
                 .flat_map(|col| col.iter())
                 .filter(|c| c.typ == CellType::HWall || c.typ == CellType::VWall)
                 .count();
-            assert!(wall_count > 15, "Sokoban {} should have walls, got {}", name, wall_count);
+            assert!(
+                wall_count > 15,
+                "Sokoban {} should have walls, got {}",
+                name,
+                wall_count
+            );
         }
     }
 

@@ -371,8 +371,7 @@ pub fn castmu(
     } else if attack.dice_sides > 0 {
         state
             .rng
-            .dice(ml / 2 + attack.dice_num as u32, attack.dice_sides as u32)
-            as i32
+            .dice(ml / 2 + attack.dice_num as u32, attack.dice_sides as u32) as i32
     } else {
         state.rng.dice(ml / 2 + 1, 6) as i32
     };
@@ -489,15 +488,9 @@ fn select_spell(
 /// Port of C cursetxt().
 fn cursetxt(state: &mut GameState, monster_name: &str, undirected: bool) {
     if undirected {
-        state.message(format!(
-            "{} points all around, then curses.",
-            monster_name
-        ));
+        state.message(format!("{} points all around, then curses.", monster_name));
     } else {
-        state.message(format!(
-            "{} points at you, then curses.",
-            monster_name
-        ));
+        state.message(format!("{} points at you, then curses.", monster_name));
     }
 }
 
@@ -614,7 +607,10 @@ fn cast_wizard_spell(state: &mut GameState, monster_idx: usize, dmg: i32, spell:
                 } else {
                     state.message("You reel...");
                 }
-                let dex = state.player.attr_current.get(crate::player::Attribute::Dexterity);
+                let dex = state
+                    .player
+                    .attr_current
+                    .get(crate::player::Attribute::Dexterity);
                 let dice_n = if dex < 12 { 6 } else { 4 };
                 let mut stun_dmg = state.rng.dice(dice_n, 4) as u16;
                 if state.player.properties.has(Property::HalfSpellDamage) {
@@ -704,10 +700,9 @@ fn cast_cleric_spell(state: &mut GameState, monster_idx: usize, dmg: i32, spell:
             if !has_reflection {
                 // Lightning blinds briefly
                 let blind_dur = state.rng.rnd(100) as u16;
-                let msg = state.player.make_blinded(
-                    state.player.blinded_timeout.saturating_add(blind_dur),
-                    true,
-                );
+                let msg = state
+                    .player
+                    .make_blinded(state.player.blinded_timeout.saturating_add(blind_dur), true);
                 if let Some(m) = msg {
                     state.message(m);
                 }
@@ -879,11 +874,7 @@ fn summon_nasty(state: &mut GameState) -> i32 {
 
 /// Monster uses a ranged spell (beam). Port of C buzzmu().
 /// Currently a stub — requires beam/ray system integration.
-pub fn buzzmu(
-    state: &mut GameState,
-    monster_idx: usize,
-    _attack: &Attack,
-) -> CastResult {
+pub fn buzzmu(state: &mut GameState, monster_idx: usize, _attack: &Attack) -> CastResult {
     let m = &state.current_level.monsters[monster_idx];
     if m.state.cancelled {
         let name = m.name.clone();
@@ -1111,7 +1102,11 @@ mod tests {
             // If the spell got past the cancel/spec check, cooldown should be set
             // (10 - 10 = 0, clamped to 2)
             let spec = state.current_level.monsters[0].spec_used;
-            assert!(spec >= 2 || spec == 0, "spec_used should be >= 2 or 0 (not attempted), got {}", spec);
+            assert!(
+                spec >= 2 || spec == 0,
+                "spec_used should be >= 2 or 0 (not attempted), got {}",
+                spec
+            );
         }
     }
 
@@ -1188,10 +1183,7 @@ mod tests {
         state.current_level.monsters.push(caster);
 
         cast_wizard_spell(&mut state, 0, 0, MageSpell::HasteSelf);
-        assert_eq!(
-            state.current_level.monsters[0].speed,
-            SpeedState::Fast
-        );
+        assert_eq!(state.current_level.monsters[0].speed, SpeedState::Fast);
     }
 
     #[test]

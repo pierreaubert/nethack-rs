@@ -167,17 +167,6 @@ pub fn should_use_ranged(
     // Intelligence affects decision
     let intelligence = monster_intelligence(monster.monster_type);
 
-    // Extensions: Personality modifier
-    #[cfg(feature = "extensions")]
-    let personality_bonus: i32 = match monster.personality {
-        super::personality::Personality::Aggressive => -15,
-        super::personality::Personality::Defensive => 15,
-        super::personality::Personality::Tactical => 20,
-        super::personality::Personality::Coward => 25,
-        super::personality::Personality::Berserker => -20,
-        super::personality::Personality::Cautious => 10,
-    };
-    #[cfg(not(feature = "extensions"))]
     let personality_bonus: i32 = 0;
 
     let mut use_chance: i32 = match intelligence {
@@ -198,21 +187,6 @@ pub fn should_use_ranged(
 /// Determine if monster should retreat
 pub fn should_retreat(monster: &Monster, _rng: &mut GameRng) -> bool {
     let intelligence = monster_intelligence(monster.monster_type);
-
-    // Extensions: Use morale system if available
-    #[cfg(feature = "extensions")]
-    {
-        let mut morale_calc = monster.morale.clone();
-        morale_calc.calculate(monster.personality, monster.hp, monster.hp_max);
-        if let Some(_reason) = morale_calc.should_retreat(
-            intelligence,
-            monster.personality,
-            monster.hp,
-            monster.hp_max,
-        ) {
-            return true;
-        }
-    }
 
     // Basic HP-based retreat
     if monster.hp <= 0 || monster.hp_max <= 0 {
@@ -264,25 +238,13 @@ pub fn should_call_for_help(monster: &Monster, level: &Level, rng: &mut GameRng)
         100
     };
 
-    let mut call_chance = match intelligence {
+    let call_chance = match intelligence {
         Intelligence::Low => 10,
         Intelligence::Average => 20,
         Intelligence::High => 40,
         Intelligence::Genius => 60,
         _ => 0,
     };
-
-    // Extensions: Personality modifier
-    #[cfg(feature = "extensions")]
-    {
-        let profile =
-            super::personality::PersonalityProfile::for_personality(monster.personality);
-        if profile.ally_loyalty > 50 {
-            call_chance += 20;
-        } else if profile.ally_loyalty < -50 {
-            call_chance = (call_chance / 2).max(5);
-        }
-    }
 
     // More likely to call when hurt
     let adjusted_chance = if hp_percent < 50 {
@@ -349,48 +311,6 @@ pub fn determine_tactics(
         return TacticalAction::Retreat;
     }
 
-    // Extensions: Personality-driven tactical preferences
-    #[cfg(feature = "extensions")]
-    {
-        let profile =
-            super::personality::PersonalityProfile::for_personality(monster.personality);
-
-        match monster.personality {
-            super::personality::Personality::Berserker => {
-                return TacticalAction::None;
-            }
-            super::personality::Personality::Aggressive => {
-                if rng.percent(20) && should_use_ranged(monster, player, level, rng) {
-                    return TacticalAction::RangedAttack {
-                        target_x: player.pos.x,
-                        target_y: player.pos.y,
-                    };
-                }
-                return TacticalAction::None;
-            }
-            _ => {}
-        }
-
-        if should_use_ranged(monster, player, level, rng) {
-            return TacticalAction::RangedAttack {
-                target_x: player.pos.x,
-                target_y: player.pos.y,
-            };
-        }
-
-        if profile.ally_loyalty > 40 {
-            if should_call_for_help(monster, level, rng) {
-                return TacticalAction::CallForHelp;
-            }
-        }
-
-        if monster.personality == super::personality::Personality::Coward && rng.percent(30) {
-            return TacticalAction::Hide;
-        }
-    }
-
-    // Without extensions: basic ranged check
-    #[cfg(not(feature = "extensions"))]
     if should_use_ranged(monster, player, level, rng) {
         return TacticalAction::RangedAttack {
             target_x: player.pos.x,
@@ -613,7 +533,7 @@ pub fn select_rwep(monster: &Monster) -> Option<(usize, Option<usize>)> {
                 let launcher_idx = find_launcher_for(monster, obj);
 
                 // Arrows need bows, bolts need crossbows
-                let needs_launcher = matches!(weapon_type, 202..=206 | 207);
+                let needs_launcher = matches!(weapon_type, 202..=207);
                 if needs_launcher && launcher_idx.is_none() {
                     continue;
                 }
@@ -664,7 +584,7 @@ pub fn mon_wield_item(monster: &mut Monster, weapon_check: WeaponCheck) -> bool 
             // Find a pick-axe by object_type or name
             monster.inventory.iter().position(|obj| {
                 obj.object_type == 132 // PICK_AXE
-                        || obj.name.as_ref().map_or(false, |n| n.to_lowercase().contains("pick"))
+                        || obj.name.as_ref().is_some_and(|n| n.to_lowercase().contains("pick"))
             })
         }
         WeaponCheck::NeedAxe => {
@@ -672,7 +592,7 @@ pub fn mon_wield_item(monster: &mut Monster, weapon_check: WeaponCheck) -> bool 
             monster.inventory.iter().position(|obj| {
                 obj.object_type == 120 // AXE
                         || obj.object_type == 104 // BATTLE_AXE
-                        || obj.name.as_ref().map_or(false, |n| n.to_lowercase().contains("axe"))
+                        || obj.name.as_ref().is_some_and(|n| n.to_lowercase().contains("axe"))
             })
         }
         WeaponCheck::NeedPickOrAxe => {
@@ -685,7 +605,7 @@ pub fn mon_wield_item(monster: &mut Monster, weapon_check: WeaponCheck) -> bool 
                         || obj
                             .name
                             .as_ref()
-                            .map_or(false, |n| n.to_lowercase().contains("pick"))
+                            .is_some_and(|n| n.to_lowercase().contains("pick"))
                 })
                 .or_else(|| {
                     monster.inventory.iter().position(|obj| {
@@ -694,7 +614,7 @@ pub fn mon_wield_item(monster: &mut Monster, weapon_check: WeaponCheck) -> bool 
                             || obj
                                 .name
                                 .as_ref()
-                                .map_or(false, |n| n.to_lowercase().contains("axe"))
+                                .is_some_and(|n| n.to_lowercase().contains("axe"))
                     })
                 })
         }
@@ -735,11 +655,11 @@ pub fn possibly_unwield(monster: &mut Monster) {
 /// Check if a wielded weapon is welded (cursed and can't be removed)
 /// (mwelded from wield.c)
 pub fn mwelded(monster: &Monster) -> bool {
-    if let Some(wielded_idx) = monster.wielded {
-        if let Some(weapon) = monster.inventory.get(wielded_idx) {
-            return weapon.buc == crate::object::BucStatus::Cursed
-                && weapon.class == crate::object::ObjectClass::Weapon;
-        }
+    if let Some(wielded_idx) = monster.wielded
+        && let Some(weapon) = monster.inventory.get(wielded_idx)
+    {
+        return weapon.buc == crate::object::BucStatus::Cursed
+            && weapon.class == crate::object::ObjectClass::Weapon;
     }
     false
 }

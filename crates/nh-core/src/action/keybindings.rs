@@ -10,7 +10,6 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use super::extended::ExtendedCommand;
 use hashbrown::HashMap;
 
 /// Custom key binding configuration

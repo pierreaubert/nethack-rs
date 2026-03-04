@@ -742,10 +742,9 @@ impl PerMonst {
 
     /// Check if any of the monster's attacks deal the specified damage type (dmgtype from mondata.c)
     pub fn dmgtype(&self, dt: crate::combat::DamageType) -> bool {
-        self.attacks.iter().any(|atk| {
-            atk.damage_type == dt
-                && atk.attack_type != crate::combat::AttackType::None
-        })
+        self.attacks
+            .iter()
+            .any(|atk| atk.damage_type == dt && atk.attack_type != crate::combat::AttackType::None)
     }
 
     /// Check if touching/eating this monster's flesh causes petrification (flesh_petrifies from mondata.h)
@@ -765,7 +764,9 @@ impl PerMonst {
 
     /// Check if the monster is telepathic
     pub fn is_telepathic(&self) -> bool {
-        self.name == "floating eye" || self.name == "mind flayer" || self.name == "master mind flayer"
+        self.name == "floating eye"
+            || self.name == "mind flayer"
+            || self.name == "master mind flayer"
     }
 }
 
@@ -1298,10 +1299,10 @@ pub fn name_to_monclass(name: &str) -> Option<MonsterClass> {
     }
 
     // Try to find by individual monster name
-    if let Some(idx) = name_to_mon(name) {
-        if let Some(mon) = crate::data::get_monster(idx) {
-            return def_char_to_monclass(mon.symbol);
-        }
+    if let Some(idx) = name_to_mon(name)
+        && let Some(mon) = crate::data::get_monster(idx)
+    {
+        return def_char_to_monclass(mon.symbol);
     }
 
     None

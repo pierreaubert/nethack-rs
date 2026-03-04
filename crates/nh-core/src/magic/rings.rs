@@ -6,7 +6,6 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use crate::object::Object;
 use crate::player::{Attribute, Property, You};
 use crate::rng::GameRng;
 use serde::{Deserialize, Serialize};
@@ -299,7 +298,7 @@ pub fn check_power_feedback(player: &You, rings: &RingWear, rng: &mut GameRng) -
     let drain = calculate_ring_drain(rings);
 
     // Feedback chance increases with energy deficit
-    let energy_deficit = (drain as i32 - player.energy).max(0);
+    let energy_deficit = (drain - player.energy).max(0);
     let feedback_chance = (energy_deficit / 5).min(50);
 
     if rng.percent(feedback_chance as u32) {

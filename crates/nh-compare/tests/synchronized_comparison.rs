@@ -5,7 +5,7 @@
 
 use nh_core::action::{Command, Direction};
 use nh_core::player::{Gender, Race, Role};
-use nh_core::{GameLoop, GameRng, GameState};
+use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use serde_json::Value;
 use serial_test::serial;
@@ -48,7 +48,7 @@ fn sync_stats_to_c(rs: &GameState, c_engine: &CGameEngine, turn: i64) {
         rs.player.pos.x as i32,
         rs.player.pos.y as i32,
         rs.player.armor_class as i32,
-        turn
+        turn,
     );
 }
 
@@ -65,15 +65,29 @@ fn test_synchronized_movement_parity() {
 
     // Initialize C Engine via FFI
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+    c_engine
+        .init("Valkyrie", "Human", 1, 0)
+        .expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
-    c_engine.generate_and_place().expect("C generate_and_place failed");
+    c_engine
+        .generate_and_place()
+        .expect("C generate_and_place failed");
     let (cx_start, cy_start) = c_engine.position();
-    assert!(cx_start > 0 || cy_start > 0, "C engine position should be non-zero after generate_and_place");
+    assert!(
+        cx_start > 0 || cy_start > 0,
+        "C engine position should be non-zero after generate_and_place"
+    );
 
     // Initialize Rust Engine - Use C's starting position to match
     let rust_rng = GameRng::new(seed);
-    let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender, role.default_alignment());
+    let mut rust_state = GameState::new_with_identity(
+        rust_rng,
+        "Hero".into(),
+        role,
+        race,
+        gender,
+        role.default_alignment(),
+    );
     rust_state.player.pos.x = cx_start as i8;
     rust_state.player.pos.y = cy_start as i8;
     rust_state.skip_invariant_checks = true;
@@ -96,13 +110,22 @@ fn test_synchronized_movement_parity() {
         let (cx, cy) = c_engine.position();
 
         // Position should not change while resting
-        assert_eq!(rs.player.pos.x, old_pos.0, "Rust moved while resting at turn {}", i);
+        assert_eq!(
+            rs.player.pos.x, old_pos.0,
+            "Rust moved while resting at turn {}",
+            i
+        );
         assert_eq!(rs.player.pos.x, cx as i8, "X pos desync at turn {}", i);
         assert_eq!(rs.player.pos.y, cy as i8, "Y pos desync at turn {}", i);
 
         // HP check (log but don't fail on regen differences)
         if rs.player.hp != c_engine.hp() {
-            println!("Turn {}: HP mismatch (Rust={}, C={}), likely regen. Continuing.", i, rs.player.hp, c_engine.hp());
+            println!(
+                "Turn {}: HP mismatch (Rust={}, C={}), likely regen. Continuing.",
+                i,
+                rs.player.hp,
+                c_engine.hp()
+            );
         }
     }
 }
@@ -117,9 +140,13 @@ fn test_gnomish_mines_gauntlet_parity() {
 
     // 1. Initialize C engine and export its level
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Archeologist", "Dwarf", 0, 0).expect("C engine init failed");
+    c_engine
+        .init("Archeologist", "Dwarf", 0, 0)
+        .expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
-    c_engine.generate_and_place().expect("C generate_and_place failed");
+    c_engine
+        .generate_and_place()
+        .expect("C generate_and_place failed");
     let (cx_start, cy_start) = c_engine.position();
 
     // Export C's level so Rust uses identical terrain
@@ -134,8 +161,12 @@ fn test_gnomish_mines_gauntlet_parity() {
     // 2. Initialize Rust engine with C's level
     let rust_rng = GameRng::new(rng_reseed);
     let mut rust_state = GameState::new_with_identity(
-        rust_rng, "Miner".into(), Role::Archeologist, Race::Dwarf,
-        Gender::Male, Role::Archeologist.default_alignment(),
+        rust_rng,
+        "Miner".into(),
+        Role::Archeologist,
+        Race::Dwarf,
+        Gender::Male,
+        Role::Archeologist.default_alignment(),
     );
     rust_state.current_level = Level::from_fixture(&fixture);
     rust_state.player.pos.x = cx_start as i8;
@@ -151,8 +182,16 @@ fn test_gnomish_mines_gauntlet_parity() {
     // 3. Run rest-only gauntlet on shared level (movement requires
     //    identical domove() logic which isn't fully ported; rest verifies
     //    position stability and per-turn processing parity)
-    println!("\n=== Starting Gauntlet (Seed {}, shared level, rest-only) ===", seed);
-    println!("  Player at ({}, {}), {} monsters", cx_start, cy_start, fixture.monsters.len());
+    println!(
+        "\n=== Starting Gauntlet (Seed {}, shared level, rest-only) ===",
+        seed
+    );
+    println!(
+        "  Player at ({}, {}), {} monsters",
+        cx_start,
+        cy_start,
+        fixture.monsters.len()
+    );
 
     for turn in 0..40 {
         let rs_start = rust_loop.state();
@@ -161,7 +200,7 @@ fn test_gnomish_mines_gauntlet_parity() {
 
         rust_loop.tick(Command::Rest);
         match c_engine.exec_cmd('.') {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(e) if e.contains("Player died") => {
                 println!("  C player died at turn {} — stopping", turn);
                 break;
@@ -173,7 +212,11 @@ fn test_gnomish_mines_gauntlet_parity() {
         let (cx, cy) = c_engine.position();
 
         // Position must not change while resting
-        assert_eq!(rs.player.pos.x, old_pos.0, "Rust moved while resting! turn {}", turn);
+        assert_eq!(
+            rs.player.pos.x, old_pos.0,
+            "Rust moved while resting! turn {}",
+            turn
+        );
         assert_eq!(rs.player.pos.x, cx as i8, "X desync turn {}", turn);
         assert_eq!(rs.player.pos.y, cy as i8, "Y desync turn {}", turn);
     }
@@ -185,43 +228,60 @@ fn test_gnomish_mines_gauntlet_parity() {
 #[serial]
 fn test_inventory_weight_stress_parity() {
     let seed = 999;
-    
+
     // 1. Initialize engines
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Tourist", "Human", 0, 0).expect("C engine init failed");
-    
+    c_engine
+        .init("Tourist", "Human", 0, 0)
+        .expect("C engine init failed");
+
     let rust_rng = GameRng::new(seed);
-    let mut rust_state = GameState::new_with_identity(rust_rng, "PackRat".into(), Role::Tourist, Race::Human, Gender::Male, Role::Tourist.default_alignment());
-    
+    let mut rust_state = GameState::new_with_identity(
+        rust_rng,
+        "PackRat".into(),
+        Role::Tourist,
+        Race::Human,
+        Gender::Male,
+        Role::Tourist.default_alignment(),
+    );
+
     println!("\n=== Starting Inventory Weight Stress (Seed {}) ===", seed);
-    
+
     // 2. Add multiple items and check weight accumulation
     // Use a fixed set of items: 100, 50, 25 weight
     let items_to_add = vec![100, 50, 25, 10, 5];
-    
+
     for (i, wt) in items_to_add.iter().enumerate() {
         println!("Adding item {} with weight {}", i, wt);
-        
+
         // Add to C
-        c_engine.add_item_to_inv(i as i32 + 1, *wt).expect("C add item failed");
-        
+        c_engine
+            .add_item_to_inv(i as i32 + 1, *wt)
+            .expect("C add item failed");
+
         // Add to Rust (Directly manipulate for now to test calculation logic)
         let mut obj = nh_core::object::Object::new(
             nh_core::object::ObjectId(i as u32 + 1000), // Unique ID
-            1, // strange object
-            nh_core::object::ObjectClass::Tool
+            1,                                          // strange object
+            nh_core::object::ObjectClass::Tool,
         );
         obj.weight = *wt as u32;
         rust_state.inventory.push(obj);
-        
+
         // 3. Compare Total Weight
         let rust_weight: u32 = rust_state.inventory.iter().map(|o| o.weight).sum();
         // Note: C starting inventory might have weight, so we compare DELTAS
         // In our current FFI simplified mode, C starts at 0.
-        assert_eq!(rust_weight as i32, c_engine.carrying_weight(), 
-            "Weight mismatch after adding item {}. Rust: {}, C: {}", i, rust_weight, c_engine.carrying_weight());
+        assert_eq!(
+            rust_weight as i32,
+            c_engine.carrying_weight(),
+            "Weight mismatch after adding item {}. Rust: {}, C: {}",
+            i,
+            rust_weight,
+            c_engine.carrying_weight()
+        );
     }
-    
+
     println!("Inventory weight stress passed!");
 }
 
@@ -248,12 +308,21 @@ fn test_all_roles_inventory_parity() {
     for (role, role_name) in roles {
         // 1. Initialize C Engine
         let mut c_engine = CGameEngine::new();
-        c_engine.init(role_name, "Human", 0, 0).expect("C engine init failed");
+        c_engine
+            .init(role_name, "Human", 0, 0)
+            .expect("C engine init failed");
         c_engine.reset(seed).expect("C engine reset failed");
-        
+
         // 2. Initialize Rust Engine
         let rust_rng = GameRng::new(seed);
-        let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
+        let rust_state = GameState::new_with_identity(
+            rust_rng,
+            "Hero".into(),
+            role,
+            Race::Human,
+            Gender::Male,
+            role.default_alignment(),
+        );
 
         let c_inv_str = c_engine.inventory_json();
         let c_inv: Value = serde_json::from_str(&c_inv_str).unwrap();
@@ -262,23 +331,42 @@ fn test_all_roles_inventory_parity() {
         let c_count = c_inv.as_array().unwrap().len();
         let base_count = expected_base_inventory_count(role);
 
-        println!("=== Role: {} Inventory Parity (Seed {}) ===", role_name, seed);
-        println!("Rust has {} items (base table: {})", rs_inv.len(), base_count);
+        println!(
+            "=== Role: {} Inventory Parity (Seed {}) ===",
+            role_name, seed
+        );
+        println!(
+            "Rust has {} items (base table: {})",
+            rs_inv.len(),
+            base_count
+        );
         println!("C    has {} items", c_count);
 
         // Rust should have at least the base starting items (may have random extras)
-        assert!(rs_inv.len() >= base_count,
-            "Rust inventory ({}) below base count ({}) for role {}", rs_inv.len(), base_count, role_name);
+        assert!(
+            rs_inv.len() >= base_count,
+            "Rust inventory ({}) below base count ({}) for role {}",
+            rs_inv.len(),
+            base_count,
+            role_name
+        );
 
         // C's full init may add extra items (pet inventory, dungeon pickup, etc.)
         // so we only verify C has at least the base items too
-        assert!(c_count >= base_count,
-            "C inventory ({}) below base count ({}) for role {}", c_count, base_count, role_name);
+        assert!(
+            c_count >= base_count,
+            "C inventory ({}) below base count ({}) for role {}",
+            c_count,
+            base_count,
+            role_name
+        );
 
         // Log the delta for visibility
         if rs_inv.len() != c_count {
-            println!("  NOTE: inventory count delta = {} (C may have extra items from full init)",
-                (c_count as i64) - (rs_inv.len() as i64));
+            println!(
+                "  NOTE: inventory count delta = {} (C may have extra items from full init)",
+                (c_count as i64) - (rs_inv.len() as i64)
+            );
         }
     }
 }
@@ -306,34 +394,90 @@ fn test_all_roles_character_generation_parity() {
     for (role, role_name) in roles {
         // 1. Initialize C Engine
         let mut c_engine = CGameEngine::new();
-        c_engine.init(role_name, "Human", 0, 0).expect("C engine init failed");
+        c_engine
+            .init(role_name, "Human", 0, 0)
+            .expect("C engine init failed");
         c_engine.reset(seed).expect("C engine reset failed");
-        
+
         // 2. Initialize Rust Engine
         let rust_rng = GameRng::new(seed);
-        let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
+        let rust_state = GameState::new_with_identity(
+            rust_rng,
+            "Hero".into(),
+            role,
+            Race::Human,
+            Gender::Male,
+            role.default_alignment(),
+        );
 
         let (hp_min, hp_max) = hp_range_for_role(role, Race::Human);
         let (en_min, en_max) = energy_range_for_role(role, Race::Human);
 
         println!("=== Role: {} Parity (Seed {}) ===", role_name, seed);
-        println!("Rust: HP {}/{}, Energy {}/{}", rust_state.player.hp, rust_state.player.hp_max, rust_state.player.energy, rust_state.player.energy_max);
-        println!("C   : HP {}/{}, Energy {}/{}", c_engine.hp(), c_engine.max_hp(), c_engine.energy(), c_engine.max_energy());
-        println!("Valid HP range: [{}, {}], Energy range: [{}, {}]", hp_min, hp_max, en_min, en_max);
+        println!(
+            "Rust: HP {}/{}, Energy {}/{}",
+            rust_state.player.hp,
+            rust_state.player.hp_max,
+            rust_state.player.energy,
+            rust_state.player.energy_max
+        );
+        println!(
+            "C   : HP {}/{}, Energy {}/{}",
+            c_engine.hp(),
+            c_engine.max_hp(),
+            c_engine.energy(),
+            c_engine.max_energy()
+        );
+        println!(
+            "Valid HP range: [{}, {}], Energy range: [{}, {}]",
+            hp_min, hp_max, en_min, en_max
+        );
 
         // Both engines should produce values within the valid range for this role
-        assert!(rust_state.player.hp_max >= hp_min && rust_state.player.hp_max <= hp_max,
-            "Rust HP Max {} outside range [{}, {}] for {}", rust_state.player.hp_max, hp_min, hp_max, role_name);
-        assert!(c_engine.max_hp() >= hp_min && c_engine.max_hp() <= hp_max,
-            "C HP Max {} outside range [{}, {}] for {}", c_engine.max_hp(), hp_min, hp_max, role_name);
-        assert!(rust_state.player.energy_max >= en_min && rust_state.player.energy_max <= en_max,
-            "Rust Energy Max {} outside range [{}, {}] for {}", rust_state.player.energy_max, en_min, en_max, role_name);
-        assert!(c_engine.max_energy() >= en_min && c_engine.max_energy() <= en_max,
-            "C Energy Max {} outside range [{}, {}] for {}", c_engine.max_energy(), en_min, en_max, role_name);
+        assert!(
+            rust_state.player.hp_max >= hp_min && rust_state.player.hp_max <= hp_max,
+            "Rust HP Max {} outside range [{}, {}] for {}",
+            rust_state.player.hp_max,
+            hp_min,
+            hp_max,
+            role_name
+        );
+        assert!(
+            c_engine.max_hp() >= hp_min && c_engine.max_hp() <= hp_max,
+            "C HP Max {} outside range [{}, {}] for {}",
+            c_engine.max_hp(),
+            hp_min,
+            hp_max,
+            role_name
+        );
+        assert!(
+            rust_state.player.energy_max >= en_min && rust_state.player.energy_max <= en_max,
+            "Rust Energy Max {} outside range [{}, {}] for {}",
+            rust_state.player.energy_max,
+            en_min,
+            en_max,
+            role_name
+        );
+        assert!(
+            c_engine.max_energy() >= en_min && c_engine.max_energy() <= en_max,
+            "C Energy Max {} outside range [{}, {}] for {}",
+            c_engine.max_energy(),
+            en_min,
+            en_max,
+            role_name
+        );
 
         // HP = HP Max at start, Energy = Energy Max at start
-        assert_eq!(rust_state.player.hp, rust_state.player.hp_max, "Rust HP != HP Max for {}", role_name);
-        assert_eq!(rust_state.player.energy, rust_state.player.energy_max, "Rust Energy != Energy Max for {}", role_name);
+        assert_eq!(
+            rust_state.player.hp, rust_state.player.hp_max,
+            "Rust HP != HP Max for {}",
+            role_name
+        );
+        assert_eq!(
+            rust_state.player.energy, rust_state.player.energy_max,
+            "Rust Energy != Energy Max for {}",
+            role_name
+        );
     }
 }
 
@@ -341,34 +485,78 @@ fn test_all_roles_character_generation_parity() {
 #[serial]
 fn test_character_generation_parity() {
     let seed = 42;
-    
+
     // 1. Initialize C Engine
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Wizard", "Human", 0, 0).expect("C engine init failed");
+    c_engine
+        .init("Wizard", "Human", 0, 0)
+        .expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
-    
+
     // 2. Initialize Rust Engine
     let rust_rng = GameRng::new(seed);
-    let rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), Role::Wizard, Race::Human, Gender::Male, Role::Wizard.default_alignment());
-    
+    let rust_state = GameState::new_with_identity(
+        rust_rng,
+        "Hero".into(),
+        Role::Wizard,
+        Race::Human,
+        Gender::Male,
+        Role::Wizard.default_alignment(),
+    );
+
     let (hp_min, hp_max) = hp_range_for_role(Role::Wizard, Race::Human);
     let (en_min, en_max) = energy_range_for_role(Role::Wizard, Race::Human);
 
     println!("\n=== Character Generation Parity (Seed {}) ===", seed);
-    println!("Rust: HP {}/{}, Energy {}/{}", rust_state.player.hp, rust_state.player.hp_max, rust_state.player.energy, rust_state.player.energy_max);
-    println!("C   : HP {}/{}, Energy {}/{}", c_engine.hp(), c_engine.max_hp(), c_engine.energy(), c_engine.max_energy());
-    println!("Valid HP range: [{}, {}], Energy range: [{}, {}]", hp_min, hp_max, en_min, en_max);
+    println!(
+        "Rust: HP {}/{}, Energy {}/{}",
+        rust_state.player.hp,
+        rust_state.player.hp_max,
+        rust_state.player.energy,
+        rust_state.player.energy_max
+    );
+    println!(
+        "C   : HP {}/{}, Energy {}/{}",
+        c_engine.hp(),
+        c_engine.max_hp(),
+        c_engine.energy(),
+        c_engine.max_energy()
+    );
+    println!(
+        "Valid HP range: [{}, {}], Energy range: [{}, {}]",
+        hp_min, hp_max, en_min, en_max
+    );
 
     // 3. Compare Initial Stats — both must be in valid range for Wizard+Human
     // Exact match not expected because C and Rust use independent RNG streams during init
-    assert!(rust_state.player.hp_max >= hp_min && rust_state.player.hp_max <= hp_max,
-        "Rust HP Max {} outside range [{}, {}]", rust_state.player.hp_max, hp_min, hp_max);
-    assert!(c_engine.max_hp() >= hp_min && c_engine.max_hp() <= hp_max,
-        "C HP Max {} outside range [{}, {}]", c_engine.max_hp(), hp_min, hp_max);
-    assert!(rust_state.player.energy_max >= en_min && rust_state.player.energy_max <= en_max,
-        "Rust Energy Max {} outside range [{}, {}]", rust_state.player.energy_max, en_min, en_max);
-    assert!(c_engine.max_energy() >= en_min && c_engine.max_energy() <= en_max,
-        "C Energy Max {} outside range [{}, {}]", c_engine.max_energy(), en_min, en_max);
+    assert!(
+        rust_state.player.hp_max >= hp_min && rust_state.player.hp_max <= hp_max,
+        "Rust HP Max {} outside range [{}, {}]",
+        rust_state.player.hp_max,
+        hp_min,
+        hp_max
+    );
+    assert!(
+        c_engine.max_hp() >= hp_min && c_engine.max_hp() <= hp_max,
+        "C HP Max {} outside range [{}, {}]",
+        c_engine.max_hp(),
+        hp_min,
+        hp_max
+    );
+    assert!(
+        rust_state.player.energy_max >= en_min && rust_state.player.energy_max <= en_max,
+        "Rust Energy Max {} outside range [{}, {}]",
+        rust_state.player.energy_max,
+        en_min,
+        en_max
+    );
+    assert!(
+        c_engine.max_energy() >= en_min && c_engine.max_energy() <= en_max,
+        "C Energy Max {} outside range [{}, {}]",
+        c_engine.max_energy(),
+        en_min,
+        en_max
+    );
 }
 
 #[test]
@@ -378,24 +566,35 @@ fn test_multi_seed_baseline_rest_parity() {
     let role = Role::Valkyrie;
     let race = Race::Human;
     let gender = Gender::Female;
-    
+
     for seed in seeds {
         println!("\n--- Testing Seed {} ---", seed);
-        
+
         // 1. Initialize C Engine
         let mut c_engine = CGameEngine::new();
-        c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+        c_engine
+            .init("Valkyrie", "Human", 1, 0)
+            .expect("C engine init failed");
         c_engine.reset(seed).expect("C engine reset failed");
-        c_engine.generate_and_place().expect("C generate_and_place failed");
+        c_engine
+            .generate_and_place()
+            .expect("C generate_and_place failed");
         let (cx_start, cy_start) = c_engine.position();
 
         // 2. Initialize Rust Engine
         let rust_rng = GameRng::new(seed);
-        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender, role.default_alignment());
+        let mut rust_state = GameState::new_with_identity(
+            rust_rng,
+            "Hero".into(),
+            role,
+            race,
+            gender,
+            role.default_alignment(),
+        );
         rust_state.player.pos.x = cx_start as i8;
         rust_state.player.pos.y = cy_start as i8;
         rust_state.skip_invariant_checks = true;
-    let mut rust_loop = GameLoop::new(rust_state);
+        let mut rust_loop = GameLoop::new(rust_state);
 
         let mut completed_turns = 0;
         for turn in 0..5000 {
@@ -407,7 +606,7 @@ fn test_multi_seed_baseline_rest_parity() {
 
             rust_loop.tick(Command::Rest);
             match c_engine.exec_cmd('.') {
-                Ok(()) => {},
+                Ok(()) => {}
                 Err(e) if e.contains("Player died") => {
                     println!("  C player died at turn {} — stopping this seed", turn);
                     completed_turns = turn;
@@ -417,13 +616,34 @@ fn test_multi_seed_baseline_rest_parity() {
             }
 
             let rs = rust_loop.state();
-            assert_eq!(rs.player.pos.x, old_pos.0, "Rust moved while resting! Seed {} turn {}", seed, turn);
-            assert_eq!(rs.player.pos.x as i32, c_engine.position().0, "X desync seed {} turn {}", seed, turn);
-            assert_eq!(rs.player.pos.y as i32, c_engine.position().1, "Y desync seed {} turn {}", seed, turn);
+            assert_eq!(
+                rs.player.pos.x, old_pos.0,
+                "Rust moved while resting! Seed {} turn {}",
+                seed, turn
+            );
+            assert_eq!(
+                rs.player.pos.x as i32,
+                c_engine.position().0,
+                "X desync seed {} turn {}",
+                seed,
+                turn
+            );
+            assert_eq!(
+                rs.player.pos.y as i32,
+                c_engine.position().1,
+                "Y desync seed {} turn {}",
+                seed,
+                turn
+            );
             completed_turns = turn + 1;
         }
         println!("  Seed {} completed {} turns", seed, completed_turns);
-        assert!(completed_turns >= 50, "Seed {} died too early at turn {}", seed, completed_turns);
+        assert!(
+            completed_turns >= 50,
+            "Seed {} died too early at turn {}",
+            seed,
+            completed_turns
+        );
     }
 }
 
@@ -442,17 +662,28 @@ fn test_full_state_comparison_multi_seed() {
         println!("\n--- Full state comparison, Seed {} ---", seed);
 
         let mut c_engine = CGameEngine::new();
-        c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+        c_engine
+            .init("Valkyrie", "Human", 1, 0)
+            .expect("C engine init failed");
         c_engine.reset(seed).expect("C engine reset failed");
-        c_engine.generate_and_place().expect("C generate_and_place failed");
+        c_engine
+            .generate_and_place()
+            .expect("C generate_and_place failed");
         let (cx_start, cy_start) = c_engine.position();
 
         let rust_rng = GameRng::new(seed);
-        let mut rust_state = GameState::new_with_identity(rust_rng, "Hero".into(), role, race, gender, role.default_alignment());
+        let mut rust_state = GameState::new_with_identity(
+            rust_rng,
+            "Hero".into(),
+            role,
+            race,
+            gender,
+            role.default_alignment(),
+        );
         rust_state.player.pos.x = cx_start as i8;
         rust_state.player.pos.y = cy_start as i8;
         rust_state.skip_invariant_checks = true;
-    let mut rust_loop = GameLoop::new(rust_state);
+        let mut rust_loop = GameLoop::new(rust_state);
 
         let mut completed_turns = 0;
         for turn in 0..num_turns {
@@ -463,9 +694,12 @@ fn test_full_state_comparison_multi_seed() {
             // Rest-only: avoids movement desync from different level layouts
             rust_loop.tick(Command::Rest);
             match c_engine.exec_cmd('.') {
-                Ok(()) => {},
+                Ok(()) => {}
                 Err(e) if e.contains("Player died") => {
-                    println!("  Seed {} C player died at turn {} — stopping this seed", seed, turn);
+                    println!(
+                        "  Seed {} C player died at turn {} — stopping this seed",
+                        seed, turn
+                    );
                     completed_turns = turn;
                     break;
                 }
@@ -476,18 +710,44 @@ fn test_full_state_comparison_multi_seed() {
             let (cx, cy) = c_engine.position();
 
             // Position should not change while resting
-            assert_eq!(rs.player.pos.x, old_pos.0, "Rust moved while resting! Seed {} turn {}", seed, turn);
-            assert_eq!(rs.player.pos.x, cx as i8, "X desync seed {} turn {}", seed, turn);
-            assert_eq!(rs.player.pos.y, cy as i8, "Y desync seed {} turn {}", seed, turn);
+            assert_eq!(
+                rs.player.pos.x, old_pos.0,
+                "Rust moved while resting! Seed {} turn {}",
+                seed, turn
+            );
+            assert_eq!(
+                rs.player.pos.x, cx as i8,
+                "X desync seed {} turn {}",
+                seed, turn
+            );
+            assert_eq!(
+                rs.player.pos.y, cy as i8,
+                "Y desync seed {} turn {}",
+                seed, turn
+            );
 
             // HP check (log but don't fail on minor regen differences)
             if rs.player.hp != c_engine.hp() {
-                println!("Seed {} turn {}: HP mismatch (Rust={}, C={})", seed, turn, rs.player.hp, c_engine.hp());
+                println!(
+                    "Seed {} turn {}: HP mismatch (Rust={}, C={})",
+                    seed,
+                    turn,
+                    rs.player.hp,
+                    c_engine.hp()
+                );
             }
             completed_turns = turn + 1;
         }
-        println!("Seed {} passed full state comparison ({} rest turns)", seed, completed_turns);
-        assert!(completed_turns >= 10, "Seed {} died too early at turn {}", seed, completed_turns);
+        println!(
+            "Seed {} passed full state comparison ({} rest turns)",
+            seed, completed_turns
+        );
+        assert!(
+            completed_turns >= 10,
+            "Seed {} died too early at turn {}",
+            seed,
+            completed_turns
+        );
     }
 }
 
@@ -501,15 +761,23 @@ fn test_rng_sync_after_level_gen() {
 
     // C engine: init + reset(seed) + generate_and_place -> RNG at position 0
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+    c_engine
+        .init("Valkyrie", "Human", 1, 0)
+        .expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
-    c_engine.generate_and_place().expect("C generate_and_place failed");
+    c_engine
+        .generate_and_place()
+        .expect("C generate_and_place failed");
 
     // Rust engine: new_with_identity reseeds after level gen -> RNG at position 0
     let rust_rng = GameRng::new(seed);
     let rust_state = GameState::new_with_identity(
-        rust_rng, "Hero".into(), Role::Valkyrie, Race::Human,
-        Gender::Female, Role::Valkyrie.default_alignment(),
+        rust_rng,
+        "Hero".into(),
+        Role::Valkyrie,
+        Race::Human,
+        Gender::Female,
+        Role::Valkyrie.default_alignment(),
     );
     let mut rust_rng = rust_state.rng.clone();
 
@@ -524,9 +792,15 @@ fn test_rng_sync_after_level_gen() {
         }
     }
 
-    println!("RNG sync test: {}/20 matches after level gen", 20 - mismatches);
+    println!(
+        "RNG sync test: {}/20 matches after level gen",
+        20 - mismatches
+    );
     // We expect all 20 to match since both reseeded to position 0
-    assert_eq!(mismatches, 0, "RNG streams should be identical after level gen reseed");
+    assert_eq!(
+        mismatches, 0,
+        "RNG streams should be identical after level gen reseed"
+    );
 }
 
 #[test]
@@ -537,14 +811,22 @@ fn test_single_move_rng_divergence() {
     let seed = 42u64;
 
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+    c_engine
+        .init("Valkyrie", "Human", 1, 0)
+        .expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
-    c_engine.generate_and_place().expect("C generate_and_place failed");
+    c_engine
+        .generate_and_place()
+        .expect("C generate_and_place failed");
 
     let rust_rng = GameRng::new(seed);
     let mut rust_state = GameState::new_with_identity(
-        rust_rng, "Hero".into(), Role::Valkyrie, Race::Human,
-        Gender::Female, Role::Valkyrie.default_alignment(),
+        rust_rng,
+        "Hero".into(),
+        Role::Valkyrie,
+        Race::Human,
+        Gender::Female,
+        Role::Valkyrie.default_alignment(),
     );
     let (cx, cy) = c_engine.position();
     rust_state.player.pos.x = cx as i8;
@@ -572,9 +854,18 @@ fn test_single_move_rng_divergence() {
     let rust_consumed = rust_rng_after - rust_rng_before;
 
     println!("=== After 1 rest ===");
-    println!("C RNG calls consumed: {} (before={}, after={})", c_consumed, c_rng_before, c_rng_after);
-    println!("Rust RNG calls consumed: {} (before={}, after={})", rust_consumed, rust_rng_before, rust_rng_after);
-    println!("RNG drift per turn: {} calls", (c_consumed as i64 - rust_consumed as i64).abs());
+    println!(
+        "C RNG calls consumed: {} (before={}, after={})",
+        c_consumed, c_rng_before, c_rng_after
+    );
+    println!(
+        "Rust RNG calls consumed: {} (before={}, after={})",
+        rust_consumed, rust_rng_before, rust_rng_after
+    );
+    println!(
+        "RNG drift per turn: {} calls",
+        (c_consumed as i64 - rust_consumed as i64).abs()
+    );
 
     // Check RNG alignment after one turn
     let mut mismatches = 0;
@@ -584,7 +875,10 @@ fn test_single_move_rng_divergence() {
         let r_val = rng_clone.rn2(1000) as i32;
         if c_val != r_val {
             if mismatches == 0 {
-                println!("First RNG divergence at probe {}: C={}, Rust={}", i, c_val, r_val);
+                println!(
+                    "First RNG divergence at probe {}: C={}, Rust={}",
+                    i, c_val, r_val
+                );
             }
             mismatches += 1;
         }
@@ -594,8 +888,12 @@ fn test_single_move_rng_divergence() {
     // C with full post-turn processing (movemon, do_storms, gethungry, etc.)
     // will consume significantly more RNG than Rust's simpler new_turn().
     // This diagnostic measures the gap for Phase D alignment work.
-    println!("NOTE: C consumed {} RNG calls per turn, Rust consumed {} — delta = {}",
-             c_consumed, rust_consumed, (c_consumed as i64 - rust_consumed as i64).abs());
+    println!(
+        "NOTE: C consumed {} RNG calls per turn, Rust consumed {} — delta = {}",
+        c_consumed,
+        rust_consumed,
+        (c_consumed as i64 - rust_consumed as i64).abs()
+    );
 }
 
 #[test]
@@ -607,23 +905,32 @@ fn test_c_domove_walkability() {
     let seed = 42u64;
 
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+    c_engine
+        .init("Valkyrie", "Human", 1, 0)
+        .expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
-    c_engine.generate_and_place().expect("C generate_and_place failed");
+    c_engine
+        .generate_and_place()
+        .expect("C generate_and_place failed");
 
     let (start_x, start_y) = c_engine.position();
-    assert!(start_x > 0 || start_y > 0, "Player should have valid position");
+    assert!(
+        start_x > 0 || start_y > 0,
+        "Player should have valid position"
+    );
     println!("C player starts at ({}, {})", start_x, start_y);
 
     // Get the cells around the player to understand walkability
-    let region_json = c_engine.get_cell_region(
-        start_x - 2, start_y - 2,
-        start_x + 2, start_y + 2,
-    );
+    let region_json = c_engine.get_cell_region(start_x - 2, start_y - 2, start_x + 2, start_y + 2);
     println!("Cells around player:\n{}", region_json);
 
     // Try moving in all 4 cardinal directions, tracking which succeed
-    let directions = [('h', -1, 0, "west"), ('l', 1, 0, "east"), ('k', 0, -1, "north"), ('j', 0, 1, "south")];
+    let directions = [
+        ('h', -1, 0, "west"),
+        ('l', 1, 0, "east"),
+        ('k', 0, -1, "north"),
+        ('j', 0, 1, "south"),
+    ];
     let mut moved_count = 0;
     let mut blocked_count = 0;
 
@@ -648,15 +955,24 @@ fn test_c_domove_walkability() {
             println!("  {} -> blocked (wall/obstacle)", name);
             blocked_count += 1;
         } else {
-            println!("  {} -> unexpected position change: ({},{}) -> ({},{})", name, bx, by, ax, ay);
+            println!(
+                "  {} -> unexpected position change: ({},{}) -> ({},{})",
+                name, bx, by, ax, ay
+            );
         }
     }
 
-    println!("Movement results: {} moved, {} blocked", moved_count, blocked_count);
+    println!(
+        "Movement results: {} moved, {} blocked",
+        moved_count, blocked_count
+    );
 
     // A room cell should have at least 2 walkable directions (not in a corner with only 1)
     // In practice, rooms are at least 3x3 so most cells have 3-4 walkable neighbors
-    assert!(moved_count >= 1, "Player in a room should be able to move in at least one direction");
+    assert!(
+        moved_count >= 1,
+        "Player in a room should be able to move in at least one direction"
+    );
     println!("C domove walkability test passed!");
 }
 
@@ -668,9 +984,13 @@ fn test_c_domove_stress() {
     let seed = 42u64;
 
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+    c_engine
+        .init("Valkyrie", "Human", 1, 0)
+        .expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
-    c_engine.generate_and_place().expect("C generate_and_place failed");
+    c_engine
+        .generate_and_place()
+        .expect("C generate_and_place failed");
 
     let (start_x, start_y) = c_engine.position();
     println!("C domove stress: start ({}, {})", start_x, start_y);
@@ -695,8 +1015,14 @@ fn test_c_domove_stress() {
         }
     }
 
-    println!("C domove stress: {} succeeded, {} blocked in 100 turns", moves_succeeded, moves_blocked);
-    assert!(moves_succeeded > 0, "Should have moved at least once in 100 turns");
+    println!(
+        "C domove stress: {} succeeded, {} blocked in 100 turns",
+        moves_succeeded, moves_blocked
+    );
+    assert!(
+        moves_succeeded > 0,
+        "Should have moved at least once in 100 turns"
+    );
     println!("C domove stress test passed!");
 }
 
@@ -713,9 +1039,13 @@ fn test_c_full_processing_stress_500_turns() {
         println!("\n--- C full processing stress, Seed {} ---", seed);
 
         let mut c_engine = CGameEngine::new();
-        c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+        c_engine
+            .init("Valkyrie", "Human", 1, 0)
+            .expect("C engine init failed");
         c_engine.reset(seed).expect("C engine reset failed");
-        c_engine.generate_and_place().expect("C generate_and_place failed");
+        c_engine
+            .generate_and_place()
+            .expect("C generate_and_place failed");
 
         let c_rng_start = c_engine.rng_call_count();
         let mut completed = 0;
@@ -723,7 +1053,7 @@ fn test_c_full_processing_stress_500_turns() {
         for turn in 0..500 {
             let cmd = cmds[turn % cmds.len()];
             match c_engine.exec_cmd(cmd) {
-                Ok(()) => {},
+                Ok(()) => {}
                 Err(e) if e.contains("Player died") => {
                     println!("  Player died at turn {} — stopping", turn);
                     break;
@@ -737,9 +1067,15 @@ fn test_c_full_processing_stress_500_turns() {
         let rng_consumed = c_rng_end - c_rng_start;
         let (cx, cy) = c_engine.position();
 
-        println!("  Completed {} turns, final pos ({},{}), RNG consumed: {}",
-                 completed, cx, cy, rng_consumed);
-        assert!(completed >= 50, "Should survive at least 50 turns (survived {})", completed);
+        println!(
+            "  Completed {} turns, final pos ({},{}), RNG consumed: {}",
+            completed, cx, cy, rng_consumed
+        );
+        assert!(
+            completed >= 50,
+            "Should survive at least 50 turns (survived {})",
+            completed
+        );
         assert!(rng_consumed > 0, "Should have consumed RNG calls");
         println!("  Seed {} passed!", seed);
     }
@@ -764,24 +1100,41 @@ fn test_rng_call_count_comparison() {
 
     // --- C engine setup ---
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+    c_engine
+        .init("Valkyrie", "Human", 1, 0)
+        .expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
-    c_engine.generate_and_place().expect("C generate_and_place failed");
+    c_engine
+        .generate_and_place()
+        .expect("C generate_and_place failed");
 
     // Export C's level (cells, monsters, rooms, flags)
     let level_json = c_engine.export_level();
-    let fixture: LevelFixture = serde_json::from_str(&level_json)
-        .unwrap_or_else(|e| panic!("Failed to parse C level fixture: {}\nJSON (first 500 chars): {}", e, &level_json[..level_json.len().min(500)]));
+    let fixture: LevelFixture = serde_json::from_str(&level_json).unwrap_or_else(|e| {
+        panic!(
+            "Failed to parse C level fixture: {}\nJSON (first 500 chars): {}",
+            e,
+            &level_json[..level_json.len().min(500)]
+        )
+    });
 
     let (cx, cy) = c_engine.position();
     println!("=== RNG Call Count Comparison (assert delta=0) ===");
-    println!("  C level: {} monsters, {} fountains, {} sinks, {} rooms, shop={}, temple={}",
-             fixture.monsters.len(), fixture.nfountains, fixture.nsinks, fixture.rooms.len(),
-             fixture.has_shop, fixture.has_temple);
+    println!(
+        "  C level: {} monsters, {} fountains, {} sinks, {} rooms, shop={}, temple={}",
+        fixture.monsters.len(),
+        fixture.nfountains,
+        fixture.nsinks,
+        fixture.rooms.len(),
+        fixture.has_shop,
+        fixture.has_temple
+    );
     println!("  C player at ({}, {})", cx, cy);
     for (i, m) in fixture.monsters.iter().enumerate() {
-        println!("  Monster {}: mnum={} at ({},{}) mmove={} mspeed={}",
-                 i, m.mnum, m.x, m.y, m.mmove, m.mspeed);
+        println!(
+            "  Monster {}: mnum={} at ({},{}) mmove={} mspeed={}",
+            i, m.mnum, m.x, m.y, m.mmove, m.mspeed
+        );
     }
 
     // Skip monster AI in C
@@ -793,8 +1146,12 @@ fn test_rng_call_count_comparison() {
     // --- Rust engine setup ---
     let rust_rng = GameRng::new(rng_reseed);
     let mut rust_state = GameState::new_with_identity(
-        rust_rng, "Hero".into(), Role::Valkyrie, Race::Human,
-        Gender::Female, Role::Valkyrie.default_alignment(),
+        rust_rng,
+        "Hero".into(),
+        Role::Valkyrie,
+        Race::Human,
+        Gender::Female,
+        Role::Valkyrie.default_alignment(),
     );
 
     // Replace Rust's generated level with C's imported level
@@ -810,10 +1167,12 @@ fn test_rng_call_count_comparison() {
     rust_state.skip_invariant_checks = true;
     let mut rust_loop = GameLoop::new(rust_state);
 
-    println!("  Rust level: {} monsters, {} fountains, {} sinks",
-             rust_loop.state().current_level.monsters.len(),
-             rust_loop.state().current_level.flags.fountain_count,
-             rust_loop.state().current_level.flags.sink_count);
+    println!(
+        "  Rust level: {} monsters, {} fountains, {} sinks",
+        rust_loop.state().current_level.monsters.len(),
+        rust_loop.state().current_level.flags.fountain_count,
+        rust_loop.state().current_level.flags.sink_count
+    );
 
     // Sync C's stats to match Rust's initial state
     let rs = rust_loop.state();
@@ -824,7 +1183,10 @@ fn test_rng_call_count_comparison() {
     let hp_max = rs.player.hp_max;
     let energy = rs.player.energy;
     let energy_max = rs.player.energy_max;
-    println!("  Rust: HP {}/{}, Energy {}/{}", hp, hp_max, energy, energy_max);
+    println!(
+        "  Rust: HP {}/{}, Energy {}/{}",
+        hp, hp_max, energy, energy_max
+    );
 
     // Enable RNG tracing in C for the first turn
     c_engine.enable_rng_tracing();
@@ -840,7 +1202,7 @@ fn test_rng_call_count_comparison() {
         sync_stats_to_c(rs, &c_engine, rs.turns as i64);
 
         match c_engine.exec_cmd('.') {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(e) if e.contains("Player died") => {
                 println!("  C player died at turn {} — stopping", turn);
                 break;
@@ -858,8 +1220,10 @@ fn test_rng_call_count_comparison() {
         total_rust_consumed += rust_consumed;
 
         let delta = (c_consumed as i64 - rust_consumed as i64).abs();
-        println!("  Turn {}: C={} RNG calls, Rust={} RNG calls, delta={}",
-                 turn, c_consumed, rust_consumed, delta);
+        println!(
+            "  Turn {}: C={} RNG calls, Rust={} RNG calls, delta={}",
+            turn, c_consumed, rust_consumed, delta
+        );
 
         // Print C's RNG trace for the first turn with a delta
         if delta > 0 && turn == 0 {
@@ -868,15 +1232,26 @@ fn test_rng_call_count_comparison() {
             c_engine.clear_rng_trace();
         }
 
-        assert_eq!(delta, 0,
+        assert_eq!(
+            delta, 0,
             "RNG call count delta must be 0 at turn {}. C consumed {}, Rust consumed {}.",
-            turn, c_consumed, rust_consumed);
+            turn, c_consumed, rust_consumed
+        );
     }
 
-    println!("  Total: C={}, Rust={}", total_c_consumed, total_rust_consumed);
-    assert_eq!(total_c_consumed, total_rust_consumed,
-        "Total RNG call counts must match: C={}, Rust={}", total_c_consumed, total_rust_consumed);
-    println!("  ✓ RNG parity achieved: {} calls over 10 turns", total_c_consumed);
+    println!(
+        "  Total: C={}, Rust={}",
+        total_c_consumed, total_rust_consumed
+    );
+    assert_eq!(
+        total_c_consumed, total_rust_consumed,
+        "Total RNG call counts must match: C={}, Rust={}",
+        total_c_consumed, total_rust_consumed
+    );
+    println!(
+        "  ✓ RNG parity achieved: {} calls over 10 turns",
+        total_c_consumed
+    );
 }
 
 /// Movemon RNG parity test: enable movemon and verify per-turn RNG parity.
@@ -895,24 +1270,38 @@ fn test_rng_with_movemon_diagnostic() {
 
     // --- C engine setup ---
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 1, 0).expect("C engine init failed");
+    c_engine
+        .init("Valkyrie", "Human", 1, 0)
+        .expect("C engine init failed");
     c_engine.reset(seed).expect("C engine reset failed");
-    c_engine.generate_and_place().expect("C generate_and_place failed");
+    c_engine
+        .generate_and_place()
+        .expect("C generate_and_place failed");
 
     // Export C's level
     let level_json = c_engine.export_level();
-    let fixture: LevelFixture = serde_json::from_str(&level_json)
-        .unwrap_or_else(|e| panic!("Failed to parse C level fixture: {}\nJSON (first 500 chars): {}",
-            e, &level_json[..level_json.len().min(500)]));
+    let fixture: LevelFixture = serde_json::from_str(&level_json).unwrap_or_else(|e| {
+        panic!(
+            "Failed to parse C level fixture: {}\nJSON (first 500 chars): {}",
+            e,
+            &level_json[..level_json.len().min(500)]
+        )
+    });
 
     let (cx, cy) = c_engine.position();
-    eprintln!("  C level: {} monsters, {} rooms, shop={}, temple={}",
-             fixture.monsters.len(), fixture.rooms.len(),
-             fixture.has_shop, fixture.has_temple);
+    eprintln!(
+        "  C level: {} monsters, {} rooms, shop={}, temple={}",
+        fixture.monsters.len(),
+        fixture.rooms.len(),
+        fixture.has_shop,
+        fixture.has_temple
+    );
     eprintln!("  C player at ({}, {})", cx, cy);
     for (i, m) in fixture.monsters.iter().enumerate() {
-        eprintln!("  C Monster {}: mnum={} at ({},{}) mmove={} mspeed={} asleep={} peaceful={}",
-                 i, m.mnum, m.x, m.y, m.mmove, m.mspeed, m.asleep, m.peaceful);
+        eprintln!(
+            "  C Monster {}: mnum={} at ({},{}) mmove={} mspeed={} asleep={} peaceful={}",
+            i, m.mnum, m.x, m.y, m.mmove, m.mspeed, m.asleep, m.peaceful
+        );
     }
 
     // DO NOT skip movemon — this is the whole point
@@ -924,8 +1313,12 @@ fn test_rng_with_movemon_diagnostic() {
     // --- Rust engine setup ---
     let rust_rng = GameRng::new(rng_reseed);
     let mut rust_state = GameState::new_with_identity(
-        rust_rng, "Hero".into(), Role::Valkyrie, Race::Human,
-        Gender::Female, Role::Valkyrie.default_alignment(),
+        rust_rng,
+        "Hero".into(),
+        Role::Valkyrie,
+        Race::Human,
+        Gender::Female,
+        Role::Valkyrie.default_alignment(),
     );
 
     // Replace Rust's generated level with C's imported level
@@ -941,9 +1334,11 @@ fn test_rng_with_movemon_diagnostic() {
     rust_state.skip_invariant_checks = true;
     let mut rust_loop = GameLoop::new(rust_state);
 
-    eprintln!("  Rust level: {} monsters", rust_loop.state().current_level.monsters.len());
-    for m in &rust_loop.state().current_level.monsters {
-    }
+    eprintln!(
+        "  Rust level: {} monsters",
+        rust_loop.state().current_level.monsters.len()
+    );
+    for m in &rust_loop.state().current_level.monsters {}
 
     // Sync C's stats to match Rust's initial state
     let rs = rust_loop.state();
@@ -978,7 +1373,7 @@ fn test_rng_with_movemon_diagnostic() {
 
         // Execute rest in both engines (C stderr will show per-section/movemon info)
         match c_engine.exec_cmd('.') {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(e) if e.contains("Player died") => {
                 eprintln!("  C player died at turn {} — stopping", turn);
                 break;
@@ -989,9 +1384,11 @@ fn test_rng_with_movemon_diagnostic() {
         // Sync C's viz_array into Rust's level.visible and couldsee so spawn position
         // selection uses identical visibility (C: ray-casting vs Rust: Bresenham)
         // and lined_up() boulder checks match C's couldsee() in m_move
-        let viz = c_engine.get_visibility();
+        let viz_json = c_engine.get_visibility();
+        let viz: Vec<Vec<bool>> = serde_json::from_str(&viz_json).expect("parse visibility JSON");
         rust_loop.state_mut().current_level.visible = viz;
-        let cs = c_engine.get_couldsee();
+        let cs_json = c_engine.get_couldsee();
+        let cs: Vec<Vec<bool>> = serde_json::from_str(&cs_json).expect("parse couldsee JSON");
         rust_loop.state_mut().current_level.couldsee = cs;
 
         // Rust's move_monsters() will print per-monster RNG to stderr
@@ -1004,8 +1401,10 @@ fn test_rng_with_movemon_diagnostic() {
         let delta = c_consumed as i64 - rust_consumed as i64;
         cumulative_delta += delta.abs();
 
-        eprintln!("  Turn {} result: C={} Rust={} delta={} (cumulative |delta|={})",
-                 turn, c_consumed, rust_consumed, delta, cumulative_delta);
+        eprintln!(
+            "  Turn {} result: C={} Rust={} delta={} (cumulative |delta|={})",
+            turn, c_consumed, rust_consumed, delta, cumulative_delta
+        );
 
         // Track first divergence
         if delta != 0 && first_divergence_turn.is_none() {
@@ -1040,7 +1439,11 @@ fn test_rng_with_movemon_diagnostic() {
     // limit reflects that player attributes/properties are not fully synced
     // between engines, which eventually causes monster AI to diverge.
     let parity_turns = first_divergence_turn.unwrap_or(500);
-    assert!(parity_turns >= MIN_PARITY_TURNS,
+    assert!(
+        parity_turns >= MIN_PARITY_TURNS,
         "RNG parity broke at turn {} (need >= {} turns). Cumulative |delta|={}",
-        parity_turns, MIN_PARITY_TURNS, cumulative_delta);
+        parity_turns,
+        MIN_PARITY_TURNS,
+        cumulative_delta
+    );
 }

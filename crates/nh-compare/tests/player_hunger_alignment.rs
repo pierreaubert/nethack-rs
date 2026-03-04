@@ -216,17 +216,26 @@ fn test_alignment_not_cross_aligned_same() {
 
 #[test]
 fn test_alignment_from_str_lawful() {
-    assert_eq!(AlignmentType::from_str("lawful"), Some(AlignmentType::Lawful));
+    assert_eq!(
+        AlignmentType::from_str("lawful"),
+        Some(AlignmentType::Lawful)
+    );
 }
 
 #[test]
 fn test_alignment_from_str_neutral() {
-    assert_eq!(AlignmentType::from_str("neutral"), Some(AlignmentType::Neutral));
+    assert_eq!(
+        AlignmentType::from_str("neutral"),
+        Some(AlignmentType::Neutral)
+    );
 }
 
 #[test]
 fn test_alignment_from_str_chaotic() {
-    assert_eq!(AlignmentType::from_str("chaotic"), Some(AlignmentType::Chaotic));
+    assert_eq!(
+        AlignmentType::from_str("chaotic"),
+        Some(AlignmentType::Chaotic)
+    );
 }
 
 #[test]

@@ -49,7 +49,7 @@ pub fn getlt() -> LocalTime {
 pub fn night() -> bool {
     let now = Local::now();
     let hour = now.hour();
-    hour < 6 || hour >= 21
+    !(6..21).contains(&hour)
 }
 
 /// Check if current time is midnight (hour == 0)
@@ -76,7 +76,7 @@ pub fn phase_of_the_moon() -> i32 {
     if (epact == 25 && goldn > 11) || epact == 24 {
         epact += 1;
     }
-    ((((diy + epact) * 6) + 11) % 177) / 22 & 7
+    (((((diy + epact) * 6) + 11) % 177) / 22) & 7
 }
 
 /// Check if today is Friday the 13th
@@ -88,13 +88,13 @@ pub fn friday_13th() -> bool {
 /// Format time as HHMMSS integer (e.g., 123045 for 12:30:45)
 pub fn hhmmss() -> u32 {
     let now = Local::now();
-    now.hour() as u32 * 10000 + now.minute() as u32 * 100 + now.second() as u32
+    now.hour() * 10000 + now.minute() * 100 + now.second()
 }
 
 /// Format time as HHMMSS integer from Unix timestamp
 pub fn hhmmss_from_timestamp(timestamp: u64) -> u32 {
     let dt = DateTime::<Local>::from(UNIX_EPOCH + std::time::Duration::from_secs(timestamp));
-    dt.hour() as u32 * 10000 + dt.minute() as u32 * 100 + dt.second() as u32
+    dt.hour() * 10000 + dt.minute() * 100 + dt.second()
 }
 
 /// Format date as YYYYMMDD integer (e.g., 20260119 for 2026-01-19)
@@ -164,7 +164,12 @@ pub fn time_from_yyyymmddhhmmss(s: &str) -> Option<u64> {
     let second: u32 = s[12..14].parse().ok()?;
 
     // Validate ranges
-    if month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || second > 59 {
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || hour > 23
+        || minute > 59
+        || second > 59
+    {
         return None;
     }
 

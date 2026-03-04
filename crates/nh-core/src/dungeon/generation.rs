@@ -7,8 +7,8 @@
 use crate::compat::*;
 
 use crate::combat::AttackType;
-use crate::data::monsters::{G_GENO, G_NOGEN, G_NOHELL, G_UNIQ, MONSTERS};
-use crate::data::objects::{P_BOW, P_SHURIKEN, OBJECTS};
+use crate::data::monsters::{G_NOGEN, G_NOHELL, G_UNIQ, MONSTERS};
+use crate::data::objects::{OBJECTS, P_BOW, P_SHURIKEN};
 use crate::monster::{Monster, MonsterFlags, MonsterId, MonsterSound, MonsterState, PerMonst};
 use crate::object::{ClassBases, ObjClassDef, ObjectClass};
 use crate::rng::GameRng;
@@ -19,43 +19,21 @@ use crate::{COLNO, ROWNO};
 const R_LARGE_BOX: usize = 189;
 const R_CHEST: usize = 190;
 const R_ICE_BOX: usize = 191;
-const R_BAG_OF_TRICKS: usize = 195;
-const R_LOCK_PICK: usize = 197;
-const R_CREDIT_CARD: usize = 198;
 const R_TALLOW_CANDLE: usize = 199;
-const R_WAX_CANDLE: usize = 200;
-const R_BRASS_LANTERN: usize = 201;
-const R_OIL_LAMP: usize = 202;
-const R_MAGIC_LAMP: usize = 203;
 const R_CRYSTAL_BALL: usize = 206;
-const R_LEASH: usize = 211;
-const R_TINNING_KIT: usize = 213;
-const R_FIGURINE: usize = 216;
-const R_MAGIC_MARKER: usize = 217;
-const R_TIN_WHISTLE: usize = 220;
-const R_MAGIC_WHISTLE: usize = 221;
-const R_HORN_OF_PLENTY: usize = 227;
 const R_CORPSE: usize = 241;
 const R_EGG: usize = 242;
 const R_MEAT_RING: usize = 246;
 const R_KELP_FROND: usize = 251;
 const R_TIN: usize = 272;
 const R_WAND_OF_WISHING: usize = 369;
-const R_AMULET_OF_STRANGULATION: usize = 180;
-const R_AMULET_VERSUS_POISON: usize = 182;
-const R_AMULET_OF_UNCHANGING: usize = 184;
 const R_HELM_OF_OPPOSITE_ALIGNMENT: usize = 77;
 const R_DWARVISH_MITHRIL_COAT: usize = 105;
 const R_ELVEN_MITHRIL_COAT: usize = 106;
-const R_HAWAIIAN_SHIRT: usize = 115;
 const R_GAUNTLETS_OF_FUMBLING: usize = 137;
-const R_RIN_ADORNMENT: usize = 150;
-const R_RIN_PROTECTION: usize = 155;
 const R_LUCKSTONE: usize = 420;
 const R_LOADSTONE: usize = 421;
-const R_FLINT: usize = 423;
 const R_ROCK: usize = 424;
-const R_BOULDER: usize = 425;
 const R_STATUE: usize = 426;
 const R_BELL_OF_OPENING: usize = 239;
 const R_MUMMY_WRAPPING: usize = 117;
@@ -79,18 +57,16 @@ const R_GEM_CLASS_PROB_SUM: usize = 864;
 use super::corridor::generate_corridors;
 use super::rect::{NhRect, RectManager};
 use super::room::{Room, RoomType};
-use super::shop::populate_shop;
-use super::special_rooms::{is_vault, needs_population, populate_special_room, populate_vault};
-use super::{Cell, CellType, DLevel, DoorState, Level, LevelFlags};
+use super::{Cell, CellType, DLevel, DoorState, Level};
 
 /// Generate a standard level with rooms and corridors
 pub fn generate_rooms_and_corridors(
     level: &mut Level,
     rng: &mut GameRng,
-    monster_vitals: &crate::magic::MonsterVitals,
+    _monster_vitals: &crate::magic::MonsterVitals,
 ) {
     init_map(level);
-    
+
     // NetHack's makelevel() calls rn2(5) right before makerooms()
     // for a potential hell/medusa level check.
     let _ = rng.rn2(5);
@@ -102,12 +78,14 @@ pub fn generate_rooms_and_corridors(
     // make rooms until satisfied (makerooms() in C)
     while level.rooms.len() < super::mapseen::MAXNROFROOMS && rect_mgr.rnd_rect(rng).is_some() {
         // Vault check logic (mklev.c:229-240)
-        if level.rooms.len() >= (super::mapseen::MAXNROFROOMS / 6) && rng.rn2(2) != 0 && !tried_vault {
+        if level.rooms.len() >= (super::mapseen::MAXNROFROOMS / 6)
+            && rng.rn2(2) != 0
+            && !tried_vault
+        {
             tried_vault = true;
             // C: if (create_vault()) { vault_x = ...; vault_y = ...; rooms[nroom].hx = -1; }
             if let Some(vault_room) = rect_mgr.create_room_vault(level, rng, level.rooms.len()) {
                 vault_position = Some((vault_room.x, vault_room.y));
-            } else {
             }
             // Whether vault creation succeeds or fails, skip OROOM this iteration
             continue;
@@ -138,8 +116,7 @@ pub fn generate_rooms_and_corridors(
             level.rooms[new_idx] = old_rooms[old_idx].clone();
         }
     }
-    for (ri, rm) in level.rooms.iter().enumerate() {
-    }
+    for _rm in level.rooms.iter() {}
 
     // C places stairs BEFORE corridors (makelevel lines 710-728)
     let rooms_clone = level.rooms.clone();
@@ -161,7 +138,9 @@ pub fn generate_rooms_and_corridors(
     // C: branchp = Is_branchlev(&u.uz); room_threshold = branchp ? 4 : 3;
     let is_branch_level = {
         use super::topology::DungeonSystem;
-        DungeonSystem::new().get_branch_from(&level.dlevel).is_some()
+        DungeonSystem::new()
+            .get_branch_from(&level.dlevel)
+            .is_some()
     };
     let mut room_threshold: i32 = if is_branch_level { 4 } else { 3 };
 
@@ -173,20 +152,34 @@ pub fn generate_rooms_and_corridors(
         let mut h: i32 = 1;
 
         if check_room(level, &mut vault_x, &mut w, &mut vault_y, &mut h, true, rng) {
-            create_vault_room(level, vault_x as usize, vault_y as usize, w as usize, h as usize, rng, is_branch_level);
+            create_vault_room(
+                level,
+                vault_x as usize,
+                vault_y as usize,
+                w as usize,
+                h as usize,
+                rng,
+                is_branch_level,
+            );
             room_threshold += 1;
-        } else {
-            if rect_mgr.rnd_rect(rng).is_some() {
-                // Fallback: try creating vault at a new location
-                if let Some(fallback_room) = rect_mgr.create_room_vault(level, rng, level.rooms.len()) {
-                    vault_x = fallback_room.x as i32;
-                    vault_y = fallback_room.y as i32;
-                    w = 1;
-                    h = 1;
-                    if check_room(level, &mut vault_x, &mut w, &mut vault_y, &mut h, true, rng) {
-                        create_vault_room(level, vault_x as usize, vault_y as usize, w as usize, h as usize, rng, is_branch_level);
-                        room_threshold += 1;
-                    }
+        } else if rect_mgr.rnd_rect(rng).is_some() {
+            // Fallback: try creating vault at a new location
+            if let Some(fallback_room) = rect_mgr.create_room_vault(level, rng, level.rooms.len()) {
+                vault_x = fallback_room.x as i32;
+                vault_y = fallback_room.y as i32;
+                w = 1;
+                h = 1;
+                if check_room(level, &mut vault_x, &mut w, &mut vault_y, &mut h, true, rng) {
+                    create_vault_room(
+                        level,
+                        vault_x as usize,
+                        vault_y as usize,
+                        w as usize,
+                        h as usize,
+                        rng,
+                        is_branch_level,
+                    );
+                    room_threshold += 1;
                 }
             }
         }
@@ -269,55 +262,6 @@ fn place_stairs(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
     }
 }
 
-/// Place monsters in the level
-fn place_monsters(
-    level: &mut Level,
-    rooms: &[Room],
-    rng: &mut GameRng,
-    monster_vitals: &crate::magic::MonsterVitals,
-) {
-    if rooms.is_empty() {
-        return;
-    }
-
-    // Spawn 3-8 monsters
-    let num_monsters = (rng.rnd(6) + 2) as usize; // 3-8
-
-    for _ in 0..num_monsters {
-        // Pick a random room (not the first room where stairs are)
-        let room_idx = if rooms.len() > 1 {
-            rng.rn2(rooms.len() as u32 - 1) as usize + 1
-        } else {
-            0
-        };
-
-        let room = &rooms[room_idx];
-        let (x, y) = room.random_point(rng);
-
-        // Check if position is empty
-        if level.monster_at(x as i8, y as i8).is_some() {
-            continue; // Skip if occupied
-        }
-
-        // Create a basic monster with a random type
-        let monster_type = rng.rn2(10) as i16;
-
-        // Skip if this monster type is genocided
-        if monster_vitals.is_genocided(monster_type) {
-            continue;
-        }
-
-        let mut monster = Monster::new(MonsterId(0), monster_type, x as i8, y as i8);
-        monster.state = crate::monster::MonsterState::active();
-        monster.hp = 5 + rng.rnd(10) as i32;
-        monster.hp_max = monster.hp;
-        monster.name = random_monster_name(monster_type, rng).to_string();
-
-        // Add to level
-        level.add_monster(monster);
-    }
-}
-
 /// Common monster names for random spawning
 /// These are basic monsters that can appear on early dungeon levels
 const RANDOM_MONSTER_NAMES: &[&str] = &[
@@ -335,12 +279,6 @@ const RANDOM_MONSTER_NAMES: &[&str] = &[
 
 /// Get a monster name based on monster type index (pub(crate) wrapper for use in gameloop.rs)
 pub(crate) fn random_monster_name_for_type(monster_type: i16) -> &'static str {
-    let idx = (monster_type as usize) % RANDOM_MONSTER_NAMES.len();
-    RANDOM_MONSTER_NAMES[idx]
-}
-
-/// Get a random monster name based on monster type index
-fn random_monster_name(monster_type: i16, _rng: &mut GameRng) -> &'static str {
     let idx = (monster_type as usize) % RANDOM_MONSTER_NAMES.len();
     RANDOM_MONSTER_NAMES[idx]
 }
@@ -363,12 +301,7 @@ fn find_first_door_pos(level: &Level, room: &Room) -> Option<(usize, usize)> {
 /// Iterates through monsters of the given class, potentially calling rn2(2) for
 /// toostrong checks, then rnd(num) for selection.
 /// Returns the C monster index of the selected monster.
-fn mkclass_c_rng(
-    symbol: char,
-    depth: i32,
-    player_level: i32,
-    rng: &mut GameRng,
-) -> usize {
+fn mkclass_c_rng(symbol: char, depth: i32, player_level: i32, rng: &mut GameRng) -> usize {
     let maxmlev = depth / 2; // level_difficulty() >> 1
 
     let mut first: Option<usize> = None;
@@ -431,9 +364,9 @@ fn mkclass_c_rng(
 
     // Select: rnd(num) then walk
     let mut ct = rng.rnd(num as u32) as i32;
-    for c_mndx in 0..=last_c_mndx {
-        ct -= nums[c_mndx];
-        if ct <= 0 && nums[c_mndx] > 0 {
+    for (c_mndx, &n) in nums[..=last_c_mndx].iter().enumerate() {
+        ct -= n;
+        if ct <= 0 && n > 0 {
             return c_mndx;
         }
     }
@@ -551,10 +484,10 @@ fn mktemple_c_rng(
     let dy = hy - ly; // height - 1
     let mut sx = lx + dx / 2;
     let mut sy = ly + dy / 2;
-    if dx % 2 != 0 && rng.rn2(2) != 0 {
+    if !dx.is_multiple_of(2) && rng.rn2(2) != 0 {
         sx += 1;
     }
-    if dy % 2 != 0 && rng.rn2(2) != 0 {
+    if !dy.is_multiple_of(2) && rng.rn2(2) != 0 {
         sy += 1;
     }
 
@@ -567,7 +500,16 @@ fn mktemple_c_rng(
 
     // 3. priestini: makemon(PM_ALIGNED_PRIEST=271, sx+1, sy, MM_EPRI)
     // C PM 271 = aligned priest, S_HUMAN, level 12, M2_PEACEFUL|M2_LORD|M2_COLLECT
-    makemon_specific_c_rng(level, (sx + 1) as i8, sy as i8, 271, depth, objects, bases, rng);
+    makemon_specific_c_rng(
+        level,
+        (sx + 1) as i8,
+        sy as i8,
+        271,
+        depth,
+        objects,
+        bases,
+        rng,
+    );
 
     // 4. spellbooks: cnt = rn1(3, 2) = rn2(3) + 2 → 2 to 4 books
     let cnt = rng.rn2(3) + 2;
@@ -578,7 +520,6 @@ fn mktemple_c_rng(
 
     // 5. robe check: rn2(2)
     rng.rn2(2);
-
 }
 
 /// C's fill_zoo(sroom) RNG consumption.
@@ -613,17 +554,24 @@ fn fill_zoo_c_rng(
             ty = rng.rn2((hy - ly + 1) as u32) as usize + ly; // somey
             let _throne_i = rng.rnd(depth.max(1) as u32) as i32;
             // C: PM_OGRE_KING=202, PM_ELVENKING=265, PM_DWARF_KING=46, PM_GNOME_KING=165
-            let king_pm = if _throne_i > 9 { 202 }
-                else if _throne_i > 5 { 265 }
-                else if _throne_i > 2 { 46 }
-                else { 165 };
-            makemon_specific_c_rng(level, tx as i8, ty as i8, king_pm, depth, objects, bases, rng);
+            let king_pm = if _throne_i > 9 {
+                202
+            } else if _throne_i > 5 {
+                265
+            } else if _throne_i > 2 {
+                46
+            } else {
+                165
+            };
+            makemon_specific_c_rng(
+                level, tx as i8, ty as i8, king_pm, depth, objects, bases, rng,
+            );
             mongets_c_rng(objects, bases, R_MACE, ObjectClass::Weapon, depth, rng);
         }
         RoomType::Beehive => {
             // Center of room
-            tx = lx + (hx - lx + 1) / 2;
-            ty = ly + (hy - ly + 1) / 2;
+            tx = lx + (hx - lx).div_ceil(2);
+            ty = ly + (hy - ly).div_ceil(2);
             // Not irregular, so no somexy fallback
         }
         RoomType::Zoo | RoomType::LeprechaunHall => {
@@ -636,8 +584,13 @@ fn fill_zoo_c_rng(
     let mut goldlim = 500 * depth;
 
     // Log fill_zoo start
-    let door_info = if has_door { let (dx,dy) = door_pos.unwrap(); format!("({},{})", dx, dy) } else { "none".to_string() };
-    let mut cell_count = 0usize;
+    let _door_info = if has_door {
+        let (dx, dy) = door_pos.unwrap();
+        format!("({},{})", dx, dy)
+    } else {
+        "none".to_string()
+    };
+    let mut _cell_count = 0usize;
 
     // Main cell iteration: sx = lx..=hx, sy = ly..=hy
     for sx in lx..=hx {
@@ -645,8 +598,10 @@ fn fill_zoo_c_rng(
             // Skip logic for regular (non-irregular) rooms
             let cell_type = level.cells[sx][sy].typ;
             // SPACE_POS: typ > DOOR. Room cells are Room type.
-            let is_space = matches!(cell_type,
-                CellType::Corridor | CellType::Room | CellType::Stairs);
+            let is_space = matches!(
+                cell_type,
+                CellType::Corridor | CellType::Room | CellType::Stairs
+            );
             if !is_space {
                 continue;
             }
@@ -668,43 +623,59 @@ fn fill_zoo_c_rng(
                 continue;
             }
 
-            cell_count += 1;
+            _cell_count += 1;
             let _cell_rng_start = rng.call_count();
 
             // Monster creation per type
             match room_type {
                 RoomType::Court => {
                     let c_mndx = courtmon_c_rng(depth, player_level, rng);
-                    makemon_specific_c_rng(level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng);
+                    makemon_specific_c_rng(
+                        level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng,
+                    );
                 }
                 RoomType::Barracks => {
                     let c_mndx = squadmon_c_rng(depth, rng);
-                    makemon_specific_c_rng(level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng);
+                    makemon_specific_c_rng(
+                        level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng,
+                    );
                 }
                 RoomType::Morgue => {
                     let c_mndx = morguemon_c_rng(depth, player_level, rng);
-                    makemon_specific_c_rng(level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng);
+                    makemon_specific_c_rng(
+                        level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng,
+                    );
                 }
                 RoomType::Beehive => {
                     if sx == tx && sy == ty {
                         // PM_QUEEN_BEE = 5
-                        makemon_specific_c_rng(level, sx as i8, sy as i8, 5, depth, objects, bases, rng);
+                        makemon_specific_c_rng(
+                            level, sx as i8, sy as i8, 5, depth, objects, bases, rng,
+                        );
                     } else {
                         // PM_KILLER_BEE = 1
-                        makemon_specific_c_rng(level, sx as i8, sy as i8, 1, depth, objects, bases, rng);
+                        makemon_specific_c_rng(
+                            level, sx as i8, sy as i8, 1, depth, objects, bases, rng,
+                        );
                     }
                 }
                 RoomType::LeprechaunHall => {
                     // PM_LEPRECHAUN = 62
-                    makemon_specific_c_rng(level, sx as i8, sy as i8, 62, depth, objects, bases, rng);
+                    makemon_specific_c_rng(
+                        level, sx as i8, sy as i8, 62, depth, objects, bases, rng,
+                    );
                 }
                 RoomType::CockatriceNest => {
                     // PM_COCKATRICE = 10
-                    makemon_specific_c_rng(level, sx as i8, sy as i8, 10, depth, objects, bases, rng);
+                    makemon_specific_c_rng(
+                        level, sx as i8, sy as i8, 10, depth, objects, bases, rng,
+                    );
                 }
                 RoomType::Anthole => {
                     let c_mndx = antholemon_c_rng(depth);
-                    makemon_specific_c_rng(level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng);
+                    makemon_specific_c_rng(
+                        level, sx as i8, sy as i8, c_mndx, depth, objects, bases, rng,
+                    );
                 }
                 RoomType::Zoo => {
                     // makemon(NULL, sx, sy, MM_ASLEEP) — random monster with groups
@@ -722,7 +693,8 @@ fn fill_zoo_c_rng(
                     // goldlim -= i; mkgold(rn1(i, 10), sx, sy)
                     let mut i = if has_door {
                         let (dx, dy) = door_pos.unwrap();
-                        let distval = (sx as i32 - dx as i32).pow(2) + (sy as i32 - dy as i32).pow(2);
+                        let distval =
+                            (sx as i32 - dx as i32).pow(2) + (sy as i32 - dy as i32).pow(2);
                         distval * distval // sq(dist2)
                     } else {
                         goldlim
@@ -739,12 +711,34 @@ fn fill_zoo_c_rng(
                 RoomType::Morgue => {
                     // if (!rn2(5)) mk_tt_object(CORPSE) → mksobj(CORPSE, TRUE, FALSE)
                     if rng.rn2(5) == 0 {
-                        mksobj_c_rng(objects, bases, R_CORPSE, ObjectClass::Food, true, false, depth, rng);
+                        mksobj_c_rng(
+                            objects,
+                            bases,
+                            R_CORPSE,
+                            ObjectClass::Food,
+                            true,
+                            false,
+                            depth,
+                            rng,
+                        );
                     }
                     // if (!rn2(10)) mksobj_at(rn2(3)?LARGE_BOX:CHEST, TRUE, FALSE)
                     if rng.rn2(10) == 0 {
-                        let box_type = if rng.rn2(3) != 0 { R_LARGE_BOX } else { R_CHEST };
-                        mksobj_c_rng(objects, bases, box_type, ObjectClass::Tool, true, false, depth, rng);
+                        let box_type = if rng.rn2(3) != 0 {
+                            R_LARGE_BOX
+                        } else {
+                            R_CHEST
+                        };
+                        mksobj_c_rng(
+                            objects,
+                            bases,
+                            box_type,
+                            ObjectClass::Tool,
+                            true,
+                            false,
+                            depth,
+                            rng,
+                        );
                     }
                     // if (!rn2(5)) make_grave → get_rnd_text → rn2(sizetxt)
                     if rng.rn2(5) == 0 {
@@ -757,14 +751,36 @@ fn fill_zoo_c_rng(
                 RoomType::Beehive => {
                     // if (!rn2(3)) mksobj_at(LUMP_OF_ROYAL_JELLY, TRUE, FALSE)
                     if rng.rn2(3) == 0 {
-                        mksobj_c_rng(objects, bases, R_LUMP_OF_ROYAL_JELLY, ObjectClass::Food, true, false, depth, rng);
+                        mksobj_c_rng(
+                            objects,
+                            bases,
+                            R_LUMP_OF_ROYAL_JELLY,
+                            ObjectClass::Food,
+                            true,
+                            false,
+                            depth,
+                            rng,
+                        );
                     }
                 }
                 RoomType::Barracks => {
                     // if (!rn2(20)) mksobj_at(rn2(3)?LARGE_BOX:CHEST, TRUE, FALSE)
                     if rng.rn2(20) == 0 {
-                        let box_type = if rng.rn2(3) != 0 { R_LARGE_BOX } else { R_CHEST };
-                        mksobj_c_rng(objects, bases, box_type, ObjectClass::Tool, true, false, depth, rng);
+                        let box_type = if rng.rn2(3) != 0 {
+                            R_LARGE_BOX
+                        } else {
+                            R_CHEST
+                        };
+                        mksobj_c_rng(
+                            objects,
+                            bases,
+                            box_type,
+                            ObjectClass::Tool,
+                            true,
+                            false,
+                            depth,
+                            rng,
+                        );
                     }
                 }
                 RoomType::CockatriceNest => {
@@ -791,30 +807,36 @@ fn fill_zoo_c_rng(
                 }
                 _ => {}
             }
-            if matches!(room_type, RoomType::LeprechaunHall | RoomType::Zoo | RoomType::Anthole | RoomType::Court) {
-            }
+            if matches!(
+                room_type,
+                RoomType::LeprechaunHall | RoomType::Zoo | RoomType::Anthole | RoomType::Court
+            ) {}
         }
     }
 
     // Post-loop switch
-    match room_type {
-        RoomType::Court => {
-            // Set throne cell type (C: levl[tx][ty].typ = THRONE)
-            level.cells[tx][ty].typ = CellType::Throne;
-            // somexy(sroom, &mm): somex + somey = 2 RNG calls
-            rng.rn2((hx - lx + 1) as u32); // somex
-            rng.rn2((hy - ly + 1) as u32); // somey
-            // mksobj(GOLD_PIECE, TRUE, FALSE) — Coin class, no init RNG
-            // gold->quan = rn1(50*level_difficulty, 10) → rn2(50*depth) + 10
-            rng.rn2((50 * depth).max(1) as u32);
-            // mksobj_at(CHEST, TRUE, FALSE)
-            mksobj_c_rng(objects, bases, R_CHEST, ObjectClass::Tool, true, false, depth, rng);
-        }
-        _ => {}
+    if room_type == RoomType::Court {
+        // Set throne cell type (C: levl[tx][ty].typ = THRONE)
+        level.cells[tx][ty].typ = CellType::Throne;
+        // somexy(sroom, &mm): somex + somey = 2 RNG calls
+        rng.rn2((hx - lx + 1) as u32); // somex
+        rng.rn2((hy - ly + 1) as u32); // somey
+        // mksobj(GOLD_PIECE, TRUE, FALSE) — Coin class, no init RNG
+        // gold->quan = rn1(50*level_difficulty, 10) → rn2(50*depth) + 10
+        rng.rn2((50 * depth).max(1) as u32);
+        // mksobj_at(CHEST, TRUE, FALSE)
+        mksobj_c_rng(
+            objects,
+            bases,
+            R_CHEST,
+            ObjectClass::Tool,
+            true,
+            false,
+            depth,
+            rng,
+        );
     }
-
 }
-
 
 /// C's stock_room RNG consumption for shops.
 /// Creates shopkeeper + populates each cell with merchandise.
@@ -884,7 +906,6 @@ fn stock_room_c_rng(
             }
         }
     }
-
 }
 
 /// C's stock_room_goodpos: check if a cell is a valid shop item placement.
@@ -897,7 +918,10 @@ fn stock_room_goodpos(
     sy: usize,
 ) -> bool {
     let cell_type = level.cells[sx][sy].typ;
-    let is_space = matches!(cell_type, CellType::Room | CellType::Corridor | CellType::Stairs);
+    let is_space = matches!(
+        cell_type,
+        CellType::Room | CellType::Corridor | CellType::Stairs
+    );
     if !is_space {
         return false;
     }
@@ -953,7 +977,9 @@ fn mkshobj_at_c_rng(
         // mkclass(S_MIMIC, 0): finds mimic class monsters
         let mimic_mndx = mkclass_c_rng('m', depth, 1, rng);
         // makemon(ptr, sx, sy, NO_MM_FLAGS): specific monster creation
-        makemon_specific_c_rng(level, sx as i8, sy as i8, mimic_mndx, depth, objects, bases, rng);
+        makemon_specific_c_rng(
+            level, sx as i8, sy as i8, mimic_mndx, depth, objects, bases, rng,
+        );
         // rn2(10) for mimic appearance
         rng.rn2(10);
     } else {
@@ -990,14 +1016,29 @@ fn get_shop_item_c_rng(
         2 => &[(90, Class(Scroll)), (10, Class(Spellbook))],
         3 => &[(100, Class(Potion))],
         4 => &[(90, Class(Weapon)), (10, Class(Armor))],
-        5 => &[(83, Class(Food)), (5, Specific(Potion)), (4, Specific(Potion)),
-               (5, Specific(Potion)), (3, Specific(Tool))],
+        5 => &[
+            (83, Class(Food)),
+            (5, Specific(Potion)),
+            (4, Specific(Potion)),
+            (5, Specific(Potion)),
+            (3, Specific(Tool)),
+        ],
         6 => &[(85, Class(Ring)), (10, Class(Gem)), (5, Class(Amulet))],
-        7 => &[(90, Class(Wand)), (5, Specific(Armor)), (5, Specific(Armor))],
+        7 => &[
+            (90, Class(Wand)),
+            (5, Specific(Armor)),
+            (5, Specific(Armor)),
+        ],
         8 => &[(100, Class(Tool))],
         9 => &[(90, Class(Spellbook)), (10, Class(Scroll))],
-        10 => &[(70, Vegetarian), (20, Specific(Potion)), (4, Specific(Potion)),
-                (3, Specific(Potion)), (2, Specific(Scroll)), (1, Specific(Food))],
+        10 => &[
+            (70, Vegetarian),
+            (20, Specific(Potion)),
+            (4, Specific(Potion)),
+            (3, Specific(Potion)),
+            (2, Specific(Scroll)),
+            (1, Specific(Food)),
+        ],
         _ => &[(100, AnyClass)],
     };
 
@@ -1022,12 +1063,7 @@ fn get_shop_item_c_rng(
 
 /// C's shkveg() + mksobj_at(otyp, TRUE, TRUE) RNG consumption.
 /// shkveg does rnd(maxprob) to select a vegetarian food item.
-fn shkveg_c_rng(
-    objects: &[ObjClassDef],
-    bases: &ClassBases,
-    depth: i32,
-    rng: &mut GameRng,
-) {
+fn shkveg_c_rng(objects: &[ObjClassDef], bases: &ClassBases, _depth: i32, rng: &mut GameRng) {
     // C: shkveg() iterates food class, filters veggy items, sums oc_prob, then rnd(maxprob)
     // We don't need exact item — just need to consume rnd(maxprob) + mksobj init for food
     // maxprob for vegetarian foods in C is a computed value
@@ -1108,8 +1144,17 @@ fn mkroom_cascade(
             level.flags.has_shop = true;
             // C: stock_room(i, sroom) — populates shop with items/shopkeeper
             let room = level.rooms[idx].clone();
-            stock_room_c_rng(level, room.x as i8, room.y as i8, &room, shp_indx, depth, objects, &bases, rng);
-        } else {
+            stock_room_c_rng(
+                level,
+                room.x as i8,
+                room.y as i8,
+                &room,
+                shp_indx,
+                depth,
+                objects,
+                &bases,
+                rng,
+            );
         }
         return;
     }
@@ -1221,58 +1266,17 @@ fn mkroom_cascade(
     }
 
     // CockatriceNest: u_depth > 16 && !rn2(8) && !(mvitals[PM_COCKATRICE].mvflags & G_GONE)
-    if depth > 16 && rng.one_in(8) {
-        if let Some(idx) = pick_room(&level.rooms, level, false, rng) {
-            level.rooms[idx].room_type = RoomType::CockatriceNest;
-            fill_zoo_for!(idx, RoomType::CockatriceNest);
-        }
-        return;
-    }
-
-}
-
-/// Find a room suitable for a shop (C's mkshop room search).
-/// Scans rooms sequentially — NO RNG consumed.
-/// Returns first OROOM with doorct==1, no upstairs, no downstairs.
-/// Compute door_count for each room by scanning level cells.
-/// C's dosdoor calls add_door which increments doorct incrementally;
-/// we do this post-hoc after corridor generation.
-///
-/// A door belongs to room R if it's on the room's wall:
-/// x in [room.x-1, room.x+room.width] and y in [room.y-1, room.y+room.height]
-/// but NOT in the room interior.
-fn compute_door_counts(level: &mut Level) {
-    // Reset all door counts
-    for room in &mut level.rooms {
-        room.door_count = 0;
-    }
-
-    // For each room, scan its walls for door/secret door cells
-    let rooms_snapshot: Vec<_> = level.rooms.iter().map(|r| (r.x, r.y, r.width, r.height)).collect();
-    for (room_idx, &(rx, ry, rw, rh)) in rooms_snapshot.iter().enumerate() {
-        // Check all wall positions around the room
-        let lx = rx.saturating_sub(1);
-        let hx = (rx + rw).min(COLNO - 1);
-        let ly = ry.saturating_sub(1);
-        let hy = (ry + rh).min(ROWNO - 1);
-
-        for x in lx..=hx {
-            for y in ly..=hy {
-                // Skip interior cells
-                if x >= rx && x < rx + rw && y >= ry && y < ry + rh {
-                    continue;
-                }
-                let typ = level.cells[x][y].typ;
-                if typ == CellType::Door || typ == CellType::SecretDoor {
-                    level.rooms[room_idx].door_count += 1;
-                }
-            }
-        }
+    if depth > 16
+        && rng.one_in(8)
+        && let Some(idx) = pick_room(&level.rooms, level, false, rng)
+    {
+        level.rooms[idx].room_type = RoomType::CockatriceNest;
+        fill_zoo_for!(idx, RoomType::CockatriceNest);
     }
 }
 
 fn find_shop_room(level: &Level) -> Option<usize> {
-    use super::room::{room_has_upstairs, room_has_downstairs};
+    use super::room::{room_has_downstairs, room_has_upstairs};
     for (idx, room) in level.rooms.iter().enumerate() {
         if room.room_type != RoomType::Ordinary {
             continue;
@@ -1284,88 +1288,6 @@ fn find_shop_room(level: &Level) -> Option<usize> {
             return Some(idx);
         }
     }
-    None
-}
-
-/// Select a special room type based on dungeon depth
-/// Matches C's mkroom.c logic for room type selection
-///
-/// Returns Some(RoomType) if a special room should be created, None otherwise.
-/// Also updates level flags to reflect the chosen room type.
-fn select_special_room_type(
-    rng: &mut GameRng,
-    depth: i32,
-    flags: &mut LevelFlags,
-) -> Option<RoomType> {
-    // C: mklev.c:786-814 — cascading if/else for special room selection
-    // Note: C uses u_depth > X (strict greater), so we use depth > X
-
-    // Shop: C: u_depth > 1 && u_depth < depth(&medusa_level) && nroom >= room_threshold && rn2(u_depth) < 3
-    // Simplified: depth > 1 and below medusa (roughly < 22), with room count check
-    // For now, use depth > 1 with upper bound approximation
-    if depth > 1 && rng.rn2(depth as u32) < 3 {
-        let (shop_type, _shp_indx) = select_shop_type(rng, 0);
-        flags.has_shop = true;
-        return Some(shop_type);
-    }
-
-    // Court: C: u_depth > 4 && !rn2(6)
-    if depth > 4 && rng.one_in(6) {
-        flags.has_court = true;
-        return Some(RoomType::Court);
-    }
-
-    // LeprechaunHall: C: u_depth > 5 && !rn2(8) && !(mvitals[PM_LEPRECHAUN].mvflags & G_GONE)
-    if depth > 5 && rng.one_in(8) {
-        return Some(RoomType::LeprechaunHall);
-    }
-
-    // Zoo: C: u_depth > 6 && !rn2(7)
-    if depth > 6 && rng.one_in(7) {
-        flags.has_zoo = true;
-        return Some(RoomType::Zoo);
-    }
-
-    // Temple: C: u_depth > 8 && !rn2(5)
-    if depth > 8 && rng.one_in(5) {
-        flags.has_temple = true;
-        return Some(RoomType::Temple);
-    }
-
-    // Beehive: C: u_depth > 9 && !rn2(5) && !(mvitals[PM_KILLER_BEE].mvflags & G_GONE)
-    if depth > 9 && rng.one_in(5) {
-        flags.has_beehive = true;
-        return Some(RoomType::Beehive);
-    }
-
-    // Morgue: C: u_depth > 11 && !rn2(6)
-    if depth > 11 && rng.one_in(6) {
-        flags.has_morgue = true;
-        return Some(RoomType::Morgue);
-    }
-
-    // Anthole: C: u_depth > 12 && !rn2(8) && antholemon()
-    if depth > 12 && rng.one_in(8) {
-        return Some(RoomType::Anthole);
-    }
-
-    // Barracks: C: u_depth > 14 && !rn2(4) && !(mvitals[PM_SOLDIER].mvflags & G_GONE)
-    if depth > 14 && rng.one_in(4) {
-        flags.has_barracks = true;
-        return Some(RoomType::Barracks);
-    }
-
-    // Swamp: C: u_depth > 15 && !rn2(6)
-    if depth > 15 && rng.one_in(6) {
-        flags.has_swamp = true;
-        return Some(RoomType::Swamp);
-    }
-
-    // CockatriceNest: C: u_depth > 16 && !rn2(8) && !(mvitals[PM_COCKATRICE].mvflags & G_GONE)
-    if depth > 16 && rng.one_in(8) {
-        return Some(RoomType::CockatriceNest);
-    }
-
     None
 }
 
@@ -1420,259 +1342,6 @@ fn select_shop_type(rng: &mut GameRng, room_area: usize) -> (RoomType, usize) {
     (PROBS[idx].1, idx)
 }
 
-/// Pick a room suitable for the given special type
-/// Returns the room index if found
-fn pick_room_for_special(rooms: &[Room], special_type: RoomType) -> Option<usize> {
-    // For shops, prefer rooms with single entrance (easier to manage)
-    // For other special rooms, any ordinary room works
-    // Avoid rooms that are too small
-
-    let min_area = match special_type {
-        RoomType::Vault => 4,              // 2x2 minimum
-        _ if special_type.is_shop() => 12, // Shops need space for items
-        _ => 9,                            // 3x3 minimum for most special rooms
-    };
-
-    // Find eligible rooms (ordinary type, sufficient size)
-    // Prefer later rooms (first room usually has stairs)
-    for (idx, room) in rooms.iter().enumerate().rev() {
-        if room.room_type == RoomType::Ordinary && room.area() >= min_area {
-            // Skip first room (usually has upstairs)
-            if idx > 0 || rooms.len() == 1 {
-                return Some(idx);
-            }
-        }
-    }
-
-    None
-}
-
-/// Update level flags based on room type
-fn set_level_flags_for_room(flags: &mut LevelFlags, room_type: RoomType) {
-    match room_type {
-        RoomType::Court => flags.has_court = true,
-        RoomType::Swamp => flags.has_swamp = true,
-        RoomType::Vault => flags.has_vault = true,
-        RoomType::Beehive => flags.has_beehive = true,
-        RoomType::Morgue => flags.has_morgue = true,
-        RoomType::Barracks => flags.has_barracks = true,
-        RoomType::Zoo => flags.has_zoo = true,
-        RoomType::Temple => flags.has_temple = true,
-        _ if room_type.is_shop() => flags.has_shop = true,
-        _ => {}
-    }
-}
-
-/// Place traps in the level
-/// Matches C's mktrap() logic from mklev.c
-fn place_traps(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
-    if rooms.is_empty() {
-        return;
-    }
-
-    let depth = level.dlevel.depth();
-
-    // Number of traps: rnd(depth) at depth 1-3, rnd(depth)-1 at depth 4+
-    // Minimum 0, maximum ~10
-    let num_traps = if depth <= 3 {
-        rng.rnd(depth.max(1) as u32) as usize
-    } else {
-        rng.rnd(depth as u32).saturating_sub(1) as usize
-    };
-
-    let num_traps = num_traps.min(10);
-
-    for _ in 0..num_traps {
-        // Pick a random room (avoid first room with stairs)
-        let room_idx = if rooms.len() > 1 {
-            rng.rn2(rooms.len() as u32 - 1) as usize + 1
-        } else {
-            0
-        };
-
-        let room = &rooms[room_idx];
-        let (x, y) = room.random_point(rng);
-
-        // Don't place trap on stairs or existing trap
-        if level.cells[x][y].typ == CellType::Stairs {
-            continue;
-        }
-        if level.traps.iter().any(|t| t.x == x as i8 && t.y == y as i8) {
-            continue;
-        }
-
-        // Select trap type based on depth
-        let trap_type = select_trap_type(depth, rng);
-
-        level.traps.push(crate::dungeon::trap::create_trap(x as i8, y as i8, trap_type));
-    }
-}
-
-/// Select a trap type based on depth
-/// Matches C's rndtrap() from mklev.c
-fn select_trap_type(depth: i32, rng: &mut GameRng) -> super::TrapType {
-    use super::TrapType;
-
-    // Trap availability by depth (approximate C logic)
-    let available: Vec<TrapType> = match depth {
-        1..=3 => vec![
-            TrapType::Arrow,
-            TrapType::Dart,
-            TrapType::Pit,
-            TrapType::Squeaky,
-            TrapType::BearTrap,
-        ],
-        4..=7 => vec![
-            TrapType::Arrow,
-            TrapType::Dart,
-            TrapType::Pit,
-            TrapType::SpikedPit,
-            TrapType::Squeaky,
-            TrapType::BearTrap,
-            TrapType::SleepingGas,
-            TrapType::RustTrap,
-        ],
-        8..=12 => vec![
-            TrapType::Arrow,
-            TrapType::Dart,
-            TrapType::Pit,
-            TrapType::SpikedPit,
-            TrapType::BearTrap,
-            TrapType::SleepingGas,
-            TrapType::RustTrap,
-            TrapType::FireTrap,
-            TrapType::Teleport,
-            TrapType::RockFall,
-        ],
-        _ => vec![
-            TrapType::Arrow,
-            TrapType::Dart,
-            TrapType::Pit,
-            TrapType::SpikedPit,
-            TrapType::BearTrap,
-            TrapType::SleepingGas,
-            TrapType::FireTrap,
-            TrapType::Teleport,
-            TrapType::RockFall,
-            TrapType::LandMine,
-            TrapType::RollingBoulder,
-            TrapType::Hole,
-            TrapType::TrapDoor,
-            TrapType::Polymorph,
-            TrapType::MagicTrap,
-        ],
-    };
-
-    let idx = rng.rn2(available.len() as u32) as usize;
-    available[idx]
-}
-
-/// Place fountains, sinks, and altars
-/// Matches C's mkfount(), mksink(), mkaltar() from mklev.c
-fn place_dungeon_features(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
-    if rooms.is_empty() {
-        return;
-    }
-
-    let depth = level.dlevel.depth();
-
-    // Fountains: 1/3 chance per level, more common at lower depths
-    // C: rn2(depth) < 3 gives ~30% at depth 10
-    if rng.rn2(depth.max(1) as u32) < 2 {
-        let num_fountains = rng.rnd(2) as usize; // 1-2 fountains
-        for _ in 0..num_fountains {
-            if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
-                level.cells[x][y].typ = CellType::Fountain;
-                level.flags.fountain_count += 1;
-            }
-        }
-    }
-
-    // Sinks: 1/5 chance, only at depth 5+
-    if depth >= 5 && rng.one_in(5) {
-        if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
-            level.cells[x][y].typ = CellType::Sink;
-            level.flags.sink_count += 1;
-        }
-    }
-
-    // Altars: 1/6 chance at depth 3+, not in temples (temples have their own)
-    if depth >= 3 && rng.one_in(6) && !level.flags.has_temple {
-        if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
-            level.cells[x][y].typ = CellType::Altar;
-        }
-    }
-
-    // Graves: 1/8 chance at depth 5+
-    if depth >= 5 && rng.one_in(8) {
-        let num_graves = rng.rnd(3) as usize; // 1-3 graves
-        for _ in 0..num_graves {
-            if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
-                level.cells[x][y].typ = CellType::Grave;
-            }
-        }
-    }
-
-    // Gold piles: random gold scattered in rooms
-    // C: mkgold() places gold with amount based on depth
-    let num_gold_piles = rng.rnd(3) as usize; // 1-3 gold piles per level
-    for _ in 0..num_gold_piles {
-        if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
-            place_gold_pile(level, x, y, depth, rng);
-        }
-    }
-}
-
-/// Place a gold pile at a location
-fn place_gold_pile(level: &mut Level, x: usize, y: usize, depth: i32, rng: &mut GameRng) {
-    use crate::object::{Object, ObjectClass, ObjectId};
-
-    // Gold amount formula from C: rnd(10 + depth * 2) + 5
-    let amount = (rng.rnd((10 + depth * 2).max(1) as u32) + 5) as i32;
-
-    let mut gold = Object::new(ObjectId(0), 0, ObjectClass::Coin);
-    gold.quantity = amount;
-    gold.name = Some("gold piece".to_string());
-
-    level.add_object(gold, x as i8, y as i8);
-}
-
-/// Place branch entrance (stairs/portal to another dungeon branch)
-fn place_branch_entrance(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
-    use super::TrapType;
-    use super::level::Stairway;
-    use super::topology::DungeonSystem;
-
-    let dungeon_system = DungeonSystem::new();
-
-    // Check if this level has a branch entrance
-    if let Some(branch) = dungeon_system.get_branch_from(&level.dlevel) {
-        // Find a spot for the branch entrance
-        if let Some((x, y)) = find_empty_room_spot(level, rooms, rng) {
-            // Place the entrance based on branch type
-            match branch.branch_type {
-                super::topology::BranchType::Stairs => {
-                    // Stairs to another branch
-                    level.cells[x][y].typ = CellType::Stairs;
-                    level.stairs.push(Stairway {
-                        x: x as i8,
-                        y: y as i8,
-                        destination: branch.end2,
-                        up: branch.end1_up,
-                    });
-                    level.flags.has_branch = true;
-                }
-                super::topology::BranchType::Portal => {
-                    // Magic portal
-                    level.add_trap(x as i8, y as i8, TrapType::MagicPortal);
-                    level.flags.has_branch = true;
-                }
-                _ => {}
-            }
-        }
-    }
-}
-
 /// C's place_branch(branchp, 0, 0) — mklev.c:1151-1199
 ///
 /// Finds a random room (avoiding stairs rooms), picks somexy,
@@ -1695,7 +1364,7 @@ fn place_branch_c(level: &mut Level, rooms: &[Room], rng: &mut GameRng) {
         return;
     }
 
-    let (room_idx, room) = if nroom > 2 {
+    let (_room_idx, room) = if nroom > 2 {
         let mut tryct = 0;
         let mut idx;
         loop {
@@ -1811,12 +1480,10 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
     let objects = OBJECTS;
     let bases = ClassBases::compute(objects);
 
-    for room_idx in 0..nroom {
-        let room = &rooms[room_idx];
+    for room in rooms {
         if room.room_type != RoomType::Ordinary {
             continue;
         }
-
 
         // --- Monster: C mklev.c:813-820 ---
         // if (u.uhave.amulet || !rn2(3)) { somex + somey + makemon }
@@ -1836,7 +1503,6 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
             mktrap_c_rng(level, room, depth, rng);
         }
 
-
         // --- Gold: C mklev.c:827-828 ---
         // if (!rn2(3)) mkgold(0L, somex(croom), somey(croom))
         if rng.rn2(3) == 0 {
@@ -1844,9 +1510,7 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
             let _gy = super::room::somey(room, rng);
             // mkgold(0L, ...): amount = 1 + rnd(level_difficulty() + 2) * rnd(30)
             // Consumes 2 RNG calls (rnd + rnd)
-            let _amount = rng.rnd((depth + 2).max(1) as u32) as i64
-                * rng.rnd(30) as i64
-                + 1;
+            let _amount = rng.rnd((depth + 2).max(1) as u32) as i64 * rng.rnd(30) as i64 + 1;
         }
 
         // --- Fountain: C mklev.c:831-832 ---
@@ -1859,7 +1523,6 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
                 level.flags.fountain_count += 1;
             }
         }
-
 
         // --- Sink: C mklev.c:833-834 ---
         // if (!rn2(60)) mksink(croom)
@@ -1901,16 +1564,38 @@ fn populate_ordinary_rooms(level: &mut Level, rooms: &[Room], rng: &mut GameRng)
             let _sy = super::room::somey(room, rng);
             // mkcorpstat(STATUE, NULL, NULL, x, y, CORPSTAT_INIT)
             // → mksobj_at(STATUE, x, y, TRUE, FALSE) → mksobj(STATUE, TRUE, FALSE)
-            mksobj_c_rng(objects, &bases, R_STATUE, ObjectClass::Rock, true, false, depth, rng);
+            mksobj_c_rng(
+                objects,
+                &bases,
+                R_STATUE,
+                ObjectClass::Rock,
+                true,
+                false,
+                depth,
+                rng,
+            );
         }
 
         // --- Box/Chest: C mklev.c:853-855 ---
         // if (!rn2(nroom * 5 / 2)) mksobj_at(rn2(3) ? LARGE_BOX : CHEST, ...)
         if rng.rn2((nroom * 5 / 2).max(1) as u32) == 0 {
-            let box_otyp = if rng.rn2(3) != 0 { R_LARGE_BOX } else { R_CHEST };
+            let box_otyp = if rng.rn2(3) != 0 {
+                R_LARGE_BOX
+            } else {
+                R_CHEST
+            };
             let _bx = super::room::somex(room, rng);
             let _by = super::room::somey(room, rng);
-            mksobj_c_rng(objects, &bases, box_otyp, ObjectClass::Tool, true, true, depth, rng);
+            mksobj_c_rng(
+                objects,
+                &bases,
+                box_otyp,
+                ObjectClass::Tool,
+                true,
+                true,
+                depth,
+                rng,
+            );
         }
 
         // --- Graffiti: C mklev.c:858-871 ---
@@ -1959,40 +1644,29 @@ const C_ELVEN_ARROW: usize = 2;
 const C_ORCISH_ARROW: usize = 3;
 const C_CROSSBOW_BOLT: usize = 5;
 const C_DART: usize = 7;
-const C_SHURIKEN: usize = 8;
-const C_SPEAR: usize = 10;
 const C_ELVEN_SPEAR: usize = 11;
 const C_DWARVISH_SPEAR: usize = 13;
 const C_DAGGER: usize = 17;
 const C_ELVEN_DAGGER: usize = 18;
 const C_ORCISH_DAGGER: usize = 19;
 const C_KNIFE: usize = 22;
-const C_STILETTO: usize = 23;
 const C_AXE: usize = 25;
 const C_DWARVISH_MATTOCK: usize = 26;
-const C_SHORT_SWORD: usize = 29;
 const C_DWARVISH_SHORT_SWORD: usize = 30;
 const C_ELVEN_SHORT_SWORD: usize = 31;
 const C_ORCISH_SHORT_SWORD: usize = 32;
-const C_BROADSWORD: usize = 34;
 const C_ELVEN_BROADSWORD: usize = 35;
 const C_LONG_SWORD: usize = 37;
 const C_TWO_HANDED_SWORD: usize = 38;
 const C_SCIMITAR: usize = 40;
-const C_SILVER_SABER: usize = 42;
 const C_CLUB: usize = 59;
 const C_AKLYS: usize = 60;
-const C_MACE: usize = 62;
-const C_FLAIL: usize = 64;
-const C_BULLWHIP: usize = 67;
 const C_RUBBER_HOSE: usize = 69;
 const C_PARTISAN: usize = 44;
 const C_RANSEUR: usize = 45;
 const C_SPETUM: usize = 46;
 const C_GLAIVE: usize = 47;
-const C_BEC_DE_CORBIN: usize = 51;
 const C_LUCERN_HAMMER: usize = 53;
-const C_TRIDENT: usize = 55;
 const C_BATTLE_AXE: usize = 57;
 const C_PICK_AXE: usize = 58;
 const C_BOW: usize = 70;
@@ -2001,26 +1675,9 @@ const C_ORCISH_BOW: usize = 72;
 const C_CROSSBOW: usize = 74;
 const C_SLING: usize = 75;
 
-const C_LEATHER_ARMOR: usize = 113;
-const C_STUDDED_LEATHER_ARMOR: usize = 114;
-const C_RING_MAIL: usize = 107;
-const C_CHAIN_MAIL: usize = 103;
 const C_ORCISH_CHAIN_MAIL: usize = 104;
-const C_SPLINT_MAIL: usize = 101;
-const C_BANDED_MAIL: usize = 102;
-const C_PLATE_MAIL: usize = 99;
-const C_CRYSTAL_PLATE_MAIL: usize = 100;
-const C_LEATHER_JACKET: usize = 116;
-const C_LEATHER_CLOAK: usize = 123;
-const C_ELVEN_CLOAK: usize = 119;
 const C_DWARVISH_CLOAK: usize = 120;
 const C_ORCISH_CLOAK: usize = 121;
-const C_ROBE: usize = 122;
-const C_CLOAK_OF_PROTECTION: usize = 125;
-const C_CLOAK_OF_MAGIC_RESISTANCE: usize = 127;
-const C_SMALL_SHIELD: usize = 129;
-const C_LARGE_SHIELD: usize = 130;
-const C_SHIELD_OF_REFLECTION: usize = 131;
 const C_DWARVISH_ROUNDSHIELD: usize = 132;
 const C_ELVEN_SHIELD: usize = 133;
 const C_URUK_HAI_SHIELD: usize = 134;
@@ -2028,14 +1685,8 @@ const C_ORCISH_SHIELD: usize = 135;
 const C_ORCISH_HELM: usize = 76;
 const C_ELVEN_LEATHER_HELM: usize = 78;
 const C_DWARVISH_IRON_HELM: usize = 79;
-const C_HELMET: usize = 82;
-const C_DENTED_POT: usize = 83;
-const C_LOW_BOOTS: usize = 86;
-const C_HIGH_BOOTS: usize = 89;
 const C_ELVEN_BOOTS: usize = 91;
 const C_IRON_SHOES: usize = 87;
-const C_LEATHER_GLOVES: usize = 136;
-const C_SADDLE: usize = 188;
 
 /// G_FREQ mask for monster gen_flags
 const G_FREQ_MASK: u16 = 0x0007;
@@ -2533,19 +2184,20 @@ fn adj_lev_c(mon: &PerMonst, depth: i32, player_level: i32) -> i32 {
         tmp += tmp2 / 4;
     }
     let upper = ((3 * mon.level as i32) / 2).min(49);
-    if tmp > upper { upper } else if tmp > 0 { tmp } else { 0 }
+    if tmp > upper {
+        upper
+    } else if tmp > 0 {
+        tmp
+    } else {
+        0
+    }
 }
 
 /// C's rndmonst() — select a random monster for the level.
 /// Returns the Rust MONSTERS index (via C_TO_RUST_MONS mapping).
 /// Iterates C's mons[] ordering (0..C_SPECIAL_PM) for parity.
 /// Consumes exactly 1 RNG call (rnd(choice_count)).
-fn rndmonst_c_rng(
-    depth: i32,
-    player_level: i32,
-    in_hell: bool,
-    rng: &mut GameRng,
-) -> usize {
+fn rndmonst_c_rng(depth: i32, player_level: i32, in_hell: bool, rng: &mut GameRng) -> usize {
     let min_mlev = depth / 6;
     let max_mlev = (depth + player_level) / 2;
 
@@ -2556,8 +2208,7 @@ fn rndmonst_c_rng(
     // Find first non-uncommon monster (C ordering).
     // Use C's exact geno values for all filtering to ensure parity.
     let mut first_common: usize = 0;
-    for c_mndx in 0..C_SPECIAL_PM {
-        let gf = C_MONS_GENO[c_mndx];
+    for (c_mndx, &gf) in C_MONS_GENO[..C_SPECIAL_PM].iter().enumerate() {
         if (gf & (G_NOGEN | G_UNIQ)) == 0 {
             first_common = c_mndx;
             break;
@@ -2629,11 +2280,6 @@ fn is_elf(mon: &PerMonst) -> bool {
     mon.flags.contains(MonsterFlags::ELF)
 }
 
-/// C's is_domestic(ptr)
-fn is_domestic(mon: &PerMonst) -> bool {
-    mon.flags.contains(MonsterFlags::DOMESTIC)
-}
-
 /// C's likes_gold(ptr) — simplified: nymphs and leprechauns
 fn likes_gold(mon: &PerMonst) -> bool {
     // C: #define likes_gold(ptr) (((ptr)->mflags2 & M2_GREEDY) != 0L)
@@ -2689,7 +2335,7 @@ fn m_initthrow_c_rng(
 /// C's m_initweap(mtmp) RNG consumption — only called if is_armed(ptr)
 fn m_initweap_c_rng(
     mon: &PerMonst,
-    mndx: usize,
+    _mndx: usize,
     m_lev: i32,
     objects: &[ObjClassDef],
     bases: &ClassBases,
@@ -2751,7 +2397,14 @@ fn m_initweap_c_rng(
                         mongets_c_rng(objects, bases, C_PICK_AXE, w, depth, rng);
                     }
                     if rng.rn2(50) == 0 {
-                        mongets_c_rng(objects, bases, R_CRYSTAL_BALL, ObjectClass::Tool, depth, rng);
+                        mongets_c_rng(
+                            objects,
+                            bases,
+                            R_CRYSTAL_BALL,
+                            ObjectClass::Tool,
+                            depth,
+                            rng,
+                        );
                     }
                 }
                 // Elves have their own weapon assignment, skip default case
@@ -2760,8 +2413,8 @@ fn m_initweap_c_rng(
             // MS_PRIEST: mksobj(MACE, FALSE, FALSE) + rnd(3) + rn2(2)
             else if mon.sound == MonsterSound::Priest {
                 // mksobj(MACE, FALSE, FALSE) → init=FALSE → 0 RNG
-                rng.rnd(3);  // otmp->spe = rnd(3)
-                rng.rn2(2);  // if (!rn2(2)) curse(otmp)
+                rng.rnd(3); // otmp->spe = rnd(3)
+                rng.rn2(2); // if (!rn2(2)) curse(otmp)
             }
             // Other S_HUMAN types (mercenaries, shopkeepers, etc.) have G_NOGEN
             // and don't appear via rndmonst at depth 14
@@ -2799,7 +2452,11 @@ fn m_initweap_c_rng(
                     if rng.rn2(2) != 0 {
                         mongets_c_rng(objects, bases, C_DWARVISH_MATTOCK, w, depth, rng);
                     } else {
-                        let item = if rng.rn2(2) != 0 { C_AXE } else { C_DWARVISH_SPEAR };
+                        let item = if rng.rn2(2) != 0 {
+                            C_AXE
+                        } else {
+                            C_DWARVISH_SPEAR
+                        };
                         mongets_c_rng(objects, bases, item, w, depth, rng);
                         mongets_c_rng(objects, bases, C_DWARVISH_ROUNDSHIELD, a, depth, rng);
                     }
@@ -2808,7 +2465,11 @@ fn m_initweap_c_rng(
                         mongets_c_rng(objects, bases, R_DWARVISH_MITHRIL_COAT, a, depth, rng);
                     }
                 } else {
-                    let item = if rng.rn2(3) == 0 { C_PICK_AXE } else { C_DAGGER };
+                    let item = if rng.rn2(3) == 0 {
+                        C_PICK_AXE
+                    } else {
+                        C_DAGGER
+                    };
                     mongets_c_rng(objects, bases, item, w, depth, rng);
                 }
             }
@@ -2826,26 +2487,46 @@ fn m_initweap_c_rng(
             }
             // Orc captain: random between mordor/uruk-hai
             let effective_type = if mon.name == "orc-captain" {
-                if rng.rn2(2) != 0 { "mordor" } else { "uruk-hai" }
+                if rng.rn2(2) != 0 {
+                    "mordor"
+                } else {
+                    "uruk-hai"
+                }
             } else {
                 mon.name
             };
             match effective_type {
                 n if n.contains("Mordor") || n == "mordor" => {
-                    if rng.rn2(3) == 0 { mongets_c_rng(objects, bases, C_SCIMITAR, w, depth, rng); }
-                    if rng.rn2(3) == 0 { mongets_c_rng(objects, bases, C_ORCISH_SHIELD, a, depth, rng); }
-                    if rng.rn2(3) == 0 { mongets_c_rng(objects, bases, C_KNIFE, w, depth, rng); }
-                    if rng.rn2(3) == 0 { mongets_c_rng(objects, bases, C_ORCISH_CHAIN_MAIL, a, depth, rng); }
+                    if rng.rn2(3) == 0 {
+                        mongets_c_rng(objects, bases, C_SCIMITAR, w, depth, rng);
+                    }
+                    if rng.rn2(3) == 0 {
+                        mongets_c_rng(objects, bases, C_ORCISH_SHIELD, a, depth, rng);
+                    }
+                    if rng.rn2(3) == 0 {
+                        mongets_c_rng(objects, bases, C_KNIFE, w, depth, rng);
+                    }
+                    if rng.rn2(3) == 0 {
+                        mongets_c_rng(objects, bases, C_ORCISH_CHAIN_MAIL, a, depth, rng);
+                    }
                 }
                 n if n.contains("Uruk") || n == "uruk-hai" => {
-                    if rng.rn2(3) == 0 { mongets_c_rng(objects, bases, C_ORCISH_CLOAK, a, depth, rng); }
-                    if rng.rn2(3) == 0 { mongets_c_rng(objects, bases, C_ORCISH_SHORT_SWORD, w, depth, rng); }
-                    if rng.rn2(3) == 0 { mongets_c_rng(objects, bases, C_IRON_SHOES, a, depth, rng); }
+                    if rng.rn2(3) == 0 {
+                        mongets_c_rng(objects, bases, C_ORCISH_CLOAK, a, depth, rng);
+                    }
+                    if rng.rn2(3) == 0 {
+                        mongets_c_rng(objects, bases, C_ORCISH_SHORT_SWORD, w, depth, rng);
+                    }
+                    if rng.rn2(3) == 0 {
+                        mongets_c_rng(objects, bases, C_IRON_SHOES, a, depth, rng);
+                    }
                     if rng.rn2(3) == 0 {
                         mongets_c_rng(objects, bases, C_ORCISH_BOW, w, depth, rng);
                         m_initthrow_c_rng(objects, bases, C_ORCISH_ARROW, w, 12, depth, rng);
                     }
-                    if rng.rn2(3) == 0 { mongets_c_rng(objects, bases, C_URUK_HAI_SHIELD, a, depth, rng); }
+                    if rng.rn2(3) == 0 {
+                        mongets_c_rng(objects, bases, C_URUK_HAI_SHIELD, a, depth, rng);
+                    }
                 }
                 _ => {
                     // default orc (including orc shaman)
@@ -2862,7 +2543,13 @@ fn m_initweap_c_rng(
         }
         'O' => {
             // S_OGRE
-            let threshold = if mon.name == "ogre king" { 3 } else if mon.name == "ogre lord" { 6 } else { 12 };
+            let threshold = if mon.name == "ogre king" {
+                3
+            } else if mon.name == "ogre lord" {
+                6
+            } else {
+                12
+            };
             if rng.rn2(threshold) == 0 {
                 mongets_c_rng(objects, bases, C_BATTLE_AXE, w, depth, rng);
             } else {
@@ -2898,7 +2585,11 @@ fn m_initweap_c_rng(
                 m_initthrow_c_rng(objects, bases, R_CORPSE, ObjectClass::Food, 2, depth, rng); // CREAM_PIE
             }
             if rng.rn2(3) == 0 {
-                let item = if rng.rn2(2) != 0 { C_CLUB } else { C_RUBBER_HOSE };
+                let item = if rng.rn2(2) != 0 {
+                    C_CLUB
+                } else {
+                    C_RUBBER_HOSE
+                };
                 mongets_c_rng(objects, bases, item, w, depth, rng);
             }
         }
@@ -2966,7 +2657,8 @@ fn rnd_offensive_item_c_rng(
     if mon.flags.contains(MonsterFlags::ANIMAL)
         || mon.flags.contains(MonsterFlags::MINDLESS)
         || mon.symbol == ' '  // ghost
-        || mon.symbol == 'K'  // kop
+        || mon.symbol == 'K'
+    // kop
     {
         // mongets(mtmp, 0) → if(!otyp) return 0; → no RNG
         return;
@@ -2975,12 +2667,17 @@ fn rnd_offensive_item_c_rng(
     let difficulty = mon.difficulty as i32;
 
     // C: if (difficulty > 7 && !rn2(35)) return WAN_DEATH;
-    if difficulty > 7 {
-        if rng.rn2(35) == 0 {
-            // WAN_DEATH → mongets wand
-            mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng);
-            return;
-        }
+    if difficulty > 7 && rng.rn2(35) == 0 {
+        // WAN_DEATH → mongets wand
+        mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Wand),
+            ObjectClass::Wand,
+            depth,
+            rng,
+        );
+        return;
     }
 
     // C: switch(rn2(9 - (difficulty < 4) + 4 * (difficulty > 6)))
@@ -2999,18 +2696,95 @@ fn rnd_offensive_item_c_rng(
         0 | 1 => {
             // case 0: SCR_EARTH (with metallic helm check, skipping) → falls through to WAN_STRIKING
             // case 1: WAN_STRIKING
-            mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng);
+            mongets_c_rng(
+                objects,
+                bases,
+                bases.get(ObjectClass::Wand),
+                ObjectClass::Wand,
+                depth,
+                rng,
+            );
         }
-        2 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng), // POT_ACID
-        3 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng), // POT_CONFUSION
-        4 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng), // POT_BLINDNESS
-        5 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng), // POT_SLEEPING
-        6 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng), // POT_PARALYSIS
-        7 | 8 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng), // WAN_MAGIC_MISSILE
-        9 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng), // WAN_SLEEP
-        10 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng), // WAN_FIRE
-        11 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng), // WAN_COLD
-        12 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng), // WAN_LIGHTNING
+        2 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Potion),
+            ObjectClass::Potion,
+            depth,
+            rng,
+        ), // POT_ACID
+        3 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Potion),
+            ObjectClass::Potion,
+            depth,
+            rng,
+        ), // POT_CONFUSION
+        4 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Potion),
+            ObjectClass::Potion,
+            depth,
+            rng,
+        ), // POT_BLINDNESS
+        5 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Potion),
+            ObjectClass::Potion,
+            depth,
+            rng,
+        ), // POT_SLEEPING
+        6 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Potion),
+            ObjectClass::Potion,
+            depth,
+            rng,
+        ), // POT_PARALYSIS
+        7 | 8 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Wand),
+            ObjectClass::Wand,
+            depth,
+            rng,
+        ), // WAN_MAGIC_MISSILE
+        9 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Wand),
+            ObjectClass::Wand,
+            depth,
+            rng,
+        ), // WAN_SLEEP
+        10 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Wand),
+            ObjectClass::Wand,
+            depth,
+            rng,
+        ), // WAN_FIRE
+        11 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Wand),
+            ObjectClass::Wand,
+            depth,
+            rng,
+        ), // WAN_COLD
+        12 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Wand),
+            ObjectClass::Wand,
+            depth,
+            rng,
+        ), // WAN_LIGHTNING
         _ => {} // no item (shouldn't happen with correct range)
     }
 }
@@ -3027,7 +2801,8 @@ fn rnd_defensive_item_c_rng(
     if mon.flags.contains(MonsterFlags::ANIMAL)
         || mon.flags.contains(MonsterFlags::MINDLESS)
         || mon.symbol == ' '  // ghost
-        || mon.symbol == 'K'  // kop
+        || mon.symbol == 'K'
+    // kop
     {
         return;
     }
@@ -3061,9 +2836,30 @@ fn rnd_defensive_item_c_rng(
     };
 
     match otyp {
-        1 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng),
-        2 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Scroll), ObjectClass::Scroll, depth, rng),
-        3 => mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng),
+        1 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Wand),
+            ObjectClass::Wand,
+            depth,
+            rng,
+        ),
+        2 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Scroll),
+            ObjectClass::Scroll,
+            depth,
+            rng,
+        ),
+        3 => mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Potion),
+            ObjectClass::Potion,
+            depth,
+            rng,
+        ),
         _ => {} // no item
     }
 }
@@ -3081,7 +2877,8 @@ fn rnd_misc_item_c_rng(
     if mon.flags.contains(MonsterFlags::ANIMAL)
         || mon.flags.contains(MonsterFlags::MINDLESS)
         || mon.symbol == ' '  // ghost
-        || mon.symbol == 'K'  // kop
+        || mon.symbol == 'K'
+    // kop
     {
         // mongets(mtmp, 0) → if(!otyp) return 0; → no RNG
         return;
@@ -3090,18 +2887,30 @@ fn rnd_misc_item_c_rng(
     let difficulty = mon.difficulty as i32;
 
     // C: if (difficulty < 6 && !rn2(30)) return rn2(6) ? POT_POLYMORPH : WAN_POLYMORPH;
-    if difficulty < 6 {
-        if rng.rn2(30) == 0 {
-            let wand_or_pot = rng.rn2(6);
-            if wand_or_pot != 0 {
-                // POT_POLYMORPH → mongets → mksobj(potion, TRUE, FALSE)
-                mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng);
-            } else {
-                // WAN_POLYMORPH → mongets → mksobj(wand, TRUE, FALSE)
-                mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng);
-            }
-            return;
+    if difficulty < 6 && rng.rn2(30) == 0 {
+        let wand_or_pot = rng.rn2(6);
+        if wand_or_pot != 0 {
+            // POT_POLYMORPH → mongets → mksobj(potion, TRUE, FALSE)
+            mongets_c_rng(
+                objects,
+                bases,
+                bases.get(ObjectClass::Potion),
+                ObjectClass::Potion,
+                depth,
+                rng,
+            );
+        } else {
+            // WAN_POLYMORPH → mongets → mksobj(wand, TRUE, FALSE)
+            mongets_c_rng(
+                objects,
+                bases,
+                bases.get(ObjectClass::Wand),
+                ObjectClass::Wand,
+                depth,
+                rng,
+            );
         }
+        return;
     }
 
     // C: if (!rn2(40) && !nonliving(pm) && !is_vampshifter(mtmp)) return AMULET_OF_LIFE_SAVING;
@@ -3109,7 +2918,14 @@ fn rnd_misc_item_c_rng(
         // nonliving and vampshifter checks don't consume RNG
         // For most monsters at depth 14, this returns the amulet
         // AMULET_OF_LIFE_SAVING → mongets → mksobj(amulet, TRUE, FALSE)
-        mongets_c_rng(objects, bases, bases.get(ObjectClass::Amulet), ObjectClass::Amulet, depth, rng);
+        mongets_c_rng(
+            objects,
+            bases,
+            bases.get(ObjectClass::Amulet),
+            ObjectClass::Amulet,
+            depth,
+            rng,
+        );
         return;
     }
 
@@ -3121,10 +2937,24 @@ fn rnd_misc_item_c_rng(
             let wand_or_pot = rng.rn2(6);
             if wand_or_pot != 0 {
                 // POT_SPEED → mongets potion
-                mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng);
+                mongets_c_rng(
+                    objects,
+                    bases,
+                    bases.get(ObjectClass::Potion),
+                    ObjectClass::Potion,
+                    depth,
+                    rng,
+                );
             } else {
                 // WAN_SPEED_MONSTER → mongets wand
-                mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng);
+                mongets_c_rng(
+                    objects,
+                    bases,
+                    bases.get(ObjectClass::Wand),
+                    ObjectClass::Wand,
+                    depth,
+                    rng,
+                );
             }
         }
         1 => {
@@ -3133,15 +2963,36 @@ fn rnd_misc_item_c_rng(
             let wand_or_pot = rng.rn2(6);
             if wand_or_pot != 0 {
                 // POT_INVISIBILITY → mongets potion
-                mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng);
+                mongets_c_rng(
+                    objects,
+                    bases,
+                    bases.get(ObjectClass::Potion),
+                    ObjectClass::Potion,
+                    depth,
+                    rng,
+                );
             } else {
                 // WAN_MAKE_INVISIBLE → mongets wand
-                mongets_c_rng(objects, bases, bases.get(ObjectClass::Wand), ObjectClass::Wand, depth, rng);
+                mongets_c_rng(
+                    objects,
+                    bases,
+                    bases.get(ObjectClass::Wand),
+                    ObjectClass::Wand,
+                    depth,
+                    rng,
+                );
             }
         }
         2 => {
             // POT_GAIN_LEVEL → mongets potion
-            mongets_c_rng(objects, bases, bases.get(ObjectClass::Potion), ObjectClass::Potion, depth, rng);
+            mongets_c_rng(
+                objects,
+                bases,
+                bases.get(ObjectClass::Potion),
+                ObjectClass::Potion,
+                depth,
+                rng,
+            );
         }
         _ => {}
     }
@@ -3150,7 +3001,7 @@ fn rnd_misc_item_c_rng(
 /// C's m_initinv(mtmp) RNG consumption
 fn m_initinv_c_rng(
     mon: &PerMonst,
-    mndx: usize,
+    _mndx: usize,
     m_lev: i32,
     objects: &[ObjClassDef],
     bases: &ClassBases,
@@ -3218,18 +3069,16 @@ fn m_initinv_c_rng(
                     // mongets(athame or WAN_NOTHING)
                     mongets_c_rng(objects, bases, R_ATHAME, w, depth, rng);
                 }
-            } else if mon.name == "arch-lich" {
-                if rng.rn2(3) == 0 {
-                    // mksobj(rn2(3) ? ATHAME : QUARTERSTAFF, TRUE, rn2(13) ? FALSE : TRUE)
-                    let _weapon_type = rng.rn2(3);
-                    let _artif = rng.rn2(13);
-                    // mksobj with init=TRUE: consumes RNG for curse/bless + spe
-                    mksobj_c_rng(objects, bases, R_ATHAME, w, true, false, depth, rng);
-                    // if spe < 2: rnd(3)
-                    rng.rnd(3);
-                    // rn2(4) for oerodeproof
-                    rng.rn2(4);
-                }
+            } else if mon.name == "arch-lich" && rng.rn2(3) == 0 {
+                // mksobj(rn2(3) ? ATHAME : QUARTERSTAFF, TRUE, rn2(13) ? FALSE : TRUE)
+                let _weapon_type = rng.rn2(3);
+                let _artif = rng.rn2(13);
+                // mksobj with init=TRUE: consumes RNG for curse/bless + spe
+                mksobj_c_rng(objects, bases, R_ATHAME, w, true, false, depth, rng);
+                // if spe < 2: rnd(3)
+                rng.rnd(3);
+                // rn2(4) for oerodeproof
+                rng.rn2(4);
             }
         }
         'Q' => {
@@ -3237,7 +3086,16 @@ fn m_initinv_c_rng(
             if rng.rn2(20) == 0 {
                 // mksobj(LARGE_BOX, FALSE, FALSE) — no RNG for box with init=FALSE
                 // mksobj(CORPSE, TRUE, FALSE) — corpse with init=TRUE
-                mksobj_c_rng(objects, bases, R_CORPSE, ObjectClass::Food, true, false, depth, rng);
+                mksobj_c_rng(
+                    objects,
+                    bases,
+                    R_CORPSE,
+                    ObjectClass::Food,
+                    true,
+                    false,
+                    depth,
+                    rng,
+                );
             }
         }
         'l' => {
@@ -3250,10 +3108,8 @@ fn m_initinv_c_rng(
         }
         '&' => {
             // S_DEMON: ice devil spear, asmodeus wands
-            if mon.name == "ice devil" {
-                if rng.rn2(4) == 0 {
-                    mongets_c_rng(objects, bases, R_SPEAR, w, depth, rng);
-                }
+            if mon.name == "ice devil" && rng.rn2(4) == 0 {
+                mongets_c_rng(objects, bases, R_SPEAR, w, depth, rng);
             }
             // asmodeus gets WAN_COLD + WAN_FIRE but is very rare at depth 14
             // Other demons: no inventory
@@ -3304,13 +3160,11 @@ fn m_initinv_c_rng(
 
     // gold check: C does `if (likes_gold && !findgold(minvent) && !rn2(5))`
     // If the monster already has gold (e.g. leprechaun from case switch), findgold is true → skip
-    if likes_gold(mon) && !has_gold {
-        if rng.rn2(5) == 0 {
-            // mkmonmoney(d(level_difficulty(), 5 or 10))
-            let n = depth.max(1) as u32;
-            for _ in 0..n {
-                rng.rn2(10);
-            }
+    if likes_gold(mon) && !has_gold && rng.rn2(5) == 0 {
+        // mkmonmoney(d(level_difficulty(), 5 or 10))
+        let n = depth.max(1) as u32;
+        for _ in 0..n {
+            rng.rn2(10);
         }
     }
 }
@@ -3331,11 +3185,27 @@ pub fn mimic_door_c_rng(depth: i32, rng: &mut GameRng) {
     //   C[65] PM_GIANT_MIMIC: mlevel=9, difficulty=11, geno freq=1
     let maxmlev = depth / 2; // level_difficulty() >> 1
 
-    struct CMimic { mlevel: i32, difficulty: i32, g_freq: i32 }
+    struct CMimic {
+        mlevel: i32,
+        difficulty: i32,
+        g_freq: i32,
+    }
     let mimics = [
-        CMimic { mlevel: 7, difficulty: 8,  g_freq: 2 },
-        CMimic { mlevel: 8, difficulty: 9,  g_freq: 1 },
-        CMimic { mlevel: 9, difficulty: 11, g_freq: 1 },
+        CMimic {
+            mlevel: 7,
+            difficulty: 8,
+            g_freq: 2,
+        },
+        CMimic {
+            mlevel: 8,
+            difficulty: 9,
+            g_freq: 1,
+        },
+        CMimic {
+            mlevel: 9,
+            difficulty: 11,
+            g_freq: 1,
+        },
     ];
 
     let mut num: i32 = 0;
@@ -3369,12 +3239,12 @@ pub fn mimic_door_c_rng(depth: i32, rng: &mut GameRng) {
     // rnd(num) to select among candidates
     let mut pick = rng.rnd(num as u32) as i32;
     let mut chosen_mlevel = mimics[0].mlevel;
-    let mut chosen_idx = 0;
+    let mut _chosen_idx = 0;
     for i in 0..count {
         pick -= nums[i];
         if pick <= 0 {
             chosen_mlevel = mimics[i].mlevel;
-            chosen_idx = i;
+            _chosen_idx = i;
             break;
         }
     }
@@ -3439,7 +3309,13 @@ fn adj_lev_c_from_raw(mlevel: i32, depth: i32, player_level: i32) -> i32 {
         tmp += tmp2 / 4;
     }
     let upper = ((3 * mlevel) / 2).min(49);
-    if tmp > upper { upper } else if tmp > 0 { tmp } else { 0 }
+    if tmp > upper {
+        upper
+    } else if tmp > 0 {
+        tmp
+    } else {
+        0
+    }
 }
 
 /// makemon with a specific C monster index (ptr != NULL).
@@ -3455,6 +3331,13 @@ fn makemon_specific_c_rng(
     bases: &ClassBases,
     rng: &mut GameRng,
 ) {
+    // C: makemon.c line 1155-1161 — MON_AT(x,y) check before anything else.
+    // With specific ptr and no MM_ADJACENTOK, returns NULL with 0 RNG consumed
+    // if position is already occupied.
+    if level.monster_at(x, y).is_some() {
+        return;
+    }
+
     let monsters = MONSTERS;
     let player_level: i32 = 1;
     let player_alignment: i8 = 1; // Lawful: aligns[flags.initalign=0].value = A_LAWFUL
@@ -3562,6 +3445,11 @@ fn makemon_c_rng(
     depth: i32,
     rng: &mut GameRng,
 ) {
+    // C: makemon.c line 1155-1161 — MON_AT(x,y) check before anything else.
+    if level.monster_at(x, y).is_some() {
+        return;
+    }
+
     let monsters = MONSTERS;
     let player_level = 1; // u.ulevel at start
     let player_alignment: i8 = 1; // Lawful: aligns[flags.initalign=0].value = A_LAWFUL
@@ -3571,7 +3459,6 @@ fn makemon_c_rng(
     // 1. rndmonst: select monster (1 RNG call)
     let mndx = rndmonst_c_rng(depth, player_level, in_hell, rng);
     let mon = &monsters[mndx];
-
 
     // 2. newmonhp: d(adj_lev, 8) or special cases
     let m_lev = adj_lev_c(mon, depth, player_level);
@@ -3584,7 +3471,6 @@ fn makemon_c_rng(
             rng.rn2(8);
         }
     }
-
 
     // 3. Gender
     let is_female = mon.flags.contains(MonsterFlags::FEMALE);
@@ -3629,10 +3515,8 @@ fn makemon_c_rng(
     // is_ndemon, PM_WUMPUS, PM_LONG_WORM, PM_GIANT_EEL
     // These are rare at depth 14, but check anyway
     let is_ndemon = mon.flags.contains(MonsterFlags::DEMON) && !is_lord(mon) && !is_prince(mon);
-    let is_special_sleep = is_ndemon
-        || mon.name == "wumpus"
-        || mon.name == "long worm"
-        || mon.name == "giant eel";
+    let is_special_sleep =
+        is_ndemon || mon.name == "wumpus" || mon.name == "long worm" || mon.name == "giant eel";
     if is_special_sleep {
         rng.rn2(5);
     }
@@ -3702,6 +3586,14 @@ fn makemon_zoo_c_rng(
     depth: i32,
     rng: &mut GameRng,
 ) {
+    // C: makemon.c line 1155-1161 — MON_AT(x,y) check BEFORE anything else.
+    // If a monster is already at this position (e.g. a group member placed by
+    // a previous cell's spawn), C returns NULL with 0 RNG consumed.
+    // MM_ASLEEP does not include MM_ADJACENTOK, so no enexto fallback.
+    if level.monster_at(x, y).is_some() {
+        return;
+    }
+
     let monsters = MONSTERS;
     let player_level = 1;
     let player_alignment: i8 = 1; // Lawful
@@ -3745,45 +3637,15 @@ fn makemon_zoo_c_rng(
 
     // 6. in_mklev sleep check
     let is_ndemon = mon.flags.contains(MonsterFlags::DEMON) && !is_lord(mon) && !is_prince(mon);
-    let is_special_sleep = is_ndemon
-        || mon.name == "wumpus"
-        || mon.name == "long worm"
-        || mon.name == "giant eel";
+    let is_special_sleep =
+        is_ndemon || mon.name == "wumpus" || mon.name == "long worm" || mon.name == "giant eel";
     if is_special_sleep {
         rng.rn2(5);
     }
 
-    // 7. Group check: anymon=true, mmflags=MM_ASLEEP (no MM_NOGRP)
-    // G_SGROUP=0x0080, G_LGROUP=0x0040
-    let geno = C_MONS_GENO[find_c_mndx(mndx)];
-    let has_sgroup = (geno & 0x0080) != 0;
-    let has_lgroup = (geno & 0x0040) != 0;
-
-    if has_sgroup && rng.rn2(2) != 0 {
-        // m_initsgrp: n=3
-        m_initgrp_c_rng(level, x, y, mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, objects, bases, rng);
-    } else if has_lgroup {
-        if rng.rn2(3) != 0 {
-            // m_initlgrp: n=10
-            m_initgrp_c_rng(level, x, y, mon, mndx, m_lev, 10, player_level, player_alignment, align_record, depth, objects, bases, rng);
-        } else {
-            // m_initsgrp: n=3
-            m_initgrp_c_rng(level, x, y, mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, objects, bases, rng);
-        }
-    }
-
-    // 8. m_initweap
-    if is_armed(mon) {
-        m_initweap_c_rng(mon, mndx, m_lev, objects, bases, depth, rng);
-    }
-
-    // 9. m_initinv
-    m_initinv_c_rng(mon, mndx, m_lev, objects, bases, depth, rng);
-
-    // 10. saddle check
-    rng.rn2(100);
-
-    // ACTUALLY SPAWN
+    // C places the leader on the grid (place_monster, line 1256) before the
+    // group check (line 1397) so that enexto inside m_initgrp sees the
+    // leader's tile as occupied.  Match that order here.
     use crate::monster::{Monster, MonsterId, MonsterState};
     let mut new_mon = Monster::new(MonsterId(0), mndx as i16, x, y);
     new_mon.name = mon.name.to_string();
@@ -3799,6 +3661,82 @@ fn makemon_zoo_c_rng(
     new_mon.hp_max = hp;
     new_mon.state = MonsterState::sleeping();
     level.add_monster_front(new_mon);
+
+    // 7. Group check: anymon=true, mmflags=MM_ASLEEP (no MM_NOGRP)
+    // C: lines 1397-1406 — after place_monster, before m_initweap
+    // G_SGROUP=0x0080, G_LGROUP=0x0040
+    let geno = C_MONS_GENO[find_c_mndx(mndx)];
+    let has_sgroup = (geno & 0x0080) != 0;
+    let has_lgroup = (geno & 0x0040) != 0;
+
+    if has_sgroup && rng.rn2(2) != 0 {
+        // m_initsgrp: n=3
+        m_initgrp_c_rng(
+            level,
+            x,
+            y,
+            mon,
+            mndx,
+            m_lev,
+            3,
+            player_level,
+            player_alignment,
+            align_record,
+            depth,
+            objects,
+            bases,
+            rng,
+        );
+    } else if has_lgroup {
+        if rng.rn2(3) != 0 {
+            // m_initlgrp: n=10
+            m_initgrp_c_rng(
+                level,
+                x,
+                y,
+                mon,
+                mndx,
+                m_lev,
+                10,
+                player_level,
+                player_alignment,
+                align_record,
+                depth,
+                objects,
+                bases,
+                rng,
+            );
+        } else {
+            // m_initsgrp: n=3
+            m_initgrp_c_rng(
+                level,
+                x,
+                y,
+                mon,
+                mndx,
+                m_lev,
+                3,
+                player_level,
+                player_alignment,
+                align_record,
+                depth,
+                objects,
+                bases,
+                rng,
+            );
+        }
+    }
+
+    // 8. m_initweap — C: line 1413
+    if is_armed(mon) {
+        m_initweap_c_rng(mon, mndx, m_lev, objects, bases, depth, rng);
+    }
+
+    // 9. m_initinv — C: line 1418
+    m_initinv_c_rng(mon, mndx, m_lev, objects, bases, depth, rng);
+
+    // 10. saddle check — C: line 1424
+    rng.rn2(100);
 }
 
 /// Runtime makemon(NULL, 0, 0, NO_MM_FLAGS) RNG consumption.
@@ -3833,12 +3771,24 @@ pub(crate) fn makemon_runtime_c_rng(
 
     for _try in 0..50 {
         let nx = rng.rn2(colno - 3) as i8 + 2; // rn1(COLNO-3, 2)
-        let ny = rng.rn2(rowno) as i8;           // rn2(ROWNO)
+        let ny = rng.rn2(rowno) as i8; // rn2(ROWNO)
 
         let valid = level.is_valid_pos(nx, ny);
-        let vis = if valid { level.visible[nx as usize][ny as usize] } else { false };
-        let walk = if valid { level.is_walkable(nx, ny) } else { false };
-        let no_mon = if valid { level.monster_at(nx, ny).is_none() } else { false };
+        let vis = if valid {
+            level.visible[nx as usize][ny as usize]
+        } else {
+            false
+        };
+        let walk = if valid {
+            level.is_walkable(nx, ny)
+        } else {
+            false
+        };
+        let no_mon = if valid {
+            level.monster_at(nx, ny).is_none()
+        } else {
+            false
+        };
 
         // !in_mklev && cansee(nx,ny) → reject
         if valid && !vis && walk && no_mon {
@@ -3846,7 +3796,6 @@ pub(crate) fn makemon_runtime_c_rng(
             pos_y = ny;
             found_pos = true;
             break;
-        } else {
         }
     }
 
@@ -3903,38 +3852,9 @@ pub(crate) fn makemon_runtime_c_rng(
     // 6. !in_mklev && byyou: set_apparxy — but byyou=false (x was 0,y was 0)
     //    so no set_apparxy call
 
-    // 7. Group check: anymon=true, mmflags=NO_MM_FLAGS (no MM_NOGRP)
-    let c_mndx = find_c_mndx(mndx);
-    let geno = C_MONS_GENO[c_mndx];
-    let has_sgroup = (geno & 0x0080) != 0; // G_SGROUP
-    let has_lgroup = (geno & 0x0040) != 0; // G_LGROUP
-
-    if has_sgroup && rng.rn2(2) != 0 {
-        // m_initsgrp: n=3
-        m_initgrp_c_rng(level, pos_x, pos_y, mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, &objects, &bases, rng);
-    } else if has_lgroup {
-        if rng.rn2(3) != 0 {
-            // m_initlgrp: n=10
-            m_initgrp_c_rng(level, pos_x, pos_y, mon, mndx, m_lev, 10, player_level, player_alignment, align_record, depth, &objects, &bases, rng);
-        } else {
-            // m_initsgrp: n=3
-            m_initgrp_c_rng(level, pos_x, pos_y, mon, mndx, m_lev, 3, player_level, player_alignment, align_record, depth, &objects, &bases, rng);
-        }
-    }
-
-    // 8. m_initweap (only if armed)
-    if is_armed(mon) {
-        m_initweap_c_rng(mon, mndx, m_lev, &objects, &bases, depth, rng);
-    }
-
-    // 9. m_initinv (body + tail checks: rn2(50), rn2(100), conditional rn2(5))
-    m_initinv_c_rng(mon, mndx, m_lev, &objects, &bases, depth, rng);
-
-    // 10. saddle check: rn2(100) always consumed
-    rng.rn2(100);
-
-    // Actually create and place the monster so it participates in future turns
-    // (mcalcmove, movemon, etc.)
+    // C places the leader on the grid (place_monster, line 1256) before the
+    // group check (line 1397) so that enexto inside m_initgrp sees the
+    // leader's tile as occupied.  Match that order here.
     let mut new_mon = Monster::new(MonsterId(0), mndx as i16, pos_x, pos_y);
     new_mon.name = mon.name.to_string();
     new_mon.base_speed = mon.move_speed as i32;
@@ -3951,6 +3871,82 @@ pub(crate) fn makemon_runtime_c_rng(
     // Hostile by default for runtime spawns (peace_minded already consumed RNG)
     new_mon.state = MonsterState::active();
     level.add_monster_front(new_mon);
+
+    // 7. Group check: anymon=true, mmflags=NO_MM_FLAGS (no MM_NOGRP)
+    // C: lines 1397-1406 — after place_monster, before m_initweap
+    let c_mndx = find_c_mndx(mndx);
+    let geno = C_MONS_GENO[c_mndx];
+    let has_sgroup = (geno & 0x0080) != 0; // G_SGROUP
+    let has_lgroup = (geno & 0x0040) != 0; // G_LGROUP
+
+    if has_sgroup && rng.rn2(2) != 0 {
+        // m_initsgrp: n=3
+        m_initgrp_c_rng(
+            level,
+            pos_x,
+            pos_y,
+            mon,
+            mndx,
+            m_lev,
+            3,
+            player_level,
+            player_alignment,
+            align_record,
+            depth,
+            objects,
+            &bases,
+            rng,
+        );
+    } else if has_lgroup {
+        if rng.rn2(3) != 0 {
+            // m_initlgrp: n=10
+            m_initgrp_c_rng(
+                level,
+                pos_x,
+                pos_y,
+                mon,
+                mndx,
+                m_lev,
+                10,
+                player_level,
+                player_alignment,
+                align_record,
+                depth,
+                objects,
+                &bases,
+                rng,
+            );
+        } else {
+            // m_initsgrp: n=3
+            m_initgrp_c_rng(
+                level,
+                pos_x,
+                pos_y,
+                mon,
+                mndx,
+                m_lev,
+                3,
+                player_level,
+                player_alignment,
+                align_record,
+                depth,
+                objects,
+                &bases,
+                rng,
+            );
+        }
+    }
+
+    // 8. m_initweap (only if armed) — C: line 1413
+    if is_armed(mon) {
+        m_initweap_c_rng(mon, mndx, m_lev, objects, &bases, depth, rng);
+    }
+
+    // 9. m_initinv — C: line 1418
+    m_initinv_c_rng(mon, mndx, m_lev, objects, &bases, depth, rng);
+
+    // 10. saddle check: rn2(100) always consumed — C: line 1424
+    rng.rn2(100);
 }
 
 /// C's m_initgrp RNG consumption.
@@ -3973,7 +3969,13 @@ fn m_initgrp_c_rng(
 ) {
     let mut cnt = rng.rnd(n) as i32;
     // cnt /= (ulevel < 3) ? 4 : (ulevel < 5) ? 2 : 1
-    cnt /= if player_level < 3 { 4 } else if player_level < 5 { 2 } else { 1 };
+    cnt /= if player_level < 3 {
+        4
+    } else if player_level < 5 {
+        2
+    } else {
+        1
+    };
     if cnt == 0 {
         cnt = 1;
     }
@@ -4041,12 +4043,7 @@ fn find_c_mndx(rust_mndx: usize) -> usize {
 /// Stub for mktrap RNG consumption.
 /// C's mktrap(0, 0, croom, NULL) RNG consumption during in_mklev.
 /// Faithfully ports the rndtrap + position + maketrap + dead-adventurer chain.
-fn mktrap_c_rng(
-    level: &mut Level,
-    room: &Room,
-    depth: i32,
-    rng: &mut GameRng,
-) {
+fn mktrap_c_rng(level: &mut Level, room: &Room, depth: i32, rng: &mut GameRng) {
     let objects = OBJECTS;
     let bases = ClassBases::compute(objects);
     let in_hell = false;
@@ -4058,26 +4055,33 @@ fn mktrap_c_rng(
     let kind = loop {
         let k = rng.rnd(23) as i32;
         let accepted = match k {
-            17 | 23 => false, // MAGIC_PORTAL, VIBRATING_SQUARE: always rejected
-            10 => in_hell,    // FIRE_TRAP: only in hell
-            8 => depth >= 2,  // SLP_GAS_TRAP: lvl >= 2
-            7 => depth >= 2,  // ROLLING_BOULDER_TRAP: lvl >= 2
+            17 | 23 => false,                // MAGIC_PORTAL, VIBRATING_SQUARE: always rejected
+            10 => in_hell,                   // FIRE_TRAP: only in hell
+            8 => depth >= 2,                 // SLP_GAS_TRAP: lvl >= 2
+            7 => depth >= 2,                 // ROLLING_BOULDER_TRAP: lvl >= 2
             16 => depth >= 5 && !noteleport, // LEVEL_TELEP
-            12 => depth >= 5, // SPIKED_PIT
-            6 => depth >= 6,  // LANDMINE
-            18 => depth >= 7, // WEB
-            19 | 22 => depth >= 8, // STATUE_TRAP, POLY_TRAP
-            15 => !noteleport, // TELEP_TRAP
-            13 => {           // HOLE: extra rn2(7) rejection
-                if rng.rn2(7) != 0 { false } else { true }
+            12 => depth >= 5,                // SPIKED_PIT
+            6 => depth >= 6,                 // LANDMINE
+            18 => depth >= 7,                // WEB
+            19 | 22 => depth >= 8,           // STATUE_TRAP, POLY_TRAP
+            15 => !noteleport,               // TELEP_TRAP
+            13 => {
+                // HOLE: extra rn2(7) rejection
+                rng.rn2(7) == 0
             }
             _ => true,
         };
-        if accepted { break k; }
+        if accepted {
+            break k;
+        }
     };
 
     // hole/trapdoor → rocktrap if can't fall through
-    let kind = if (kind == 13 || kind == 14) && !can_fall_thru { 3 } else { kind };
+    let kind = if (kind == 13 || kind == 14) && !can_fall_thru {
+        3
+    } else {
+        kind
+    };
 
     // 2. Position: somexy(croom, &m) + occupied() retry loop
     // For first trap in a room, occupied() is typically false → 1 iteration
@@ -4108,7 +4112,7 @@ fn mktrap_c_rng(
         18 => {
             // WEB: makemon(&mons[PM_GIANT_SPIDER], m.x, m.y, NO_MM_FLAGS)
             // PM_GIANT_SPIDER = C[95], specific ptr → anymon=false
-            makemon_specific_c_rng(level, tx as i8, ty as i8, 95, depth, &objects, &bases, rng);
+            makemon_specific_c_rng(level, tx as i8, ty as i8, 95, depth, objects, &bases, rng);
         }
         19 => {
             // STATUE_TRAP: rndmonnum() unicorn avoidance loop + mkcorpstat + makemon
@@ -4119,12 +4123,21 @@ fn mktrap_c_rng(
             // mkcorpstat(STATUE, NULL, mptr, x, y, CORPSTAT_NONE)
             // This calls mksobj internally — statue object creation
             // mksobj for STATUE: rock_init_c_rng
-            mksobj_c_rng(&objects, &bases, R_STATUE, ObjectClass::Rock, true, false, depth, rng);
+            mksobj_c_rng(
+                objects,
+                &bases,
+                R_STATUE,
+                ObjectClass::Rock,
+                true,
+                false,
+                depth,
+                rng,
+            );
             // makemon(&mons[corpsenm], 0, 0, MM_NOCOUNTBIRTH)
             // Position (0,0) → makemon_rnd_goodpos → enexto → consumes variable RNG
             // Then full makemon chain for the monster
             // For now, approximate with standard makemon (it's at random position)
-            makemon_c_rng(level, tx as i8, ty as i8, &objects, &bases, depth, rng);
+            makemon_c_rng(level, tx as i8, ty as i8, objects, &bases, depth, rng);
         }
         _ => {} // Most traps: no additional RNG in maketrap
     }
@@ -4174,13 +4187,22 @@ fn mkgrave_rng(level: &mut Level, room: &Room, dobell: bool, depth: i32, rng: &m
     let buried_count = rng.rn2(5);
     for _ in 0..buried_count {
         // mkobj(RANDOM_CLASS, TRUE) + curse(otmp)
-        mkobj_c_rng(&objects, &bases, depth, rng);
+        mkobj_c_rng(objects, &bases, depth, rng);
     }
 
     // C: if (dobell) mksobj_at(BELL, m.x, m.y, TRUE, FALSE)
     // BELL (not BELL_OF_OPENING) is a Tool
     if dobell {
-        mksobj_c_rng(&objects, &bases, 0, ObjectClass::Tool, true, false, depth, rng);
+        mksobj_c_rng(
+            objects,
+            &bases,
+            0,
+            ObjectClass::Tool,
+            true,
+            false,
+            depth,
+            rng,
+        );
     }
 }
 
@@ -4315,8 +4337,7 @@ fn mksobj_c_rng(
         ObjectClass::Wand => wand_init_c_rng(objects, c_otyp, rng),
         ObjectClass::Ring => ring_init_c_rng(c_otyp, rng),
         ObjectClass::Rock => rock_init_c_rng(objects, bases, c_otyp, depth, rng),
-        ObjectClass::Coin | ObjectClass::Venom | ObjectClass::Chain
-        | ObjectClass::Ball => {}
+        ObjectClass::Coin | ObjectClass::Venom | ObjectClass::Chain | ObjectClass::Ball => {}
         _ => {}
     }
 }
@@ -4412,10 +4433,8 @@ fn food_init_c_rng(otyp: usize, rng: &mut GameRng) {
     // C: post-switch: Is_pudding check, then quantity doubling
     // GlobOfGrayOoze..GlobOfBlackPudding are 4 consecutive items after MEAT_RING
     let is_pudding = otyp > R_MEAT_RING && otyp <= R_MEAT_RING + 4;
-    if !is_pudding {
-        if otyp != R_CORPSE && otyp != R_MEAT_RING && otyp != R_KELP_FROND {
-            rng.rn2(6);
-        }
+    if !is_pudding && otyp != R_CORPSE && otyp != R_MEAT_RING && otyp != R_KELP_FROND {
+        rng.rn2(6);
     }
 }
 
@@ -4472,7 +4491,7 @@ fn tool_init_c_rng(
             // mkbox_cnts: creates 0-N objects inside
             mkbox_cnts_c_rng(objects, bases, otyp, depth, rng);
         }
-        191 /* ICE_BOX */ | 192 /* SACK */ | 193 /* OILSKIN_SACK */ | 194 /* BAG_OF_HOLDING */ => {
+        191..=194 /* BAG_OF_HOLDING */ => {
             // C: falls through to mkbox_cnts
             // During mklev, SACK/OILSKIN_SACK start empty (moves <= 1 && !in_mklev)
             // Actually in_mklev IS true, so they get contents
@@ -4534,7 +4553,7 @@ fn amulet_init_c_rng(otyp: usize, rng: &mut GameRng) {
     }
 }
 
-fn armor_init_c_rng(objects: &[ObjClassDef], otyp: usize, artif: bool, rng: &mut GameRng) {
+fn armor_init_c_rng(_objects: &[ObjClassDef], otyp: usize, artif: bool, rng: &mut GameRng) {
     // C's special cursed armor types
     let is_cursed_armor = otyp == 148 /* FUMBLE_BOOTS */
         || otyp == 149 /* LEVITATION_BOOTS */
@@ -4580,7 +4599,7 @@ fn armor_init_c_rng(objects: &[ObjClassDef], otyp: usize, artif: bool, rng: &mut
     }
 }
 
-fn wand_init_c_rng(objects: &[ObjClassDef], otyp: usize, rng: &mut GameRng) {
+fn wand_init_c_rng(_objects: &[ObjClassDef], otyp: usize, rng: &mut GameRng) {
     // C: WAN_WISHING → rnd(3); else rn1(5, nodir?11:4)
     if otyp == R_WAND_OF_WISHING {
         rng.rnd(3);
@@ -4685,7 +4704,16 @@ fn mkbox_cnts_c_rng(
     for _ in 0..count {
         if box_otyp == R_ICE_BOX {
             // C: mksobj(CORPSE, TRUE, TRUE) — creates a corpse
-            mksobj_c_rng(objects, bases, R_CORPSE, ObjectClass::Food, true, true, depth, rng);
+            mksobj_c_rng(
+                objects,
+                bases,
+                R_CORPSE,
+                ObjectClass::Food,
+                true,
+                true,
+                depth,
+                rng,
+            );
         } else {
             // C: rnd(100) for class from boxiprobs, then mkobj(class, TRUE)
             let mut tprob = rng.rnd(100) as i32;
@@ -4989,11 +5017,7 @@ fn find_empty_room_spot(
 
 /// C's place_niche() (mklev.c:454-475)
 /// Returns (xx, yy, dy) if a valid niche position is found
-fn place_niche(
-    level: &Level,
-    room: &Room,
-    rng: &mut GameRng,
-) -> Option<(usize, usize, i32)> {
+fn place_niche(level: &Level, room: &Room, rng: &mut GameRng) -> Option<(usize, usize, i32)> {
     let dy: i32;
     let (xx, yy);
 
@@ -5027,8 +5051,8 @@ fn place_niche(
     // C: isok(xx, yy+dy) && levl[xx][yy+dy].typ == STONE
     //    && isok(xx, yy-dy) && !IS_POOL(...) && !IS_FURNITURE(...)
     // C's isok: x >= 1 && x <= COLNO-1 && y >= 0 && y <= ROWNO-1
-    let niche_ok = xx >= 1 && xx <= COLNO - 1 && niche_yi >= 0 && niche_yi <= ROWNO as i32 - 1;
-    let wall_ok = xx >= 1 && xx <= COLNO - 1 && wall_yi >= 0 && wall_yi <= ROWNO as i32 - 1;
+    let niche_ok = (1..=COLNO - 1).contains(&xx) && niche_yi >= 0 && niche_yi < ROWNO as i32;
+    let wall_ok = (1..=COLNO - 1).contains(&xx) && wall_yi >= 0 && wall_yi < ROWNO as i32;
     if niche_ok
         && level.cells[xx][niche_yi as usize].typ == CellType::Stone
         && wall_ok
@@ -5044,18 +5068,54 @@ fn place_niche(
 /// Rubout substitution table from engrave.c — maps wipefrom char to wipeto string.
 /// Used by wipeout_text_rng to match C's RNG consumption.
 const RUBOUTS: &[(u8, &[u8])] = &[
-    (b'A', b"^"),   (b'B', b"Pb["), (b'C', b"("),   (b'D', b"|)["),
-    (b'E', b"|FL[_"), (b'F', b"|-"), (b'G', b"C("),  (b'H', b"|-"),
-    (b'I', b"|"),   (b'K', b"|<"),  (b'L', b"|_"),   (b'M', b"|"),
-    (b'N', b"|\\"), (b'O', b"C("),  (b'P', b"F"),    (b'Q', b"C("),
-    (b'R', b"PF"),  (b'T', b"|"),   (b'U', b"J"),    (b'V', b"/\\"),
-    (b'W', b"V/\\"), (b'Z', b"/"), (b'b', b"|"),    (b'd', b"c|"),
-    (b'e', b"c"),   (b'g', b"c"),   (b'h', b"n"),    (b'j', b"i"),
-    (b'k', b"|"),   (b'l', b"|"),   (b'm', b"nr"),   (b'n', b"r"),
-    (b'o', b"c"),   (b'q', b"c"),   (b'w', b"v"),    (b'y', b"v"),
-    (b':', b"."),   (b';', b",:"),  (b',', b"."),    (b'=', b"-"),
-    (b'+', b"-|"),  (b'*', b"+"),   (b'@', b"0"),    (b'0', b"C("),
-    (b'1', b"|"),   (b'6', b"o"),   (b'7', b"/"),    (b'8', b"3o"),
+    (b'A', b"^"),
+    (b'B', b"Pb["),
+    (b'C', b"("),
+    (b'D', b"|)["),
+    (b'E', b"|FL[_"),
+    (b'F', b"|-"),
+    (b'G', b"C("),
+    (b'H', b"|-"),
+    (b'I', b"|"),
+    (b'K', b"|<"),
+    (b'L', b"|_"),
+    (b'M', b"|"),
+    (b'N', b"|\\"),
+    (b'O', b"C("),
+    (b'P', b"F"),
+    (b'Q', b"C("),
+    (b'R', b"PF"),
+    (b'T', b"|"),
+    (b'U', b"J"),
+    (b'V', b"/\\"),
+    (b'W', b"V/\\"),
+    (b'Z', b"/"),
+    (b'b', b"|"),
+    (b'd', b"c|"),
+    (b'e', b"c"),
+    (b'g', b"c"),
+    (b'h', b"n"),
+    (b'j', b"i"),
+    (b'k', b"|"),
+    (b'l', b"|"),
+    (b'm', b"nr"),
+    (b'n', b"r"),
+    (b'o', b"c"),
+    (b'q', b"c"),
+    (b'w', b"v"),
+    (b'y', b"v"),
+    (b':', b"."),
+    (b';', b",:"),
+    (b',', b"."),
+    (b'=', b"-"),
+    (b'+', b"-|"),
+    (b'*', b"+"),
+    (b'@', b"0"),
+    (b'0', b"C("),
+    (b'1', b"|"),
+    (b'6', b"o"),
+    (b'7', b"/"),
+    (b'8', b"3o"),
 ];
 
 /// Simulate C's wipeout_text(engr, cnt, seed=0) RNG consumption.
@@ -5103,9 +5163,9 @@ pub(crate) fn wipeout_text_rng(text: &[u8], cnt: usize, rng: &mut GameRng) {
 /// Trap engraving texts from mklev.c:474-481
 fn trap_engraving(trap_type: i32) -> Option<&'static [u8]> {
     match trap_type {
-        14 => Some(b"Vlad was here"),  // TRAPDOOR
-        15 => Some(b"ad aerarium"),     // TELEP_TRAP
-        16 => Some(b"ad aerarium"),     // LEVEL_TELEP
+        14 => Some(b"Vlad was here"), // TRAPDOOR
+        15 => Some(b"ad aerarium"),   // TELEP_TRAP
+        16 => Some(b"ad aerarium"),   // LEVEL_TELEP
         _ => None,
     }
 }
@@ -5182,11 +5242,11 @@ fn makeniche(
                     level.cells[xx][niche_y].typ = CellType::Corridor;
                 }
                 let rust_trap = match actual_trap {
-                    16 => super::TrapType::Teleport,      // LEVEL_TELEP
-                    15 => super::TrapType::Teleport,      // TELEP_TRAP
-                    14 => super::TrapType::TrapDoor,       // TRAPDOOR
-                    21 => super::TrapType::RockFall,       // ROCKTRAP
-                    _ => super::TrapType::RockFall,        // fallback
+                    16 => super::TrapType::Teleport, // LEVEL_TELEP
+                    15 => super::TrapType::Teleport, // TELEP_TRAP
+                    14 => super::TrapType::TrapDoor, // TRAPDOOR
+                    21 => super::TrapType::RockFall, // ROCKTRAP
+                    _ => super::TrapType::RockFall,  // fallback
                 };
                 level.add_trap(xx as i8, niche_y as i8, rust_trap);
                 // C: ttmp->once = 1 (for non-ROCKTRAP)
@@ -5264,7 +5324,7 @@ pub fn make_niches(
     // C: vamp = (dep > 5 && dep < 25) — "vamp" is just the variable name
     let mut vamp = dep > 5 && dep < 25;
 
-    for i in (0..ct).rev() {
+    for _i in (0..ct).rev() {
         if ltptr && rng.rn2(6) == 0 {
             ltptr = false;
             makeniche(level, rooms, LEVEL_TELEP, objects, bases, depth, rng);
@@ -5577,11 +5637,19 @@ pub fn create_door(
         level.cells[x][y].flags = DoorState::CLOSED.bits();
     } else {
         // Inline dosdoor-style logic
-        let cell_type = if is_secret { CellType::SecretDoor } else { CellType::Door };
+        let cell_type = if is_secret {
+            CellType::SecretDoor
+        } else {
+            CellType::Door
+        };
         level.cells[x][y].typ = cell_type;
 
         let state = if is_shop {
-            if is_secret { DoorState::LOCKED } else { DoorState::OPEN }
+            if is_secret {
+                DoorState::LOCKED
+            } else {
+                DoorState::OPEN
+            }
         } else {
             match rng.rn2(3) {
                 0 => DoorState::LOCKED,
@@ -5661,10 +5729,6 @@ fn determine_wall_type(level: &Level, x: usize, y: usize) -> CellType {
         // Corners and intersections
         (true, true, _, _) => CellType::CrossWall,
         (_, _, true, true) => CellType::CrossWall,
-        (true, _, true, _) => CellType::TLCorner,
-        (true, _, _, true) => CellType::TRCorner,
-        (_, true, true, _) => CellType::BLCorner,
-        (_, true, _, true) => CellType::BRCorner,
         // Default to generic wall
         _ => CellType::Wall,
     }
@@ -5697,10 +5761,18 @@ fn check_room(
     let mut hix = *lowx + *ddx;
     let mut hiy = *lowy + *ddy;
 
-    if *lowx < 3 { *lowx = 3; }
-    if *lowy < 2 { *lowy = 2; }
-    if hix > COLNO as i32 - 3 { hix = COLNO as i32 - 3; }
-    if hiy > ROWNO as i32 - 3 { hiy = ROWNO as i32 - 3; }
+    if *lowx < 3 {
+        *lowx = 3;
+    }
+    if *lowy < 2 {
+        *lowy = 2;
+    }
+    if hix > COLNO as i32 - 3 {
+        hix = COLNO as i32 - 3;
+    }
+    if hiy > ROWNO as i32 - 3 {
+        hiy = ROWNO as i32 - 3;
+    }
 
     loop {
         // chk:
@@ -5778,7 +5850,7 @@ fn create_vault_room(
     let gold_h = vault_room.height;
     for _x in 0..gold_w {
         for _y in 0..gold_h {
-            let _amount = rng.rn2((depth.unsigned_abs() * 100) as u32) as i64 + 51;
+            let _amount = rng.rn2(depth.unsigned_abs() * 100) as i64 + 51;
             // NOTE: gold object creation deferred; RNG calls consumed for parity
         }
     }
@@ -5790,7 +5862,6 @@ fn create_vault_room(
     if !is_branch_level {
         // mk_knox_portal calls rn2(3) — 2/3 chance of returning early
         let _knox_rn = rng.rn2(3);
-    } else {
     }
 
     // C: if (!level.flags.noteleport && !rn2(3)) makevtele()
@@ -5800,7 +5871,15 @@ fn create_vault_room(
         let vt_objects = OBJECTS;
         let vt_bases = ClassBases::compute(vt_objects);
         let vt_depth = level.dlevel.depth();
-        makeniche(level, &rooms_snapshot, 15, vt_objects, &vt_bases, vt_depth, rng);
+        makeniche(
+            level,
+            &rooms_snapshot,
+            15,
+            vt_objects,
+            &vt_bases,
+            vt_depth,
+            rng,
+        );
     }
 }
 
@@ -5834,10 +5913,18 @@ pub fn carve_room(level: &mut Level, room: &Room) {
     }
 
     // Corners
-    if lowx > 0 && lowy > 0 { level.cells[lowx - 1][lowy - 1].typ = CellType::TLCorner; }
-    if hix < COLNO - 1 && lowy > 0 { level.cells[hix + 1][lowy - 1].typ = CellType::TRCorner; }
-    if lowx > 0 && hiy < ROWNO - 1 { level.cells[lowx - 1][hiy + 1].typ = CellType::BLCorner; }
-    if hix < COLNO - 1 && hiy < ROWNO - 1 { level.cells[hix + 1][hiy + 1].typ = CellType::BRCorner; }
+    if lowx > 0 && lowy > 0 {
+        level.cells[lowx - 1][lowy - 1].typ = CellType::TLCorner;
+    }
+    if hix < COLNO - 1 && lowy > 0 {
+        level.cells[hix + 1][lowy - 1].typ = CellType::TRCorner;
+    }
+    if lowx > 0 && hiy < ROWNO - 1 {
+        level.cells[lowx - 1][hiy + 1].typ = CellType::BLCorner;
+    }
+    if hix < COLNO - 1 && hiy < ROWNO - 1 {
+        level.cells[hix + 1][hiy + 1].typ = CellType::BRCorner;
+    }
 
     // Floor
     fill_room(level, room, true);
@@ -6045,7 +6132,7 @@ pub fn ensure_way_out(level: &mut Level, start_x: usize, start_y: usize) -> bool
 }
 
 /// Flood fill to mark reachable cells
-fn flood_fill_reachable(level: &Level, x: usize, y: usize, reachable: &mut Vec<Vec<bool>>) {
+fn flood_fill_reachable(level: &Level, x: usize, y: usize, reachable: &mut [Vec<bool>]) {
     let mut stack = vec![(x, y)];
 
     while let Some((cx, cy)) = stack.pop() {
@@ -6170,79 +6257,6 @@ mod tests {
     }
 
     #[test]
-    fn test_special_room_depth_requirements() {
-        // Test that special rooms only appear at appropriate depths
-        let mut rng = GameRng::new(12345);
-
-        // Depth 1: no special rooms
-        for _ in 0..100 {
-            let mut flags = LevelFlags::default();
-            let result = select_special_room_type(&mut rng, 1, &mut flags);
-            assert!(
-                result.is_none(),
-                "Depth 1 should not generate special rooms"
-            );
-        }
-
-        // Deep level: should occasionally get special rooms
-        let mut got_special = false;
-        for _ in 0..100 {
-            let mut flags = LevelFlags::default();
-            let result = select_special_room_type(&mut rng, 15, &mut flags);
-            if result.is_some() {
-                got_special = true;
-                break;
-            }
-        }
-        assert!(
-            got_special,
-            "Depth 15 should sometimes generate special rooms"
-        );
-    }
-
-    #[test]
-    fn test_pick_room_for_special() {
-        let rooms = vec![
-            Room::new(5, 5, 4, 4),  // 16 area - adequate
-            Room::new(20, 5, 5, 5), // 25 area - good
-            Room::new(35, 5, 2, 2), // 4 area - too small for most
-            Room::new(50, 5, 6, 4), // 24 area - good
-        ];
-
-        // Should pick a room with adequate size (prefer later rooms)
-        let shop_room = pick_room_for_special(&rooms, RoomType::GeneralShop);
-        assert!(shop_room.is_some());
-        // Should be room 3 (last one with adequate size) or room 1
-        let idx = shop_room.unwrap();
-        assert!(
-            idx == 1 || idx == 3,
-            "Should pick room with adequate size, got {}",
-            idx
-        );
-
-        // Vault has smaller size requirement
-        let vault_room = pick_room_for_special(&rooms, RoomType::Vault);
-        assert!(vault_room.is_some());
-    }
-
-    #[test]
-    fn test_level_flags_set_correctly() {
-        let mut flags = LevelFlags::default();
-
-        set_level_flags_for_room(&mut flags, RoomType::Court);
-        assert!(flags.has_court);
-
-        set_level_flags_for_room(&mut flags, RoomType::GeneralShop);
-        assert!(flags.has_shop);
-
-        set_level_flags_for_room(&mut flags, RoomType::Zoo);
-        assert!(flags.has_zoo);
-
-        set_level_flags_for_room(&mut flags, RoomType::Morgue);
-        assert!(flags.has_morgue);
-    }
-
-    #[test]
     fn test_special_room_at_various_depths() {
         // Test level generation at different depths
         let monster_vitals = crate::magic::MonsterVitals::new();
@@ -6332,41 +6346,6 @@ mod tests {
     }
 
     #[test]
-    fn test_trap_type_by_depth() {
-        let mut rng = GameRng::new(42);
-
-        // Shallow depth should only get basic traps
-        let shallow_traps: Vec<_> = (0..100).map(|_| select_trap_type(2, &mut rng)).collect();
-
-        // Should not have advanced traps at depth 2
-        use super::super::TrapType;
-        assert!(
-            !shallow_traps.contains(&TrapType::LandMine),
-            "LandMine should not appear at depth 2"
-        );
-        assert!(
-            !shallow_traps.contains(&TrapType::Polymorph),
-            "Polymorph trap should not appear at depth 2"
-        );
-
-        // Deep depth should have variety - count unique trap names
-        let deep_traps: Vec<_> = (0..100).map(|_| select_trap_type(20, &mut rng)).collect();
-
-        // Count unique types by comparing with each other
-        let mut unique_count = 0;
-        for (i, trap) in deep_traps.iter().enumerate() {
-            if !deep_traps[..i].contains(trap) {
-                unique_count += 1;
-            }
-        }
-        assert!(
-            unique_count > 5,
-            "Deep levels should have trap variety, got {} types",
-            unique_count
-        );
-    }
-
-    #[test]
     fn test_dungeon_features_generation() {
         // Generate multiple levels to check feature placement
         let mut fountain_count = 0;
@@ -6398,7 +6377,6 @@ mod tests {
                     }
                 }
             }
-
         }
 
         println!("Over 50 levels at depth 10:");

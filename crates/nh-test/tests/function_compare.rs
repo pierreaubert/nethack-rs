@@ -12,8 +12,8 @@
 //! }
 //! ```
 
-use nh_test::rng::isaac64::Isaac64;
 use nh_test::ffi::CIsaac64;
+use nh_test::rng::isaac64::Isaac64;
 
 // ============================================================================
 // RNG function comparisons (these work without full NetHack init)
@@ -58,7 +58,17 @@ fn compare_rnd() {
 /// Compare d(n, x) dice rolling.
 #[test]
 fn compare_dice() {
-    let dice_specs = [(1, 4), (1, 6), (1, 8), (2, 6), (3, 6), (1, 10), (1, 12), (1, 20), (2, 4)];
+    let dice_specs = [
+        (1, 4),
+        (1, 6),
+        (1, 8),
+        (2, 6),
+        (3, 6),
+        (1, 10),
+        (1, 12),
+        (1, 20),
+        (2, 4),
+    ];
 
     for seed in [42u64, 0, 1, 12345] {
         let mut rust = Isaac64::new(seed);
@@ -119,7 +129,11 @@ fn verify_dice_bounds() {
             assert!(
                 v >= n && v <= n * x,
                 "d({},{}) produced {} (expected {}..={})",
-                n, x, v, n, n * x
+                n,
+                x,
+                v,
+                n,
+                n * x
             );
         }
     }
@@ -168,7 +182,8 @@ fn print_function_comparison_summary() {
         println!("{:<30} {:<15} {:<10}", name, via, status);
     }
 
-    println!("\nTotal: {} passing, {} pending",
+    println!(
+        "\nTotal: {} passing, {} pending",
         rng_functions.len(),
         pending_functions.len()
     );

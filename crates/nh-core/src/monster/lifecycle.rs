@@ -6,11 +6,11 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use crate::dungeon::Level;
-use crate::rng::GameRng;
-use super::{Monster, MonsterId, MonsterFlags, MonsterSize, PerMonst};
 use super::makemon::{MonsterVitals, record_death};
 use super::permonst::little_to_big;
+use super::{Monster, MonsterFlags, MonsterId, MonsterSize, PerMonst};
+use crate::dungeon::Level;
+use crate::rng::GameRng;
 
 // ============================================================================
 // Death cause tracking
@@ -55,8 +55,7 @@ pub fn lifesaved_monster(mon: &mut Monster) -> bool {
     // C checks: which_armor(mon, W_AMUL) for AMULET_OF_LIFE_SAVING
     // We check worn items in inventory
     let amulet_idx = mon.inventory.iter().position(|obj| {
-        obj.worn_mask != 0
-            && obj.name.as_ref().is_some_and(|n| n.contains("life saving"))
+        obj.worn_mask != 0 && obj.name.as_ref().is_some_and(|n| n.contains("life saving"))
     });
 
     if let Some(idx) = amulet_idx {
@@ -230,8 +229,13 @@ fn corpse_chance(pm: &PerMonst, rng: &mut GameRng) -> bool {
 
     // Frequency-based chance: rarer monsters more likely to leave corpse
     let freq = pm.gen_flags & 0x0007;
-    let tmp = 2 + (if freq < 2 { 1 } else { 0 })
-        + (if (pm.size as u8) <= (MonsterSize::Tiny as u8) { 1 } else { 0 });
+    let tmp = 2
+        + (if freq < 2 { 1 } else { 0 })
+        + (if (pm.size as u8) <= (MonsterSize::Tiny as u8) {
+            1
+        } else {
+            0
+        });
 
     rng.rn2(tmp) == 0
 }
@@ -284,10 +288,7 @@ pub fn monstone(
 ///
 /// Used for dismissed monsters, summoned creatures whose duration expires, etc.
 /// No death tracking, no corpse, but inventory is dropped.
-pub fn mongone(
-    level: &mut Level,
-    mon_id: MonsterId,
-) -> Option<Monster> {
+pub fn mongone(level: &mut Level, mon_id: MonsterId) -> Option<Monster> {
     level.remove_monster(mon_id)
 }
 
@@ -376,7 +377,11 @@ pub fn grow_up(
         } else {
             max_inc
         };
-        let cur_inc = if max_inc > 1 { rng.rn2(max_inc as u32) as i32 } else { 0 };
+        let cur_inc = if max_inc > 1 {
+            rng.rn2(max_inc as u32) as i32
+        } else {
+            0
+        };
 
         (max_inc, cur_inc, hp_thresh, lev_lim)
     } else {
@@ -553,7 +558,9 @@ mod tests {
 
         // Give the monster a worn "amulet of life saving"
         let mut amulet = crate::object::Object::new(
-            crate::object::ObjectId(1), 0, crate::object::ObjectClass::Amulet,
+            crate::object::ObjectId(1),
+            0,
+            crate::object::ObjectClass::Amulet,
         );
         amulet.name = Some("amulet of life saving".to_string());
         amulet.worn_mask = 1; // worn
@@ -572,7 +579,9 @@ mod tests {
         mon.flags = MonsterFlags::UNDEAD;
 
         let mut amulet = crate::object::Object::new(
-            crate::object::ObjectId(1), 0, crate::object::ObjectClass::Amulet,
+            crate::object::ObjectId(1),
+            0,
+            crate::object::ObjectClass::Amulet,
         );
         amulet.name = Some("amulet of life saving".to_string());
         amulet.worn_mask = 1;
@@ -613,7 +622,9 @@ mod tests {
         // Give it a life-saving amulet
         let mon = level.monster_mut(id).unwrap();
         let mut amulet = crate::object::Object::new(
-            crate::object::ObjectId(1), 0, crate::object::ObjectClass::Amulet,
+            crate::object::ObjectId(1),
+            0,
+            crate::object::ObjectClass::Amulet,
         );
         amulet.name = Some("amulet of life saving".to_string());
         amulet.worn_mask = 1;
@@ -631,10 +642,7 @@ mod tests {
     #[test]
     fn test_mondead_records_death() {
         let mut level = test_level_with_room();
-        let monsters_db = vec![
-            test_permonst("kobold", 1),
-            test_permonst("goblin", 1),
-        ];
+        let monsters_db = vec![test_permonst("kobold", 1), test_permonst("goblin", 1)];
         let mut vitals = vec![MonsterVitals::default(); 2];
         let mut rng = GameRng::new(42);
 
@@ -694,7 +702,9 @@ mod tests {
 
         let mon = level.monster_mut(id).unwrap();
         let mut amulet = crate::object::Object::new(
-            crate::object::ObjectId(1), 0, crate::object::ObjectClass::Amulet,
+            crate::object::ObjectId(1),
+            0,
+            crate::object::ObjectClass::Amulet,
         );
         amulet.name = Some("amulet of life saving".to_string());
         amulet.worn_mask = 1;
@@ -723,10 +733,7 @@ mod tests {
     #[test]
     fn test_grow_up_gains_hp() {
         let mut level = test_level_with_room();
-        let monsters_db = vec![
-            test_permonst("kitten", 2),
-            test_permonst("housecat", 4),
-        ];
+        let monsters_db = vec![test_permonst("kitten", 2), test_permonst("housecat", 4)];
         let vitals = vec![MonsterVitals::default(); 2];
         let mut rng = GameRng::new(42);
 
@@ -740,7 +747,10 @@ mod tests {
         // Should have gained some HP
         assert!(mon.hp_max >= 10);
         // Result depends on whether HP exceeds threshold
-        assert!(matches!(result, GrowUpResult::GainedHp | GrowUpResult::LeveledUp { .. }));
+        assert!(matches!(
+            result,
+            GrowUpResult::GainedHp | GrowUpResult::LeveledUp { .. }
+        ));
     }
 
     #[test]
@@ -779,10 +789,7 @@ mod tests {
         let mut level = test_level_with_room();
         // kitten (idx 0) grows into housecat (idx 1) via little_to_big
         // We set up a mock where little_to_big returns a different type
-        let monsters_db = vec![
-            test_permonst("kitten", 2),
-            test_permonst("housecat", 4),
-        ];
+        let monsters_db = vec![test_permonst("kitten", 2), test_permonst("housecat", 4)];
         let mut vitals = vec![MonsterVitals::default(); 2];
         // Genocide housecat
         vitals[1].genocided = true;

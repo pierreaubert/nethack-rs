@@ -47,7 +47,7 @@ fn main() {
         for entry in obj_files {
             let entry = entry.unwrap();
             let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "o") {
+            if path.extension().is_some_and(|ext| ext == "o") {
                 let file_name = path.file_name().unwrap().to_str().unwrap();
                 println!("cargo:warning=Collecting object from path: {:?}", path);
                 if file_name != "unixmain.o" && file_name != "nethack_ffi.o" {
@@ -59,17 +59,17 @@ fn main() {
         // Create a static library containing all these objects using 'ar'
         let out_dir = std::env::var("OUT_DIR").unwrap();
         let lib_path = std::path::PathBuf::from(&out_dir).join("libnethack_full.a");
-        
+
         if lib_path.exists() {
             std::fs::remove_file(&lib_path).unwrap();
         }
-        
+
         let mut ar_cmd = std::process::Command::new("ar");
         ar_cmd.arg("crs").arg(&lib_path);
         for obj in all_objs {
             ar_cmd.arg(obj);
         }
-        
+
         let status = ar_cmd.status().expect("failed to execute ar");
         if !status.success() {
             panic!("ar command failed with status: {}", status);

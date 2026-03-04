@@ -4,10 +4,10 @@
 //! forcing chests, chest traps, rust/fire erosion, elven armor resistance,
 //! erosion AC reduction, and oilskin/greased water protection.
 
+use nh_core::GameRng;
 use nh_core::action::open_close::{PickType, calculate_pick_chance, doforce};
 use nh_core::dungeon::trap::{ContainerTrap, TrapResistances, chest_trap};
 use nh_core::object::{Object, ObjectClass};
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -37,7 +37,10 @@ fn make_locked_chest() -> Object {
 fn test_pick_lock_skill_check() {
     // Skeleton key at DEX=18 (door) — should be 70 + 18 = 88
     let chance_high = calculate_pick_chance(PickType::SkeletonKey, 18, false, true, false);
-    assert_eq!(chance_high, 88, "Skeleton key + high DEX should give 88% chance");
+    assert_eq!(
+        chance_high, 88,
+        "Skeleton key + high DEX should give 88% chance"
+    );
 
     // Lock pick at DEX=10 (door) — should be 3*10 = 30
     let chance_mid = calculate_pick_chance(PickType::LockPick, 10, false, true, false);
@@ -45,7 +48,10 @@ fn test_pick_lock_skill_check() {
 
     // Credit card at DEX=10 (door) — should be 2*10 = 20
     let chance_low = calculate_pick_chance(PickType::CreditCard, 10, false, true, false);
-    assert_eq!(chance_low, 20, "Credit card + mid DEX should give 20% chance");
+    assert_eq!(
+        chance_low, 20,
+        "Credit card + mid DEX should give 20% chance"
+    );
 
     // Higher DEX always gives higher chance
     let chance_dex8 = calculate_pick_chance(PickType::LockPick, 8, false, true, false);
@@ -53,7 +59,8 @@ fn test_pick_lock_skill_check() {
     assert!(
         chance_dex16 > chance_dex8,
         "Higher DEX should give higher chance: {} vs {}",
-        chance_dex16, chance_dex8
+        chance_dex16,
+        chance_dex8
     );
 }
 
@@ -70,7 +77,9 @@ fn test_skeleton_key_better_than_lockpick() {
         assert!(
             key_chance > pick_chance,
             "Skeleton key ({}) should be better than lock pick ({}) at DEX={}",
-            key_chance, pick_chance, dex
+            key_chance,
+            pick_chance,
+            dex
         );
     }
 
@@ -82,7 +91,9 @@ fn test_skeleton_key_better_than_lockpick() {
         assert!(
             key_chance > pick_chance,
             "Skeleton key ({}) should be better than lock pick ({}) for containers at DEX={}",
-            key_chance, pick_chance, dex
+            key_chance,
+            pick_chance,
+            dex
         );
     }
 }
@@ -97,9 +108,11 @@ fn test_cursed_lockpick_can_break() {
     let cursed = calculate_pick_chance(PickType::LockPick, 14, false, true, true);
 
     assert_eq!(
-        cursed, normal / 2,
+        cursed,
+        normal / 2,
         "Cursed chance ({}) should be half of normal ({})",
-        cursed, normal
+        cursed,
+        normal
     );
 
     // Cursed skeleton key
@@ -110,7 +123,8 @@ fn test_cursed_lockpick_can_break() {
         key_cursed,
         key_normal / 2,
         "Cursed skeleton key ({}) should be half of normal ({})",
-        key_cursed, key_normal
+        key_cursed,
+        key_normal
     );
 }
 
@@ -124,7 +138,9 @@ fn test_force_chest_open() {
     player.hp = 100;
     player.hp_max = 100;
     // Player has a blade weapon wielded
-    player.attr_current.set(nh_core::player::Attribute::Dexterity, 16);
+    player
+        .attr_current
+        .set(nh_core::player::Attribute::Dexterity, 16);
 
     let mut chest = make_locked_chest();
     let mut rng = GameRng::new(42);
@@ -192,7 +208,10 @@ fn test_rust_trap_corrodes_armor() {
 
     armor.erode(0);
     assert_eq!(armor.erosion1, 3, "Erosion1 should be 3 (max)");
-    assert!(armor.is_destroyed(), "Fully rusted armor should be destroyed");
+    assert!(
+        armor.is_destroyed(),
+        "Fully rusted armor should be destroyed"
+    );
 }
 
 // ============================================================================
@@ -211,7 +230,10 @@ fn test_elven_armor_resists_corrosion() {
 
     let destroyed2 = armor.erode(1); // corrode
     assert!(!destroyed2, "Erosion-proof should not be destroyed");
-    assert_eq!(armor.erosion2, 0, "Erosion-proof armor should resist corrosion");
+    assert_eq!(
+        armor.erosion2, 0,
+        "Erosion-proof armor should resist corrosion"
+    );
 }
 
 // ============================================================================
@@ -229,7 +251,10 @@ fn test_fire_trap_burns_scrolls() {
     // Scrolls are flammable and can erode
     let destroyed = scroll.erode(0); // fire/burn → erosion1
     assert!(!destroyed, "First burn should not destroy");
-    assert_eq!(scroll.erosion1, 1, "Scroll should have erosion1=1 after burn");
+    assert_eq!(
+        scroll.erosion1, 1,
+        "Scroll should have erosion1=1 after burn"
+    );
 
     // Continue burning
     scroll.erode(0);

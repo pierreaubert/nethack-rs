@@ -105,12 +105,14 @@ fn render_main_menu(
     mut game_state: ResMut<GameStateResource>,
     mut cc_state: ResMut<CharacterCreationState>,
 ) {
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
 
     // Show settings if open
     if menu_state.show_settings {
         render_settings_panel(ctx, &mut menu_state, &mut settings);
-        return ;
+        return;
     }
 
     // Show load browser if open
@@ -122,7 +124,7 @@ fn render_main_menu(
             &mut game_state,
             &mut next_state,
         );
-        return ;
+        return;
     }
 
     // Main menu window
@@ -202,8 +204,6 @@ fn render_main_menu(
                 );
             });
         });
-
-    
 }
 
 fn render_pause_menu(
@@ -216,7 +216,9 @@ fn render_pause_menu(
     mut save_state: ResMut<SaveLoadState>,
     game_state: Res<GameStateResource>,
 ) {
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
 
     // Resume on ESC (only if no submenus open)
     if input.just_pressed(KeyCode::Escape)
@@ -224,7 +226,7 @@ fn render_pause_menu(
         && !menu_state.show_save_browser
     {
         next_state.set(AppState::Playing);
-        return ;
+        return;
     }
 
     // Semi-transparent overlay
@@ -243,18 +245,13 @@ fn render_pause_menu(
     // Show settings if open
     if menu_state.show_settings {
         render_settings_panel(ctx, &mut menu_state, &mut settings);
-        return ;
+        return;
     }
 
     // Show save browser if open
     if menu_state.show_save_browser {
-        render_save_browser(
-            ctx,
-            &mut menu_state,
-            &mut save_state,
-            &game_state,
-        );
-        return ;
+        render_save_browser(ctx, &mut menu_state, &mut save_state, &game_state);
+        return;
     }
 
     // Pause menu window
@@ -329,8 +326,6 @@ fn render_pause_menu(
                 );
             });
         });
-
-    
 }
 
 fn render_character_creation(
@@ -339,7 +334,9 @@ fn render_character_creation(
     mut cc_state: ResMut<CharacterCreationState>,
     mut game_state: ResMut<GameStateResource>,
 ) {
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
 
     // Dark overlay
     egui::Area::new(egui::Id::new("cc_bg"))
@@ -395,11 +392,11 @@ fn render_character_creation(
                     }
                 }
                 CharacterCreationStep::AskRandom => {
-                    ui.label(
-                        egui::RichText::new("Randomize your character?").size(16.0),
-                    );
+                    ui.label(egui::RichText::new("Randomize your character?").size(16.0));
                     ui.add_space(8.0);
-                    ui.label("A random character will be assigned a role, race, gender, and alignment.");
+                    ui.label(
+                        "A random character will be assigned a role, race, gender, and alignment.",
+                    );
                     ui.add_space(15.0);
                     ui.horizontal(|ui| {
                         if ui
@@ -411,18 +408,17 @@ fn render_character_creation(
                             let genders: Vec<Gender> =
                                 Gender::iter().filter(|g| *g != Gender::Neuter).collect();
                             let aligns: Vec<AlignmentType> = AlignmentType::iter().collect();
-                            cc_state.role =
-                                Some(roles[fastrand::usize(..roles.len())]);
-                            cc_state.race =
-                                Some(races[fastrand::usize(..races.len())]);
-                            cc_state.gender =
-                                Some(genders[fastrand::usize(..genders.len())]);
-                            cc_state.alignment =
-                                Some(aligns[fastrand::usize(..aligns.len())]);
+                            cc_state.role = Some(roles[fastrand::usize(..roles.len())]);
+                            cc_state.race = Some(races[fastrand::usize(..races.len())]);
+                            cc_state.gender = Some(genders[fastrand::usize(..genders.len())]);
+                            cc_state.alignment = Some(aligns[fastrand::usize(..aligns.len())]);
                             cc_state.step = CharacterCreationStep::Done;
                         }
                         if ui
-                            .add_sized(egui::vec2(150.0, 35.0), egui::Button::new("No, I'll choose"))
+                            .add_sized(
+                                egui::vec2(150.0, 35.0),
+                                egui::Button::new("No, I'll choose"),
+                            )
                             .clicked()
                         {
                             cc_state.cursor = 0;
@@ -438,10 +434,7 @@ fn render_character_creation(
                         .show(ui, |ui| {
                             for role in Role::iter() {
                                 let selected = cc_state.role == Some(role);
-                                if ui
-                                    .selectable_label(selected, format!("  {role}"))
-                                    .clicked()
-                                {
+                                if ui.selectable_label(selected, format!("  {role}")).clicked() {
                                     cc_state.role = Some(role);
                                 }
                             }
@@ -460,10 +453,7 @@ fn render_character_creation(
                     ui.add_space(8.0);
                     for race in Race::iter() {
                         let selected = cc_state.race == Some(race);
-                        if ui
-                            .selectable_label(selected, format!("  {race}"))
-                            .clicked()
-                        {
+                        if ui.selectable_label(selected, format!("  {race}")).clicked() {
                             cc_state.race = Some(race);
                         }
                     }
@@ -500,10 +490,7 @@ fn render_character_creation(
                             cc_state.step = CharacterCreationStep::SelectRace;
                         }
                         if ui
-                            .add_enabled(
-                                cc_state.gender.is_some(),
-                                egui::Button::new("Continue"),
-                            )
+                            .add_enabled(cc_state.gender.is_some(), egui::Button::new("Continue"))
                             .clicked()
                         {
                             cc_state.step = CharacterCreationStep::SelectAlignment;
@@ -601,11 +588,10 @@ fn render_character_creation(
                                 gender,
                                 role.default_alignment(),
                             );
-                            state.player.alignment =
-                                nh_core::player::Alignment::new(alignment);
+                            state.player.alignment = nh_core::player::Alignment::new(alignment);
 
                             // Post-creation setup matching C's newgame() in allmain.c
-                            state.spawn_starting_pet();           // C: makedog()
+                            state.spawn_starting_pet(); // C: makedog()
                             state.player.next_attrib_check = 600; // C: context.next_attrib_check = 600L
                             state.flags.started = true;
 
@@ -619,19 +605,44 @@ fn render_character_creation(
 
                             // Role-specific intro
                             match role {
-                                nh_core::player::Role::Valkyrie => state.message("You must prove yourself worthy to enter Valhalla."),
-                                nh_core::player::Role::Wizard => state.message("You seek the secrets of the Mazes of Menace."),
-                                nh_core::player::Role::Archeologist => state.message("You seek ancient treasures and lost artifacts."),
-                                nh_core::player::Role::Barbarian => state.message("You seek glory through conquest and battle."),
-                                nh_core::player::Role::Caveman => state.message("You seek to survive in this hostile world."),
-                                nh_core::player::Role::Healer => state.message("You seek to cure the sick and aid the wounded."),
-                                nh_core::player::Role::Knight => state.message("You seek to uphold honor and chivalry."),
-                                nh_core::player::Role::Monk => state.message("You seek enlightenment through discipline."),
-                                nh_core::player::Role::Priest => state.message("You seek to spread the faith of your deity."),
-                                nh_core::player::Role::Ranger => state.message("You seek to protect the wilderness."),
-                                nh_core::player::Role::Rogue => state.message("You seek fortune through cunning and stealth."),
-                                nh_core::player::Role::Samurai => state.message("You seek to restore honor to your family."),
-                                nh_core::player::Role::Tourist => state.message("You seek adventure and souvenirs."),
+                                nh_core::player::Role::Valkyrie => state
+                                    .message("You must prove yourself worthy to enter Valhalla."),
+                                nh_core::player::Role::Wizard => {
+                                    state.message("You seek the secrets of the Mazes of Menace.")
+                                }
+                                nh_core::player::Role::Archeologist => {
+                                    state.message("You seek ancient treasures and lost artifacts.")
+                                }
+                                nh_core::player::Role::Barbarian => {
+                                    state.message("You seek glory through conquest and battle.")
+                                }
+                                nh_core::player::Role::Caveman => {
+                                    state.message("You seek to survive in this hostile world.")
+                                }
+                                nh_core::player::Role::Healer => {
+                                    state.message("You seek to cure the sick and aid the wounded.")
+                                }
+                                nh_core::player::Role::Knight => {
+                                    state.message("You seek to uphold honor and chivalry.")
+                                }
+                                nh_core::player::Role::Monk => {
+                                    state.message("You seek enlightenment through discipline.")
+                                }
+                                nh_core::player::Role::Priest => {
+                                    state.message("You seek to spread the faith of your deity.")
+                                }
+                                nh_core::player::Role::Ranger => {
+                                    state.message("You seek to protect the wilderness.")
+                                }
+                                nh_core::player::Role::Rogue => {
+                                    state.message("You seek fortune through cunning and stealth.")
+                                }
+                                nh_core::player::Role::Samurai => {
+                                    state.message("You seek to restore honor to your family.")
+                                }
+                                nh_core::player::Role::Tourist => {
+                                    state.message("You seek adventure and souvenirs.")
+                                }
                             }
                             state.message("Be careful! The dungeon is full of monsters.");
 
@@ -644,8 +655,6 @@ fn render_character_creation(
 
             ui.add_space(10.0);
         });
-
-    
 }
 
 fn render_game_over_screen(
@@ -656,7 +665,9 @@ fn render_game_over_screen(
     game_over_info: Res<GameOverInfo>,
     mut cc_state: ResMut<CharacterCreationState>,
 ) {
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
 
     // Dark overlay
     egui::Area::new(egui::Id::new("game_over_bg"))
@@ -697,7 +708,10 @@ fn render_game_over_screen(
                 ui.label(
                     egui::RichText::new(format!(
                         "{} the {} {} {}",
-                        player.name, player.alignment.typ, player.race, player.rank_title()
+                        player.name,
+                        player.alignment.typ,
+                        player.race,
+                        player.rank_title()
                     ))
                     .size(18.0)
                     .color(egui::Color32::LIGHT_GRAY),
@@ -738,10 +752,7 @@ fn render_game_over_screen(
                             ui.end_row();
 
                             ui.label("Experience:");
-                            ui.label(format!(
-                                "Level {} ({} pts)",
-                                player.exp_level, player.exp
-                            ));
+                            ui.label(format!("Level {} ({} pts)", player.exp_level, player.exp));
                             ui.end_row();
 
                             ui.label("HP:");
@@ -771,10 +782,7 @@ fn render_game_over_screen(
                             }
                             ui.end_row();
                             for attr in Attribute::ALL {
-                                ui.label(format!(
-                                    "{}",
-                                    player.attr_current.get(attr)
-                                ));
+                                ui.label(format!("{}", player.attr_current.get(attr)));
                             }
                             ui.end_row();
                         });
@@ -811,12 +819,8 @@ fn render_game_over_screen(
                                 } else {
                                     ("-", egui::Color32::DARK_GRAY)
                                 };
-                                ui.label(
-                                    egui::RichText::new(icon).color(color).strong(),
-                                );
-                                ui.label(
-                                    egui::RichText::new(*name).color(color),
-                                );
+                                ui.label(egui::RichText::new(icon).color(color).strong());
+                                ui.label(egui::RichText::new(*name).color(color));
                                 ui.end_row();
                             }
                         });
@@ -878,8 +882,6 @@ fn render_game_over_screen(
                 ui.add_space(10.0);
             });
         });
-
-    
 }
 
 fn render_victory_screen(
@@ -888,7 +890,9 @@ fn render_victory_screen(
     mut exit: MessageWriter<AppExit>,
     game_state: Res<GameStateResource>,
 ) {
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
 
     // Dark overlay with gold tint
     egui::Area::new(egui::Id::new("victory_bg"))
@@ -928,7 +932,10 @@ fn render_victory_screen(
                 ui.label(
                     egui::RichText::new(format!(
                         "{} the {} {} {}",
-                        player.name, player.alignment.typ, player.race, player.rank_title()
+                        player.name,
+                        player.alignment.typ,
+                        player.race,
+                        player.rank_title()
                     ))
                     .size(18.0)
                     .color(egui::Color32::LIGHT_BLUE),
@@ -966,10 +973,7 @@ fn render_victory_screen(
                             ui.end_row();
 
                             ui.label("Experience:");
-                            ui.label(format!(
-                                "Level {} ({} pts)",
-                                player.exp_level, player.exp
-                            ));
+                            ui.label(format!("Level {} ({} pts)", player.exp_level, player.exp));
                             ui.end_row();
 
                             ui.label("HP:");
@@ -999,10 +1003,7 @@ fn render_victory_screen(
                             }
                             ui.end_row();
                             for attr in Attribute::ALL {
-                                ui.label(format!(
-                                    "{}",
-                                    player.attr_current.get(attr)
-                                ));
+                                ui.label(format!("{}", player.attr_current.get(attr)));
                             }
                             ui.end_row();
                         });
@@ -1039,12 +1040,8 @@ fn render_victory_screen(
                                 } else {
                                     ("-", egui::Color32::DARK_GRAY)
                                 };
-                                ui.label(
-                                    egui::RichText::new(icon).color(color).strong(),
-                                );
-                                ui.label(
-                                    egui::RichText::new(*name).color(color),
-                                );
+                                ui.label(egui::RichText::new(icon).color(color).strong());
+                                ui.label(egui::RichText::new(*name).color(color));
                                 ui.end_row();
                             }
                         });
@@ -1073,8 +1070,6 @@ fn render_victory_screen(
                 ui.add_space(10.0);
             });
         });
-
-    
 }
 
 /// Render the settings panel (used from both main menu and pause menu)
@@ -1312,13 +1307,14 @@ fn render_save_browser(
                     }
                 }
 
-                if save_state.selected.is_some() && ui.button("Delete").clicked() {
-                    if let Some(idx) = save_state.selected {
-                        let path = &save_state.saves[idx].0;
-                        if nh_core::save::delete_save(path).is_ok() {
-                            save_state.status_message = Some("Save deleted.".to_string());
-                            save_state.needs_refresh = true;
-                        }
+                if save_state.selected.is_some()
+                    && ui.button("Delete").clicked()
+                    && let Some(idx) = save_state.selected
+                {
+                    let path = &save_state.saves[idx].0;
+                    if nh_core::save::delete_save(path).is_ok() {
+                        save_state.status_message = Some("Save deleted.".to_string());
+                        save_state.needs_refresh = true;
                     }
                 }
 
@@ -1402,30 +1398,30 @@ fn render_load_browser(
                 if ui
                     .add_enabled(can_load, egui::Button::new("Load"))
                     .clicked()
+                    && let Some(idx) = save_state.selected
                 {
-                    if let Some(idx) = save_state.selected {
-                        let path = &save_state.saves[idx].0;
-                        match nh_core::save::load_game(path) {
-                            Ok(loaded_state) => {
-                                game_state.0 = loaded_state;
-                                menu_state.show_load_browser = false;
-                                save_state.status_message = None;
-                                next_state.set(AppState::Playing);
-                            }
-                            Err(e) => {
-                                save_state.status_message = Some(format!("Load failed: {}", e));
-                            }
+                    let path = &save_state.saves[idx].0;
+                    match nh_core::save::load_game(path) {
+                        Ok(loaded_state) => {
+                            game_state.0 = loaded_state;
+                            menu_state.show_load_browser = false;
+                            save_state.status_message = None;
+                            next_state.set(AppState::Playing);
+                        }
+                        Err(e) => {
+                            save_state.status_message = Some(format!("Load failed: {}", e));
                         }
                     }
                 }
 
-                if can_load && ui.button("Delete").clicked() {
-                    if let Some(idx) = save_state.selected {
-                        let path = &save_state.saves[idx].0;
-                        if nh_core::save::delete_save(path).is_ok() {
-                            save_state.needs_refresh = true;
-                            save_state.selected = None;
-                        }
+                if can_load
+                    && ui.button("Delete").clicked()
+                    && let Some(idx) = save_state.selected
+                {
+                    let path = &save_state.saves[idx].0;
+                    if nh_core::save::delete_save(path).is_ok() {
+                        save_state.needs_refresh = true;
+                        save_state.selected = None;
                     }
                 }
 

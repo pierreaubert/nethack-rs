@@ -414,7 +414,7 @@ impl DiscoveryState {
     }
 
     /// Check if player knows a specific object class (knows_class equivalent)
-    pub fn knows_class(&self, class: ObjectClass) -> bool {
+    pub fn knows_class(&self, _class: ObjectClass) -> bool {
         // Check if any object of this class has been discovered
         self.discovered.values().any(|_| true) // Simplified - would need class info
     }

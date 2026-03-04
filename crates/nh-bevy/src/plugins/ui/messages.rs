@@ -3,9 +3,9 @@
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
-use crate::resources::GameStateResource;
-use crate::plugins::ui::UiState;
 use crate::plugins::game::AppState;
+use crate::plugins::ui::UiState;
+use crate::resources::GameStateResource;
 
 pub struct MessagesPlugin;
 
@@ -126,7 +126,9 @@ fn render_messages(
     _game_state: Res<GameStateResource>,
     input: Res<ButtonInput<KeyCode>>,
 ) {
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     // Toggle full log with 'P' key or 'V' (standard NetHack)
     if input.just_pressed(KeyCode::KeyP)
         || (input.just_pressed(KeyCode::KeyV)
@@ -210,6 +212,4 @@ fn render_messages(
                     }
                 });
         });
-
-    
 }

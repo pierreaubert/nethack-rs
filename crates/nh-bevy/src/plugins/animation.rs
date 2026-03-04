@@ -303,12 +303,10 @@ fn animate_floating_text(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn animate_death(
     time: Res<Time>,
-    mut text_query: Query<
-        (&mut Transform, &mut TextColor, &mut DeathAnimation),
-        Without<Mesh3d>,
-    >,
+    mut text_query: Query<(&mut Transform, &mut TextColor, &mut DeathAnimation), Without<Mesh3d>>,
     mut mesh_query: Query<
         (&mut Transform, &mut DeathAnimation),
         (With<Mesh3d>, Without<TextColor>),
@@ -343,7 +341,11 @@ fn cleanup_finished_animations(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     movement_query: Query<(Entity, &MovementAnimation)>,
-    flash_query: Query<(Entity, &CombatFlash, Option<&MeshMaterial3d<StandardMaterial>>)>,
+    flash_query: Query<(
+        Entity,
+        &CombatFlash,
+        Option<&MeshMaterial3d<StandardMaterial>>,
+    )>,
     floating_query: Query<(Entity, &FloatingText)>,
     death_query: Query<(Entity, &DeathAnimation)>,
 ) {
@@ -442,19 +444,19 @@ fn track_combat(
         current_monsters.insert(monster.id);
 
         let prev_hp = tracker.prev_monster_hp.get(&monster.id).copied();
-        if let Some(prev) = prev_hp {
-            if monster.hp < prev {
-                let damage = prev - monster.hp;
-                // Find the monster entity
-                for (entity, marker, transform) in monster_query.iter() {
-                    if marker.monster_id == monster.id {
-                        events.write(AnimationEvent::CombatHit {
-                            entity,
-                            damage,
-                            position: transform.translation,
-                        });
-                        break;
-                    }
+        if let Some(prev) = prev_hp
+            && monster.hp < prev
+        {
+            let damage = prev - monster.hp;
+            // Find the monster entity
+            for (entity, marker, transform) in monster_query.iter() {
+                if marker.monster_id == monster.id {
+                    events.write(AnimationEvent::CombatHit {
+                        entity,
+                        damage,
+                        position: transform.translation,
+                    });
+                    break;
                 }
             }
         }
@@ -604,16 +606,14 @@ fn animate_ambient_tiles(
                 if let Some(material) = materials.get_mut(&mat_handle.0) {
                     let pulse = (anim.phase * 1.2).sin() * 0.5 + 0.5;
                     let intensity = 0.6 + pulse * 0.4;
-                    material.base_color =
-                        Color::srgba(intensity, intensity * 0.8, intensity, 1.0);
+                    material.base_color = Color::srgba(intensity, intensity * 0.8, intensity, 1.0);
                 }
             }
             AmbientAnimationType::Grave => {
                 // Eerie subtle pulse
                 if let Some(material) = materials.get_mut(&mat_handle.0) {
                     let pulse = (anim.phase * 0.5).sin() * 0.3 + 0.7;
-                    material.base_color =
-                        Color::srgba(0.5 * pulse, 0.5 * pulse, 0.6 * pulse, 1.0);
+                    material.base_color = Color::srgba(0.5 * pulse, 0.5 * pulse, 0.6 * pulse, 1.0);
                 }
             }
         }

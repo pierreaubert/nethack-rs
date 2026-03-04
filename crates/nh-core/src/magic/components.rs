@@ -193,10 +193,8 @@ pub fn consume_spell_components(inventory: &mut ComponentInventory, spell_name: 
     let requirements = get_spell_components(spell_name);
 
     for req in &requirements {
-        if req.consumed {
-            if !inventory.remove_components(req.component_type, req.amount) {
-                return false;
-            }
+        if req.consumed && !inventory.remove_components(req.component_type, req.amount) {
+            return false;
         }
     }
 

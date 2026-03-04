@@ -14,9 +14,9 @@ use nh_core::player::{AlignmentType, Gender, Race, Role};
 use nh_core::{GameLoop, GameLoopResult, GameState};
 use strum::IntoEnumIterator;
 
+use crate::display::{self, GlyphSet, GraphicsMode};
 use crate::input::key_to_command;
 use crate::theme::Theme;
-use crate::display::{self, GlyphSet, GraphicsMode};
 use crate::widgets::{InventoryWidget, MapWidget, MessagesWidget, StatusWidget};
 
 /// UI mode - what the app is currently displaying/waiting for
@@ -229,7 +229,8 @@ impl App {
                 }
                 UiMode::StartMenu { cursor } => {
                     let cursor = *cursor;
-                    self.handle_start_menu_input(key, cursor).map(AppEvent::StartMenu)
+                    self.handle_start_menu_input(key, cursor)
+                        .map(AppEvent::StartMenu)
                 }
                 UiMode::Inventory => {
                     self.handle_inventory_input(key);
@@ -237,15 +238,17 @@ impl App {
                 }
                 UiMode::ItemSelect { action, .. } => {
                     let action = *action;
-                    self.handle_item_select_input(key, action).map(AppEvent::Command)
+                    self.handle_item_select_input(key, action)
+                        .map(AppEvent::Command)
                 }
                 UiMode::DirectionSelect { action, .. } => {
                     let action = *action;
-                    self.handle_direction_select_input(key, action).map(AppEvent::Command)
+                    self.handle_direction_select_input(key, action)
+                        .map(AppEvent::Command)
                 }
-                UiMode::ExtendedCommandInput { .. } => {
-                    self.handle_extended_command_input(key).map(AppEvent::Command)
-                }
+                UiMode::ExtendedCommandInput { .. } => self
+                    .handle_extended_command_input(key)
+                    .map(AppEvent::Command),
                 UiMode::Help => {
                     self.handle_help_input(key);
                     None
@@ -305,16 +308,24 @@ impl App {
             // ================================================================
             // Commands that need item selection
             // ================================================================
-            KeyCode::Char('d') => {                                          // d: drop
+            KeyCode::Char('d') => {
+                // d: drop
                 self.enter_item_select("Drop what?", PendingAction::Drop, None);
                 None
             }
-            KeyCode::Char('e') => {                                          // e: eat
+            KeyCode::Char('e') => {
+                // e: eat
                 // Check if any food on floor
                 use nh_core::object::ObjectClass;
                 let pos = self.game_loop.state().player.pos;
-                let has_food_on_floor = self.game_loop.state().current_level.objects_at(pos.x, pos.y).iter().any(|o| o.class == ObjectClass::Food);
-                
+                let has_food_on_floor = self
+                    .game_loop
+                    .state()
+                    .current_level
+                    .objects_at(pos.x, pos.y)
+                    .iter()
+                    .any(|o| o.class == ObjectClass::Food);
+
                 if has_food_on_floor {
                     return Some(Command::Eat(None));
                 }
@@ -322,7 +333,8 @@ impl App {
                 self.enter_item_select("Eat what?", PendingAction::Eat, Some(ObjectClass::Food));
                 None
             }
-            KeyCode::Char('a') => {                                          // a: apply
+            KeyCode::Char('a') => {
+                // a: apply
                 self.enter_item_select(
                     "Apply what?",
                     PendingAction::Apply,
@@ -330,12 +342,14 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('A') => Some(Command::MonsterAbility),             // A: monster ability
-            KeyCode::Char('W') => {                                          // W: wear armor
+            KeyCode::Char('A') => Some(Command::MonsterAbility), // A: monster ability
+            KeyCode::Char('W') => {
+                // W: wear armor
                 self.enter_item_select("Wear what?", PendingAction::Wear, Some(ObjectClass::Armor));
                 None
             }
-            KeyCode::Char('T') => {                                          // T: take off armor
+            KeyCode::Char('T') => {
+                // T: take off armor
                 self.enter_item_select(
                     "Take off what?",
                     PendingAction::TakeOff,
@@ -343,7 +357,8 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('w') => {                                          // w: wield weapon
+            KeyCode::Char('w') => {
+                // w: wield weapon
                 self.enter_item_select(
                     "Wield what?",
                     PendingAction::Wield,
@@ -351,19 +366,27 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('P') => {                                          // P: put on ring/amulet
+            KeyCode::Char('P') => {
+                // P: put on ring/amulet
                 self.enter_item_select("Put on what?", PendingAction::PutOn, None);
                 None
             }
-            KeyCode::Char('R') => {                                          // R: remove ring/amulet
+            KeyCode::Char('R') => {
+                // R: remove ring/amulet
                 self.enter_item_select("Remove what?", PendingAction::Remove, None);
                 None
             }
-            KeyCode::Char('q') => {                                          // q: quaff potion
+            KeyCode::Char('q') => {
+                // q: quaff potion
                 // Check if standing on fountain/sink
                 use nh_core::dungeon::CellType;
                 let pos = self.game_loop.state().player.pos;
-                let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                let cell_type = self
+                    .game_loop
+                    .state()
+                    .current_level
+                    .cell(pos.x as usize, pos.y as usize)
+                    .typ;
                 if matches!(cell_type, CellType::Fountain | CellType::Sink) {
                     return Some(Command::Quaff(None));
                 }
@@ -375,11 +398,17 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('r') => {                                          // r: read scroll/book
+            KeyCode::Char('r') => {
+                // r: read scroll/book
                 // Check if standing on throne/statue
                 use nh_core::dungeon::CellType;
                 let pos = self.game_loop.state().player.pos;
-                let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                let cell_type = self
+                    .game_loop
+                    .state()
+                    .current_level
+                    .cell(pos.x as usize, pos.y as usize)
+                    .typ;
                 if matches!(cell_type, CellType::Throne) {
                     return Some(Command::Read(None));
                 }
@@ -391,11 +420,13 @@ impl App {
                 );
                 None
             }
-            KeyCode::Char('z') => {                                          // z: zap wand
+            KeyCode::Char('z') => {
+                // z: zap wand
                 self.enter_item_select("Zap what?", PendingAction::Zap, Some(ObjectClass::Wand));
                 None
             }
-            KeyCode::Char('t') => {                                          // t: throw
+            KeyCode::Char('t') => {
+                // t: throw
                 self.enter_item_select("Throw what?", PendingAction::Throw, None);
                 None
             }
@@ -403,19 +434,23 @@ impl App {
             // ================================================================
             // Commands that need direction selection
             // ================================================================
-            KeyCode::Char('o') => {                                          // o: open door
+            KeyCode::Char('o') => {
+                // o: open door
                 self.enter_direction_select("Open in which direction?", PendingAction::Open);
                 None
             }
-            KeyCode::Char('c') => {                                          // c: close door
+            KeyCode::Char('c') => {
+                // c: close door
                 self.enter_direction_select("Close in which direction?", PendingAction::Close);
                 None
             }
-            KeyCode::Char('F') => {                                          // F: fight (force attack)
+            KeyCode::Char('F') => {
+                // F: fight (force attack)
                 self.enter_direction_select("Fight in which direction?", PendingAction::Fight);
                 None
             }
-            KeyCode::Char('f') => {                                          // f: fire from quiver
+            KeyCode::Char('f') => {
+                // f: fire from quiver
                 self.enter_direction_select("Fire in which direction?", PendingAction::Fire);
                 None
             }
@@ -471,7 +506,12 @@ impl App {
                     // Check if standing on fountain
                     use nh_core::dungeon::CellType;
                     let pos = self.game_loop.state().player.pos;
-                    let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                    let cell_type = self
+                        .game_loop
+                        .state()
+                        .current_level
+                        .cell(pos.x as usize, pos.y as usize)
+                        .typ;
                     if cell_type == CellType::Fountain {
                         self.mode = UiMode::Normal;
                         return Some(Command::Dip(item, None));
@@ -655,7 +695,11 @@ impl App {
     }
 
     /// Handle input when in the startup menu
-    fn handle_start_menu_input(&mut self, key: crossterm::event::KeyEvent, cursor: usize) -> Option<StartMenuAction> {
+    fn handle_start_menu_input(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+        cursor: usize,
+    ) -> Option<StartMenuAction> {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
                 let new_cursor = if cursor == 0 { 2 } else { cursor - 1 };
@@ -667,23 +711,23 @@ impl App {
                 self.mode = UiMode::StartMenu { cursor: new_cursor };
                 None
             }
-            KeyCode::Enter | KeyCode::Char(' ') => {
-                match cursor {
-                    0 => Some(StartMenuAction::NewGame),
-                    1 => Some(StartMenuAction::LoadGame),
-                    2 => Some(StartMenuAction::Quit),
-                    _ => None,
-                }
-            }
-            KeyCode::Char('q') | KeyCode::Char('Q') => {
-                Some(StartMenuAction::Quit)
-            }
+            KeyCode::Enter | KeyCode::Char(' ') => match cursor {
+                0 => Some(StartMenuAction::NewGame),
+                1 => Some(StartMenuAction::LoadGame),
+                2 => Some(StartMenuAction::Quit),
+                _ => None,
+            },
+            KeyCode::Char('q') | KeyCode::Char('Q') => Some(StartMenuAction::Quit),
             _ => None,
         }
     }
 
     /// Handle input when in the main menu
-    fn handle_menu_input(&mut self, key: crossterm::event::KeyEvent, cursor: usize) -> Option<Command> {
+    fn handle_menu_input(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+        cursor: usize,
+    ) -> Option<Command> {
         match key.code {
             KeyCode::Esc | KeyCode::Char(' ') | KeyCode::Char('Q') => {
                 self.mode = UiMode::Normal;
@@ -702,10 +746,11 @@ impl App {
             KeyCode::Enter => {
                 self.mode = UiMode::Normal;
                 match cursor {
-                    0 => None,                  // Continue
-                    1 => Some(Command::Save),    // Save and Quit
-                    2 => Some(Command::Quit),    // Quit without saving
-                    3 => {                       // Help
+                    0 => None,                // Continue
+                    1 => Some(Command::Save), // Save and Quit
+                    2 => Some(Command::Quit), // Quit without saving
+                    3 => {
+                        // Help
                         self.mode = UiMode::Help;
                         None
                     }
@@ -766,17 +811,30 @@ impl App {
                 // Check if standing on fountain
                 use nh_core::dungeon::CellType;
                 let pos = self.game_loop.state().player.pos;
-                let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
-                
+                let cell_type = self
+                    .game_loop
+                    .state()
+                    .current_level
+                    .cell(pos.x as usize, pos.y as usize)
+                    .typ;
+
                 if cell_type == CellType::Fountain {
                     // Ask if they want to dip into fountain or select potion
                     // NetHack logic: "Dip it into the fountain?" [yn]
                     // For now, let's just allow selecting a potion or defaulting to fountain if they press Enter?
                     // Simpler: just ask for potion, and provide fountain as an "option" (None)
-                    self.enter_item_select("What do you want to dip it into? (Esc for fountain)", PendingAction::DipItem(letter), Some(ObjectClass::Potion));
+                    self.enter_item_select(
+                        "What do you want to dip it into? (Esc for fountain)",
+                        PendingAction::DipItem(letter),
+                        Some(ObjectClass::Potion),
+                    );
                     None
                 } else {
-                    self.enter_item_select("What do you want to dip it into?", PendingAction::DipItem(letter), Some(ObjectClass::Potion));
+                    self.enter_item_select(
+                        "What do you want to dip it into?",
+                        PendingAction::DipItem(letter),
+                        Some(ObjectClass::Potion),
+                    );
                     None
                 }
             }
@@ -812,7 +870,8 @@ impl App {
         // Handle commands that need manual dispatch because of new signatures
         let result = match &command {
             Command::Dip(item, potion) => {
-                let action_result = nh_core::action::quaff::dodip(self.game_loop.state_mut(), *item, *potion);
+                let action_result =
+                    nh_core::action::quaff::dodip(self.game_loop.state_mut(), *item, *potion);
                 match action_result {
                     nh_core::action::ActionResult::Died(msg) => GameLoopResult::PlayerDied(msg),
                     nh_core::action::ActionResult::Quit => GameLoopResult::PlayerQuit,
@@ -872,7 +931,11 @@ impl App {
                     let letter = parts[1].chars().next().unwrap_or(' ');
                     nh_core::action::apply::do_apply(self.game_loop.state_mut(), letter)
                 } else {
-                    self.enter_item_select("Apply what?", PendingAction::Apply, Some(ObjectClass::Tool));
+                    self.enter_item_select(
+                        "Apply what?",
+                        PendingAction::Apply,
+                        Some(ObjectClass::Tool),
+                    );
                     return GameLoopResult::Continue;
                 }
             }
@@ -881,7 +944,11 @@ impl App {
                     let letter = parts[1].chars().next().unwrap_or(' ');
                     nh_core::action::wear::do_wear(self.game_loop.state_mut(), letter)
                 } else {
-                    self.enter_item_select("Wear what?", PendingAction::Wear, Some(ObjectClass::Armor));
+                    self.enter_item_select(
+                        "Wear what?",
+                        PendingAction::Wear,
+                        Some(ObjectClass::Armor),
+                    );
                     return GameLoopResult::Continue;
                 }
             }
@@ -890,7 +957,11 @@ impl App {
                     let letter = parts[1].chars().next().unwrap_or(' ');
                     nh_core::action::wear::do_takeoff(self.game_loop.state_mut(), letter)
                 } else {
-                    self.enter_item_select("Take off what?", PendingAction::TakeOff, Some(ObjectClass::Armor));
+                    self.enter_item_select(
+                        "Take off what?",
+                        PendingAction::TakeOff,
+                        Some(ObjectClass::Armor),
+                    );
                     return GameLoopResult::Continue;
                 }
             }
@@ -899,7 +970,11 @@ impl App {
                     let letter = parts[1].chars().next().unwrap_or(' ');
                     nh_core::action::wear::do_wield(self.game_loop.state_mut(), letter)
                 } else {
-                    self.enter_item_select("Wield what?", PendingAction::Wield, Some(ObjectClass::Weapon));
+                    self.enter_item_select(
+                        "Wield what?",
+                        PendingAction::Wield,
+                        Some(ObjectClass::Weapon),
+                    );
                     return GameLoopResult::Continue;
                 }
             }
@@ -929,11 +1004,20 @@ impl App {
                     // Check if standing on fountain/sink
                     use nh_core::dungeon::CellType;
                     let pos = self.game_loop.state().player.pos;
-                    let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                    let cell_type = self
+                        .game_loop
+                        .state()
+                        .current_level
+                        .cell(pos.x as usize, pos.y as usize)
+                        .typ;
                     if matches!(cell_type, CellType::Fountain | CellType::Sink) {
                         nh_core::action::quaff::dodrink(self.game_loop.state_mut(), None)
                     } else {
-                        self.enter_item_select("Quaff what?", PendingAction::Quaff, Some(ObjectClass::Potion));
+                        self.enter_item_select(
+                            "Quaff what?",
+                            PendingAction::Quaff,
+                            Some(ObjectClass::Potion),
+                        );
                         return GameLoopResult::Continue;
                     }
                 }
@@ -946,11 +1030,20 @@ impl App {
                     // Check contextual
                     use nh_core::dungeon::CellType;
                     let pos = self.game_loop.state().player.pos;
-                    let cell_type = self.game_loop.state().current_level.cell(pos.x as usize, pos.y as usize).typ;
+                    let cell_type = self
+                        .game_loop
+                        .state()
+                        .current_level
+                        .cell(pos.x as usize, pos.y as usize)
+                        .typ;
                     if matches!(cell_type, CellType::Throne) {
                         nh_core::action::read::do_read(self.game_loop.state_mut(), None)
                     } else {
-                        self.enter_item_select("Read what?", PendingAction::Read, Some(ObjectClass::Scroll));
+                        self.enter_item_select(
+                            "Read what?",
+                            PendingAction::Read,
+                            Some(ObjectClass::Scroll),
+                        );
                         return GameLoopResult::Continue;
                     }
                 }
@@ -960,7 +1053,11 @@ impl App {
                     let letter = parts[1].chars().next().unwrap_or(' ');
                     nh_core::action::zap::do_zap(self.game_loop.state_mut(), letter, None)
                 } else {
-                    self.enter_item_select("Zap what?", PendingAction::Zap, Some(ObjectClass::Wand));
+                    self.enter_item_select(
+                        "Zap what?",
+                        PendingAction::Zap,
+                        Some(ObjectClass::Wand),
+                    );
                     return GameLoopResult::Continue;
                 }
             }
@@ -968,7 +1065,10 @@ impl App {
                 if parts.len() > 1 {
                     // Logic for throw with letter param
                     let letter = parts[1].chars().next().unwrap_or(' ');
-                    self.enter_direction_select("Throw in which direction?", PendingAction::ThrowDir(letter));
+                    self.enter_direction_select(
+                        "Throw in which direction?",
+                        PendingAction::ThrowDir(letter),
+                    );
                     return GameLoopResult::Continue;
                 } else {
                     self.enter_item_select("Throw what?", PendingAction::Throw, None);
@@ -1086,8 +1186,12 @@ impl App {
 
         // Render map
         let state = self.game_loop.state();
-        let map_widget =
-            MapWidget::new(&state.current_level, &state.player, &self.theme, self.glyph_set.as_ref());
+        let map_widget = MapWidget::new(
+            &state.current_level,
+            &state.player,
+            &self.theme,
+            self.glyph_set.as_ref(),
+        );
         frame.render_widget(map_widget, chunks[0]);
 
         // Render status and messages (re-borrow state after map rendering)
@@ -1130,8 +1234,7 @@ impl App {
         let area = centered_rect(60, 80, frame.area());
         frame.render_widget(Clear, area);
 
-        let inventory_widget =
-            InventoryWidget::new(&self.game_loop.state().inventory, &self.theme);
+        let inventory_widget = InventoryWidget::new(&self.game_loop.state().inventory, &self.theme);
         frame.render_widget(inventory_widget, area);
     }
 
@@ -1212,8 +1315,7 @@ impl App {
         frame.render_widget(block, area);
 
         let display = format!("#{}_", input);
-        let paragraph = Paragraph::new(display)
-            .style(Style::default().fg(self.theme.text));
+        let paragraph = Paragraph::new(display).style(Style::default().fg(self.theme.text));
 
         // Show matching commands below
         let matches = if input.is_empty() {
@@ -1221,13 +1323,54 @@ impl App {
         } else {
             let lower = input.to_lowercase();
             let matching: Vec<&str> = [
-                "pray", "offer", "sit", "chat", "pay", "dip", "jump", "ride", "wipe",
-                "invoke", "turn", "monster", "enhance", "loot", "travel", "twoweapon",
-                "untrap", "force", "kick", "open", "close", "fight", "discoveries",
-                "history", "attributes", "conduct", "overview", "spells", "equipment",
-                "vanquished", "redraw", "gold", "save", "quit", "search", "swap",
-                "quaff", "eat", "read", "zap", "apply", "wield", "wear", "takeoff",
-                "puton", "remove", "drop", "throw",
+                "pray",
+                "offer",
+                "sit",
+                "chat",
+                "pay",
+                "dip",
+                "jump",
+                "ride",
+                "wipe",
+                "invoke",
+                "turn",
+                "monster",
+                "enhance",
+                "loot",
+                "travel",
+                "twoweapon",
+                "untrap",
+                "force",
+                "kick",
+                "open",
+                "close",
+                "fight",
+                "discoveries",
+                "history",
+                "attributes",
+                "conduct",
+                "overview",
+                "spells",
+                "equipment",
+                "vanquished",
+                "redraw",
+                "gold",
+                "save",
+                "quit",
+                "search",
+                "swap",
+                "quaff",
+                "eat",
+                "read",
+                "zap",
+                "apply",
+                "wield",
+                "wear",
+                "takeoff",
+                "puton",
+                "remove",
+                "drop",
+                "throw",
             ]
             .iter()
             .filter(|cmd| cmd.starts_with(&lower))
@@ -1311,11 +1454,7 @@ Press ESC or SPACE to close"#;
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let options = vec![
-            "New Game",
-            "Load Game",
-            "Quit",
-        ];
+        let options = ["New Game", "Load Game", "Quit"];
 
         let list_items: Vec<ListItem> = options
             .iter()
@@ -1355,12 +1494,7 @@ Press ESC or SPACE to close"#;
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let options = vec![
-            "Continue",
-            "Save and Quit",
-            "Quit without saving",
-            "Help",
-        ];
+        let options = ["Continue", "Save and Quit", "Quit without saving", "Help"];
 
         let list_items: Vec<ListItem> = options
             .iter()
@@ -1552,11 +1686,10 @@ Press ESC or SPACE to close"#;
                         self.advance_character_creation(name, Some(role), None, None, None);
                     }
                     KeyCode::Esc => {
-                        self.mode =
-                            UiMode::CharacterCreation(CharacterCreationState::AskRandom {
-                                name,
-                                cursor: 0,
-                            });
+                        self.mode = UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                            name,
+                            cursor: 0,
+                        });
                     }
                     _ => {}
                 }
@@ -1750,8 +1883,9 @@ Press ESC or SPACE to close"#;
                             Some(alignment),
                         );
                     }
-                    KeyCode::Char('l')
-                    | KeyCode::Char('L') if aligns.contains(&AlignmentType::Lawful) => {
+                    KeyCode::Char('l') | KeyCode::Char('L')
+                        if aligns.contains(&AlignmentType::Lawful) =>
+                    {
                         self.advance_character_creation(
                             name,
                             Some(role),
@@ -1760,8 +1894,9 @@ Press ESC or SPACE to close"#;
                             Some(AlignmentType::Lawful),
                         );
                     }
-                    KeyCode::Char('n')
-                    | KeyCode::Char('N') if aligns.contains(&AlignmentType::Neutral) => {
+                    KeyCode::Char('n') | KeyCode::Char('N')
+                        if aligns.contains(&AlignmentType::Neutral) =>
+                    {
                         self.advance_character_creation(
                             name,
                             Some(role),
@@ -1770,8 +1905,9 @@ Press ESC or SPACE to close"#;
                             Some(AlignmentType::Neutral),
                         );
                     }
-                    KeyCode::Char('c')
-                    | KeyCode::Char('C') if aligns.contains(&AlignmentType::Chaotic) => {
+                    KeyCode::Char('c') | KeyCode::Char('C')
+                        if aligns.contains(&AlignmentType::Chaotic) =>
+                    {
                         self.advance_character_creation(
                             name,
                             Some(role),
@@ -1886,23 +2022,33 @@ Press ESC or SPACE to close"#;
                         "jk/arrows to move, Enter to select, * random, Esc back",
                     )
                 }
-                CharacterCreationState::SelectAlignment { role, race, gender, cursor, .. } => {
+                CharacterCreationState::SelectAlignment {
+                    role,
+                    race,
+                    gender,
+                    cursor,
+                    ..
+                } => {
                     // Show only alignments compatible with role/race/gender
                     let valid_aligns: Vec<AlignmentType> = [
                         AlignmentType::Lawful,
                         AlignmentType::Neutral,
                         AlignmentType::Chaotic,
-                    ].into_iter()
-                        .filter(|&a| nh_core::player::validalign(*role, *race, *gender, a))
+                    ]
+                    .into_iter()
+                    .filter(|&a| nh_core::player::validalign(*role, *race, *gender, a))
+                    .collect();
+                    let items: Vec<(String, String)> = valid_aligns
+                        .iter()
+                        .map(|a| {
+                            let key = match a {
+                                AlignmentType::Lawful => "l",
+                                AlignmentType::Neutral => "n",
+                                AlignmentType::Chaotic => "c",
+                            };
+                            (key.to_string(), format!("{:?}", a))
+                        })
                         .collect();
-                    let items: Vec<(String, String)> = valid_aligns.iter().map(|a| {
-                        let key = match a {
-                            AlignmentType::Lawful => "l",
-                            AlignmentType::Neutral => "n",
-                            AlignmentType::Chaotic => "c",
-                        };
-                        (key.to_string(), format!("{:?}", a))
-                    }).collect();
                     (
                         "Pick an alignment:",
                         items,
@@ -2068,10 +2214,8 @@ Press ESC or SPACE to close"#;
             }
         } else {
             // Missing role
-            self.mode = UiMode::CharacterCreation(CharacterCreationState::SelectRole {
-                name,
-                cursor: 0,
-            });
+            self.mode =
+                UiMode::CharacterCreation(CharacterCreationState::SelectRole { name, cursor: 0 });
         }
     }
 

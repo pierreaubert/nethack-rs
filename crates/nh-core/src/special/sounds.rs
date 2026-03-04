@@ -29,7 +29,7 @@ pub fn growl_sound(sound: MonsterSound) -> &'static str {
         MonsterSound::Bones => "rattles",
         MonsterSound::Laugh => "laughs",
         MonsterSound::Mumble => "mumbles",
-        MonsterSound::Silent | _ => "is silent",
+        _ => "is silent",
     }
 }
 
@@ -351,7 +351,7 @@ pub fn generate_monster_noise(
 }
 
 /// Pet-specific sounds (beg, growl, yelp, whimper) - for common pet sounds
-pub fn pet_sound(monster: &Monster, situation: PetSoundType, rng: &mut GameRng) -> Option<String> {
+pub fn pet_sound(monster: &Monster, situation: PetSoundType, _rng: &mut GameRng) -> Option<String> {
     if monster.state.sleeping || !monster.can_act() {
         return None;
     }
@@ -499,12 +499,11 @@ pub fn find_sound_for_message<'a>(
     registry: &'a SoundRegistry,
     _message: &str,
 ) -> Option<&'a SoundMapping> {
-    for mapping in &registry.mappings {
-        if _message.contains(&mapping.pattern) {
-            return Some(mapping);
-        }
-    }
-    None
+    registry
+        .mappings
+        .iter()
+        .find(|&mapping| _message.contains(&mapping.pattern))
+        .map(|v| v as _)
 }
 
 /// Generate level-specific ambient noises (noises equivalent)
@@ -564,7 +563,9 @@ pub fn noises(
     }
 
     // Add ambient dungeon sounds
-    messages.extend(generate_ambient_sounds(level, player_x, player_y, rng, false));
+    messages.extend(generate_ambient_sounds(
+        level, player_x, player_y, rng, false,
+    ));
 
     messages
 }

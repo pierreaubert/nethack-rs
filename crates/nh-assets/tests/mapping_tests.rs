@@ -8,7 +8,7 @@ fn test_serialize_icon_definition() {
         tui_color: "yellow".to_string(),
         bevy_sprite: "sprites/potion_yellow.png".to_string(),
     };
-    
+
     let json = serde_json::to_string(&def).unwrap();
     assert!(json.contains(r#""tui_char":"!""#));
     assert!(json.contains(r#""tui_color":"yellow""#));
@@ -31,7 +31,7 @@ fn test_deserialize_mapping() {
             }
         ]
     }"#;
-    
+
     let mapping: AssetMapping = serde_json::from_str(json).unwrap();
     assert_eq!(mapping.mappings.len(), 1);
     let m = &mapping.mappings[0];

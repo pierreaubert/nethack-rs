@@ -37,7 +37,7 @@ pub fn obj_typename<'a>(def: &'a ObjClassDef, knowledge: &ObjectKnowledge) -> &'
 
 /// Get the simple type name (actual name if known, else description).
 /// Does not include user-assigned names.
-pub fn simple_typename<'a>(def: &'a ObjClassDef, known: bool) -> &'a str {
+pub fn simple_typename(def: &ObjClassDef, known: bool) -> &str {
     if known || def.description.is_empty() {
         def.name
     } else {
@@ -51,7 +51,7 @@ pub fn simple_typename<'a>(def: &'a ObjClassDef, known: bool) -> &'a str {
 /// # Arguments
 /// * `def` - The object class definition
 /// * `knowledge` - Discovery state for this object type
-pub fn base_object_name<'a>(def: &'a ObjClassDef, knowledge: &ObjectKnowledge) -> String {
+pub fn base_object_name(def: &ObjClassDef, knowledge: &ObjectKnowledge) -> String {
     let typename = obj_typename(def, knowledge);
 
     match def.class {
@@ -234,16 +234,16 @@ pub fn makeplural(word: &str) -> String {
     }
 
     // Words ending in certain patterns
-    if word.ends_with("us") && !word.ends_with("lotus") {
-        return format!("{}i", &word[..word.len() - 2]);
+    if let Some(stem) = word.strip_suffix("us").filter(|_| !word.ends_with("lotus")) {
+        return format!("{}i", stem);
     }
 
-    if word.ends_with("um") {
-        return format!("{}a", &word[..word.len() - 2]);
+    if let Some(stem) = word.strip_suffix("um") {
+        return format!("{}a", stem);
     }
 
-    if word.ends_with("is") {
-        return format!("{}es", &word[..word.len() - 2]);
+    if let Some(stem) = word.strip_suffix("is") {
+        return format!("{}es", stem);
     }
 
     // Standard English pluralization rules
@@ -256,19 +256,19 @@ pub fn makeplural(word: &str) -> String {
         return format!("{}es", word);
     }
 
-    if word.ends_with('y') && word.len() > 1 {
-        let before_y = word.chars().nth(word.len() - 2).unwrap_or('a');
+    if let Some(stem) = word.strip_suffix('y').filter(|s| !s.is_empty()) {
+        let before_y = stem.chars().next_back().unwrap_or('a');
         if !"aeiou".contains(before_y) {
-            return format!("{}ies", &word[..word.len() - 1]);
+            return format!("{}ies", stem);
         }
     }
 
-    if word.ends_with('f') && word.len() > 1 {
-        return format!("{}ves", &word[..word.len() - 1]);
+    if let Some(stem) = word.strip_suffix('f').filter(|s| !s.is_empty()) {
+        return format!("{}ves", stem);
     }
 
-    if word.ends_with("fe") {
-        return format!("{}ves", &word[..word.len() - 2]);
+    if let Some(stem) = word.strip_suffix("fe") {
+        return format!("{}ves", stem);
     }
 
     // Default: just add 's'
@@ -633,10 +633,10 @@ pub fn aobjnam(obj: &Object, base_name: &str, verb: &str) -> String {
             || verb.ends_with("sh")
         {
             format!("{}es", verb)
-        } else if verb.ends_with('y') {
-            let before_y = verb.chars().nth(verb.len() - 2).unwrap_or('a');
+        } else if let Some(stem) = verb.strip_suffix('y') {
+            let before_y = stem.chars().next_back().unwrap_or('a');
             if !"aeiou".contains(before_y) {
-                format!("{}ies", &verb[..verb.len() - 1])
+                format!("{}ies", stem)
             } else {
                 format!("{}s", verb)
             }
@@ -691,11 +691,11 @@ pub fn simpleoname(obj: &Object, base_name: &str) -> String {
 /// * `base_name` - Base name of the object
 /// * `monster_name` - Name of the corpse's monster type (if applicable)
 pub fn cxname(obj: &Object, base_name: &str, monster_name: Option<&str>) -> String {
-    if obj.corpse_type >= 0 {
-        if let Some(mon_name) = monster_name {
-            // It's a corpse/statue/figurine with monster type
-            return format!("{} {}", mon_name, base_name);
-        }
+    if obj.corpse_type >= 0
+        && let Some(mon_name) = monster_name
+    {
+        // It's a corpse/statue/figurine with monster type
+        return format!("{} {}", mon_name, base_name);
     }
     // Fall back to regular simple name
     obj.xname(base_name)
@@ -705,10 +705,10 @@ pub fn cxname(obj: &Object, base_name: &str, monster_name: Option<&str>) -> Stri
 ///
 /// Like cxname but always treats quantity as 1 (for display in specific contexts).
 pub fn cxname_singular(obj: &Object, base_name: &str, monster_name: Option<&str>) -> String {
-    if obj.corpse_type >= 0 {
-        if let Some(mon_name) = monster_name {
-            return format!("{} {}", mon_name, base_name);
-        }
+    if obj.corpse_type >= 0
+        && let Some(mon_name) = monster_name
+    {
+        return format!("{} {}", mon_name, base_name);
     }
     base_name.to_string()
 }
@@ -769,10 +769,10 @@ pub fn artiname(artifact_id: u8) -> Option<&'static str> {
 /// Check if a string is an artifact name.
 pub fn is_artifact_name(name: &str) -> bool {
     for id in 1..=34 {
-        if let Some(arti_name) = artiname(id) {
-            if arti_name.eq_ignore_ascii_case(name) {
-                return true;
-            }
+        if let Some(arti_name) = artiname(id)
+            && arti_name.eq_ignore_ascii_case(name)
+        {
+            return true;
         }
     }
     false
@@ -781,10 +781,10 @@ pub fn is_artifact_name(name: &str) -> bool {
 /// Get artifact ID from name.
 pub fn artifact_id_from_name(name: &str) -> Option<u8> {
     for id in 1..=34 {
-        if let Some(arti_name) = artiname(id) {
-            if arti_name.eq_ignore_ascii_case(name) {
-                return Some(id);
-            }
+        if let Some(arti_name) = artiname(id)
+            && arti_name.eq_ignore_ascii_case(name)
+        {
+            return Some(id);
         }
     }
     None
@@ -1113,16 +1113,16 @@ pub fn readobjnam(input: &str) -> Result<String, String> {
     }
 
     // Check for common patterns
-    if trimmed.starts_with("the ") {
-        return Ok(trimmed[4..].to_string());
+    if let Some(rest) = trimmed.strip_prefix("the ") {
+        return Ok(rest.to_string());
     }
 
-    if trimmed.starts_with("a ") {
-        return Ok(trimmed[2..].to_string());
+    if let Some(rest) = trimmed.strip_prefix("a ") {
+        return Ok(rest.to_string());
     }
 
-    if trimmed.starts_with("an ") {
-        return Ok(trimmed[3..].to_string());
+    if let Some(rest) = trimmed.strip_prefix("an ") {
+        return Ok(rest.to_string());
     }
 
     Ok(trimmed.to_string())
@@ -1132,7 +1132,7 @@ pub fn readobjnam(input: &str) -> Result<String, String> {
 ///
 /// Returns the type name based on object definition and knowledge.
 pub fn obj_typename_from_obj(
-    obj: &Object,
+    _obj: &Object,
     def: &ObjClassDef,
     knowledge: &ObjectKnowledge,
 ) -> String {

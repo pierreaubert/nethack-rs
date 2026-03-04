@@ -136,8 +136,8 @@ mod sys {
         pub entrymax: i32,
         pub pointsmin: i32,
         pub tt_oname_maxrank: i32,
-        pub panictrace_gdb: i32,
-        pub panictrace_libc: i32,
+        pub _panictrace_gdb: i32,
+        pub _panictrace_libc: i32,
         pub accessibility: i32,
         pub portable_device_paths: i32,
     }
@@ -191,8 +191,8 @@ mod sys {
         {
             sysopt.gdbpath = Some("/usr/bin/gdb".to_string());
             sysopt.greppath = Some("/bin/grep".to_string());
-            sysopt.panictrace_gdb = 1;
-            sysopt.panictrace_libc = 0;
+            sysopt._panictrace_gdb = 1;
+            sysopt._panictrace_libc = 0;
         }
 
         sysopt.check_save_uid = 1;

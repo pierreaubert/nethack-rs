@@ -4,7 +4,7 @@
 //! and which implemented commands are still stubs.
 
 use nh_core::action::{Command, Direction};
-use nh_core::{GameLoop, GameLoopResult, GameState, GameRng};
+use nh_core::{GameLoop, GameLoopResult, GameRng, GameState};
 
 fn test_gameloop() -> GameLoop {
     let rng = GameRng::new(42);
@@ -25,7 +25,10 @@ fn is_stub_command(cmd: Command) -> bool {
     let mut gl = test_gameloop();
     gl.state_mut().messages.clear();
     let _result = exec(&mut gl, cmd);
-    gl.state().messages.iter().any(|m| m.contains("not yet implemented"))
+    gl.state()
+        .messages
+        .iter()
+        .any(|m| m.contains("not yet implemented"))
 }
 
 #[test]
@@ -33,12 +36,15 @@ fn test_stub_commands_audit() {
     let stub_commands: Vec<(&str, Command)> = vec![
         ("Travel", Command::Travel),
         ("Offer", Command::Offer),
-        ("Dip", Command::Dip),
+        ("Dip", Command::Dip('a', None)),
         ("Pay", Command::Pay),
         ("Chat", Command::Chat),
         ("Sit", Command::Sit),
         ("Options", Command::Options),
-        ("ExtendedCommand", Command::ExtendedCommand("test".to_string())),
+        (
+            "ExtendedCommand",
+            Command::ExtendedCommand("test".to_string()),
+        ),
         ("Redraw", Command::Redraw),
     ];
 
@@ -70,13 +76,11 @@ fn test_stub_commands_audit() {
 // 7.2: Commands missing from the Rust enum entirely (Plan Step 7.1-7.3)
 // ============================================================================
 
-const ACTION_MOD_PATH: &str =
-    "/Users/pierre/src/games/nethack-rs/crates/nh-core/src/action/mod.rs";
+const ACTION_MOD_PATH: &str = "/Users/pierre/src/games/nethack-rs/crates/nh-core/src/action/mod.rs";
 
 /// Check if a string appears as a variant name in the Command enum source
 fn command_variant_exists_in_source(variant: &str) -> bool {
-    let source = std::fs::read_to_string(ACTION_MOD_PATH)
-        .expect("Could not read action/mod.rs");
+    let source = std::fs::read_to_string(ACTION_MOD_PATH).expect("Could not read action/mod.rs");
     source.contains(variant)
 }
 
@@ -115,7 +119,11 @@ fn test_missing_action_commands() {
     }
 
     println!("\n=== Missing Action Commands (Plan 7.1) ===");
-    println!("Present in enum: {}/{}", present.len(), required_action_commands.len());
+    println!(
+        "Present in enum: {}/{}",
+        present.len(),
+        required_action_commands.len()
+    );
     for name in &present {
         println!("  OK: {}", name);
     }
@@ -153,7 +161,11 @@ fn test_missing_info_commands() {
     }
 
     println!("\n=== Missing Info Commands (Plan 7.2) ===");
-    println!("Present in enum: {}/{}", present.len(), required_info_commands.len());
+    println!(
+        "Present in enum: {}/{}",
+        present.len(),
+        required_info_commands.len()
+    );
     for name in &present {
         println!("  OK: {}", name);
     }
@@ -188,7 +200,11 @@ fn test_missing_wizard_commands() {
     }
 
     println!("\n=== Missing Wizard Commands (Plan 7.3) ===");
-    println!("Present in enum: {}/{}", present.len(), required_wiz_commands.len());
+    println!(
+        "Present in enum: {}/{}",
+        present.len(),
+        required_wiz_commands.len()
+    );
     for name in &present {
         println!("  OK: {}", name);
     }
@@ -212,7 +228,10 @@ fn test_implemented_commands_dont_crash() {
         ("Move N", Command::Move(Direction::North)),
         ("Move S", Command::Move(Direction::South)),
         ("Run E", Command::Run(Direction::East)),
-        ("MoveUntil E", Command::MoveUntilInteresting(Direction::East)),
+        (
+            "MoveUntil E",
+            Command::MoveUntilInteresting(Direction::East),
+        ),
         ("Rest", Command::Rest),
         ("GoUp", Command::GoUp),
         ("GoDown", Command::GoDown),
@@ -222,10 +241,10 @@ fn test_implemented_commands_dont_crash() {
         ("Throw z E", Command::Throw('z', Direction::East)),
         ("Pickup", Command::Pickup),
         ("Drop a", Command::Drop('a')),
-        ("Eat a", Command::Eat('a')),
-        ("Quaff a", Command::Quaff('a')),
-        ("Read a", Command::Read('a')),
-        ("Zap a E", Command::Zap('a', Direction::East)),
+        ("Eat a", Command::Eat(Some('a'))),
+        ("Quaff a", Command::Quaff(Some('a'))),
+        ("Read a", Command::Read(Some('a'))),
+        ("Zap a E", Command::Zap('a', Some(Direction::East))),
         ("Apply a", Command::Apply('a')),
         ("Wear a", Command::Wear('a')),
         ("TakeOff a", Command::TakeOff('a')),
@@ -250,7 +269,8 @@ fn test_implemented_commands_dont_crash() {
         assert!(
             matches!(result, GameLoopResult::Continue),
             "Command {} should Continue, got {:?}",
-            name, result
+            name,
+            result
         );
     }
 }
@@ -273,24 +293,54 @@ fn test_meta_commands_terminate() {
 #[test]
 fn test_command_gap_summary() {
     let action_commands = [
-        "Loot", "Tip", "Rub", "Untrap", "Force", "Wipe", "Ride",
-        "TwoWeapon", "SwapWeapon", "EnhanceSkill", "SelectQuiver",
-        "TurnUndead", "MonsterAbility", "Jump", "Invoke", "NameLevel", "NameItem",
+        "Loot",
+        "Tip",
+        "Rub",
+        "Untrap",
+        "Force",
+        "Wipe",
+        "Ride",
+        "TwoWeapon",
+        "SwapWeapon",
+        "EnhanceSkill",
+        "SelectQuiver",
+        "TurnUndead",
+        "MonsterAbility",
+        "Jump",
+        "Invoke",
+        "NameLevel",
+        "NameItem",
     ];
     let info_commands = [
-        "ShowAttributes", "ShowEquipment", "ShowSpells", "ShowConduct",
-        "DungeonOverview", "CountGold", "ClassDiscovery", "TypeInventory",
-        "Organize", "Vanquished",
+        "ShowAttributes",
+        "ShowEquipment",
+        "ShowSpells",
+        "ShowConduct",
+        "DungeonOverview",
+        "CountGold",
+        "ClassDiscovery",
+        "TypeInventory",
+        "Organize",
+        "Vanquished",
     ];
     let wiz_commands = [
-        "WizGenesis", "WizIdentify", "WizIntrinsic", "WizLevelTele",
-        "WizMap", "WizWish", "WizDetect",
+        "WizGenesis",
+        "WizIdentify",
+        "WizIntrinsic",
+        "WizLevelTele",
+        "WizMap",
+        "WizWish",
+        "WizDetect",
     ];
 
     let mut total_missing = 0;
     let mut total_present = 0;
 
-    for name in action_commands.iter().chain(info_commands.iter()).chain(wiz_commands.iter()) {
+    for name in action_commands
+        .iter()
+        .chain(info_commands.iter())
+        .chain(wiz_commands.iter())
+    {
         if command_variant_exists_in_source(name) {
             total_present += 1;
         } else {
@@ -301,7 +351,7 @@ fn test_command_gap_summary() {
     let stub_count = [
         Command::Travel,
         Command::Offer,
-        Command::Dip,
+        Command::Dip('a', None),
         Command::Pay,
         Command::Chat,
         Command::Sit,
@@ -316,12 +366,21 @@ fn test_command_gap_summary() {
     let total_required = action_commands.len() + info_commands.len() + wiz_commands.len();
 
     println!("\n=== Command Gap Summary (Plan Step 7) ===");
-    println!("C commands missing from enum: {}/{}", total_missing, total_required);
-    println!("C commands present in enum:   {}/{}", total_present, total_required);
+    println!(
+        "C commands missing from enum: {}/{}",
+        total_missing, total_required
+    );
+    println!(
+        "C commands present in enum:   {}/{}",
+        total_present, total_required
+    );
     println!("Existing commands still stubbed: {}/9", stub_count);
     println!();
     println!("To reach Plan Step 7 completion:");
-    println!("  1. Add {} command variants to Command enum", total_missing);
+    println!(
+        "  1. Add {} command variants to Command enum",
+        total_missing
+    );
     println!("  2. Implement {} stub commands", stub_count);
     println!(
         "  3. Total implementation work: {} new commands",

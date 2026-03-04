@@ -13,9 +13,9 @@
 use crate::compat::*;
 
 use crate::dungeon::Level;
-use crate::monster::{Monster, MonsterId, MonsterState};
-use crate::object::{Object, ObjectClass, ObjectId};
-use crate::player::{Alignment, You};
+use crate::monster::{Monster, MonsterId};
+use crate::object::{Object, ObjectClass};
+use crate::player::You;
 use crate::rng::GameRng;
 
 /// Food quality for pets (maps to C dogfood_types enum)
@@ -93,9 +93,8 @@ impl PetHunger {
     }
 }
 
-impl PetExtension {
-    /// Create a new pet extension with default values
-    pub fn new() -> Self {
+impl Default for PetExtension {
+    fn default() -> Self {
         Self {
             drop_time: 0,
             drop_distance: 10000,
@@ -108,6 +107,13 @@ impl PetExtension {
             starvation_penalty: 0,
             killed_by_player: false,
         }
+    }
+}
+
+impl PetExtension {
+    /// Create a new pet extension with default values
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Reset pet goal to invalid state
@@ -456,7 +462,7 @@ pub fn tame_dog(
 
     // If already tame, check if we can feed it
     if monster.state.tame && food.is_some() {
-        let food = food.unwrap();
+        let _food = food; // already checked is_some above
         if let Some(ext) = get_pet_ext(monster) {
             // Check if hunger_time has passed
             if game_turn >= ext.hunger_time {
@@ -481,10 +487,10 @@ pub fn tame_dog(
     }
 
     // Cannot tame if there's food and it's inappropriate
-    if let Some(food) = food {
-        if food_quality(monster, food) >= DogfoodType::ManFood {
-            return false;
-        }
+    if let Some(food) = food
+        && food_quality(monster, food) >= DogfoodType::ManFood
+    {
+        return false;
     }
 
     // Success: create and initialize pet
@@ -493,10 +499,10 @@ pub fn tame_dog(
     initialize_pet(monster, player, game_turn);
 
     // If food provided, pet will eat it
-    if food.is_some() {
-        if let Some(ext) = get_pet_ext_mut(monster) {
-            ext.hunger_time = game_turn + 1500; // Set hunger time after eating
-        }
+    if food.is_some()
+        && let Some(ext) = get_pet_ext_mut(monster)
+    {
+        ext.hunger_time = game_turn + 1500; // Set hunger time after eating
     }
 
     true
@@ -583,7 +589,7 @@ pub fn revive_pet(monster: &mut Monster, was_dead: bool) {
 
     // Restore max HP if damaged by starvation
     if starvation_penalty > 0 {
-        monster.hp_max = monster.hp_max + starvation_penalty;
+        monster.hp_max += starvation_penalty;
     }
 
     // Clean slate on revival
@@ -620,7 +626,7 @@ pub fn update_pet_time(monster: &mut Monster, turns_elapsed: u32) -> bool {
     let starving = hunger_time > 0 && hunger_time + 500 < turns_elapsed;
     if starving {
         let starvation_penalty = (monster.hp_max * 2 / 3).max(1);
-        monster.hp_max = monster.hp_max / 3;
+        monster.hp_max /= 3;
         if let Some(ext) = get_pet_ext_mut(monster) {
             ext.starvation_penalty = starvation_penalty;
         }
@@ -670,7 +676,7 @@ pub fn create_starting_pet(player: &You, rng: &mut GameRng) -> Option<Monster> {
 
 /// Move pets on the level toward player or attack enemies
 /// Handles all pet AI movement
-pub fn update_pets(level: &mut Level, player: &You, game_turn: u32) {
+pub fn update_pets(level: &mut Level, _player: &You, game_turn: u32) {
     let pet_ids: Vec<_> = level
         .monsters
         .iter()
@@ -681,12 +687,12 @@ pub fn update_pets(level: &mut Level, player: &You, game_turn: u32) {
     for pet_id in pet_ids {
         if let Some(pet) = level.monster_mut(pet_id) {
             // Update hunger
-            if let Some(ext) = get_pet_ext_mut(pet) {
-                if game_turn >= ext.hunger_time {
-                    // Pet is hungry - would seek food
-                    // For now, just update hunger time
-                    ext.hunger_time = game_turn + 1000;
-                }
+            if let Some(ext) = get_pet_ext_mut(pet)
+                && game_turn >= ext.hunger_time
+            {
+                // Pet is hungry - would seek food
+                // For now, just update hunger time
+                ext.hunger_time = game_turn + 1000;
             }
         }
     }

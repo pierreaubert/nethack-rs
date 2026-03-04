@@ -14,9 +14,7 @@ use nh_core::dungeon::{BonesFile, BonesHeader, DLevel, Level, Trap, TrapType};
 use nh_core::monster::{Monster, MonsterId};
 use nh_core::object::{BucStatus, Object, ObjectClass};
 use nh_core::player::{Gender, HungerState, Race, Role};
-use nh_core::save::{
-    load_game, save_game, save_game_compact, SaveHeader, SAVE_VERSION,
-};
+use nh_core::save::{SAVE_VERSION, SaveHeader, load_game, save_game, save_game_compact};
 use nh_core::{GameRng, GameState};
 
 // ============================================================================
@@ -26,7 +24,14 @@ use nh_core::{GameRng, GameState};
 /// Create a GameState with a known seed and customized player fields
 fn make_test_state(seed: u64) -> GameState {
     let rng = GameRng::new(seed);
-    GameState::new_with_identity(rng, "TestHero".into(), Role::Valkyrie, Race::Human, Gender::Female, Role::Valkyrie.default_alignment())
+    GameState::new_with_identity(
+        rng,
+        "TestHero".into(),
+        Role::Valkyrie,
+        Race::Human,
+        Gender::Female,
+        Role::Valkyrie.default_alignment(),
+    )
 }
 
 /// Unique temp file path (avoids collisions across parallel tests)
@@ -114,7 +119,10 @@ fn test_level_save_restore() {
     let loaded = round_trip(&state, "level");
 
     assert_eq!(loaded.current_level.dlevel, original_dlevel);
-    assert!(!loaded.current_level.traps.is_empty(), "traps should be preserved");
+    assert!(
+        !loaded.current_level.traps.is_empty(),
+        "traps should be preserved"
+    );
 
     let trap = &loaded.current_level.traps.last().unwrap();
     assert_eq!(trap.x, 15);
@@ -208,7 +216,10 @@ fn test_monster_save_restore() {
 
     // Grids are rebuilt by load_game, so monster_at should work
     let loaded_goblin = loaded.current_level.monster_at(20, 12);
-    assert!(loaded_goblin.is_some(), "goblin should be at (20,12) after load");
+    assert!(
+        loaded_goblin.is_some(),
+        "goblin should be at (20,12) after load"
+    );
     let loaded_goblin = loaded_goblin.unwrap();
     assert_eq!(loaded_goblin.name, "goblin");
     assert_eq!(loaded_goblin.hp, 8);
@@ -216,7 +227,10 @@ fn test_monster_save_restore() {
     assert!(!loaded_goblin.state.peaceful);
 
     let loaded_npc = loaded.current_level.monster_at(30, 15);
-    assert!(loaded_npc.is_some(), "shopkeeper should be at (30,15) after load");
+    assert!(
+        loaded_npc.is_some(),
+        "shopkeeper should be at (30,15) after load"
+    );
     let loaded_npc = loaded_npc.unwrap();
     assert_eq!(loaded_npc.name, "shopkeeper");
     assert!(loaded_npc.state.peaceful);
@@ -301,7 +315,10 @@ fn test_bones_file_structure() {
     let restored: BonesFile = serde_json::from_str(&json).expect("BonesFile should deserialize");
 
     assert_eq!(restored.header.player_name, "FallenHero");
-    assert_eq!(restored.header.death_reason, "killed by a cockatrice corpse");
+    assert_eq!(
+        restored.header.death_reason,
+        "killed by a cockatrice corpse"
+    );
     assert_eq!(restored.header.dlevel, DLevel::new(0, 5));
     assert!(restored.is_compatible());
 }
@@ -343,11 +360,17 @@ fn test_multi_level_persistence() {
 
     let loaded_mines = &loaded.levels[&mines_dlevel];
     assert!(loaded_mines.flags.has_shop);
-    assert!(!loaded_mines.monsters.is_empty(), "Mines monster should be preserved");
+    assert!(
+        !loaded_mines.monsters.is_empty(),
+        "Mines monster should be preserved"
+    );
 
     let loaded_deep = &loaded.levels[&deep_dlevel];
     assert!(loaded_deep.flags.has_temple);
-    assert!(!loaded_deep.objects.is_empty(), "Deep level object should be preserved");
+    assert!(
+        !loaded_deep.objects.is_empty(),
+        "Deep level object should be preserved"
+    );
 }
 
 // ============================================================================
@@ -385,7 +408,10 @@ fn test_save_format_stability() {
     assert_eq!(loaded_compact.player.name, "StabilityTest");
     assert_eq!(loaded_pretty.player.hp, loaded_compact.player.hp);
     assert_eq!(loaded_pretty.turns, loaded_compact.turns);
-    assert_eq!(loaded_pretty.inventory.len(), loaded_compact.inventory.len());
+    assert_eq!(
+        loaded_pretty.inventory.len(),
+        loaded_compact.inventory.len()
+    );
 
     let wand_p = &loaded_pretty.inventory[base_inv_count];
     let wand_c = &loaded_compact.inventory[base_inv_count];
@@ -403,7 +429,10 @@ fn test_save_format_stability() {
     assert_eq!(loaded_resave.player.hp, 55);
     assert_eq!(loaded_resave.turns, 999);
     assert_eq!(loaded_resave.inventory.len(), base_inv_count + 1);
-    assert_eq!(loaded_resave.inventory[base_inv_count].name.as_deref(), Some("wand of death"));
+    assert_eq!(
+        loaded_resave.inventory[base_inv_count].name.as_deref(),
+        Some("wand of death")
+    );
 
     // Verify header fields are correct
     let header = SaveHeader::new(&state);

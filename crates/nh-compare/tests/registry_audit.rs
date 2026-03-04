@@ -102,16 +102,8 @@ fn registry_status_counts() {
         "Expected >= 800 not_needed entries, got {}",
         not_needed
     );
-    assert!(
-        stub == 0,
-        "Expected 0 stub entries, got {}",
-        stub
-    );
-    assert!(
-        missing == 0,
-        "Expected 0 missing entries, got {}",
-        missing
-    );
+    assert!(stub == 0, "Expected 0 stub entries, got {}", stub);
+    assert!(missing == 0, "Expected 0 missing entries, got {}", missing);
 }
 
 // ---- Test 3: Key functions are marked "ported" ----
@@ -227,16 +219,16 @@ fn display_tty_functions_are_not_needed() {
     // (e.g., options.c has nh_getenv which exists in Rust), so we allow "ported"
     // but disallow "stub" and "missing".
     let resolved_files = vec![
-        "sp_lev.c",    // Rust-native level generation
-        "options.c",   // Rust-native options (some funcs have Rust matches)
-        "hacklib.c",   // replaced by Rust std
-        "drawing.c",   // display subsystem
-        "vision.c",    // LOS done differently
-        "pline.c",     // message display
-        "display.c",   // windowing
-        "save.c",      // C serialization
-        "restore.c",   // C deserialization
-        "topten.c",    // score display
+        "sp_lev.c",  // Rust-native level generation
+        "options.c", // Rust-native options (some funcs have Rust matches)
+        "hacklib.c", // replaced by Rust std
+        "drawing.c", // display subsystem
+        "vision.c",  // LOS done differently
+        "pline.c",   // message display
+        "display.c", // windowing
+        "save.c",    // C serialization
+        "restore.c", // C deserialization
+        "topten.c",  // score display
     ];
 
     for nf_file in &resolved_files {
@@ -286,7 +278,11 @@ fn convergence_score_minimum() {
     let convergence = (ported + not_needed) / total * 100.0;
 
     println!("\n=== Phase 29 Convergence Score ===");
-    println!("  Ported:     {:.0} ({:.1}%)", ported, ported / total * 100.0);
+    println!(
+        "  Ported:     {:.0} ({:.1}%)",
+        ported,
+        ported / total * 100.0
+    );
     println!(
         "  Not needed: {:.0} ({:.1}%)",
         not_needed,
@@ -316,10 +312,7 @@ fn no_missing_entries() {
     let entries = load_registry();
     let missing: Vec<&RegistryEntry> = entries.iter().filter(|e| e.status == "missing").collect();
 
-    println!(
-        "\n=== Missing Entries: {} ===",
-        missing.len()
-    );
+    println!("\n=== Missing Entries: {} ===", missing.len());
     for e in &missing {
         println!("  {}::{}", e.c_file, e.c_func);
     }

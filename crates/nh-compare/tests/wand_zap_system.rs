@@ -4,11 +4,11 @@
 //! ray directions, line-of-fire, cancel/probe effects, wand breaking,
 //! and durability.
 
-use nh_core::magic::zap::*;
-use nh_core::object::{BucStatus, Material, Object, ObjectClass, ObjectId};
-use nh_core::monster::{Monster, MonsterFlags, MonsterId};
-use nh_core::player::Role;
 use nh_core::GameRng;
+use nh_core::magic::zap::*;
+use nh_core::monster::{Monster, MonsterFlags, MonsterId};
+use nh_core::object::{BucStatus, Material, Object, ObjectClass, ObjectId};
+use nh_core::player::Role;
 
 // ============================================================================
 // Helpers
@@ -225,7 +225,11 @@ fn test_wand_needs_recharge_full() {
 fn test_wand_durability_factor_range() {
     let wand = make_wand(1, 5);
     let factor = wand_durability_factor(&wand);
-    assert!(factor >= 0.0 && factor <= 2.0, "Durability factor out of range: {}", factor);
+    assert!(
+        factor >= 0.0 && factor <= 2.0,
+        "Durability factor out of range: {}",
+        factor
+    );
 }
 
 // ============================================================================
@@ -431,7 +435,10 @@ fn test_breaktest_potion() {
 fn test_breaktest_weapon() {
     let mut obj = Object::default();
     obj.class = ObjectClass::Weapon;
-    assert!(!breaktest(&obj), "Weapons generally don't break from impact");
+    assert!(
+        !breaktest(&obj),
+        "Weapons generally don't break from impact"
+    );
 }
 
 #[test]

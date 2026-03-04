@@ -67,12 +67,12 @@ impl<'a> RustGameEngine<'a> {
                 .attr_current
                 .get(nh_core::player::Attribute::Charisma) as i32,
             current_level: state.current_level.dlevel.dungeon_num as i32 + 1,
-            dungeon_depth: state.current_level.dlevel.depth() as i32,
+            dungeon_depth: state.current_level.dlevel.depth(),
             dungeon_visited: state
                 .levels
                 .keys()
-                .map(|d| d.depth() as i32)
-                .chain(std::iter::once(state.current_level.dlevel.depth() as i32))
+                .map(|d| d.depth())
+                .chain(std::iter::once(state.current_level.dlevel.depth()))
                 .collect(),
             has_amulet: state.flags.ascended, // Simplified - true when amulet is offered
             turn: state.turns,

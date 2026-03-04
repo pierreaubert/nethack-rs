@@ -89,6 +89,7 @@ impl AlignmentType {
     ///
     /// # Returns
     /// The parsed alignment, or None if invalid
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         let s_lower = s.to_lowercase();
         match s_lower.as_str() {
@@ -130,23 +131,6 @@ pub fn adjalign(alignment: &mut Alignment, n: i32, moves: i64) {
     }
 }
 
-/// Get induced alignment from dungeon features (induced_align equivalent)
-///
-/// Returns an alignment type based on:
-/// - Current special level alignment (if any, with pct% chance)
-/// - Dungeon alignment (if any, with pct% chance)
-/// - Random alignment (if no dungeon features match)
-pub fn induced_align(pct: u32) -> AlignmentType {
-    // Simplified version - in a full implementation would need dungeon context
-    // For now, return random alignment based on probability
-    let roll = (pct as i32) % 100;
-    match roll {
-        0..=32 => AlignmentType::Lawful,
-        33..=65 => AlignmentType::Neutral,
-        _ => AlignmentType::Chaotic,
-    }
-}
-
 /// Get non-coaligned alignment (noncoalignment equivalent)
 ///
 /// Returns an alignment that is not the same as the input.
@@ -180,47 +164,6 @@ pub fn noncoalignment(alignment: AlignmentType) -> AlignmentType {
             }
         }
     }
-}
-
-/// Get pious description string (piousness equivalent)
-///
-/// Returns a description of the player's piety level based on alignment record.
-/// Optionally includes a suffix and shows negative piety levels.
-///
-/// # Arguments
-/// * `record` - The alignment record value
-/// * `show_neg` - Whether to show negative piety descriptions
-/// * `suffix` - Optional suffix to append to the description
-///
-/// # Returns
-/// A string describing the piety level (e.g., "piously", "devoutly", "insufficiently")
-pub fn piousness(record: i32, show_neg: bool, suffix: Option<&str>) -> String {
-    let pious_word = match record {
-        20.. => "piously",
-        14..20 => "devoutly",
-        9..14 => "fervently",
-        4..9 => "stridently",
-        3 => "",
-        1..3 => "haltingly",
-        0 => "nominally",
-        _ if !show_neg => "insufficiently",
-        -3..0 => "strayed",
-        -8..-3 => "sinned",
-        _ => "transgressed",
-    };
-
-    let mut result = pious_word.to_string();
-
-    if let Some(s) = suffix {
-        if !show_neg || record >= 0 {
-            if record != 3 {
-                result.push(' ');
-            }
-            result.push_str(s);
-        }
-    }
-
-    result
 }
 
 /// Alignment record tracking karma and alignment

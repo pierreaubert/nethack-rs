@@ -3,9 +3,9 @@
 //! Verifies trap mechanics: type classification, damage ranges, detection,
 //! disarming, container traps, escape mechanics, and trap naming.
 
+use nh_core::GameRng;
 use nh_core::dungeon::trap::*;
 use nh_core::dungeon::{DLevel, Level, TrapType};
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -144,16 +144,34 @@ fn test_trap_name_squeaky() {
 #[test]
 fn test_trap_name_all_nonempty() {
     let types = [
-        TrapType::Arrow, TrapType::Dart, TrapType::RockFall,
-        TrapType::Squeaky, TrapType::BearTrap, TrapType::LandMine,
-        TrapType::RollingBoulder, TrapType::SleepingGas, TrapType::RustTrap,
-        TrapType::FireTrap, TrapType::Pit, TrapType::SpikedPit,
-        TrapType::Hole, TrapType::TrapDoor, TrapType::Teleport,
-        TrapType::LevelTeleport, TrapType::AntiMagic, TrapType::Web,
-        TrapType::Statue, TrapType::MagicTrap, TrapType::Polymorph,
+        TrapType::Arrow,
+        TrapType::Dart,
+        TrapType::RockFall,
+        TrapType::Squeaky,
+        TrapType::BearTrap,
+        TrapType::LandMine,
+        TrapType::RollingBoulder,
+        TrapType::SleepingGas,
+        TrapType::RustTrap,
+        TrapType::FireTrap,
+        TrapType::Pit,
+        TrapType::SpikedPit,
+        TrapType::Hole,
+        TrapType::TrapDoor,
+        TrapType::Teleport,
+        TrapType::LevelTeleport,
+        TrapType::AntiMagic,
+        TrapType::Web,
+        TrapType::Statue,
+        TrapType::MagicTrap,
+        TrapType::Polymorph,
     ];
     for tt in types {
-        assert!(!trap_name(tt).is_empty(), "Trap name should be non-empty for {:?}", tt);
+        assert!(
+            !trap_name(tt).is_empty(),
+            "Trap name should be non-empty for {:?}",
+            tt
+        );
     }
 }
 
@@ -164,7 +182,10 @@ fn test_trap_name_all_nonempty() {
 #[test]
 fn test_arrow_base_damage() {
     let (dice, sides) = trap_base_damage(TrapType::Arrow);
-    assert!(dice > 0 && sides > 0, "Arrow trap should have positive damage");
+    assert!(
+        dice > 0 && sides > 0,
+        "Arrow trap should have positive damage"
+    );
 }
 
 #[test]
@@ -185,7 +206,13 @@ fn test_roll_trap_damage_in_range() {
     for _ in 0..20 {
         let dmg = roll_trap_damage(&mut rng, TrapType::Arrow);
         let (dice, sides) = trap_base_damage(TrapType::Arrow);
-        assert!(dmg >= dice && dmg <= dice * sides, "Damage {} out of range {}d{}", dmg, dice, sides);
+        assert!(
+            dmg >= dice && dmg <= dice * sides,
+            "Damage {} out of range {}d{}",
+            dmg,
+            dice,
+            sides
+        );
     }
 }
 
@@ -237,7 +264,11 @@ fn test_random_trap_type_varies() {
             types.push(tt);
         }
     }
-    assert!(types.len() > 3, "Random traps should produce variety, got {}", types.len());
+    assert!(
+        types.len() > 3,
+        "Random traps should produce variety, got {}",
+        types.len()
+    );
 }
 
 // ============================================================================
@@ -371,7 +402,11 @@ fn test_try_escape_web_possible() {
 fn test_b_trapped_when_trapped() {
     let mut rng = GameRng::new(42);
     let ct = b_trapped(true, &mut rng);
-    assert_ne!(ct, ContainerTrap::None, "Trapped container should produce a trap");
+    assert_ne!(
+        ct,
+        ContainerTrap::None,
+        "Trapped container should produce a trap"
+    );
 }
 
 #[test]
@@ -404,7 +439,10 @@ fn test_avoid_container_trap_high_dex_luck() {
             break;
         }
     }
-    assert!(avoided, "High DEX + luck should sometimes avoid container traps");
+    assert!(
+        avoided,
+        "High DEX + luck should sometimes avoid container traps"
+    );
 }
 
 #[test]
@@ -446,7 +484,7 @@ fn test_trigger_arrow_trap() {
     match effect {
         TrapEffect::Damage(d) => assert!(d > 0, "Arrow trap damage should be positive"),
         TrapEffect::Status(_) => {} // Dart poisoned variant
-        _ => {} // Other valid effects
+        _ => {}                     // Other valid effects
     }
 }
 
@@ -455,7 +493,10 @@ fn test_trigger_pit_trap() {
     let mut rng = GameRng::new(42);
     let mut trap = create_trap(10, 10, TrapType::Pit);
     let effect = trigger_trap(&mut rng, &mut trap);
-    assert!(matches!(effect, TrapEffect::Fall { .. } | TrapEffect::Damage(_)));
+    assert!(matches!(
+        effect,
+        TrapEffect::Fall { .. } | TrapEffect::Damage(_)
+    ));
 }
 
 #[test]
@@ -463,7 +504,10 @@ fn test_trigger_fire_trap() {
     let mut rng = GameRng::new(42);
     let mut trap = create_trap(10, 10, TrapType::FireTrap);
     let effect = trigger_trap(&mut rng, &mut trap);
-    assert!(matches!(effect, TrapEffect::Damage(_) | TrapEffect::ItemDamage));
+    assert!(matches!(
+        effect,
+        TrapEffect::Damage(_) | TrapEffect::ItemDamage
+    ));
 }
 
 #[test]

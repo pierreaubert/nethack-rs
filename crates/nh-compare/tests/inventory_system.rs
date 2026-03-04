@@ -658,7 +658,11 @@ fn test_count_class() {
 #[test]
 fn test_sort_by_class() {
     let mut inv = vec![make_scroll('d'), make_weapon('a'), make_potion('c')];
-    let order = [ObjectClass::Weapon, ObjectClass::Potion, ObjectClass::Scroll];
+    let order = [
+        ObjectClass::Weapon,
+        ObjectClass::Potion,
+        ObjectClass::Scroll,
+    ];
     inventory::sort_by_class(&mut inv, &order);
     assert_eq!(inv[0].class, ObjectClass::Weapon);
     assert_eq!(inv[1].class, ObjectClass::Potion);

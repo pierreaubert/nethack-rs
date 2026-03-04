@@ -346,7 +346,10 @@ fn known_renames() -> HashMap<(&'static str, &'static str), &'static str> {
     m.insert((tmout, "kill_egg"), "cancel_object_events");
     m.insert((tmout, "hatch_egg"), "run_timers");
     m.insert((tmout, "learn_egg_type"), "run_timers");
-    m.insert((tmout, "attach_fig_transform_timeout"), "start_object_timer");
+    m.insert(
+        (tmout, "attach_fig_transform_timeout"),
+        "start_object_timer",
+    );
     m.insert((tmout, "slip_or_trip"), "tick");
     m.insert((tmout, "lantern_message"), "tick");
     m.insert((tmout, "cleanup_burn"), "cancel_object_events");
@@ -646,20 +649,20 @@ fn known_renames() -> HashMap<(&'static str, &'static str), &'static str> {
 
     // --- dungeon/generation.rs ---
     let dgen = "dungeon/generation.rs";
-    m.insert((dgen,"do_comp"), "generate_rooms_with_rects");
-    m.insert((dgen,"sort_rooms"), "generate_rooms_with_rects");
-    m.insert((dgen,"do_room_or_subroom"), "create_subroom");
-    m.insert((dgen,"add_room"), "generate_rooms_with_rects");
-    m.insert((dgen,"makerooms"), "generate_rooms_and_corridors");
-    m.insert((dgen,"join"), "create_path");
-    m.insert((dgen,"makecorridors"), "generate_rooms_and_corridors");
-    m.insert((dgen,"clear_level_structures"), "init_map");
-    m.insert((dgen,"makelevel"), "generate_rooms_and_corridors");
-    m.insert((dgen,"mklev"), "generate_rooms_and_corridors");
-    m.insert((dgen,"find_branch_room"), "place_branch_entrance");
-    m.insert((dgen,"place_branch"), "place_branch_entrance");
-    m.insert((dgen,"mkinvokearea"), "place_dungeon_features");
-    m.insert((dgen,"mkinvpos"), "place_dungeon_features");
+    m.insert((dgen, "do_comp"), "generate_rooms_with_rects");
+    m.insert((dgen, "sort_rooms"), "generate_rooms_with_rects");
+    m.insert((dgen, "do_room_or_subroom"), "create_subroom");
+    m.insert((dgen, "add_room"), "generate_rooms_with_rects");
+    m.insert((dgen, "makerooms"), "generate_rooms_and_corridors");
+    m.insert((dgen, "join"), "create_path");
+    m.insert((dgen, "makecorridors"), "generate_rooms_and_corridors");
+    m.insert((dgen, "clear_level_structures"), "init_map");
+    m.insert((dgen, "makelevel"), "generate_rooms_and_corridors");
+    m.insert((dgen, "mklev"), "generate_rooms_and_corridors");
+    m.insert((dgen, "find_branch_room"), "place_branch_entrance");
+    m.insert((dgen, "place_branch"), "place_branch_entrance");
+    m.insert((dgen, "mkinvokearea"), "place_dungeon_features");
+    m.insert((dgen, "mkinvpos"), "place_dungeon_features");
 
     // --- magic/spell.rs ---
     let spell = "magic/spell.rs";
@@ -975,27 +978,78 @@ fn not_needed_functions() -> HashSet<(&'static str, &'static str)> {
 
     // All cmd.c functions -> not_needed (UI/input layer)
     for func in &[
-        "timed_occupation", "reset_occupations", "set_occupation", "domonability",
-        "wiz_wish", "wiz_identify", "wiz_makemap", "wiz_map", "wiz_genesis",
-        "wiz_where", "wiz_detect", "wiz_level_change", "wiz_panic",
-        "wiz_show_seenv", "wiz_show_vision", "wiz_show_wmodes",
-        "wiz_map_levltyp", "wiz_levltyp_legend", "wiz_smell",
-        "wiz_intrinsic", "wiz_rumor_check", "doterrain", "enlght_out",
-        "enlght_line", "enlght_combatinc", "enlght_halfdmg",
-        "walking_on_water", "cause_known", "background_enlightenment",
-        "basics_enlightenment", "characteristics_enlightenment",
-        "one_characteristic", "status_enlightenment",
-        "attributes_enlightenment", "minimal_enlightenment",
-        "doattributes", "youhiding", "commands_init", "cmd_from_func",
-        "size_obj", "obj_chain", "mon_invent_chain", "size_monst",
-        "mon_chain", "misc_stats", "wiz_show_stats", "wiz_migrate_mons",
-        "parseautocomplete", "reset_commands", "randomkey",
-        "random_response", "rhack", "movecmd", "dxdy_moveok",
-        "redraw_cmd", "get_adjacent_loc", "getdir", "help_dir",
-        "doherecmdmenu", "dotherecmdmenu", "there_cmd_menu",
-        "here_cmd_menu", "click_to_cmd", "get_count", "parse",
-        "hangup", "end_of_input", "readchar", "dotravel",
-        "paranoid_query", "dosuspend_core", "dosh_core",
+        "timed_occupation",
+        "reset_occupations",
+        "set_occupation",
+        "domonability",
+        "wiz_wish",
+        "wiz_identify",
+        "wiz_makemap",
+        "wiz_map",
+        "wiz_genesis",
+        "wiz_where",
+        "wiz_detect",
+        "wiz_level_change",
+        "wiz_panic",
+        "wiz_show_seenv",
+        "wiz_show_vision",
+        "wiz_show_wmodes",
+        "wiz_map_levltyp",
+        "wiz_levltyp_legend",
+        "wiz_smell",
+        "wiz_intrinsic",
+        "wiz_rumor_check",
+        "doterrain",
+        "enlght_out",
+        "enlght_line",
+        "enlght_combatinc",
+        "enlght_halfdmg",
+        "walking_on_water",
+        "cause_known",
+        "background_enlightenment",
+        "basics_enlightenment",
+        "characteristics_enlightenment",
+        "one_characteristic",
+        "status_enlightenment",
+        "attributes_enlightenment",
+        "minimal_enlightenment",
+        "doattributes",
+        "youhiding",
+        "commands_init",
+        "cmd_from_func",
+        "size_obj",
+        "obj_chain",
+        "mon_invent_chain",
+        "size_monst",
+        "mon_chain",
+        "misc_stats",
+        "wiz_show_stats",
+        "wiz_migrate_mons",
+        "parseautocomplete",
+        "reset_commands",
+        "randomkey",
+        "random_response",
+        "rhack",
+        "movecmd",
+        "dxdy_moveok",
+        "redraw_cmd",
+        "get_adjacent_loc",
+        "getdir",
+        "help_dir",
+        "doherecmdmenu",
+        "dotherecmdmenu",
+        "there_cmd_menu",
+        "here_cmd_menu",
+        "click_to_cmd",
+        "get_count",
+        "parse",
+        "hangup",
+        "end_of_input",
+        "readchar",
+        "dotravel",
+        "paranoid_query",
+        "dosuspend_core",
+        "dosh_core",
     ] {
         s.insert(("cmd.c", *func));
     }
@@ -1010,7 +1064,12 @@ fn not_needed_functions() -> HashSet<(&'static str, &'static str)> {
     s.insert(("uhitm.c", "m_slips_free"));
 
     // quest.c pager functions (message delivery system)
-    for func in &["msg_in", "deliver_by_pline", "deliver_by_window", "skip_pager"] {
+    for func in &[
+        "msg_in",
+        "deliver_by_pline",
+        "deliver_by_window",
+        "skip_pager",
+    ] {
         s.insert(("quest.c", *func));
     }
 
@@ -1048,11 +1107,7 @@ fn extract_rust_fns(path: &Path) -> Vec<String> {
             .find(|c: char| c == '(' || c == '<')
             .unwrap_or(rest.len());
         let name = rest[..end].trim();
-        if !name.is_empty()
-            && name
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '_')
-        {
+        if !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             fns.push(name.to_string());
         }
     }
@@ -1110,12 +1165,10 @@ fn promote_stubs_to_ported() {
         }
 
         // Load Rust functions for this file
-        let rust_fns = rust_fn_cache
-            .entry(rust_file.clone())
-            .or_insert_with(|| {
-                let path = Path::new(NH_CORE_SRC).join(&rust_file);
-                extract_rust_fns(&path).into_iter().collect()
-            });
+        let rust_fns = rust_fn_cache.entry(rust_file.clone()).or_insert_with(|| {
+            let path = Path::new(NH_CORE_SRC).join(&rust_file);
+            extract_rust_fns(&path).into_iter().collect()
+        });
 
         // Strategy 1: Known renames table
         if let Some(&rust_func) = renames.get(&(rust_file.as_str(), c_func.as_str())) {
@@ -1180,9 +1233,21 @@ fn promote_stubs_to_ported() {
     println!("  Remaining unmatched:    {}", unmatched.len());
     println!();
     println!("  Final counts:");
-    println!("    ported:     {} ({:.1}%)", ported, ported as f64 / total as f64 * 100.0);
-    println!("    not_needed: {} ({:.1}%)", nn, nn as f64 / total as f64 * 100.0);
-    println!("    stub:       {} ({:.1}%)", stub, stub as f64 / total as f64 * 100.0);
+    println!(
+        "    ported:     {} ({:.1}%)",
+        ported,
+        ported as f64 / total as f64 * 100.0
+    );
+    println!(
+        "    not_needed: {} ({:.1}%)",
+        nn,
+        nn as f64 / total as f64 * 100.0
+    );
+    println!(
+        "    stub:       {} ({:.1}%)",
+        stub,
+        stub as f64 / total as f64 * 100.0
+    );
     println!("    missing:    {}", missing);
     println!("    TOTAL:      {}", total);
     println!();
@@ -1204,11 +1269,7 @@ fn promote_stubs_to_ported() {
         "Expected >= 2100 total ported, got {}",
         ported
     );
-    assert!(
-        nn >= 800,
-        "Expected >= 800 total not_needed, got {}",
-        nn
-    );
+    assert!(nn >= 800, "Expected >= 800 total not_needed, got {}", nn);
     assert_eq!(stub, 0, "Expected 0 remaining stubs, got {}", stub);
     assert!(
         convergence >= 99.0,

@@ -92,7 +92,9 @@ impl Isaac64 {
         self.a = 0;
         self.b = 0;
         self.c = 0;
-        for i in 0..ISAAC64_SZ { self.r[i] = 0; }
+        for i in 0..ISAAC64_SZ {
+            self.r[i] = 0;
+        }
         self.reseed(seed);
     }
 
@@ -136,24 +138,20 @@ impl Isaac64 {
 
         // Fill m[] using mixed values
         for i in (0..ISAAC64_SZ).step_by(8) {
-            for j in 0..8 {
-                x[j] = x[j].wrapping_add(self.r[i + j]);
+            for (j, xj) in x.iter_mut().enumerate() {
+                *xj = xj.wrapping_add(self.r[i + j]);
             }
             Self::mix(&mut x);
-            for j in 0..8 {
-                self.m[i + j] = x[j];
-            }
+            self.m[i..i + 8].copy_from_slice(&x);
         }
 
         // Second pass
         for i in (0..ISAAC64_SZ).step_by(8) {
-            for j in 0..8 {
-                x[j] = x[j].wrapping_add(self.m[i + j]);
+            for (j, xj) in x.iter_mut().enumerate() {
+                *xj = xj.wrapping_add(self.m[i + j]);
             }
             Self::mix(&mut x);
-            for j in 0..8 {
-                self.m[i + j] = x[j];
-            }
+            self.m[i..i + 8].copy_from_slice(&x);
         }
 
         // Generate initial results
@@ -275,7 +273,9 @@ impl Isaac64 {
 
     /// Returns a random value in [0, n)
     pub fn next_uint(&mut self, n: u64) -> u64 {
-        if n == 0 { return 0; }
+        if n == 0 {
+            return 0;
+        }
         let raw = self.next_u64();
         let res = raw % n;
         if self.tracing {
@@ -293,7 +293,9 @@ impl Isaac64 {
     /// Returns a random value in [0, x) - matches rn2(x)
     #[inline]
     pub fn rn2(&mut self, x: u32) -> u32 {
-        if x <= 1 { return 0; }
+        if x <= 1 {
+            return 0;
+        }
         let raw = self.next_u64();
         let res = (raw % x as u64) as u32;
         if self.tracing {
@@ -311,7 +313,9 @@ impl Isaac64 {
     /// Returns a random value in [1, x] - matches rnd(x)
     #[inline]
     pub fn rnd(&mut self, x: u32) -> u32 {
-        if x == 0 { return 0; }
+        if x == 0 {
+            return 0;
+        }
         let raw = self.next_u64();
         let res = (raw % x as u64) as u32 + 1;
         if self.tracing {
@@ -356,7 +360,11 @@ impl Isaac64 {
 
     /// Exponential distribution - matches rne(x) from rnd.c
     pub fn rne(&mut self, x: u32, player_level: u32) -> u32 {
-        let utmp = if player_level < 15 { 5 } else { player_level / 3 };
+        let utmp = if player_level < 15 {
+            5
+        } else {
+            player_level / 3
+        };
         let mut tmp = 1u32;
         while tmp < utmp && self.rn2(x) == 0 {
             tmp += 1;

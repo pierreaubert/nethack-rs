@@ -4,7 +4,7 @@
 //! result type. Identifies stub vs real implementations.
 
 use nh_core::action::{Command, Direction};
-use nh_core::{GameLoop, GameLoopResult, GameState, GameRng};
+use nh_core::{GameLoop, GameLoopResult, GameRng, GameState};
 
 // ============================================================================
 // Helpers
@@ -80,7 +80,12 @@ fn test_command_fight_empty() {
     let result = exec(&mut gl, Command::Fight(Direction::East));
     assert!(matches!(result, GameLoopResult::Continue));
     // Fighting empty space should produce a message
-    assert!(gl.state().messages.iter().any(|m| m.contains("empty space") || m.contains("strike")));
+    assert!(
+        gl.state()
+            .messages
+            .iter()
+            .any(|m| m.contains("empty space") || m.contains("strike"))
+    );
 }
 
 #[test]
@@ -119,28 +124,28 @@ fn test_command_drop_no_item() {
 #[test]
 fn test_command_eat_no_item() {
     let mut gl = test_gameloop();
-    let result = exec(&mut gl, Command::Eat('a'));
+    let result = exec(&mut gl, Command::Eat(Some('a')));
     assert!(matches!(result, GameLoopResult::Continue));
 }
 
 #[test]
 fn test_command_quaff_no_item() {
     let mut gl = test_gameloop();
-    let result = exec(&mut gl, Command::Quaff('a'));
+    let result = exec(&mut gl, Command::Quaff(Some('a')));
     assert!(matches!(result, GameLoopResult::Continue));
 }
 
 #[test]
 fn test_command_read_no_item() {
     let mut gl = test_gameloop();
-    let result = exec(&mut gl, Command::Read('a'));
+    let result = exec(&mut gl, Command::Read(Some('a')));
     assert!(matches!(result, GameLoopResult::Continue));
 }
 
 #[test]
 fn test_command_zap_no_item() {
     let mut gl = test_gameloop();
-    let result = exec(&mut gl, Command::Zap('a', Direction::East));
+    let result = exec(&mut gl, Command::Zap('a', Some(Direction::East)));
     assert!(matches!(result, GameLoopResult::Continue));
 }
 
@@ -221,7 +226,12 @@ fn test_command_whats_here() {
     let result = exec(&mut gl, Command::WhatsHere);
     assert!(matches!(result, GameLoopResult::Continue));
     // Should report nothing or items
-    assert!(gl.state().messages.iter().any(|m| m.contains("nothing") || m.contains("item")));
+    assert!(
+        gl.state()
+            .messages
+            .iter()
+            .any(|m| m.contains("nothing") || m.contains("item"))
+    );
 }
 
 #[test]
@@ -322,7 +332,10 @@ fn test_command_travel() {
     let mut gl = test_gameloop();
     let result = exec(&mut gl, Command::Travel);
     assert!(matches!(result, GameLoopResult::Continue));
-    assert!(!gl.state().messages.is_empty(), "Travel should produce a message");
+    assert!(
+        !gl.state().messages.is_empty(),
+        "Travel should produce a message"
+    );
 }
 
 #[test]
@@ -339,9 +352,12 @@ fn test_command_offer() {
 #[test]
 fn test_command_dip() {
     let mut gl = test_gameloop();
-    let result = exec(&mut gl, Command::Dip);
+    let result = exec(&mut gl, Command::Dip('a', None));
     assert!(matches!(result, GameLoopResult::Continue));
-    assert!(!gl.state().messages.is_empty(), "Dip should produce a message");
+    assert!(
+        !gl.state().messages.is_empty(),
+        "Dip should produce a message"
+    );
 }
 
 #[test]
@@ -382,7 +398,10 @@ fn test_command_options() {
     let mut gl = test_gameloop();
     let result = exec(&mut gl, Command::Options);
     assert!(matches!(result, GameLoopResult::Continue));
-    assert!(!gl.state().messages.is_empty(), "Options should produce a message");
+    assert!(
+        !gl.state().messages.is_empty(),
+        "Options should produce a message"
+    );
 }
 
 #[test]
@@ -412,19 +431,53 @@ fn test_command_redraw() {
 fn test_command_coverage_summary() {
     // Count command variants by category
     let implemented = [
-        "Move", "Run", "MoveUntilInteresting", "Rest",
-        "GoUp", "GoDown", "Search",
-        "Fight", "Fire", "Throw",
-        "Pickup", "Drop", "Eat", "Quaff", "Read", "Zap",
-        "Apply", "Wear", "TakeOff", "PutOn", "Remove", "Wield",
-        "Open", "Close", "Kick", "Pray", "Engrave",
-        "Inventory", "Look", "WhatsHere", "Help", "Discoveries", "History",
-        "Save", "Quit",
+        "Move",
+        "Run",
+        "MoveUntilInteresting",
+        "Rest",
+        "GoUp",
+        "GoDown",
+        "Search",
+        "Fight",
+        "Fire",
+        "Throw",
+        "Pickup",
+        "Drop",
+        "Eat",
+        "Quaff",
+        "Read",
+        "Zap",
+        "Apply",
+        "Wear",
+        "TakeOff",
+        "PutOn",
+        "Remove",
+        "Wield",
+        "Open",
+        "Close",
+        "Kick",
+        "Pray",
+        "Engrave",
+        "Inventory",
+        "Look",
+        "WhatsHere",
+        "Help",
+        "Discoveries",
+        "History",
+        "Save",
+        "Quit",
     ];
 
     let unimplemented = [
-        "Travel", "Offer", "Dip", "Pay", "Chat", "Sit",
-        "Options", "ExtendedCommand", "Redraw",
+        "Travel",
+        "Offer",
+        "Dip",
+        "Pay",
+        "Chat",
+        "Sit",
+        "Options",
+        "ExtendedCommand",
+        "Redraw",
     ];
 
     let total = implemented.len() + unimplemented.len();

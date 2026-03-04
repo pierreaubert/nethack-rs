@@ -199,6 +199,7 @@ pub use obj::{
     // Weight functions
     weight,
 };
+pub use obj::{bcsign, blessorcurse};
 pub use objclass::{
     ArmorCategory,
     DirectionType,
@@ -219,22 +220,38 @@ pub use objclass::{
 };
 pub use objname::{
     An,
+    // Additional naming functions
+    Aobjnam,
     ObjectKnowledge,
+    S_suffix,
     The,
     Yname2,
     Ysimple_name2,
     an,
     // Capitalized versions
     an_capitalized,
+    ansimpleoname,
+    aobjnam,
+    arti_cost,
+    arti_immune,
+    arti_light_description,
+    arti_light_radius,
+    arti_reflects,
+    arti_speak,
+    artifact_id_from_name,
+    artiname,
     base_object_name,
     // Corpse/special object naming
     corpse_xname,
+    cxname,
+    cxname_singular,
     distant_name,
     // Advanced naming functions
     doname,
     egg_xname,
     figurine_xname,
     full_object_name,
+    is_artifact_name,
     killer_corpse_xname,
     killer_xname,
     makeplural,
@@ -242,8 +259,10 @@ pub use objname::{
     obj_typename_from_obj,
     quantity_name,
     readobjnam,
+    s_suffix,
     simple_object_name,
     simple_typename,
+    simpleoname,
     singular,
     statue_xname,
     the,
@@ -251,9 +270,4 @@ pub use objname::{
     xname,
     yname,
     ysimple_name,
-    // Additional naming functions
-    Aobjnam, S_suffix, aobjnam, ansimpleoname, arti_cost, arti_immune, arti_light_description,
-    arti_light_radius, arti_reflects, arti_speak, artifact_id_from_name, artiname, cxname,
-    cxname_singular, is_artifact_name, s_suffix, simpleoname,
 };
-pub use obj::{bcsign, blessorcurse};

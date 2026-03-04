@@ -164,7 +164,10 @@ fn registry_coverage_report() {
     }
 
     println!("\n=== Per-Phase Coverage ===");
-    println!("{:<10} {:>6} {:>6} {:>6}", "Phase", "Total", "Ported", "Port%");
+    println!(
+        "{:<10} {:>6} {:>6} {:>6}",
+        "Phase", "Total", "Ported", "Port%"
+    );
     println!("{}", "-".repeat(35));
 
     let mut phases: Vec<_> = per_phase.iter().collect();

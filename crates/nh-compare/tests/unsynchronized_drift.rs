@@ -4,12 +4,12 @@
 //! instead of panicking on first difference. This reveals systematic divergences
 //! that synchronized tests mask.
 
-use nh_compare::diff::{diff_snapshots, Severity};
+use nh_compare::diff::{Severity, diff_snapshots};
 use nh_compare::report::ConvergenceReport;
 use nh_compare::snapshot::{GameSnapshot, ItemSnapshot, MonsterSnapshot, PlayerSnapshot};
 use nh_core::action::Command;
 use nh_core::player::{Attribute, Gender, Race, Role};
-use nh_core::{GameLoop, GameRng, GameState};
+use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use serial_test::serial;
 
@@ -157,7 +157,7 @@ fn c_snapshot(engine: &CGameEngine, turn: u64) -> GameSnapshot {
             charisma: attrs_json["cha"].as_i64().unwrap_or(0) as i32,
             alive: !engine.is_dead(),
             dungeon_level: engine.current_level(),
-            dungeon_num: 0, // C FFI doesn't expose dnum separately
+            dungeon_num: 0,         // C FFI doesn't expose dnum separately
             status_effects: vec![], // C FFI doesn't expose these yet
         },
         inventory,
@@ -246,10 +246,7 @@ fn test_unsynchronized_rest_drift_1000_turns() {
     let report_json = report.to_json();
     let report_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
     std::fs::create_dir_all(&report_dir).ok();
-    let report_path = report_dir.join(format!(
-        "drift_rest_seed{}_{}turns.json",
-        seed, num_turns
-    ));
+    let report_path = report_dir.join(format!("drift_rest_seed{}_{}turns.json", seed, num_turns));
     std::fs::write(&report_path, &report_json).ok();
     println!("Report written to {}", report_path.display());
 

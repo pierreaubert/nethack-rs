@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use nh_core::object::{Material, ObjectClass};
+use serde::{Deserialize, Serialize};
 
 /// Defines the visual representation of an item for different frontends.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -49,12 +49,24 @@ impl ItemIdentifier {
     /// Used for prioritizing more specific matches.
     pub fn specificity(&self) -> u32 {
         let mut count = 0;
-        if self.class.is_some() { count += 1; }
-        if self.object_type.is_some() { count += 10; } // object_type is much more specific
-        if self.material.is_some() { count += 2; }
-        if self.is_identified.is_some() { count += 1; }
-        if self.artifact.is_some() { count += 20; } // artifact is highly specific
-        if self.corpse_type.is_some() { count += 5; }
+        if self.class.is_some() {
+            count += 1;
+        }
+        if self.object_type.is_some() {
+            count += 10;
+        } // object_type is much more specific
+        if self.material.is_some() {
+            count += 2;
+        }
+        if self.is_identified.is_some() {
+            count += 1;
+        }
+        if self.artifact.is_some() {
+            count += 20;
+        } // artifact is highly specific
+        if self.corpse_type.is_some() {
+            count += 5;
+        }
         count
     }
 }

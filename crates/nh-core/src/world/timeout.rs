@@ -6,8 +6,8 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use serde::{Deserialize, Serialize};
 use hashbrown::HashMap;
+use serde::{Deserialize, Serialize};
 
 use crate::monster::MonsterId;
 use crate::object::ObjectId;
@@ -323,11 +323,7 @@ impl TimeoutManager {
                 if event.repeating {
                     let mut next = event.clone();
                     next.trigger_turn = event.trigger_turn + event.repeat_interval;
-                    if next.trigger_turn < until_turn {
-                        to_reschedule.push(next);
-                    } else {
-                        to_reschedule.push(next);
-                    }
+                    to_reschedule.push(next);
                 }
 
                 triggered.push(event);

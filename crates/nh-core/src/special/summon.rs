@@ -8,7 +8,7 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use crate::monster::{Monster, MonsterId};
+use crate::monster::Monster;
 use crate::player::You;
 use crate::rng::GameRng;
 
@@ -273,8 +273,8 @@ const NASTIES: [&str; 42] = [
 pub fn nasty(
     summoner: Option<&Monster>,
     player_level: u8,
-    player_x: i8,
-    player_y: i8,
+    _player_x: i8,
+    _player_y: i8,
     in_gehennom: bool,
     rng: &mut GameRng,
 ) -> SummonResult {
@@ -298,7 +298,7 @@ pub fn nasty(
     };
 
     // Select and summon nasties
-    for _ in 0..attempts.min(rng.rnd(attempts) as u32) {
+    for _ in 0..attempts.min(rng.rnd(attempts)) {
         if result.count >= MAX_NASTIES {
             break;
         }

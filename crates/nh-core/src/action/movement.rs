@@ -28,13 +28,7 @@ pub enum MoveRockResult {
 /// Port of hack.c:moverock(). Returns whether the player can advance.
 ///
 /// The boulder at (sx,sy) is pushed to (rx,ry) = (sx+dx, sy+dy) if possible.
-pub fn moverock(
-    state: &mut GameState,
-    sx: i8,
-    sy: i8,
-    dx: i8,
-    dy: i8,
-) -> MoveRockResult {
+pub fn moverock(state: &mut GameState, sx: i8, sy: i8, dx: i8, dy: i8) -> MoveRockResult {
     // Check if there's a boulder at the source
     let boulder_id = match find_boulder(&state.current_level, sx, sy) {
         Some(id) => id,
@@ -79,7 +73,11 @@ pub fn moverock(
     }
 
     // Check for closed door at destination
-    if state.current_level.cell(rx as usize, ry as usize).is_closed_door() {
+    if state
+        .current_level
+        .cell(rx as usize, ry as usize)
+        .is_closed_door()
+    {
         state.message("You try to push the boulder, but it won't budge.");
         return MoveRockResult::Blocked;
     }
@@ -264,9 +262,7 @@ pub fn dosinkfall(state: &mut GameState) {
         .current_level
         .objects_at(px, py)
         .iter()
-        .any(|obj| {
-            obj.class == crate::object::ObjectClass::Weapon
-        });
+        .any(|obj| obj.class == crate::object::ObjectClass::Weapon);
 
     if weapon_on_floor {
         state.message("You fell on a weapon!");
@@ -282,9 +278,7 @@ pub fn check_movement_capacity(state: &GameState) -> Option<&'static str> {
     let enc = state.player.encumbrance();
 
     match enc {
-        Encumbrance::Overloaded => {
-            Some("You collapse under your load.")
-        }
+        Encumbrance::Overloaded => Some("You collapse under your load."),
         Encumbrance::Overtaxed | Encumbrance::Strained | Encumbrance::Stressed => {
             // Can still move when heavily encumbered but not at critical HP
             if state.player.hp < 10 && state.player.hp != state.player.hp_max {
@@ -497,10 +491,7 @@ mod tests {
         // Boulder consumed, pool filled
         assert!(find_boulder(&state.current_level, 6, 5).is_none());
         assert!(find_boulder(&state.current_level, 7, 5).is_none());
-        assert_eq!(
-            state.current_level.cell(7, 5).typ,
-            CellType::Room
-        );
+        assert_eq!(state.current_level.cell(7, 5).typ, CellType::Room);
     }
 
     #[test]
@@ -513,17 +504,17 @@ mod tests {
         assert_eq!(result, MoveRockResult::Moved);
 
         // Boulder consumed, lava cooled
-        assert_eq!(
-            state.current_level.cell(7, 5).typ,
-            CellType::Room
-        );
+        assert_eq!(state.current_level.cell(7, 5).typ, CellType::Room);
     }
 
     #[test]
     fn test_moverock_levitating_blocked() {
         let mut state = make_test_state();
         place_boulder(&mut state.current_level, 6, 5);
-        state.player.properties.grant_intrinsic(Property::Levitation);
+        state
+            .player
+            .properties
+            .grant_intrinsic(Property::Levitation);
 
         let result = moverock(&mut state, 6, 5, 1, 0);
         assert_eq!(result, MoveRockResult::Blocked);
@@ -586,7 +577,10 @@ mod tests {
     fn test_check_ice_slip_levitating() {
         let mut state = make_test_state();
         state.current_level.cell_mut(5, 5).typ = CellType::Ice;
-        state.player.properties.grant_intrinsic(Property::Levitation);
+        state
+            .player
+            .properties
+            .grant_intrinsic(Property::Levitation);
 
         assert!(!check_ice_slip(&mut state, 5, 5)); // immune
     }

@@ -3,11 +3,11 @@
 //! Tests for potion quaffing, scroll reading, recharging, punishment,
 //! and other magic item effects.
 
+use nh_core::GameRng;
 use nh_core::magic::potion::*;
 use nh_core::magic::scroll::*;
 use nh_core::object::{BucStatus, Object, ObjectClass, ObjectId};
 use nh_core::player::{Attribute, HungerState, Property, You};
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -23,8 +23,12 @@ fn test_player() -> You {
     p.hunger_state = HungerState::NotHungry;
     p.exp_level = 5;
     for attr in [
-        Attribute::Strength, Attribute::Intelligence, Attribute::Wisdom,
-        Attribute::Dexterity, Attribute::Constitution, Attribute::Charisma,
+        Attribute::Strength,
+        Attribute::Intelligence,
+        Attribute::Wisdom,
+        Attribute::Dexterity,
+        Attribute::Constitution,
+        Attribute::Charisma,
     ] {
         p.attr_current.set(attr, 12);
         p.attr_max.set(attr, 18);
@@ -166,7 +170,10 @@ fn test_quaff_fruit_juice_nutrition() {
     let old_nutr = player.nutrition;
     let mut rng = GameRng::new(42);
     quaff_potion(&pot, &mut player, &mut rng);
-    assert!(player.nutrition > old_nutr, "Fruit juice should add nutrition");
+    assert!(
+        player.nutrition > old_nutr,
+        "Fruit juice should add nutrition"
+    );
 }
 
 #[test]
@@ -304,7 +311,10 @@ fn test_quaff_gain_level() {
     let old_level = player.exp_level;
     let mut rng = GameRng::new(42);
     quaff_potion(&pot, &mut player, &mut rng);
-    assert!(player.exp_level > old_level, "Gain level potion should increase level");
+    assert!(
+        player.exp_level > old_level,
+        "Gain level potion should increase level"
+    );
 }
 
 // ============================================================================
@@ -323,7 +333,10 @@ fn test_blessed_healing_more() {
     let mut rng2 = GameRng::new(42);
     quaff_potion(&blessed, &mut p1, &mut rng1);
     quaff_potion(&uncursed, &mut p2, &mut rng2);
-    assert!(p1.hp >= p2.hp, "Blessed healing should heal at least as much");
+    assert!(
+        p1.hp >= p2.hp,
+        "Blessed healing should heal at least as much"
+    );
 }
 
 // ============================================================================
@@ -374,40 +387,79 @@ fn test_p_glow2() {
 #[test]
 fn test_scroll_type_values_unique() {
     let types = [
-        ScrollType::EnchantArmor, ScrollType::Destroy, ScrollType::Confuse,
-        ScrollType::Scare, ScrollType::RemoveCurse, ScrollType::EnchantWeapon,
-        ScrollType::Create, ScrollType::Taming, ScrollType::Genocide,
-        ScrollType::Light, ScrollType::Teleportation, ScrollType::Gold,
-        ScrollType::Food, ScrollType::Identify, ScrollType::MagicMapping,
-        ScrollType::Amnesia, ScrollType::Fire, ScrollType::Earth,
-        ScrollType::Punishment, ScrollType::Charging, ScrollType::StinkingCloud,
+        ScrollType::EnchantArmor,
+        ScrollType::Destroy,
+        ScrollType::Confuse,
+        ScrollType::Scare,
+        ScrollType::RemoveCurse,
+        ScrollType::EnchantWeapon,
+        ScrollType::Create,
+        ScrollType::Taming,
+        ScrollType::Genocide,
+        ScrollType::Light,
+        ScrollType::Teleportation,
+        ScrollType::Gold,
+        ScrollType::Food,
+        ScrollType::Identify,
+        ScrollType::MagicMapping,
+        ScrollType::Amnesia,
+        ScrollType::Fire,
+        ScrollType::Earth,
+        ScrollType::Punishment,
+        ScrollType::Charging,
+        ScrollType::StinkingCloud,
         ScrollType::Blank,
     ];
     let mut values: Vec<i16> = types.iter().map(|t| *t as i16).collect();
     let orig_len = values.len();
     values.sort();
     values.dedup();
-    assert_eq!(values.len(), orig_len, "All ScrollType values should be unique");
+    assert_eq!(
+        values.len(),
+        orig_len,
+        "All ScrollType values should be unique"
+    );
 }
 
 #[test]
 fn test_potion_type_values_unique() {
     let types = [
-        PotionType::GainAbility, PotionType::Restore, PotionType::Confusion,
-        PotionType::Blindness, PotionType::Paralysis, PotionType::Speed,
-        PotionType::Levitation, PotionType::Hallucination, PotionType::Invisibility,
-        PotionType::SeeInvisible, PotionType::Healing, PotionType::ExtraHealing,
-        PotionType::GainLevel, PotionType::Enlightenment, PotionType::MonsterDetection,
-        PotionType::ObjectDetection, PotionType::GainEnergy, PotionType::Sleeping,
-        PotionType::FullHealing, PotionType::Polymorph, PotionType::Booze,
-        PotionType::Sickness, PotionType::FruitJuice, PotionType::Acid,
-        PotionType::Oil, PotionType::Water,
+        PotionType::GainAbility,
+        PotionType::Restore,
+        PotionType::Confusion,
+        PotionType::Blindness,
+        PotionType::Paralysis,
+        PotionType::Speed,
+        PotionType::Levitation,
+        PotionType::Hallucination,
+        PotionType::Invisibility,
+        PotionType::SeeInvisible,
+        PotionType::Healing,
+        PotionType::ExtraHealing,
+        PotionType::GainLevel,
+        PotionType::Enlightenment,
+        PotionType::MonsterDetection,
+        PotionType::ObjectDetection,
+        PotionType::GainEnergy,
+        PotionType::Sleeping,
+        PotionType::FullHealing,
+        PotionType::Polymorph,
+        PotionType::Booze,
+        PotionType::Sickness,
+        PotionType::FruitJuice,
+        PotionType::Acid,
+        PotionType::Oil,
+        PotionType::Water,
     ];
     let mut values: Vec<i16> = types.iter().map(|t| *t as i16).collect();
     let orig_len = values.len();
     values.sort();
     values.dedup();
-    assert_eq!(values.len(), orig_len, "All PotionType values should be unique");
+    assert_eq!(
+        values.len(),
+        orig_len,
+        "All PotionType values should be unique"
+    );
 }
 
 // ============================================================================

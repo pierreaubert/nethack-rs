@@ -1,11 +1,11 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use serde::{Serialize, Deserialize};
-use crate::monster::PerMonst;
+use super::objects::{ObjectType, get_object};
 use crate::dungeon::CellType;
+use crate::monster::PerMonst;
 use crate::object::Object;
-use super::objects::{get_object, ObjectType};
+use serde::{Deserialize, Serialize};
 
 /// A unique identifier for a graphical tile in frontends like Bevy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

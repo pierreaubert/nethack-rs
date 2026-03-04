@@ -324,18 +324,22 @@ fn test_missing_modules_gap_score() {
     for (rust_path, c_file, c_lines) in missing_modules {
         let path = Path::new(RUST_SRC).join(rust_path);
         if !path.exists() {
-            println!(
-                "MISSING: {} (needs {} from {})",
-                rust_path, c_lines, c_file
-            );
+            println!("MISSING: {} (needs {} from {})", rust_path, c_lines, c_file);
             total_missing_lines += c_lines;
             actually_missing += 1;
         } else {
             let lines = count_lines(&path).unwrap_or(0);
-            println!("EXISTS:  {} ({} lines, C target: {})", rust_path, lines, c_lines);
+            println!(
+                "EXISTS:  {} ({} lines, C target: {})",
+                rust_path, lines, c_lines
+            );
         }
     }
 
     println!("\nTotal missing C lines: {}", total_missing_lines);
-    println!("Modules still missing: {}/{}", actually_missing, missing_modules.len());
+    println!(
+        "Modules still missing: {}/{}",
+        actually_missing,
+        missing_modules.len()
+    );
 }

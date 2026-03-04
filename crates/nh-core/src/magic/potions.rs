@@ -7,7 +7,6 @@
 use crate::compat::*;
 
 use crate::player::{Attribute, Property, You};
-use crate::rng::GameRng;
 use serde::{Deserialize, Serialize};
 
 /// Potion potency levels

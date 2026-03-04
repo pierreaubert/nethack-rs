@@ -3,9 +3,9 @@
 
 use nh_compare::diff::compare_rng_traces;
 use nh_compare::snapshot::RngTraceEntry;
-use nh_core::player::{Gender, Race, Role};
-use nh_core::{GameLoop, GameRng, GameState};
 use nh_core::action::Command;
+use nh_core::player::{Gender, Race, Role};
+use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use serial_test::serial;
 
@@ -46,7 +46,9 @@ fn test_rng_trace_per_turn_rest() {
 
     // Initialize C engine
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 1, 0).expect("C init failed");
+    c_engine
+        .init("Valkyrie", "Human", 1, 0)
+        .expect("C init failed");
     c_engine.reset(seed).expect("C reset failed");
 
     // Initialize Rust engine
@@ -101,7 +103,10 @@ fn test_rng_trace_per_turn_rest() {
 
         // Compare traces
         if let Some(divergence) = compare_rng_traces(&rust_entries, &c_entries) {
-            println!("  DIVERGENCE at call {}: {}", divergence.call_index, divergence.description);
+            println!(
+                "  DIVERGENCE at call {}: {}",
+                divergence.call_index, divergence.description
+            );
             println!("  Rust context:");
             for e in &divergence.rust_context {
                 println!("    seq={} {}({}) -> {}", e.seq, e.func, e.arg, e.result);
@@ -133,7 +138,10 @@ fn test_rng_trace_per_turn_rest() {
     }
 
     if !divergence_found {
-        println!("\nNo RNG divergence found across {} turns of resting!", num_turns);
+        println!(
+            "\nNo RNG divergence found across {} turns of resting!",
+            num_turns
+        );
     } else {
         println!("\nRNG divergence detected — this identifies where code paths differ.");
     }
@@ -146,7 +154,9 @@ fn test_rng_trace_per_turn_rest() {
 #[serial]
 fn test_c_rng_tracing_smoke() {
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 0, 0).expect("C init failed");
+    c_engine
+        .init("Valkyrie", "Human", 0, 0)
+        .expect("C init failed");
 
     // Enable tracing
     c_engine.enable_rng_tracing();

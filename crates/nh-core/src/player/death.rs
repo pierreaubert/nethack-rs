@@ -6,8 +6,8 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use crate::monster::makemon::MonsterVitals;
 use crate::monster::PerMonst;
+use crate::monster::makemon::MonsterVitals;
 use crate::player::{Attribute, HungerState, You};
 
 // ============================================================================
@@ -155,8 +155,7 @@ pub fn savelife(player: &mut You, how: DeathType) {
 /// Returns the inventory index if found.
 pub fn player_has_life_saving(inventory: &[crate::object::Object]) -> Option<usize> {
     inventory.iter().position(|obj| {
-        obj.worn_mask != 0
-            && obj.name.as_ref().is_some_and(|n| n.contains("life saving"))
+        obj.worn_mask != 0 && obj.name.as_ref().is_some_and(|n| n.contains("life saving"))
     })
 }
 
@@ -291,10 +290,7 @@ pub struct Disclosure {
 ///
 /// Matches C `list_vanquished()` from end.c. Collects all monster types
 /// with non-zero death counts, sorts by count.
-pub fn list_vanquished(
-    vitals: &[MonsterVitals],
-    monsters_db: &[PerMonst],
-) -> Vec<(String, u16)> {
+pub fn list_vanquished(vitals: &[MonsterVitals], monsters_db: &[PerMonst]) -> Vec<(String, u16)> {
     let mut vanquished: Vec<(String, u16)> = Vec::new();
 
     for (i, v) in vitals.iter().enumerate() {
@@ -311,10 +307,7 @@ pub fn list_vanquished(
 /// Build genocided species list from monster vitals.
 ///
 /// Matches C `list_genocided()` from end.c.
-pub fn list_genocided(
-    vitals: &[MonsterVitals],
-    monsters_db: &[PerMonst],
-) -> Vec<String> {
+pub fn list_genocided(vitals: &[MonsterVitals], monsters_db: &[PerMonst]) -> Vec<String> {
     let mut genocided: Vec<String> = Vec::new();
 
     for (i, v) in vitals.iter().enumerate() {
@@ -336,10 +329,7 @@ pub fn num_extinct(vitals: &[MonsterVitals]) -> usize {
 }
 
 /// Build full disclosure for end of game.
-pub fn build_disclosure(
-    vitals: &[MonsterVitals],
-    monsters_db: &[PerMonst],
-) -> Disclosure {
+pub fn build_disclosure(vitals: &[MonsterVitals], monsters_db: &[PerMonst]) -> Disclosure {
     let vanquished = list_vanquished(vitals, monsters_db);
     let total_vanquished: u64 = vanquished.iter().map(|(_, c)| *c as u64).sum();
     let genocided = list_genocided(vitals, monsters_db);
@@ -359,7 +349,11 @@ pub fn build_disclosure(
 /// Unique monsters use "the" prefix and special count phrasing.
 pub fn format_vanquished_entry(name: &str, count: u16, is_unique: bool) -> String {
     if is_unique {
-        let prefix = if name.starts_with(|c: char| c.is_uppercase()) { "" } else { "the " };
+        let prefix = if name.starts_with(|c: char| c.is_uppercase()) {
+            ""
+        } else {
+            "the "
+        };
         match count {
             1 => format!("{prefix}{name}"),
             2 => format!("{prefix}{name} (twice)"),
@@ -462,9 +456,9 @@ pub struct GameEndInfo {
 mod tests {
     use super::*;
     use crate::combat::empty_attacks;
+    use crate::monster::MonsterSound;
     use crate::monster::makemon::MonsterVitals;
     use crate::monster::{MonsterFlags, MonsterResistances, MonsterSize, PerMonst};
-    use crate::monster::MonsterSound;
     use crate::player::{Gender, Race, Role};
 
     fn test_player() -> You {
@@ -604,7 +598,9 @@ mod tests {
 
         let mut inventory = Vec::new();
         let mut amulet = crate::object::Object::new(
-            crate::object::ObjectId(1), 0, crate::object::ObjectClass::Amulet,
+            crate::object::ObjectId(1),
+            0,
+            crate::object::ObjectClass::Amulet,
         );
         amulet.name = Some("amulet of life saving".to_string());
         amulet.worn_mask = 1;
@@ -639,7 +635,9 @@ mod tests {
 
         let mut inventory = Vec::new();
         let mut amulet = crate::object::Object::new(
-            crate::object::ObjectId(1), 0, crate::object::ObjectClass::Amulet,
+            crate::object::ObjectId(1),
+            0,
+            crate::object::ObjectClass::Amulet,
         );
         amulet.name = Some("amulet of life saving".to_string());
         amulet.worn_mask = 1;
@@ -767,14 +765,8 @@ mod tests {
 
     #[test]
     fn test_format_vanquished_unique() {
-        assert_eq!(
-            format_vanquished_entry("Medusa", 1, true),
-            "Medusa"
-        );
-        assert_eq!(
-            format_vanquished_entry("Medusa", 2, true),
-            "Medusa (twice)"
-        );
+        assert_eq!(format_vanquished_entry("Medusa", 1, true), "Medusa");
+        assert_eq!(format_vanquished_entry("Medusa", 2, true), "Medusa (twice)");
         assert_eq!(
             format_vanquished_entry("lich king", 1, true),
             "the lich king"
@@ -783,14 +775,8 @@ mod tests {
 
     #[test]
     fn test_format_vanquished_normal() {
-        assert_eq!(
-            format_vanquished_entry("kobold", 1, false),
-            "a kobold"
-        );
-        assert_eq!(
-            format_vanquished_entry("kobold", 5, false),
-            "  5 kobolds"
-        );
+        assert_eq!(format_vanquished_entry("kobold", 1, false), "a kobold");
+        assert_eq!(format_vanquished_entry("kobold", 5, false), "  5 kobolds");
     }
 
     #[test]
@@ -825,7 +811,9 @@ mod tests {
     #[test]
     fn test_artifact_score_with_artifact() {
         let mut obj = crate::object::Object::new(
-            crate::object::ObjectId(1), 0, crate::object::ObjectClass::Weapon,
+            crate::object::ObjectId(1),
+            0,
+            crate::object::ObjectClass::Weapon,
         );
         obj.artifact = 1; // mark as artifact
         let inventory = vec![obj];
@@ -837,10 +825,7 @@ mod tests {
 
     #[test]
     fn test_build_disclosure() {
-        let monsters_db = vec![
-            test_permonst("kobold", 1),
-            test_permonst("goblin", 1),
-        ];
+        let monsters_db = vec![test_permonst("kobold", 1), test_permonst("goblin", 1)];
         let mut vitals = vec![MonsterVitals::default(); 2];
         vitals[0].died = 3;
         vitals[0].born = 3;
@@ -866,7 +851,9 @@ mod tests {
 
         let mut inventory = Vec::new();
         let mut amulet = crate::object::Object::new(
-            crate::object::ObjectId(1), 0, crate::object::ObjectClass::Amulet,
+            crate::object::ObjectId(1),
+            0,
+            crate::object::ObjectClass::Amulet,
         );
         amulet.name = Some("amulet of life saving".to_string());
         amulet.worn_mask = 1;
@@ -874,8 +861,14 @@ mod tests {
 
         let killer = Killer::default();
         let result = process_death(
-            &mut player, &mut inventory, DeathType::Killed, &killer,
-            &[], &[], 0, 5,
+            &mut player,
+            &mut inventory,
+            DeathType::Killed,
+            &killer,
+            &[],
+            &[],
+            0,
+            5,
         );
 
         assert!(result.is_none()); // life saved
@@ -899,8 +892,14 @@ mod tests {
         vitals[0].died = 5;
 
         let result = process_death(
-            &mut player, &mut inventory, DeathType::Killed, &killer,
-            &vitals, &monsters_db, 0, 5,
+            &mut player,
+            &mut inventory,
+            DeathType::Killed,
+            &killer,
+            &vitals,
+            &monsters_db,
+            0,
+            5,
         );
 
         assert!(result.is_some());
@@ -925,8 +924,14 @@ mod tests {
         };
 
         let result = process_death(
-            &mut player, &mut inventory, DeathType::Ascended, &killer,
-            &[], &[], 0, 30,
+            &mut player,
+            &mut inventory,
+            DeathType::Ascended,
+            &killer,
+            &[],
+            &[],
+            0,
+            30,
         );
 
         assert!(result.is_some());

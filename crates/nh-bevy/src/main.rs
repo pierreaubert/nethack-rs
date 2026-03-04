@@ -1,13 +1,13 @@
 //! NetHack-rs Bevy 3D client
 
-use std::path::{Path, PathBuf};
 use bevy::asset::AssetPlugin;
 use bevy::prelude::*;
 use bevy_obj::ObjPlugin;
+use nh_assets::mapping::AssetMapping;
+use nh_assets::registry::AssetRegistry;
 use nh_bevy::GamePlugin;
 use nh_bevy::resources::{AssetRegistryResource, AssetsConfig};
-use nh_assets::registry::AssetRegistry;
-use nh_assets::mapping::AssetMapping;
+use std::path::{Path, PathBuf};
 
 /// Find the best candidate for the `assets` directory.
 fn find_assets_path() -> PathBuf {
@@ -46,7 +46,9 @@ fn main() {
     });
 
     App::new()
-        .insert_resource(AssetsConfig { base_path: base_assets.clone() })
+        .insert_resource(AssetsConfig {
+            base_path: base_assets.clone(),
+        })
         .insert_resource(AssetRegistryResource(registry))
         .add_plugins(
             DefaultPlugins

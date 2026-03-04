@@ -4,9 +4,9 @@ use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
-use crate::resources::GameStateResource;
-use crate::plugins::ui::UiState;
 use crate::plugins::game::AppState;
+use crate::plugins::ui::UiState;
+use crate::resources::GameStateResource;
 
 pub struct HudPlugin;
 
@@ -26,7 +26,9 @@ fn render_hud(
     game_state: Res<GameStateResource>,
     diagnostics: Res<DiagnosticsStore>,
 ) {
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     let player = &game_state.0.player;
     let state = &game_state.0;
 
@@ -42,19 +44,19 @@ fn render_hud(
                     ui.set_min_width(200.0);
 
                     // FPS
-                    if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
-                        if let Some(value) = fps.smoothed() {
-                            ui.label(
-                                egui::RichText::new(format!("FPS: {:.0}", value))
-                                    .color(if value < 30.0 {
-                                        egui::Color32::RED
-                                    } else {
-                                        egui::Color32::GREEN
-                                    })
-                                    .small(),
-                            );
-                            ui.add_space(2.0);
-                        }
+                    if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS)
+                        && let Some(value) = fps.smoothed()
+                    {
+                        ui.label(
+                            egui::RichText::new(format!("FPS: {:.0}", value))
+                                .color(if value < 30.0 {
+                                    egui::Color32::RED
+                                } else {
+                                    egui::Color32::GREEN
+                                })
+                                .small(),
+                        );
+                        ui.add_space(2.0);
                     }
 
                     // Player name and level
@@ -250,6 +252,4 @@ fn render_hud(
                     );
                 });
         });
-
-    
 }

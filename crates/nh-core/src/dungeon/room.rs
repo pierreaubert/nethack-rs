@@ -513,7 +513,6 @@ pub fn somexy(
     level: &super::Level,
     rng: &mut GameRng,
 ) -> Option<(usize, usize)> {
-    use super::CellType;
     use super::generation::ROOMOFFSET;
 
     let roomno = (room_index + ROOMOFFSET as usize) as u8;

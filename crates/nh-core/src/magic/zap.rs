@@ -6,7 +6,7 @@
 use crate::compat::*;
 
 use crate::combat::DamageType;
-use crate::dungeon::{DLevel, Level};
+use crate::dungeon::Level;
 use crate::monster::MonsterId;
 use crate::object::Object;
 use crate::player::{Property, You};
@@ -424,9 +424,10 @@ fn handle_immediate_wand(
         358 => {
             // WandOfProbing
             if direction == ZapDirection::Self_ {
-                result
-                    .messages
-                    .push(format!("You are level {} with {}/{} HP.", player.exp_level, player.hp, player.hp_max));
+                result.messages.push(format!(
+                    "You are level {} with {}/{} HP.",
+                    player.exp_level, player.hp, player.hp_max
+                ));
             } else if let Some(monster) = level.monster_at_mut(tx, ty) {
                 let msgs = probe_monster(monster);
                 result.messages.extend(msgs);
@@ -751,7 +752,7 @@ fn zap_direction(
         if level.monster_at(x, y).is_some() {
             let reflects = level
                 .monster_at(x, y)
-                .is_some_and(|m| crate::monster::mon_has_reflection(m));
+                .is_some_and(crate::monster::mon_has_reflection);
             if reflects {
                 result
                     .messages
@@ -1306,9 +1307,7 @@ fn apply_buzz_to_player(
                 result.messages.push("You resist!".to_string());
             } else {
                 // Death ray kills unless magic resistant
-                result
-                    .messages
-                    .push("The death ray hits you!".to_string());
+                result.messages.push("The death ray hits you!".to_string());
                 player.hp = 0;
                 result.player_damage = player.hp_max;
                 result.player_died = true;
@@ -1468,17 +1467,13 @@ fn apply_mbhit_to_player(
                     player.prev_pos = player.pos;
                     player.pos.x = nx;
                     player.pos.y = ny;
-                    result
-                        .messages
-                        .push("You are teleported!".to_string());
+                    result.messages.push("You are teleported!".to_string());
                     break;
                 }
             }
         }
         MbhitEffect::Speed => {
-            result
-                .messages
-                .push("You speed up!".to_string());
+            result.messages.push("You speed up!".to_string());
             // Speed effect is handled via properties system
             player.properties.grant_intrinsic(Property::Speed);
         }
@@ -1526,9 +1521,10 @@ fn apply_mbhit_to_monster(
         MbhitEffect::Striking => {
             let damage = rng.dice(2, 12) as i32;
             monster.hp -= damage;
-            result
-                .messages
-                .push(format!("The {} is hit for {} damage!", monster.name, damage));
+            result.messages.push(format!(
+                "The {} is hit for {} damage!",
+                monster.name, damage
+            ));
             if monster.hp <= 0 {
                 result.killed.push(monster.id);
             }
@@ -1545,12 +1541,12 @@ fn apply_mbhit_to_monster(
 /// Map MUSE offensive constant to ZapType for wand attacks
 pub fn muse_wand_to_zap_type(muse_type: i32) -> Option<ZapType> {
     match muse_type {
-        20 => Some(ZapType::Death),          // MUSE_WAN_DEATH
-        21 => Some(ZapType::Sleep),          // MUSE_WAN_SLEEP
-        22 => Some(ZapType::Fire),           // MUSE_WAN_FIRE
-        24 => Some(ZapType::Cold),           // MUSE_WAN_COLD
-        26 => Some(ZapType::Lightning),      // MUSE_WAN_LIGHTNING
-        27 => Some(ZapType::MagicMissile),   // MUSE_WAN_MAGIC_MISSILE
+        20 => Some(ZapType::Death),        // MUSE_WAN_DEATH
+        21 => Some(ZapType::Sleep),        // MUSE_WAN_SLEEP
+        22 => Some(ZapType::Fire),         // MUSE_WAN_FIRE
+        24 => Some(ZapType::Cold),         // MUSE_WAN_COLD
+        26 => Some(ZapType::Lightning),    // MUSE_WAN_LIGHTNING
+        27 => Some(ZapType::MagicMissile), // MUSE_WAN_MAGIC_MISSILE
         _ => None,
     }
 }
@@ -1558,8 +1554,8 @@ pub fn muse_wand_to_zap_type(muse_type: i32) -> Option<ZapType> {
 /// Map MUSE horn constant to ZapType
 pub fn muse_horn_to_zap_type(muse_type: i32) -> Option<ZapType> {
     match muse_type {
-        23 => Some(ZapType::Fire),  // MUSE_FIRE_HORN
-        25 => Some(ZapType::Cold),  // MUSE_FROST_HORN
+        23 => Some(ZapType::Fire), // MUSE_FIRE_HORN
+        25 => Some(ZapType::Cold), // MUSE_FROST_HORN
         _ => None,
     }
 }
@@ -1930,7 +1926,10 @@ pub fn cancel_monst(monster: &mut crate::monster::Monster) -> Vec<String> {
     // Revert shapeshifters to original form
     if monster.monster_type != monster.original_type {
         monster.monster_type = monster.original_type;
-        messages.push(format!("The {} reverts to its original form.", monster.name));
+        messages.push(format!(
+            "The {} reverts to its original form.",
+            monster.name
+        ));
     }
 
     // Remove invisibility
@@ -1955,7 +1954,11 @@ pub fn probe_monster(monster: &crate::monster::Monster) -> Vec<String> {
         messages.push(format!(
             "  Carrying {} item{}.",
             monster.inventory.len(),
-            if monster.inventory.len() == 1 { "" } else { "s" }
+            if monster.inventory.len() == 1 {
+                ""
+            } else {
+                "s"
+            }
         ));
         for item in &monster.inventory {
             messages.push(format!("    {}", item.display_name()));
@@ -2091,29 +2094,6 @@ pub enum ObjectMaterial {
 // ============================================================================
 // Object Transformation Helper Functions
 // ============================================================================
-
-/// Detect material of an object based on type
-fn detect_object_material(object_type: i16) -> Option<ObjectMaterial> {
-    // Simplified material detection based on object type
-    // In full implementation, would check oc_material array
-    match object_type {
-        // Iron items (weapons, armor)
-        1..=100 if object_type % 10 == 1 => Some(ObjectMaterial::Iron),
-        // Gold items
-        200..=250 => Some(ObjectMaterial::Gold),
-        // Glass items
-        350..=380 => Some(ObjectMaterial::Glass),
-        // Wood items (staves, bows)
-        50..=70 => Some(ObjectMaterial::Wood),
-        // Stone/Rock items
-        0..=10 => Some(ObjectMaterial::Stone),
-        // Leather armor
-        150..=170 => Some(ObjectMaterial::Leather),
-        // Paper (books, scrolls)
-        300..=320 => Some(ObjectMaterial::Paper),
-        _ => None,
-    }
-}
 
 /// Check if object is a mineral/stone type that can be transformed
 fn is_mineral_object(object_type: i16) -> bool {
@@ -2486,7 +2466,9 @@ pub fn explode(
     };
 
     let str_name = explosion_name(damage_type, source);
-    result.messages.push(format!("There is an explosion of {}!", str_name));
+    result
+        .messages
+        .push(format!("There is an explosion of {}!", str_name));
 
     // Build 3x3 resistance mask: 0=normal, 1=shielded (resists), 2=skip (invalid)
     let mut explmask = [[0u8; 3]; 3];
@@ -2502,10 +2484,8 @@ pub fn explode(
             }
 
             // Check player resistance at this cell
-            if cx == player.pos.x && cy == player.pos.y {
-                if player_resists(player, damage_type) {
-                    explmask[i as usize][j as usize] = 1;
-                }
+            if cx == player.pos.x && cy == player.pos.y && player_resists(player, damage_type) {
+                explmask[i as usize][j as usize] = 1;
             }
 
             // Check monster resistance at this cell
@@ -2548,22 +2528,22 @@ pub fn explode(
 
                 if shielded {
                     // Shielded: only item destruction damage, not blast damage
-                    result.messages.push(format!(
-                        "{} resists the {}!", mon.name, str_name
-                    ));
+                    result
+                        .messages
+                        .push(format!("{} resists the {}!", mon.name, str_name));
                     let item_dam = (base_damage + 1) / 2;
                     mon.hp -= item_dam;
                 } else {
-                    result.messages.push(format!(
-                        "{} is caught in the {}!", mon.name, str_name
-                    ));
+                    result
+                        .messages
+                        .push(format!("{} is caught in the {}!", mon.name, str_name));
                     let mut mdam = base_damage;
 
                     // Cross-resistance vulnerability: fire-resistant takes
                     // double cold, and cold-resistant takes double fire
-                    if mon.resists_cold() && damage_type == DamageType::Fire {
-                        mdam *= 2;
-                    } else if mon.resists_fire() && damage_type == DamageType::Cold {
+                    if (mon.resists_cold() && damage_type == DamageType::Fire)
+                        || (mon.resists_fire() && damage_type == DamageType::Cold)
+                    {
                         mdam *= 2;
                     }
 
@@ -2591,7 +2571,9 @@ pub fn explode(
         if explmask[pi][pj] != 2 {
             let shielded = explmask[pi][pj] == 1;
 
-            result.messages.push(format!("You are caught in the {}!", str_name));
+            result
+                .messages
+                .push(format!("You are caught in the {}!", str_name));
 
             // Fire burns away slime
             // (tracked via message — full implementation pending)
@@ -2607,7 +2589,8 @@ pub fn explode(
             }
 
             // Item destruction tracking (scrolls, potions, wands, rings)
-            if matches!(damage_type,
+            if matches!(
+                damage_type,
                 DamageType::Fire | DamageType::Cold | DamageType::Electric | DamageType::Acid
             ) {
                 let destroyed = match damage_type {
@@ -2650,7 +2633,16 @@ pub fn explode_oil(
     rng: &mut GameRng,
 ) -> ExplosionResult {
     let damage = rng.dice(4, 4) as i32;
-    explode(x, y, DamageType::Fire, damage, ExplosionSource::Oil, player, level, rng)
+    explode(
+        x,
+        y,
+        DamageType::Fire,
+        damage,
+        ExplosionSource::Oil,
+        player,
+        level,
+        rng,
+    )
 }
 
 /// Splatter burning oil - lesser explosion
@@ -2669,7 +2661,16 @@ pub fn splatter_burning_oil(
         rng.dice(4, 4) as i32
     };
 
-    explode(x, y, DamageType::Fire, damage, ExplosionSource::Oil, player, level, rng)
+    explode(
+        x,
+        y,
+        DamageType::Fire,
+        damage,
+        ExplosionSource::Oil,
+        player,
+        level,
+        rng,
+    )
 }
 
 // ============================================================================
@@ -2808,7 +2809,7 @@ pub fn breakobj(object: &Object, _x: i8, _y: i8, hero_caused: bool) -> BreakingR
 // ============================================================================
 
 /// Calculate wand wear factor based on use
-pub fn calculate_wand_wear(wand: &Object, uses: i32) -> f32 {
+pub fn calculate_wand_wear(_wand: &Object, uses: i32) -> f32 {
     let wear_per_use = 0.05_f32; // 5% wear per use
     let max_wear = 1.0_f32;
 
@@ -2969,10 +2970,10 @@ pub fn fracture_rock(level: &mut Level, x: i8, y: i8) -> FractureResult {
 ///
 /// Adapted from zap.c break_statue()
 pub fn break_statue(
-    level: &mut Level,
+    _level: &mut Level,
     object: &Object,
-    x: i8,
-    y: i8,
+    _x: i8,
+    _y: i8,
     rng: &mut GameRng,
 ) -> FractureResult {
     let mut result = FractureResult::new();
@@ -3177,7 +3178,7 @@ pub fn elemental_clog(
         }
 
         // Track least powerful monster
-        if let Some(ref lowest) = lowest_level_mon {
+        if let Some(lowest) = lowest_level_mon {
             if mon.level < lowest.level {
                 lowest_level_mon = Some(mon);
             }
@@ -3483,13 +3484,6 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_material_iron() {
-        // Test material detection for iron (simplified ranges)
-        let material = detect_object_material(11);
-        assert_eq!(material, Some(ObjectMaterial::Iron));
-    }
-
-    #[test]
     fn test_is_mineral_object_boulder() {
         // Boulders are in 0..=20 range
         assert!(is_mineral_object(5));
@@ -3647,7 +3641,16 @@ mod tests {
         let mut level = Level::new(DLevel::default());
         let mut rng = GameRng::new(42);
 
-        let result = explode(5, 5, DamageType::Fire, 10, ExplosionSource::Spell, &mut player, &mut level, &mut rng);
+        let result = explode(
+            5,
+            5,
+            DamageType::Fire,
+            10,
+            ExplosionSource::Spell,
+            &mut player,
+            &mut level,
+            &mut rng,
+        );
 
         assert!(!result.messages.is_empty());
     }
@@ -3661,7 +3664,16 @@ mod tests {
         let mut level = Level::new(DLevel::default());
         let mut rng = GameRng::new(42);
 
-        let result = explode(5, 5, DamageType::Fire, 10, ExplosionSource::Spell, &mut player, &mut level, &mut rng);
+        let result = explode(
+            5,
+            5,
+            DamageType::Fire,
+            10,
+            ExplosionSource::Spell,
+            &mut player,
+            &mut level,
+            &mut rng,
+        );
 
         assert!(result.player_damage > 0);
         assert!(player.hp < 50);
@@ -3677,7 +3689,16 @@ mod tests {
         let mut level = Level::new(DLevel::default());
         let mut rng = GameRng::new(42);
 
-        let result = explode(5, 5, DamageType::Fire, 20, ExplosionSource::Spell, &mut player, &mut level, &mut rng);
+        let result = explode(
+            5,
+            5,
+            DamageType::Fire,
+            20,
+            ExplosionSource::Spell,
+            &mut player,
+            &mut level,
+            &mut rng,
+        );
 
         // With resistance: half damage = (20+1)/2 = 10
         assert_eq!(result.player_damage, 10);
@@ -3689,7 +3710,16 @@ mod tests {
         let mut level = Level::new(DLevel::default());
         let mut rng = GameRng::new(42);
 
-        let result = explode(5, 5, DamageType::Cold, 10, ExplosionSource::Spell, &mut player, &mut level, &mut rng);
+        let result = explode(
+            5,
+            5,
+            DamageType::Cold,
+            10,
+            ExplosionSource::Spell,
+            &mut player,
+            &mut level,
+            &mut rng,
+        );
 
         assert!(!result.messages.is_empty());
     }
@@ -3705,7 +3735,16 @@ mod tests {
         let mut level = Level::new(DLevel::default());
         let mut rng = GameRng::new(42);
 
-        let result = explode(5, 5, DamageType::MagicMissile, 50, ExplosionSource::Wand, &mut player, &mut level, &mut rng);
+        let result = explode(
+            5,
+            5,
+            DamageType::MagicMissile,
+            50,
+            ExplosionSource::Wand,
+            &mut player,
+            &mut level,
+            &mut rng,
+        );
 
         // Wizard: 50/5 = 10 damage
         assert_eq!(result.player_damage, 10);
@@ -4161,7 +4200,10 @@ mod tests {
         monster.state.invisible = true;
         let msgs = cancel_monst(&mut monster);
         assert!(monster.state.cancelled);
-        assert!(!monster.state.invisible, "Cancellation should remove invisibility");
+        assert!(
+            !monster.state.invisible,
+            "Cancellation should remove invisibility"
+        );
         assert!(!msgs.is_empty());
     }
 
@@ -4208,8 +4250,17 @@ mod tests {
         monster.resistances = MonsterResistances::SLEEP;
         let mut rng = GameRng::new(42);
         let mut result = ZapResult::new();
-        hit_monster_with_ray(&mut monster, ZapType::Sleep, ZapVariant::Wand, &mut rng, &mut result);
-        assert!(!monster.state.sleeping, "Sleep resistant monster should not fall asleep");
+        hit_monster_with_ray(
+            &mut monster,
+            ZapType::Sleep,
+            ZapVariant::Wand,
+            &mut rng,
+            &mut result,
+        );
+        assert!(
+            !monster.state.sleeping,
+            "Sleep resistant monster should not fall asleep"
+        );
         assert!(result.messages.iter().any(|m| m.contains("not affected")));
     }
 
@@ -4224,8 +4275,17 @@ mod tests {
         monster.resistances = MonsterResistances::ELEC;
         let mut rng = GameRng::new(42);
         let mut result = ZapResult::new();
-        hit_monster_with_ray(&mut monster, ZapType::Lightning, ZapVariant::Wand, &mut rng, &mut result);
-        assert_eq!(monster.hp, 50, "Electricity resistant monster should take no damage");
+        hit_monster_with_ray(
+            &mut monster,
+            ZapType::Lightning,
+            ZapVariant::Wand,
+            &mut rng,
+            &mut result,
+        );
+        assert_eq!(
+            monster.hp, 50,
+            "Electricity resistant monster should take no damage"
+        );
         assert!(result.messages.iter().any(|m| m.contains("not affected")));
     }
 
@@ -4240,8 +4300,17 @@ mod tests {
         monster.resistances = MonsterResistances::MAGIC;
         let mut rng = GameRng::new(42);
         let mut result = ZapResult::new();
-        hit_monster_with_ray(&mut monster, ZapType::Death, ZapVariant::Wand, &mut rng, &mut result);
-        assert!(monster.hp > 0, "Magic resistant monster should survive death ray");
+        hit_monster_with_ray(
+            &mut monster,
+            ZapType::Death,
+            ZapVariant::Wand,
+            &mut rng,
+            &mut result,
+        );
+        assert!(
+            monster.hp > 0,
+            "Magic resistant monster should survive death ray"
+        );
         assert!(result.messages.iter().any(|m| m.contains("resists")));
     }
 }

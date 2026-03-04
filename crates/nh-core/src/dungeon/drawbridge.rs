@@ -35,7 +35,7 @@ use direction::*;
 use under_type::*;
 
 /// Entity on a drawbridge (player or monster)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Entity {
     /// Monster reference (None for player)
     pub monster_id: Option<usize>,
@@ -47,18 +47,6 @@ pub struct Entity {
     pub ey: i8,
     /// Whether entity data is valid
     pub valid: bool,
-}
-
-impl Default for Entity {
-    fn default() -> Self {
-        Self {
-            monster_id: None,
-            is_player: false,
-            ex: 0,
-            ey: 0,
-            valid: false,
-        }
-    }
 }
 
 impl Entity {

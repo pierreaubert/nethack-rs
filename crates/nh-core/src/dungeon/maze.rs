@@ -10,8 +10,7 @@ use crate::{COLNO, ROWNO};
 
 use super::DLevel;
 use super::cell::CellType;
-use super::level::{Level, Stairway, TrapType};
-use super::room::Room;
+use super::level::Level;
 
 /// Coordinate structure for maze operations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,19 +41,19 @@ pub fn mazexy(level: &Level, rng: &mut GameRng) -> Coord {
     let x_maze_max = (COLNO - 1) & !1;
     let y_maze_max = (ROWNO - 1) & !1;
     let mut cpt = 0;
-    
+
     loop {
         let x = 1 + rng.rn2(x_maze_max as u32) as usize;
         let y = 1 + rng.rn2(y_maze_max as u32) as usize;
         cpt += 1;
-        
+
         let typ = &level.cells[x][y].typ;
         let is_pass = if level.flags.corridor_maze {
             *typ == CellType::Corridor
         } else {
             *typ == CellType::Room
         };
-        
+
         if cpt >= 100 || is_pass {
             return Coord { x, y };
         }
@@ -64,17 +63,22 @@ pub fn mazexy(level: &Level, rng: &mut GameRng) -> Coord {
 /// Place stairs on the level
 /// Matches C's mkstairs() in mklev.c
 pub fn mkstairs(level: &mut Level, x: usize, y: usize, up: bool) {
-    if x == 0 { return; }
-    
-    // In NetHack, stairs are placed on the map. 
+    if x == 0 {
+        return;
+    }
+
+    // In NetHack, stairs are placed on the map.
     level.cells[x][y].typ = CellType::Stairs;
-    
+
     // In Rust Level, we also store them in the stairs vector
     level.stairs.push(super::level::Stairway {
         x: x as i8,
         y: y as i8,
         up,
-        destination: DLevel::new(level.dlevel.dungeon_num, level.dlevel.level_num + if up { -1 } else { 1 }),
+        destination: DLevel::new(
+            level.dlevel.dungeon_num,
+            level.dlevel.level_num + if up { -1 } else { 1 },
+        ),
     });
 }
 
@@ -89,17 +93,17 @@ pub fn maze_inbounds(x: usize, y: usize, x_maze_max: usize, y_maze_max: usize) -
 fn okay(level: &Level, x: i32, y: i32, dir: usize, x_maze_max: usize, y_maze_max: usize) -> bool {
     let mut nx = x + MZ_DIRS[dir].0;
     let mut ny = y + MZ_DIRS[dir].1;
-    
+
     // mz_move(x, y, dir); // first step
-    
+
     // mz_move(x, y, dir); // second step
     nx += MZ_DIRS[dir].0;
     ny += MZ_DIRS[dir].1;
-    
+
     if nx < 3 || ny < 3 || nx > (x_maze_max as i32) || ny > (y_maze_max as i32) {
         return false;
     }
-    
+
     // Must be stone to be carveable
     level.cells[nx as usize][ny as usize].typ == CellType::Stone
 }
@@ -173,28 +177,20 @@ pub fn walkfrom(
 
 /// Create a maze with specified corridor width and wall thickness
 /// Matches C's create_maze() in mkmaze.c
-fn create_maze(
-    level: &mut Level,
-    mut corrwid: i32,
-    mut wallthick: i32,
-    rng: &mut GameRng,
-) {
-    if wallthick < 1 { wallthick = 1; }
-    else if wallthick > 5 { wallthick = 5; }
-    
-    if corrwid < 1 { corrwid = 1; }
-    else if corrwid > 5 { corrwid = 5; }
-    
+fn create_maze(level: &mut Level, mut corrwid: i32, mut wallthick: i32, rng: &mut GameRng) {
+    wallthick = wallthick.clamp(1, 5);
+    corrwid = corrwid.clamp(1, 5);
+
     let scale = (corrwid + wallthick) as usize;
     let x_maze_max = (COLNO - 1) & !1;
     let y_maze_max = (ROWNO - 1) & !1;
-    
+
     let rdx = x_maze_max / scale;
     let rdy = y_maze_max / scale;
-    
+
     let sub_xmax = rdx * 2;
     let sub_ymax = rdy * 2;
-    
+
     // 1. Initial sub-maze initialization
     if level.flags.corridor_maze {
         for x in 2..sub_xmax {
@@ -213,51 +209,59 @@ fn create_maze(
             }
         }
     }
-    
+
     // 2. Walkfrom on sub-maze
     let mm = maze0xy(sub_xmax, sub_ymax, rng);
     walkfrom(level, mm.x, mm.y, CellType::Stone, sub_xmax, sub_ymax, rng);
-    
+
     // Dead ends
     if rng.rn2(5) == 0 {
-        let typ = if level.flags.corridor_maze { CellType::Corridor } else { CellType::Room };
+        let typ = if level.flags.corridor_maze {
+            CellType::Corridor
+        } else {
+            CellType::Room
+        };
         maze_remove_deadends(level, sub_xmax, sub_ymax, typ, rng);
     }
-    
+
     // 3. Scaling up
     if scale > 2 {
         let mut tmpmap = [[CellType::Stone; ROWNO]; COLNO];
-        for x in 2..=sub_xmax {
-            for y in 2..=sub_ymax {
-                tmpmap[x][y] = level.cells[x][y].typ;
+        for (x, tmpmap_col) in tmpmap.iter_mut().enumerate().skip(2).take(sub_xmax - 1) {
+            for (y, tmpmap_cell) in tmpmap_col.iter_mut().enumerate().skip(2).take(sub_ymax - 1) {
+                *tmpmap_cell = level.cells[x][y].typ;
             }
         }
-        
+
         // Clear level first
         for x in 2..=x_maze_max {
             for y in 2..=y_maze_max {
                 level.cells[x][y].typ = CellType::Stone;
             }
         }
-        
+
         let mut rx = 2;
         let mut x = 2;
         while rx < x_maze_max {
             let mx = if x % 2 != 0 {
                 corrwid as usize
+            } else if x == 2 || x == sub_xmax {
+                1
             } else {
-                if x == 2 || x == sub_xmax { 1 } else { wallthick as usize }
+                wallthick as usize
             };
-            
+
             let mut ry = 2;
             let mut y = 2;
             while ry < y_maze_max {
                 let my = if y % 2 != 0 {
                     corrwid as usize
+                } else if y == 2 || y == sub_ymax {
+                    1
                 } else {
-                    if y == 2 || y == sub_ymax { 1 } else { wallthick as usize }
+                    wallthick as usize
                 };
-                
+
                 for dx in 0..mx {
                     for dy in 0..my {
                         if rx + dx >= x_maze_max || ry + dy >= y_maze_max {
@@ -289,38 +293,39 @@ pub fn maze_remove_deadends(
             if is_accessible(&level.cells[x][y].typ) && (x % 2 != 0) && (y % 2 != 0) {
                 let mut idx = 0;
                 let mut idx2 = 0;
-                for dir in 0..4 {
+                for (dir, &(mz_dx, mz_dy)) in MZ_DIRS[..4].iter().enumerate() {
                     let mut dx = x as i32;
                     let mut dy = y as i32;
                     let mut dx2 = x as i32;
                     let mut dy2 = y as i32;
-                    
+
                     // mz_move(dx, dy, dir)
-                    dx += MZ_DIRS[dir].0;
-                    dy += MZ_DIRS[dir].1;
-                    
+                    dx += mz_dx;
+                    dy += mz_dy;
+
                     if !maze_inbounds(dx as usize, dy as usize, x_maze_max, y_maze_max) {
                         idx2 += 1;
                         continue;
                     }
-                    
+
                     // mz_move(dx2, dy2, dir) * 2
-                    dx2 += 2 * MZ_DIRS[dir].0;
-                    dy2 += 2 * MZ_DIRS[dir].1;
-                    
+                    dx2 += 2 * mz_dx;
+                    dy2 += 2 * mz_dy;
+
                     if !maze_inbounds(dx2 as usize, dy2 as usize, x_maze_max, y_maze_max) {
                         idx2 += 1;
                         continue;
                     }
-                    
+
                     if !is_accessible(&level.cells[dx as usize][dy as usize].typ)
-                        && is_accessible(&level.cells[dx2 as usize][dy2 as usize].typ) {
+                        && is_accessible(&level.cells[dx2 as usize][dy2 as usize].typ)
+                    {
                         dirok[idx] = dir;
                         idx += 1;
                         idx2 += 1;
                     }
                 }
-                
+
                 if idx2 >= 3 && idx > 0 {
                     let dir = dirok[rng.rn2(idx as u32) as usize];
                     let nx = (x as i32 + MZ_DIRS[dir].0) as usize;
@@ -346,7 +351,7 @@ pub fn generate_maze(level: &mut Level, is_invocation: bool, rng: &mut GameRng) 
             level.cells[x][y].lit = depth < 10;
         }
     }
-    
+
     if !is_invocation && rng.rn2(2) != 0 {
         let corrwid = rng.rnd(4) as i32;
         let wallthick = rng.rnd(4) as i32 - corrwid;
@@ -358,11 +363,11 @@ pub fn generate_maze(level: &mut Level, is_invocation: bool, rng: &mut GameRng) 
     if !level.flags.corridor_maze {
         fix_maze_walls(level);
     }
-    
+
     // Stairs (makemaz additions)
     let up_stair = mazexy(level, rng);
     mkstairs(level, up_stair.x, up_stair.y, true);
-    
+
     if !is_invocation {
         let down_stair = mazexy(level, rng);
         mkstairs(level, down_stair.x, down_stair.y, false);
@@ -406,7 +411,8 @@ fn is_accessible(typ: &CellType) -> bool {
 }
 
 fn wall_type_from_neighbors(north: bool, south: bool, east: bool, west: bool) -> CellType {
-    let index = (north as usize) << 3 | (south as usize) << 2 | (east as usize) << 1 | (west as usize);
+    let index =
+        (north as usize) << 3 | (south as usize) << 2 | (east as usize) << 1 | (west as usize);
     match index {
         0b0000 => CellType::VWall,
         0b0001 => CellType::HWall,
@@ -430,7 +436,11 @@ fn wall_type_from_neighbors(north: bool, south: bool, east: bool, west: bool) ->
 
 /// Check if a level should be a maze
 pub fn is_maze_level(dlevel: &DLevel) -> bool {
-    if dlevel.dungeon_num == 1 { return true; }
-    if dlevel.dungeon_num == 0 && dlevel.level_num >= 25 { return true; }
+    if dlevel.dungeon_num == 1 {
+        return true;
+    }
+    if dlevel.dungeon_num == 0 && dlevel.level_num >= 25 {
+        return true;
+    }
     false
 }

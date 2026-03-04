@@ -274,8 +274,8 @@ pub fn calculate_score(
 /// * `when` - Timestamp when the game ended
 /// * `entry` - The score entry to add
 pub fn topten(
-    how: i32,
-    when: u64,
+    _how: i32,
+    _when: u64,
     entry: ScoreEntry,
     path: &Path,
 ) -> Result<Option<usize>, TopTenError> {
@@ -329,13 +329,11 @@ pub fn format_score_entry(rank: usize, entry: &ScoreEntry, standout: bool) -> St
         status
     );
 
-    let line = if standout {
+    if standout {
         format!("{} {}", line, suffix)
     } else {
         line
-    };
-
-    line
+    }
 }
 
 /// Print formatted score list to output
@@ -405,17 +403,17 @@ pub fn get_random_topten_entry(scores: &HighScores) -> Option<(String, String)> 
     }
 
     use std::collections::hash_map::RandomState;
-    use std::hash::{BuildHasher, Hash, Hasher};
+    use std::hash::BuildHasher;
 
     let random_state = RandomState::new();
-    let mut hasher = random_state.build_hasher();
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()?
-        .as_nanos()
-        .hash(&mut hasher);
 
-    let index = (hasher.finish() as usize) % scores.entries.len();
+    let index = (random_state.hash_one(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()?
+            .as_nanos(),
+    ) as usize)
+        % scores.entries.len();
     let entry = &scores.entries[index];
 
     Some((entry.name.clone(), entry.role.clone()))
@@ -425,7 +423,7 @@ pub fn get_random_topten_entry(scores: &HighScores) -> Option<(String, String)> 
 ///
 /// Equivalent to `writexlentry()` - writes entry in tab-separated xlog format
 /// used by many NetHack servers for tracking games.
-pub fn format_xlog_entry(entry: &ScoreEntry, how: i32) -> String {
+pub fn format_xlog_entry(entry: &ScoreEntry, _how: i32) -> String {
     format!(
         "version=3.6\tplayer={}\tscore={}\tlevel={}\tstartime={}\tendtime={}\t\
          role={}\tce={}\talignment={}\tgender={}\trealtime={}\tturn={}\t\

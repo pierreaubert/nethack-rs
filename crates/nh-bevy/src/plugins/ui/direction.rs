@@ -13,11 +13,13 @@ pub struct DirectionPlugin;
 impl Plugin for DirectionPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DirectionSelectState>()
-            .add_systems(Update, handle_direction_input.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                Update,
+                handle_direction_input.run_if(in_state(AppState::Playing)),
+            )
             .add_systems(
                 EguiPrimaryContextPass,
-                render_direction_ui
-                    .run_if(in_state(AppState::Playing)),
+                render_direction_ui.run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -162,10 +164,12 @@ fn render_direction_ui(
     game_state: Res<GameStateResource>,
 ) {
     if !dir_state.active {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     let action_name = dir_state
         .action
         .as_ref()
@@ -296,6 +300,4 @@ fn render_direction_ui(
                     );
                 });
         });
-
-    
 }

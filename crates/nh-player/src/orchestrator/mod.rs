@@ -4,12 +4,12 @@
 //! between the Rust and C implementations using the virtual player.
 
 use crate::agent::{SessionResult, VirtualPlayer, VirtualPlayerConfig};
-use crate::ffi::CGameEngine;
-use nh_core::CGameEngineTrait;
 use crate::compare::compare_states;
+use crate::ffi::CGameEngine;
 use crate::state::c_extractor::CGameWrapper;
 use crate::state::common::*;
 use crate::state::rust_extractor::RustGameEngine;
+use nh_core::CGameEngineTrait;
 use nh_core::player::Position;
 
 /// Main orchestrator for dual-game comparison
@@ -41,8 +41,10 @@ impl DualGameOrchestrator {
         c_engine: &mut E,
         seed: u64,
     ) -> SessionResult {
-        let mut result = SessionResult::default();
-        result.seed = seed;
+        let mut result = SessionResult {
+            seed,
+            ..SessionResult::default()
+        };
 
         // Initialize wrappers
         // Need to do this before creating c_wrapper which takes a mutable borrow
@@ -56,7 +58,7 @@ impl DualGameOrchestrator {
 
         // Get initial C state to find where C placed the player
         let c_state_initial = c_wrapper.extract_state();
-        
+
         // SYNC PLAYER POSITION: Move Rust player to where C engine placed them
         rust_loop.state_mut().player.pos = Position::new(
             c_state_initial.position.0 as i8,
@@ -68,7 +70,7 @@ impl DualGameOrchestrator {
 
         // Get initial states for comparison loop
         let mut rust_state = rust_wrapper.extract_state();
-        let mut c_state = c_wrapper.extract_state();
+        let _c_state = c_wrapper.extract_state();
 
         // Ensure C position and stats match Rust's initial (potentially modified by map sync)
         c_wrapper.set_state(
@@ -89,7 +91,7 @@ impl DualGameOrchestrator {
             let action = self.player.select_action(&rust_state);
 
             // Execute on Rust
-            let (rust_reward, rust_message) = rust_wrapper.step(&action);
+            let (rust_reward, _rust_message) = rust_wrapper.step(&action);
             let rust_messages = rust_wrapper.last_messages();
 
             // RE-SYNC State before C step to ensure C is testing the SAME situation
@@ -104,7 +106,7 @@ impl DualGameOrchestrator {
             );
 
             // Execute on C
-            let (c_reward, c_message) = c_wrapper.step(&action);
+            let (c_reward, _c_message) = c_wrapper.step(&action);
             let c_messages = c_wrapper.last_messages();
 
             // Get new states
@@ -146,7 +148,6 @@ impl DualGameOrchestrator {
 
             // Update states
             rust_state = new_rust_state;
-            c_state = new_c_state;
             result.total_reward += combined_reward;
             result.total_turns = turn + 1;
 
@@ -195,8 +196,8 @@ impl DualGameOrchestrator {
     /// Run multiple sessions with different seeds
     pub fn run_multiple_sessions(
         &mut self,
-        rust_loop: &mut nh_core::GameLoop,
-        c_engine: &mut CGameEngine,
+        _rust_loop: &mut nh_core::GameLoop,
+        _c_engine: &mut CGameEngine,
         seeds: &[u64],
     ) -> Vec<SessionResult> {
         seeds

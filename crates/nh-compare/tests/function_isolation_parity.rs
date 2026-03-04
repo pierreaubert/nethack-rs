@@ -4,15 +4,16 @@
 //! identical inputs and comparing outputs. This isolates bugs to specific
 //! functions without needing to trace through the entire generation chain.
 
+use nh_core::CGameEngineTrait;
+use nh_core::GameRng;
 use nh_core::dungeon::corridor::finddpos;
 use nh_core::dungeon::generation::carve_room;
 use nh_core::dungeon::room::Room;
 use nh_core::dungeon::{CellType, DLevel, Level};
-use nh_core::GameRng;
 use nh_core::{COLNO, ROWNO};
 use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
-use serial_test::serial;
 use serde_json::Value;
+use serial_test::serial;
 
 /// C cell type IDs (from rm.h)
 mod c_cell_types {
@@ -26,8 +27,8 @@ mod c_cell_types {
     pub const SDOOR: i32 = 14;
     pub const SCORR: i32 = 15;
     pub const DOOR: i32 = 22;
-    pub const CORR: i32 = 23;  // C: CORR=23
-    pub const ROOM: i32 = 24;  // C: ROOM=24
+    pub const CORR: i32 = 23; // C: CORR=23
+    pub const ROOM: i32 = 24; // C: ROOM=24
 }
 
 fn rust_cell_to_c_id(typ: CellType) -> i32 {
@@ -155,7 +156,12 @@ fn test_finddpos_with_room_walls() {
         // Carve rooms in both
         for (lx, ly, hx, hy) in &rooms {
             c_engine.carve_room(*lx, *ly, *hx, *hy);
-            let room = Room::new(*lx as usize, *ly as usize, (*hx - *lx + 1) as usize, (*hy - *ly + 1) as usize);
+            let room = Room::new(
+                *lx as usize,
+                *ly as usize,
+                (*hx - *lx + 1) as usize,
+                (*hy - *ly + 1) as usize,
+            );
             carve_room(&mut rs_level, &room);
         }
 
@@ -163,7 +169,14 @@ fn test_finddpos_with_room_walls() {
         let (_lx, ly, hx, hy) = rooms[0];
         let wall_x = hx + 1; // Right wall
         let (c_x, c_y) = c_engine.test_finddpos(wall_x, ly, wall_x, hy);
-        let (rs_x, rs_y) = finddpos(&rs_level, wall_x as usize, ly as usize, wall_x as usize, hy as usize, &mut rs_rng);
+        let (rs_x, rs_y) = finddpos(
+            &rs_level,
+            wall_x as usize,
+            ly as usize,
+            wall_x as usize,
+            hy as usize,
+            &mut rs_rng,
+        );
 
         if c_x as usize != rs_x || c_y as usize != rs_y {
             println!(
@@ -283,10 +296,10 @@ fn test_makecorridors_isolation() {
 
     // Use rooms from a known seed to test corridor generation in isolation
     let room_defs = [
-        (5, 3, 10, 7, 0),   // Room 0
-        (20, 3, 28, 8, 0),  // Room 1
-        (38, 3, 45, 7, 0),  // Room 2
-        (5, 12, 12, 16, 0), // Room 3
+        (5, 3, 10, 7, 0),    // Room 0
+        (20, 3, 28, 8, 0),   // Room 1
+        (38, 3, 45, 7, 0),   // Room 2
+        (5, 12, 12, 16, 0),  // Room 3
         (22, 12, 30, 17, 0), // Room 4
     ];
 
@@ -416,12 +429,18 @@ fn test_join_step_by_step() {
                 if c_typ != rs_typ {
                     initial_mismatches += 1;
                     if initial_mismatches <= 5 {
-                        println!("  initial diff: ({},{}) Rust={:?}({}) C={}", x, y, rs_level.cells[x][y].typ, rs_typ, c_typ);
+                        println!(
+                            "  initial diff: ({},{}) Rust={:?}({}) C={}",
+                            x, y, rs_level.cells[x][y].typ, rs_typ, c_typ
+                        );
                     }
                 }
             }
         }
-        println!("Initial level comparison: {} mismatches", initial_mismatches);
+        println!(
+            "Initial level comparison: {} mismatches",
+            initial_mismatches
+        );
     }
 
     // Trace finddpos for the first join: rooms[0] to rooms[1]
@@ -447,17 +466,29 @@ fn test_join_step_by_step() {
             println!("RIGHT case: xx={} tx={}", xx, tx);
 
             // Test finddpos in C
-            let (c_cc_x, c_cc_y) = c_engine.test_finddpos(xx as i32, c_ly as i32, xx as i32, c_hy as i32);
-            let (c_tt_x, c_tt_y) = c_engine.test_finddpos(tx as i32, t_ly as i32, tx as i32, t_hy as i32);
-            println!("C finddpos: cc=({},{}) tt=({},{})", c_cc_x, c_cc_y, c_tt_x, c_tt_y);
+            let (c_cc_x, c_cc_y) =
+                c_engine.test_finddpos(xx as i32, c_ly as i32, xx as i32, c_hy as i32);
+            let (c_tt_x, c_tt_y) =
+                c_engine.test_finddpos(tx as i32, t_ly as i32, tx as i32, t_hy as i32);
+            println!(
+                "C finddpos: cc=({},{}) tt=({},{})",
+                c_cc_x, c_cc_y, c_tt_x, c_tt_y
+            );
 
             // Test finddpos in Rust (using a FRESH rng, same seed)
             let mut test_rng = GameRng::new(seed);
-            let rs_cc = nh_core::dungeon::corridor::finddpos(&rs_level, xx, c_ly, xx, c_hy, &mut test_rng);
-            let rs_tt = nh_core::dungeon::corridor::finddpos(&rs_level, tx, t_ly, tx, t_hy, &mut test_rng);
-            println!("Rust finddpos: cc=({},{}) tt=({},{})", rs_cc.0, rs_cc.1, rs_tt.0, rs_tt.1);
+            let rs_cc =
+                nh_core::dungeon::corridor::finddpos(&rs_level, xx, c_ly, xx, c_hy, &mut test_rng);
+            let rs_tt =
+                nh_core::dungeon::corridor::finddpos(&rs_level, tx, t_ly, tx, t_hy, &mut test_rng);
+            println!(
+                "Rust finddpos: cc=({},{}) tt=({},{})",
+                rs_cc.0, rs_cc.1, rs_tt.0, rs_tt.1
+            );
 
-            if (c_cc_x as usize, c_cc_y as usize) != rs_cc || (c_tt_x as usize, c_tt_y as usize) != rs_tt {
+            if (c_cc_x as usize, c_cc_y as usize) != rs_cc
+                || (c_tt_x as usize, c_tt_y as usize) != rs_tt
+            {
                 println!("  *** FINDDPOS MISMATCH ***");
             } else {
                 println!("  finddpos matches!");
@@ -476,7 +507,13 @@ fn test_join_step_by_step() {
         c_engine.test_join(i as i32, (i + 1) as i32, false);
         // Rust side
         nh_core::dungeon::corridor::join_rooms(
-            &mut rs_level, &rooms, i, i + 1, &mut tracker, &mut rs_rng, false,
+            &mut rs_level,
+            &rooms,
+            i,
+            i + 1,
+            &mut tracker,
+            &mut rs_rng,
+            false,
         );
 
         // Compare levels
@@ -501,16 +538,26 @@ fn test_join_step_by_step() {
         // Compare smeq
         let c_smeq: Vec<i32> = serde_json::from_str(&c_engine.get_smeq()).unwrap_or_default();
         let rs_smeq: Vec<usize> = (0..rooms.len()).map(|i| tracker.smeq_value(i)).collect();
-        let smeq_match = c_smeq.iter().zip(rs_smeq.iter()).all(|(c, r)| *c == *r as i32);
+        let smeq_match = c_smeq
+            .iter()
+            .zip(rs_smeq.iter())
+            .all(|(c, r)| *c == *r as i32);
 
         println!(
             "  join({},{},false): {} cell mismatches, smeq C={:?} Rust={:?} {}",
-            i, i + 1, mismatches, c_smeq, rs_smeq,
+            i,
+            i + 1,
+            mismatches,
+            c_smeq,
+            rs_smeq,
             if smeq_match { "OK" } else { "MISMATCH" },
         );
 
         if let Some((mx, my, rs_t, c_t)) = first_mismatch {
-            println!("    first mismatch: ({},{}) Rust={:?} C_type={}", mx, my, rs_t, c_t);
+            println!(
+                "    first mismatch: ({},{}) Rust={:?} C_type={}",
+                mx, my, rs_t, c_t
+            );
         }
 
         if mismatches > 0 {
@@ -524,8 +571,10 @@ fn test_join_step_by_step() {
                     if c_typ != rs_typ {
                         shown += 1;
                         if shown <= 10 {
-                            println!("    ({},{}) Rust={:?}({}) C={}", x, y,
-                                rs_level.cells[x][y].typ, rs_typ, c_typ);
+                            println!(
+                                "    ({},{}) Rust={:?}({}) C={}",
+                                x, y, rs_level.cells[x][y].typ, rs_typ, c_typ
+                            );
                         }
                     }
                 }
@@ -545,12 +594,16 @@ fn test_join_step_by_step() {
 #[serial]
 fn test_rect_list_after_generation() {
     let mut c_engine = CGameEngine::new();
-    c_engine.init("Valkyrie", "Human", 0, 0).expect("C engine init failed");
+    c_engine
+        .init("Valkyrie", "Human", 0, 0)
+        .expect("C engine init failed");
 
     for seed in [5u64, 42, 123] {
         c_engine.set_dlevel(0, 14);
         c_engine.reset_rng(seed).expect("C RNG reset failed");
-        c_engine.generate_level().expect("C level generation failed");
+        c_engine
+            .generate_level()
+            .expect("C level generation failed");
 
         let rect_json = c_engine.rect_json();
         println!("Seed {}: C rects = {}", seed, rect_json);

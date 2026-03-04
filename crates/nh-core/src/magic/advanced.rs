@@ -37,7 +37,7 @@ pub struct InterruptEvent {
 }
 
 /// Check if spell can be started
-pub fn can_start_spell(player: &You, spell_level: i32) -> Result<(), SpellFailureReason> {
+pub fn can_start_spell(player: &You, _spell_level: i32) -> Result<(), SpellFailureReason> {
     // Check if confused (50% chance to fail)
     if player.confused_timeout > 0 {
         return Err(SpellFailureReason::Confused);
@@ -78,7 +78,7 @@ pub fn calculate_spell_resistance(target_level: i32) -> i32 {
 }
 
 /// Check if spell is resisted
-pub fn check_spell_resistance(target_level: i32, spell_power: i32, rng: &mut GameRng) -> bool {
+pub fn check_spell_resistance(target_level: i32, _spell_power: i32, rng: &mut GameRng) -> bool {
     let resistance = calculate_spell_resistance(target_level);
     let success_chance = 100 - resistance.min(95);
 
@@ -121,7 +121,7 @@ pub fn spell_failure_message(reason: SpellFailureReason) -> &'static str {
 }
 
 /// Spell power calculation
-pub fn calculate_spell_power(player: &You, spell_level: i32, spell_school: i32) -> i32 {
+pub fn calculate_spell_power(player: &You, spell_level: i32, _spell_school: i32) -> i32 {
     let mut power = spell_level * 10;
 
     // Intelligence bonus
@@ -129,7 +129,7 @@ pub fn calculate_spell_power(player: &You, spell_level: i32, spell_school: i32) 
     power += (intelligence as i32 - 10) * 2;
 
     // Mana/power source bonus (use energy as proxy)
-    power += (player.energy / 10) as i32;
+    power += player.energy / 10;
 
     power.max(1)
 }

@@ -50,27 +50,77 @@ pub use mhitu::{
     wild_miss_message,
 };
 pub use uhitm::{
-    AttackSource, CleaveTarget, HitResult, JoustResult,
-    ammo_for_launcher, artifact_to_hit_bonus, attack, attack_checks, attack_hits,
-    bare_hand_damage, buc_damage_bonus, calculate_to_hit, cleave_targets, creature_vulnerability,
-    dbon, find_roll_to_hit, greatest_erosion, hates_silver_check, hitval, hmon,
-    hates_silver, is_ranged_weapon, is_two_handed, joust, maybe_erode_weapon,
-    mon_hates_silver, mon_hates_silver_by_name,
+    AttackSource,
+    CleaveTarget,
+    HitResult,
+    JoustResult,
     advance_weapon_skill_from_combat,
-    player_attack_monster, process_player_xp_reward, retouch_equipment, retouch_object, shade_aware, shade_miss,
-    shade_miss_message, silver_damage, silver_sears, skill_dam_bonus, skill_hit_bonus,
-    special_dmgval, special_weapon_effects, sticks, throw_damage, throwing_weapon,
-    two_weapon_hit, weapon_dam_bonus, weapon_hit_bonus, weapon_skill_type,
+    ammo_for_launcher,
+    apply_encounter_effects,
+    are_monsters_flanking,
+    artifact_to_hit_bonus,
+    attack,
+    attack_checks,
+    attack_hits,
+    award_boss_hoard,
     // Loot system
-    award_monster_loot, award_boss_hoard, calculate_monster_gold, generate_monster_loot, should_drop_hoard,
+    award_monster_loot,
+    bare_hand_damage,
+    buc_damage_bonus,
+    calculate_encounter_difficulty,
+    calculate_monster_gold,
+    calculate_to_hit,
     // Combat spells
-    can_player_cast_in_combat, player_cast_spell, get_player_combat_spells,
+    can_player_cast_in_combat,
+    cleave_targets,
     // Encounter system
-    create_encounter, calculate_encounter_difficulty, get_difficulty_label,
-    init_encounter_state, are_monsters_flanking, get_flanking_bonus,
-    apply_encounter_effects, process_encounter_round, get_encounter_victory_xp,
+    create_encounter,
+    creature_vulnerability,
+    dbon,
+    find_roll_to_hit,
+    generate_monster_loot,
+    get_difficulty_label,
+    get_encounter_victory_xp,
+    get_flanking_bonus,
+    get_player_combat_spells,
+    greatest_erosion,
+    hates_silver,
+    hates_silver_check,
+    hitval,
+    hmon,
     // Polymorph combat
-    hmonas, player_wearing_armor_type,
+    hmonas,
+    init_encounter_state,
+    is_ranged_weapon,
+    is_two_handed,
+    joust,
+    maybe_erode_weapon,
+    mon_hates_silver,
+    mon_hates_silver_by_name,
+    player_attack_monster,
+    player_cast_spell,
+    player_wearing_armor_type,
+    process_encounter_round,
+    process_player_xp_reward,
+    retouch_equipment,
+    retouch_object,
+    shade_aware,
+    shade_miss,
+    shade_miss_message,
+    should_drop_hoard,
+    silver_damage,
+    silver_sears,
+    skill_dam_bonus,
+    skill_hit_bonus,
+    special_dmgval,
+    special_weapon_effects,
+    sticks,
+    throw_damage,
+    throwing_weapon,
+    two_weapon_hit,
+    weapon_dam_bonus,
+    weapon_hit_bonus,
+    weapon_skill_type,
 };
 
 // Phase 14: Experience & Leveling System exports
@@ -552,9 +602,12 @@ pub fn magic_negation(
         mc += 1;
     } else if mc < 1 {
         // Intrinsic Protection grants minimum mc 1
-        if (has_protection && protection_level > 0) || spell_protection > 0 {
-            mc = 1;
-        } else if is_high_priest || is_aligned_priest || is_minion {
+        if (has_protection && protection_level > 0)
+            || spell_protection > 0
+            || is_high_priest
+            || is_aligned_priest
+            || is_minion
+        {
             mc = 1;
         }
     }
@@ -645,7 +698,7 @@ pub fn calculate_skill_enhanced_damage(
 /// Higher skill levels can partially ignore target's AC protection.
 pub fn apply_armor_penetration(target_ac: i8, armor_penetration: i32) -> i8 {
     // Each point of penetration reduces effective AC by 1
-    (target_ac + armor_penetration as i8).min(127).max(-128)
+    (target_ac + armor_penetration as i8).max(-128)
 }
 
 /// Weapon proficiency tracking
@@ -1707,10 +1760,10 @@ impl DefenseCalculation {
         degradation: ArmorDegradation,
     ) -> Self {
         // AC bonus from proficiency
-        let prof_bonus = proficiency.ac_bonus() as i32;
+        let prof_bonus = proficiency.ac_bonus();
 
         // AC bonus from dodge skill
-        let dodge_bonus = dodge_skill.ac_bonus() as i32;
+        let dodge_bonus = dodge_skill.ac_bonus();
 
         // Apply armor degradation to effectiveness
         let degradation_factor = degradation.effectiveness_factor();
@@ -1800,7 +1853,7 @@ fn trace_projectile_path(
         }
 
         // Prevent going out of bounds
-        if x < 0 || x >= 80 || y < 0 || y >= 21 {
+        if !(0..80).contains(&x) || !(0..21).contains(&y) {
             return false;
         }
     }
@@ -2240,17 +2293,17 @@ impl CombatResources {
         }
 
         // Check cooldown
-        if let Some(&cooldown) = self.ability_cooldowns.get(ability_name) {
-            if cooldown > 0 {
-                return false;
-            }
+        if let Some(&cooldown) = self.ability_cooldowns.get(ability_name)
+            && cooldown > 0
+        {
+            return false;
         }
 
         // Check charges
-        if let Some(&charges) = self.ability_charges.get(ability_name) {
-            if charges == 0 {
-                return false;
-            }
+        if let Some(&charges) = self.ability_charges.get(ability_name)
+            && charges == 0
+        {
+            return false;
         }
 
         true
@@ -2506,7 +2559,7 @@ pub fn get_status_effect_modifiers(tracker: &StatusEffectTracker) -> (i32, i32) 
 /// Process status effects for a player at turn end
 pub fn process_player_status_effects(
     player: &mut crate::player::You,
-    rng: &mut crate::rng::GameRng,
+    _rng: &mut crate::rng::GameRng,
 ) {
     // Tick all effects down by one turn
     player.status_effects.tick_all();
@@ -2519,15 +2572,15 @@ pub fn process_player_status_effects(
 
     // Check and sync with old status timeout fields for compatibility
     if player.status_effects.has_effect(StatusEffect::Blinded) {
-        player.blinded_timeout = (player.blinded_timeout + 1).min(u16::MAX);
+        player.blinded_timeout += 1;
     }
 
     if player.status_effects.has_effect(StatusEffect::Stunned) {
-        player.stunned_timeout = (player.stunned_timeout + 1).min(u16::MAX);
+        player.stunned_timeout += 1;
     }
 
     if player.status_effects.has_effect(StatusEffect::Paralyzed) {
-        player.paralyzed_timeout = (player.paralyzed_timeout + 1).min(u16::MAX);
+        player.paralyzed_timeout += 1;
     }
 }
 
@@ -2544,11 +2597,11 @@ pub fn process_monster_status_effects(monster: &mut Monster, _rng: &mut crate::r
 
     // Check and sync with old status timeout fields for compatibility
     if monster.status_effects.has_effect(StatusEffect::Blinded) {
-        monster.blinded_timeout = (monster.blinded_timeout + 1).min(u16::MAX);
+        monster.blinded_timeout += 1;
     }
 
     if monster.status_effects.has_effect(StatusEffect::Paralyzed) {
-        monster.frozen_timeout = (monster.frozen_timeout + 1).min(u16::MAX);
+        monster.frozen_timeout += 1;
     }
 }
 
@@ -2609,7 +2662,7 @@ impl ExperienceReward {
         let mut xp = self.base_xp as f32;
 
         // Bonus for defeating higher-level monsters
-        let level_diff = (monster_level - player_level).max(-10).min(10);
+        let level_diff = (monster_level - player_level).clamp(-10, 10);
         if level_diff > 0 {
             xp += self.level_bonus as f32 * level_diff as f32;
         }
@@ -2801,7 +2854,6 @@ pub fn get_attribute_gain_for_level(role: crate::player::Role, _level: i32) -> A
         crate::player::Role::Priest => AttributeGain::new(1, 0, 1, 0, 2, 1),
         crate::player::Role::Rogue => AttributeGain::new(0, 2, 1, 1, 0, 1),
         crate::player::Role::Knight => AttributeGain::new(2, 1, 2, 0, 1, 1),
-        crate::player::Role::Knight => AttributeGain::new(2, 1, 2, 0, 2, 1),
         crate::player::Role::Valkyrie => AttributeGain::new(2, 1, 2, 0, 1, 0),
         _ => AttributeGain::uniform(1), // Default 1 to each attribute
     }
@@ -2811,9 +2863,7 @@ pub fn get_attribute_gain_for_level(role: crate::player::Role, _level: i32) -> A
 pub fn calculate_hp_gain(constitution: i32, role: crate::player::Role) -> i32 {
     let base_hp_gain = match role {
         crate::player::Role::Barbarian => 12,
-        crate::player::Role::Knight
-        | crate::player::Role::Knight
-        | crate::player::Role::Valkyrie => 10,
+        crate::player::Role::Knight | crate::player::Role::Valkyrie => 10,
         crate::player::Role::Ranger => 9,
         crate::player::Role::Monk => 8,
         crate::player::Role::Rogue => 8,
@@ -2966,7 +3016,7 @@ fn level_up_monster(monster: &mut Monster) {
     let constitution_bonus = 1;
 
     // Increase HP: 5 + CON bonus per level
-    let hp_gain = (5 + constitution_bonus).max(1) as i32;
+    let hp_gain = (5 + constitution_bonus).max(1);
     monster.hp_max += hp_gain;
     monster.hp += hp_gain; // Heal on level up
 
@@ -3295,9 +3345,8 @@ pub fn get_adjusted_mana_cost(player: &crate::player::You, spell: CombatSpell) -
 
     // Intelligence reduces mana cost: every 2 points above 10 = 5% reduction
     let int_modifier = ((intelligence - 10.0) / 2.0) * 0.05;
-    let reduced_cost = (base_cost as f32 * (1.0 - int_modifier)).max(1.0) as i32;
 
-    reduced_cost
+    (base_cost as f32 * (1.0 - int_modifier)).max(1.0) as i32
 }
 
 /// Calculate spell damage with caster modifiers
@@ -4056,7 +4105,7 @@ impl DifficultyRating {
             4 => 2.8,
             5 => 3.5,
             6 => 4.5,
-            n => ((n as f32 * 1.5).min(10.0)), // Cap multiplier
+            n => (n as f32 * 1.5).min(10.0), // Cap multiplier
         }
     }
 
@@ -4213,7 +4262,7 @@ impl EncounterState {
 pub fn check_flanking(
     monsters: &[crate::monster::Monster],
     formation: Formation,
-    player_pos: &crate::player::Position,
+    _player_pos: &crate::player::Position,
 ) -> bool {
     if formation != Formation::Circle && formation != Formation::Wedge {
         return false;
@@ -4224,7 +4273,7 @@ pub fn check_flanking(
 }
 
 /// Calculate flanking damage bonus
-pub fn flanking_damage_bonus(monsters: &[crate::monster::Monster], formation: Formation) -> f32 {
+pub fn flanking_damage_bonus(_monsters: &[crate::monster::Monster], formation: Formation) -> f32 {
     let flank_bonus = formation.flanking_bonus();
     let coordination_bonus = 1.0 + (formation.coordination() as f32 * 0.05);
 
@@ -4236,16 +4285,16 @@ pub fn select_monster_target(
     current_target: Option<crate::monster::MonsterId>,
     tactic: GroupTactic,
     monsters: &[crate::monster::Monster],
-    player_hp: i32,
-    player_hp_max: i32,
+    _player_hp: i32,
+    _player_hp_max: i32,
 ) -> crate::monster::MonsterId {
     match tactic {
         GroupTactic::FocusFire => {
             // Focus on current target or the first alive one
-            if let Some(target) = current_target {
-                if monsters.iter().any(|m| m.id == target && m.hp > 0) {
-                    return target;
-                }
+            if let Some(target) = current_target
+                && monsters.iter().any(|m| m.id == target && m.hp > 0)
+            {
+                return target;
             }
             monsters
                 .iter()
@@ -4308,9 +4357,7 @@ pub fn calculate_encounter_xp(
     xp = (xp as f32 * difficulty_multiplier) as u32;
 
     // Survival bonus: more HP remaining = more XP
-    let survival_percent = (player_hp_at_end as f32 / player_hp_max as f32)
-        .max(0.0)
-        .min(1.0);
+    let survival_percent = (player_hp_at_end as f32 / player_hp_max as f32).clamp(0.0, 1.0);
     let survival_bonus = (survival_percent * 0.5 + 0.5).max(0.1); // 10% to 60%
     xp = (xp as f32 * survival_bonus) as u32;
 

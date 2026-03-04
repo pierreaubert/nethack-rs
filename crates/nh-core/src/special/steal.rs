@@ -79,12 +79,11 @@ pub fn stealgold(player_gold: i32, rng: &mut GameRng) -> i32 {
 pub fn should_steal_amulet(inventory: &[Object]) -> Option<char> {
     // Check for Amulet of Yendor first
     for obj in inventory {
-        if obj.is_artifact() {
-            if let Some(ref name) = obj.name {
-                if name.contains("Amulet of Yendor") {
-                    return Some(obj.inv_letter);
-                }
-            }
+        if obj.is_artifact()
+            && let Some(ref name) = obj.name
+            && name.contains("Amulet of Yendor")
+        {
+            return Some(obj.inv_letter);
         }
     }
     None
@@ -99,7 +98,8 @@ pub fn pick_steal_target(inventory: &[Object], rng: &mut GameRng) -> Option<char
     }
 
     // Count stealable items (non-worn items are easier to steal)
-    let stealable: Vec<_> = inventory.iter()
+    let stealable: Vec<_> = inventory
+        .iter()
         .filter(|o| o.worn_mask == 0) // Not currently worn
         .collect();
 
@@ -172,14 +172,22 @@ mod tests {
     fn test_somegold_medium_amounts() {
         let mut rng = GameRng::new(42);
         let stolen = somegold(100, &mut rng);
-        assert!(stolen >= 50 && stolen <= 100, "Stolen {} not in 50-100", stolen);
+        assert!(
+            stolen >= 50 && stolen <= 100,
+            "Stolen {} not in 50-100",
+            stolen
+        );
     }
 
     #[test]
     fn test_somegold_large_amounts() {
         let mut rng = GameRng::new(42);
         let stolen = somegold(10000, &mut rng);
-        assert!(stolen >= 1000 && stolen <= 10000, "Stolen {} not in 1000-10000", stolen);
+        assert!(
+            stolen >= 1000 && stolen <= 10000,
+            "Stolen {} not in 1000-10000",
+            stolen
+        );
     }
 
     #[test]
@@ -200,8 +208,14 @@ mod tests {
         ] {
             let mut rng = GameRng::new(42);
             let stolen = somegold(gold, &mut rng);
-            assert!(stolen >= min && stolen <= max,
-                "somegold({}) = {} not in {}..{}", gold, stolen, min, max);
+            assert!(
+                stolen >= min && stolen <= max,
+                "somegold({}) = {} not in {}..{}",
+                gold,
+                stolen,
+                min,
+                max
+            );
         }
     }
 

@@ -126,7 +126,10 @@ mod tests {
             let action = pick_harassment(15, &mut rng);
             seen.insert(format!("{:?}", action));
         }
-        assert!(seen.len() >= 5, "Should see at least 5 different harassments");
+        assert!(
+            seen.len() >= 5,
+            "Should see at least 5 different harassments"
+        );
     }
 
     #[test]

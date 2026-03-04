@@ -94,10 +94,10 @@ impl VirtualPlayer {
         if self.rng.r#gen::<f64>() < self.config.exploration_rate {
             // Explore: random action
             let range = Uniform::new(0, actions.len());
-            actions[self.rng.sample(range)].clone()
+            actions[self.rng.sample(range)]
         } else {
             // Exploit: best known action
-            let mut best_action = actions[0].clone();
+            let mut best_action = actions[0];
             let mut best_value = f64::MIN;
 
             for (i, action) in actions.iter().enumerate() {
@@ -105,7 +105,7 @@ impl VirtualPlayer {
                 let value = self.q_table.get_q(state_idx, i);
                 if value > best_value {
                     best_value = value;
-                    best_action = action.clone();
+                    best_action = *action;
                 }
             }
 
@@ -218,7 +218,7 @@ impl VirtualPlayer {
 
     /// Set exploration rate
     pub fn set_exploration_rate(&mut self, rate: f64) {
-        self.config.exploration_rate = rate.max(0.0).min(1.0);
+        self.config.exploration_rate = rate.clamp(0.0, 1.0);
     }
 
     /// Decay exploration rate

@@ -4,12 +4,12 @@
 //! automatically categorizes divergences by mismatch type,
 //! and reports which functions to fix first for maximum impact.
 
-use nh_core::{GameRng, COLNO, ROWNO};
 use nh_core::dungeon::{DLevel, Level};
 use nh_core::magic::genocide::MonsterVitals;
+use nh_core::{CGameEngineTrait, COLNO, GameRng, ROWNO};
 use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
-use serial_test::serial;
 use serde_json::Value;
+use serial_test::serial;
 use std::collections::HashMap;
 
 /// A single cell mismatch between C and Rust
@@ -111,7 +111,9 @@ fn run_seed(seed: u64, c_engine: &mut CGameEngine) -> SeedResult {
     // C: set dlevel, reset RNG, generate
     c_engine.set_dlevel(0, 14);
     c_engine.reset_rng(seed).expect("C RNG reset failed");
-    c_engine.generate_level().expect("C level generation failed");
+    c_engine
+        .generate_level()
+        .expect("C level generation failed");
 
     let c_map_str = c_engine.map_json();
     let c_map: Value = serde_json::from_str(&c_map_str).unwrap();
@@ -120,7 +122,11 @@ fn run_seed(seed: u64, c_engine: &mut CGameEngine) -> SeedResult {
     // Rust: generate with fresh RNG
     let mut fresh_rng = GameRng::new(seed);
     let mut fresh_level = Level::new(DLevel::new(0, 14));
-    nh_core::dungeon::generate_rooms_and_corridors(&mut fresh_level, &mut fresh_rng, &monster_vitals);
+    nh_core::dungeon::generate_rooms_and_corridors(
+        &mut fresh_level,
+        &mut fresh_rng,
+        &monster_vitals,
+    );
 
     // Filter out vaults
     let rs_rooms: Vec<_> = fresh_level
@@ -243,7 +249,12 @@ fn multi_seed_triage_100() {
     println!("{:-<52}", "");
     for (cat, total_cells) in &cat_list {
         let seeds_affected = global_category_seeds.get(cat).unwrap_or(&0);
-        println!("{:<30} {:>10} {:>10}", cat.to_string(), total_cells, seeds_affected);
+        println!(
+            "{:<30} {:>10} {:>10}",
+            cat.to_string(),
+            total_cells,
+            seeds_affected
+        );
     }
     println!();
 
@@ -262,7 +273,11 @@ fn multi_seed_triage_100() {
             "{:<8} {:>10} {:>12} {:>12}",
             result.seed,
             result.total_mismatches,
-            if result.room_count_match { "OK" } else { "MISMATCH" },
+            if result.room_count_match {
+                "OK"
+            } else {
+                "MISMATCH"
+            },
             if result.room_positions_match {
                 "OK"
             } else {
@@ -273,17 +288,17 @@ fn multi_seed_triage_100() {
     println!();
 
     // Show sample mismatches from worst seed
-    if let Some(worst) = sorted_results.first().filter(|w| !w.sample_mismatches.is_empty()) {
+    if let Some(worst) = sorted_results
+        .first()
+        .filter(|w| !w.sample_mismatches.is_empty())
+    {
         {
             println!(
                 "Sample mismatches from seed {} ({} total):",
                 worst.seed, worst.total_mismatches
             );
             for m in &worst.sample_mismatches {
-                println!(
-                    "  ({},{}) Rust={} C={}",
-                    m.x, m.y, m.rust_type, m.c_type
-                );
+                println!("  ({},{}) Rust={} C={}", m.x, m.y, m.rust_type, m.c_type);
             }
             println!();
             println!("Category breakdown for seed {}:", worst.seed);
@@ -296,30 +311,40 @@ fn multi_seed_triage_100() {
     }
 
     // Show near-perfect seeds (1-5 mismatches)
-    let mut near_perfect: Vec<_> = all_results.iter()
+    let mut near_perfect: Vec<_> = all_results
+        .iter()
         .filter(|r| r.total_mismatches > 0 && r.total_mismatches <= 5)
         .collect();
     near_perfect.sort_by_key(|r| r.total_mismatches);
     if !near_perfect.is_empty() {
         println!("\nNear-perfect seeds (1-5 mismatches):");
         for r in &near_perfect {
-            let cats: Vec<_> = r.categories.iter().map(|(c, n)| format!("{}:{}", c, n)).collect();
-            println!("  seed {}: {} mismatches [{}]", r.seed, r.total_mismatches, cats.join(", "));
+            let cats: Vec<_> = r
+                .categories
+                .iter()
+                .map(|(c, n)| format!("{}:{}", c, n))
+                .collect();
+            println!(
+                "  seed {}: {} mismatches [{}]",
+                r.seed,
+                r.total_mismatches,
+                cats.join(", ")
+            );
         }
     }
 
     // Metric: perfect seeds should only increase over time
     println!("\n========================================");
-    println!("  PRIMARY METRIC: {}/100 seeds with 0 mismatches", perfect_seeds);
+    println!(
+        "  PRIMARY METRIC: {}/100 seeds with 0 mismatches",
+        perfect_seeds
+    );
     println!("========================================\n");
 
     // This test is informational — it should never fail.
     // The CI convergence gate handles regression thresholds.
     // But we do assert the test ran successfully.
-    assert!(
-        all_results.len() == 100,
-        "Should have tested 100 seeds"
-    );
+    assert!(all_results.len() == 100, "Should have tested 100 seeds");
 }
 
 /// Quick single-seed diagnostic — run with:
@@ -354,10 +379,7 @@ fn triage_single_seed() {
     }
 
     for m in &result.sample_mismatches {
-        println!(
-            "  ({},{}) Rust={} C={}",
-            m.x, m.y, m.rust_type, m.c_type
-        );
+        println!("  ({},{}) Rust={} C={}", m.x, m.y, m.rust_type, m.c_type);
     }
 }
 
@@ -372,12 +394,16 @@ fn test_state_leakage() {
 
     // Test 1: Run target seed alone (fresh engine)
     let mut c_engine1 = CGameEngine::new();
-    c_engine1.init("Valkyrie", "Human", 0, 0).expect("init failed");
+    c_engine1
+        .init("Valkyrie", "Human", 0, 0)
+        .expect("init failed");
     let result_alone = run_seed(target_seed, &mut c_engine1);
 
     // Test 2: Run target seed after running seeds 1..target_seed first
     let mut c_engine2 = CGameEngine::new();
-    c_engine2.init("Valkyrie", "Human", 0, 0).expect("init failed");
+    c_engine2
+        .init("Valkyrie", "Human", 0, 0)
+        .expect("init failed");
     for prior_seed in 1..target_seed {
         let _ = run_seed(prior_seed, &mut c_engine2);
     }
@@ -385,7 +411,11 @@ fn test_state_leakage() {
 
     println!("\n=== State Leakage Test for seed {} ===", target_seed);
     println!("  Alone:      {} mismatches", result_alone.total_mismatches);
-    println!("  After 1..{}: {} mismatches", target_seed - 1, result_after.total_mismatches);
+    println!(
+        "  After 1..{}: {} mismatches",
+        target_seed - 1,
+        result_after.total_mismatches
+    );
 
     if result_alone.total_mismatches != result_after.total_mismatches {
         println!("  *** STATE LEAKAGE DETECTED! ***");
@@ -414,7 +444,10 @@ fn test_state_leakage() {
         engine.init("Valkyrie", "Human", 0, 0).expect("init failed");
         let _ = run_seed(lo, &mut engine);
         let r = run_seed(target_seed, &mut engine);
-        println!("  After only seed {}: {} mismatches", lo, r.total_mismatches);
+        println!(
+            "  After only seed {}: {} mismatches",
+            lo, r.total_mismatches
+        );
     } else {
         println!("  No state leakage detected!");
     }

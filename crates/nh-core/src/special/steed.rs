@@ -75,9 +75,7 @@ pub fn doride(player: &You, monster: &Monster) -> MountResult {
     }
 
     if !can_ride(monster, player) {
-        return MountResult::CantMount(format!(
-            "You can't ride {}.", monster.name
-        ));
+        return MountResult::CantMount(format!("You can't ride {}.", monster.name));
     }
 
     MountResult::Mounted(format!("You mount {}.", monster.name))
@@ -90,9 +88,7 @@ pub fn dismount(player: &You) -> DismountResult {
     }
 
     if player.utrap > 0 {
-        return DismountResult::CantDismount(
-            "You can't dismount while trapped!".to_string()
-        );
+        return DismountResult::CantDismount("You can't dismount while trapped!".to_string());
     }
 
     DismountResult::Dismounted("You dismount.".to_string())
@@ -111,21 +107,17 @@ pub fn rider_speed_bonus(steed_speed: i32) -> i32 {
 /// Riding provides some protection (skill-dependent in C).
 pub fn riding_ac_bonus(riding_skill: i32) -> i8 {
     match riding_skill {
-        0 => 0,       // Unskilled
-        1 => 0,       // Basic
-        2 => -1,      // Skilled
-        _ => -2,      // Expert
+        0 => 0,  // Unskilled
+        1 => 0,  // Basic
+        2 => -1, // Skilled
+        _ => -2, // Expert
     }
 }
 
 /// Get landing position when forcibly dismounted (landing_spot from steed.c:700).
 ///
 /// Tries to find an adjacent safe square. Returns offset (dx, dy).
-pub fn landing_spot(
-    player_x: i8,
-    player_y: i8,
-    level: &crate::dungeon::Level,
-) -> Option<(i8, i8)> {
+pub fn landing_spot(player_x: i8, player_y: i8, level: &crate::dungeon::Level) -> Option<(i8, i8)> {
     // Try all 8 adjacent squares
     for dx in -1..=1i8 {
         for dy in -1..=1i8 {
@@ -163,7 +155,8 @@ mod tests {
         Monster::new(
             MonsterId(1),
             0, // monster_type
-            5, 5, // x, y
+            5,
+            5, // x, y
         )
     }
 

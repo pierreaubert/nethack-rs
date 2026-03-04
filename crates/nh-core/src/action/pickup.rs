@@ -26,9 +26,19 @@ pub fn can_pickup(obj: &Object, state: &GameState) -> bool {
     }
 
     // Cockatrice corpse without gloves -> petrification risk
-    if obj.class == ObjectClass::Food && obj.corpse_type == 10 /* PM_COCKATRICE */ {
-        let wearing_gloves = state.inventory.iter().any(|o| o.worn_mask & crate::action::wear::worn_mask::W_ARMG != 0);
-        if !wearing_gloves && !state.player.properties.has(crate::player::Property::StoneResistance) {
+    if obj.class == ObjectClass::Food && obj.corpse_type == 10
+    /* PM_COCKATRICE */
+    {
+        let wearing_gloves = state
+            .inventory
+            .iter()
+            .any(|o| o.worn_mask & crate::action::wear::worn_mask::W_ARMG != 0);
+        if !wearing_gloves
+            && !state
+                .player
+                .properties
+                .has(crate::player::Property::StoneResistance)
+        {
             return false;
         }
     }

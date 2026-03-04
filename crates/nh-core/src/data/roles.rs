@@ -287,9 +287,9 @@ static PRIEST_ITEMS: &[StartingItem] = &[
     StartingItem::item(ObjectType::Robe, 0, 1, UNDEF_BLESS),
     StartingItem::item(ObjectType::SmallShield, 0, 1, UNDEF_BLESS),
     StartingItem::item(ObjectType::Water, 0, 4, 1), // Holy water
-    StartingItem::item(ObjectType::CloveOfGarlic, 0, 1, 0),         // Garlic
-    StartingItem::item(ObjectType::SprigOfWolfsbane, 0, 1, 0),         // Wolfsbane
-    StartingItem::new(None, UNDEF_SPE, 2, UNDEF_BLESS),     // Random spellbooks
+    StartingItem::item(ObjectType::CloveOfGarlic, 0, 1, 0), // Garlic
+    StartingItem::item(ObjectType::SprigOfWolfsbane, 0, 1, 0), // Wolfsbane
+    StartingItem::new(None, UNDEF_SPE, 2, UNDEF_BLESS), // Random spellbooks
 ];
 
 static RANGER_ITEMS: &[StartingItem] = &[
@@ -319,21 +319,13 @@ static SAMURAI_ITEMS: &[StartingItem] = &[
 ];
 
 static TOURIST_ITEMS: &[StartingItem] = &[
-
     StartingItem::item(ObjectType::Dart, 2, 25, UNDEF_BLESS),
-
-    StartingItem::new(None, UNDEF_SPE, 10, 0),        // Random food
-
+    StartingItem::new(None, UNDEF_SPE, 10, 0), // Random food
     StartingItem::item(ObjectType::ExtraHealing, 0, 2, UNDEF_BLESS),
-
     StartingItem::item(ObjectType::MagicMapping, 0, 4, UNDEF_BLESS),
-
     StartingItem::item(ObjectType::HawaiianShirt, 0, 1, UNDEF_BLESS),
-
     StartingItem::item(ObjectType::ExpensiveCamera, UNDEF_SPE, 1, 0),
-
     StartingItem::item(ObjectType::CreditCard, 0, 1, 0),
-
 ];
 
 static VALKYRIE_ITEMS: &[StartingItem] = &[

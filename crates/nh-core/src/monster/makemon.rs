@@ -13,7 +13,7 @@ use crate::compat::*;
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 
-use super::{Monster, MonsterId, MonsterFlags, MonsterState, PerMonst};
+use super::{Monster, MonsterFlags, MonsterId, MonsterState, PerMonst};
 use crate::dungeon::Level;
 use crate::rng::GameRng;
 
@@ -184,12 +184,7 @@ pub fn goodpos(level: &Level, x: i8, y: i8, pm: Option<&PerMonst>) -> bool {
 ///
 /// Matches C `enexto()` in makemon.c. Searches outward in expanding
 /// squares from (x, y) until a valid position is found.
-pub fn enexto(
-    level: &Level,
-    x: i8,
-    y: i8,
-    pm: Option<&PerMonst>,
-) -> Option<(i8, i8)> {
+pub fn enexto(level: &Level, x: i8, y: i8, pm: Option<&PerMonst>) -> Option<(i8, i8)> {
     // Try the original position first
     if goodpos(level, x, y, pm) {
         return Some((x, y));
@@ -305,12 +300,7 @@ pub fn mkclass(
 }
 
 /// Check if a monster type is eligible for random generation
-fn is_candidate(
-    pm: &PerMonst,
-    index: usize,
-    is_hell: bool,
-    vitals: &[MonsterVitals],
-) -> bool {
+fn is_candidate(pm: &PerMonst, index: usize, is_hell: bool, vitals: &[MonsterVitals]) -> bool {
     // Skip genocided types
     if index < vitals.len() && vitals[index].genocided {
         return false;
@@ -409,10 +399,30 @@ pub fn makemon(
     if !mm_flags.contains(MakeMonFlags::NO_GRP) {
         if is_sgroup(pm.gen_flags) {
             let count = rng.rnd(3) as usize + 1; // 2-4
-            m_initgrp(level, monsters, monster_type, px, py, count, mm_flags, vitals, rng);
+            m_initgrp(
+                level,
+                monsters,
+                monster_type,
+                px,
+                py,
+                count,
+                mm_flags,
+                vitals,
+                rng,
+            );
         } else if is_lgroup(pm.gen_flags) {
             let count = rng.rnd(6) as usize + 3; // 4-9
-            m_initgrp(level, monsters, monster_type, px, py, count, mm_flags, vitals, rng);
+            m_initgrp(
+                level,
+                monsters,
+                monster_type,
+                px,
+                py,
+                count,
+                mm_flags,
+                vitals,
+                rng,
+            );
         }
     }
 
@@ -575,7 +585,16 @@ fn m_initgrp(
 
         let pm = monsters.get(monster_type as usize);
         if goodpos(level, gx, gy, pm) {
-            makemon(level, monsters, monster_type, gx, gy, grp_flags, vitals, rng);
+            makemon(
+                level,
+                monsters,
+                monster_type,
+                gx,
+                gy,
+                grp_flags,
+                vitals,
+                rng,
+            );
         }
     }
 }
@@ -614,7 +633,7 @@ pub fn genocide_type(vitals: &mut Vec<MonsterVitals>, monster_type: i16) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::combat::{empty_attacks, Attack, AttackType, DamageType};
+    use crate::combat::{Attack, AttackType, DamageType, empty_attacks};
     use crate::dungeon::{DLevel, Level};
     use crate::monster::{MonsterResistances, MonsterSize, MonsterSound};
     use crate::rng::GameRng;
@@ -646,20 +665,20 @@ mod tests {
     /// Create a test monster database
     fn test_monsters() -> Vec<PerMonst> {
         vec![
-            test_permonst("grid bug", 'x', 0, G_GENO | 3),                         // 0
-            test_permonst("newt", 'r', 0, G_GENO | 5),                              // 1
-            test_permonst("jackal", 'd', 0, G_GENO | G_SGROUP | 3),                 // 2
-            test_permonst("kobold", 'k', 1, G_GENO | G_SGROUP | 3),                 // 3
-            test_permonst("goblin", 'o', 1, G_GENO | 2),                            // 4
-            test_permonst("gnome", 'G', 2, G_GENO | 4),                             // 5
-            test_permonst("giant ant", 'a', 2, G_GENO | G_SGROUP | 3),              // 6
-            test_permonst("orc", 'o', 3, G_GENO | 2),                               // 7
-            test_permonst("wolf", 'd', 5, G_GENO | G_SGROUP | 3),                   // 8
-            test_permonst("ogre", 'O', 7, G_GENO | 2),                              // 9
-            test_permonst("quest monster", 'Q', 5, G_NOGEN | 1),                     // 10 - NOGEN
-            test_permonst("unique boss", 'V', 20, G_UNIQ | G_NOGEN | 1),            // 11 - unique
-            test_permonst("hell hound", 'd', 12, G_GENO | G_HELL | 2),              // 12 - hell only
-            test_permonst("pony", 'u', 3, G_GENO | G_NOHELL | 3),                   // 13 - no hell
+            test_permonst("grid bug", 'x', 0, G_GENO | 3), // 0
+            test_permonst("newt", 'r', 0, G_GENO | 5),     // 1
+            test_permonst("jackal", 'd', 0, G_GENO | G_SGROUP | 3), // 2
+            test_permonst("kobold", 'k', 1, G_GENO | G_SGROUP | 3), // 3
+            test_permonst("goblin", 'o', 1, G_GENO | 2),   // 4
+            test_permonst("gnome", 'G', 2, G_GENO | 4),    // 5
+            test_permonst("giant ant", 'a', 2, G_GENO | G_SGROUP | 3), // 6
+            test_permonst("orc", 'o', 3, G_GENO | 2),      // 7
+            test_permonst("wolf", 'd', 5, G_GENO | G_SGROUP | 3), // 8
+            test_permonst("ogre", 'O', 7, G_GENO | 2),     // 9
+            test_permonst("quest monster", 'Q', 5, G_NOGEN | 1), // 10 - NOGEN
+            test_permonst("unique boss", 'V', 20, G_UNIQ | G_NOGEN | 1), // 11 - unique
+            test_permonst("hell hound", 'd', 12, G_GENO | G_HELL | 2), // 12 - hell only
+            test_permonst("pony", 'u', 3, G_GENO | G_NOHELL | 3), // 13 - no hell
         ]
     }
 
@@ -1143,7 +1162,12 @@ mod tests {
             }
         }
         // The heavy weight should dominate
-        assert!(counts[0] > counts[1] * 10, "heavy={} light={}", counts[0], counts[1]);
+        assert!(
+            counts[0] > counts[1] * 10,
+            "heavy={} light={}",
+            counts[0],
+            counts[1]
+        );
     }
 
     // ---- mkclass distribution ----

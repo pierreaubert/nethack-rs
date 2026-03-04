@@ -310,10 +310,7 @@ pub struct RngDivergence {
 /// Compare two RNG traces and find the first point of divergence.
 ///
 /// Returns `None` if traces match for their shared length.
-pub fn compare_rng_traces(
-    rust: &[RngTraceEntry],
-    c: &[RngTraceEntry],
-) -> Option<RngDivergence> {
+pub fn compare_rng_traces(rust: &[RngTraceEntry], c: &[RngTraceEntry]) -> Option<RngDivergence> {
     let len = rust.len().min(c.len());
 
     for i in 0..len {
@@ -433,8 +430,18 @@ mod tests {
     #[test]
     fn test_rng_trace_match() {
         let trace = vec![
-            RngTraceEntry { seq: 0, func: "rn2".into(), arg: 6, result: 3 },
-            RngTraceEntry { seq: 1, func: "rn2".into(), arg: 10, result: 7 },
+            RngTraceEntry {
+                seq: 0,
+                func: "rn2".into(),
+                arg: 6,
+                result: 3,
+            },
+            RngTraceEntry {
+                seq: 1,
+                func: "rn2".into(),
+                arg: 10,
+                result: 7,
+            },
         ];
         assert!(compare_rng_traces(&trace, &trace).is_none());
     }
@@ -442,12 +449,32 @@ mod tests {
     #[test]
     fn test_rng_trace_divergence() {
         let rust_trace = vec![
-            RngTraceEntry { seq: 0, func: "rn2".into(), arg: 6, result: 3 },
-            RngTraceEntry { seq: 1, func: "rn2".into(), arg: 10, result: 7 },
+            RngTraceEntry {
+                seq: 0,
+                func: "rn2".into(),
+                arg: 6,
+                result: 3,
+            },
+            RngTraceEntry {
+                seq: 1,
+                func: "rn2".into(),
+                arg: 10,
+                result: 7,
+            },
         ];
         let c_trace = vec![
-            RngTraceEntry { seq: 0, func: "rn2".into(), arg: 6, result: 3 },
-            RngTraceEntry { seq: 1, func: "rnd".into(), arg: 10, result: 7 },
+            RngTraceEntry {
+                seq: 0,
+                func: "rn2".into(),
+                arg: 6,
+                result: 3,
+            },
+            RngTraceEntry {
+                seq: 1,
+                func: "rnd".into(),
+                arg: 10,
+                result: 7,
+            },
         ];
         let div = compare_rng_traces(&rust_trace, &c_trace).unwrap();
         assert_eq!(div.call_index, 1);

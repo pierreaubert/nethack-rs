@@ -7,7 +7,7 @@
 use crate::compat::*;
 
 use crate::dungeon::Level;
-use crate::monster::{Monster, MonsterId};
+use crate::monster::MonsterId;
 use crate::player::You;
 
 /// Information about a valid target
@@ -101,8 +101,8 @@ pub fn find_monsters_in_range(player: &You, level: &Level, max_range: i32) -> Ve
 
 /// Calculate direction from one position to another
 fn direction_to(from_x: i8, from_y: i8, to_x: i8, to_y: i8) -> (i8, i8) {
-    let dx = (to_x - from_x).signum() as i8;
-    let dy = (to_y - from_y).signum() as i8;
+    let dx = (to_x - from_x).signum();
+    let dy = (to_y - from_y).signum();
     (dx, dy)
 }
 

@@ -510,6 +510,7 @@ impl Role {
     ///
     /// # Returns
     /// The parsed role, or None if invalid
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         let s_lower = s.to_lowercase();
         match s_lower.as_str() {
@@ -539,6 +540,7 @@ impl Race {
     ///
     /// # Returns
     /// The parsed race, or None if invalid
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         let s_lower = s.to_lowercase();
         match s_lower.as_str() {
@@ -560,6 +562,7 @@ impl Gender {
     ///
     /// # Returns
     /// The parsed gender, or None if invalid
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         let s_lower = s.to_lowercase();
         match s_lower.as_str() {
@@ -1061,37 +1064,18 @@ pub fn role_init(
     true
 }
 
-/// Get innate abilities for a role (role_abil equivalent)
-pub fn role_abil(role: Role) -> Vec<&'static str> {
-    match role {
-        Role::Archeologist => vec!["search"],
-        Role::Barbarian => vec!["cleave"],
-        Role::Caveman => vec!["kick"],
-        Role::Healer => vec!["heal"],
-        Role::Knight => vec!["cleave", "bonuses"],
-        Role::Monk => vec!["kick", "punch"],
-        Role::Priest => vec!["turn undead"],
-        Role::Ranger => vec!["shoot"],
-        Role::Rogue => vec!["backstab"],
-        Role::Samurai => vec!["cleave"],
-        Role::Tourist => vec!["charm"],
-        Role::Valkyrie => vec!["cleave", "bonuses"],
-        Role::Wizard => vec!["spellcasting"],
-    }
-}
-
 /// Remove the role letter from the player name (plnamesuffix equivalent)
 pub fn plnamesuffix(player_name: &mut String) {
     // Strip role letter from end of player name for backwards compatibility
     // Role letters: a=arch, b=bar, c=cave, h=heal, k=knight, m=monk, p=priest
     // r=ranger, o=rogue, s=samurai, t=tourist, v=valkyrie, w=wizard
-    if let Some(last_char) = player_name.chars().last() {
-        if matches!(
+    if let Some(last_char) = player_name.chars().last()
+        && matches!(
             last_char,
             'a' | 'b' | 'c' | 'h' | 'k' | 'm' | 'p' | 'r' | 'o' | 's' | 't' | 'v' | 'w'
-        ) {
-            player_name.pop();
-        }
+        )
+    {
+        player_name.pop();
     }
 }
 
@@ -1347,15 +1331,6 @@ mod tests {
         assert_eq!(pet_type(Role::Valkyrie), "warhorse");
         assert_eq!(pet_type(Role::Wizard), "little dog");
         assert_eq!(pet_type(Role::Barbarian), "orcish hound");
-    }
-
-    #[test]
-    fn test_role_abil() {
-        let abilities = role_abil(Role::Barbarian);
-        assert!(abilities.contains(&"cleave"));
-
-        let abilities = role_abil(Role::Monk);
-        assert!(abilities.contains(&"kick") || abilities.contains(&"punch"));
     }
 
     #[test]

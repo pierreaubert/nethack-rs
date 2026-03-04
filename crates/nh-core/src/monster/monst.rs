@@ -7,12 +7,6 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
 use super::{MonsterFlags, MonsterResistances};
-#[cfg(feature = "extensions")]
-use super::attack_selection::CombatMemory;
-#[cfg(feature = "extensions")]
-use super::morale::MoraleTracker;
-#[cfg(feature = "extensions")]
-use super::personality::Personality;
 use crate::combat::{AttackSet, CombatResources, StatusEffectTracker};
 use crate::data::monsters::get_monster;
 use crate::monster::PerMonst;
@@ -296,22 +290,8 @@ pub struct Monster {
     /// Status effects tracker (Phase 13)
     pub status_effects: StatusEffectTracker,
 
-    /// Combat AI fields (extensions)
-
-    /// Monster personality type
-    #[cfg(feature = "extensions")]
-    pub personality: Personality,
-
-    /// Morale tracking system
-    #[cfg(feature = "extensions")]
-    pub morale: MoraleTracker,
-
     /// Combat resource management (mana, cooldowns, charges)
     pub resources: CombatResources,
-
-    /// Combat memory (attack history, observed resistances)
-    #[cfg(feature = "extensions")]
-    pub combat_memory: CombatMemory,
 
     /// Current threat level assessment
     pub threat_level: ThreatLevel,
@@ -415,13 +395,7 @@ impl Monster {
             confused_timeout: 0,
             sleep_timeout: 0,
             status_effects: StatusEffectTracker::new(),
-            #[cfg(feature = "extensions")]
-            personality: Personality::default(),
-            #[cfg(feature = "extensions")]
-            morale: MoraleTracker::new(),
             resources: CombatResources::new(),
-            #[cfg(feature = "extensions")]
-            combat_memory: CombatMemory::new(),
             threat_level: ThreatLevel::default(),
             inventory: Vec::new(),
             wielded: None,
@@ -1477,12 +1451,13 @@ pub fn onscary(
     // - Monster is not peaceful
     // - Monster is not human or minotaur
     // - Not in Gehennom or endgame
-    if let Some(engr) = level.engr_at(x, y) {
-        if engr.text.to_uppercase().contains("ELBERETH") {
-            let at_location = player_x == x && player_y == y;
-            // Simplified displaced check - would check Displaced property
+    if let Some(engr) = level.engr_at(x, y)
+        && engr.text.to_uppercase().contains("ELBERETH")
+    {
+        let at_location = player_x == x && player_y == y;
+        // Simplified displaced check - would check Displaced property
 
-            if at_location
+        if at_location
                 && !monster.is_shopkeeper
                 && !monster.is_guard  // Vault guard check
                 && !monster.state.blinded
@@ -1490,9 +1465,8 @@ pub fn onscary(
                 && !name_lower.contains("human")
                 && !name_lower.contains("minotaur")
                 && !in_gehennom
-            {
-                return true;
-            }
+        {
+            return true;
         }
     }
 
@@ -1741,17 +1715,17 @@ pub fn mon_reflects(mon: &Monster) -> Option<&'static str> {
         let obj_name = obj.name.as_deref().unwrap_or("");
 
         // Check worn shield
-        if obj.worn_mask & crate::action::wear::worn_mask::W_ARMS != 0 {
-            if obj_name.to_lowercase().contains("reflection") {
-                return Some("shield");
-            }
+        if obj.worn_mask & crate::action::wear::worn_mask::W_ARMS != 0
+            && obj_name.to_lowercase().contains("reflection")
+        {
+            return Some("shield");
         }
 
         // Check worn amulet
-        if obj.worn_mask & crate::action::wear::worn_mask::W_AMUL != 0 {
-            if obj_name.to_lowercase().contains("reflection") {
-                return Some("amulet");
-            }
+        if obj.worn_mask & crate::action::wear::worn_mask::W_AMUL != 0
+            && obj_name.to_lowercase().contains("reflection")
+        {
+            return Some("amulet");
         }
 
         // Check worn armor (silver dragon scales)
@@ -1817,17 +1791,15 @@ pub fn goodpos(x: i8, y: i8, mon: &Monster, level: &crate::dungeon::Level) -> bo
     if matches!(
         cell.typ,
         crate::dungeon::CellType::Pool | crate::dungeon::CellType::Moat
-    ) {
-        if !mon.can_swim && !mon.can_fly {
-            return false;
-        }
+    ) && !mon.can_swim
+        && !mon.can_fly
+    {
+        return false;
     }
 
     // Check for lava - only fire resistant flyers can be in lava
-    if matches!(cell.typ, crate::dungeon::CellType::Lava) {
-        if !mon.can_fly || !mon.resists_fire() {
-            return false;
-        }
+    if matches!(cell.typ, crate::dungeon::CellType::Lava) && (!mon.can_fly || !mon.resists_fire()) {
+        return false;
     }
 
     // Check for another monster at this position
@@ -2021,10 +1993,9 @@ pub fn curr_mon_load(mon: &Monster) -> i32 {
 pub fn max_mon_load(mon: &Monster) -> i32 {
     // Base capacity based on level (simplified from C version)
     // In NetHack, this is based on monster strength which correlates with level
-    let base_capacity = 50 + (mon.level as i32) * 25;
 
     // Adjust for size (would check permonst data in full implementation)
-    base_capacity
+    50 + (mon.level as i32) * 25
 }
 
 /// Check if monster is encumbered

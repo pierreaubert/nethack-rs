@@ -21,8 +21,7 @@ impl Plugin for MinimapPlugin {
             .add_systems(Update, toggle_minimap.run_if(in_state(AppState::Playing)))
             .add_systems(
                 EguiPrimaryContextPass,
-                render_minimap
-                    .run_if(in_state(AppState::Playing)),
+                render_minimap.run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -68,10 +67,12 @@ fn render_minimap(
     settings: Res<MinimapSettings>,
 ) {
     if !settings.visible {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     let state = &game_state.0;
     let level = &state.current_level;
     let player_x = state.player.pos.x as usize;
@@ -213,8 +214,6 @@ fn render_minimap(
                 egui::Color32::GRAY,
             );
         });
-
-    
 }
 
 /// Convert cell type to minimap color

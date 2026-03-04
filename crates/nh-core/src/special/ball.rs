@@ -33,7 +33,9 @@ pub fn can_drag_ball(
     }
 
     let (bx, by) = punishment.ball_position;
-    let dist_to_ball = ((dest_x - bx) as i32).abs().max(((dest_y - by) as i32).abs());
+    let dist_to_ball = ((dest_x - bx) as i32)
+        .abs()
+        .max(((dest_y - by) as i32).abs());
 
     // Player must stay within chain_length of the ball
     if dist_to_ball > punishment.chain_length {
@@ -62,7 +64,9 @@ pub fn drag_ball(
     }
 
     let (bx, by) = punishment.ball_position;
-    let dist = ((new_player_x - bx) as i32).abs().max(((new_player_y - by) as i32).abs());
+    let dist = ((new_player_x - bx) as i32)
+        .abs()
+        .max(((new_player_y - by) as i32).abs());
 
     if dist <= punishment.chain_length {
         // Ball stays where it is
@@ -109,7 +113,11 @@ pub fn unplacebc(punishment: &mut PunishmentState) {
 /// Set up punishment (set_bc from ball.c).
 pub fn set_bc(punishment: &mut PunishmentState, player_x: i8, player_y: i8, heavy: bool) {
     punishment.punished = true;
-    punishment.ball_weight = if heavy { HEAVY_BALL_WEIGHT } else { IRON_BALL_WEIGHT };
+    punishment.ball_weight = if heavy {
+        HEAVY_BALL_WEIGHT
+    } else {
+        IRON_BALL_WEIGHT
+    };
     punishment.chain_length = CHAIN_LENGTH;
     punishment.ball_position = (player_x, player_y);
 }
@@ -146,7 +154,9 @@ pub fn ball_movement_penalty(
     }
 
     // Penalty increases with distance from ball
-    let dist = ((player_x - bx) as i32).abs().max(((player_y - by) as i32).abs());
+    let dist = ((player_x - bx) as i32)
+        .abs()
+        .max(((player_y - by) as i32).abs());
 
     let _ = level; // Would check terrain in full implementation
 

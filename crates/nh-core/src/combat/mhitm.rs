@@ -10,10 +10,10 @@ use crate::compat::*;
 use super::{
     ArmorProficiency, ArmorType, Attack, AttackType, CombatEffect, CombatResult, CriticalHitType,
     DamageType, DefenseCalculation, DodgeSkill, RangedAttack, RangedWeaponType, SkillLevel,
-    SpecialCombatEffect, StatusEffect, apply_damage_reduction, apply_special_effect,
-    apply_status_effect, attempt_dodge, award_monster_xp, calculate_armor_damage_reduction,
-    calculate_skill_enhanced_damage, calculate_status_damage, determine_critical_hit,
-    effect_severity_from_skill, execute_ranged_attack, should_trigger_special_effect,
+    SpecialCombatEffect, apply_damage_reduction, apply_special_effect, attempt_dodge,
+    calculate_armor_damage_reduction, calculate_skill_enhanced_damage, calculate_status_damage,
+    determine_critical_hit, effect_severity_from_skill, execute_ranged_attack,
+    should_trigger_special_effect,
 };
 use crate::NATTK;
 use crate::dungeon::Level;
@@ -784,10 +784,11 @@ pub fn monster_ranged_attack_monster(
 
     // Apply special effects on crit
     let mut special_effect = None;
-    if ranged_result.critical.is_critical() && skill_level as u8 >= SkillLevel::Skilled as u8 {
-        if rng.one_in(3) {
-            special_effect = Some(CombatEffect::Poisoned);
-        }
+    if ranged_result.critical.is_critical()
+        && skill_level as u8 >= SkillLevel::Skilled as u8
+        && rng.one_in(3)
+    {
+        special_effect = Some(CombatEffect::Poisoned);
     }
 
     CombatResult {
@@ -915,7 +916,7 @@ pub fn gazemm(
                 return MmResult::MISS;
             }
             // Defender is petrified
-            return MmResult::HIT.with_def_died();
+            MmResult::HIT.with_def_died()
         }
         DamageType::Confuse => {
             // Confusing gaze (like umber hulk)
@@ -924,7 +925,7 @@ pub fn gazemm(
                 defender.confused_timeout = defender.confused_timeout.saturating_add(duration);
                 defender.state.confused = true;
             }
-            return MmResult::HIT;
+            MmResult::HIT
         }
         DamageType::Paralyze => {
             // Paralysis gaze (like floating eye)
@@ -933,7 +934,7 @@ pub fn gazemm(
                 defender.frozen_timeout = defender.frozen_timeout.saturating_add(duration);
                 defender.state.paralyzed = true;
             }
-            return MmResult::HIT;
+            MmResult::HIT
         }
         _ => {
             // Other gaze attacks - apply damage
@@ -1147,9 +1148,6 @@ pub fn mdisplacem(
         .any(|a| a.damage_type == DamageType::Stone && matches!(a.attack_type, AttackType::None));
     let attacker_resists_stone = attacker.resists_stone();
     let attacker_has_gloves = (attacker.worn_mask & 0x100) != 0; // W_ARMG approximation
-    // Drop immutable borrows before mutable access below
-    drop(attacker);
-    drop(defender);
 
     // Check for petrification - touching cockatrice without gloves
     if defender_petrifies && !attacker_resists_stone && !attacker_has_gloves {

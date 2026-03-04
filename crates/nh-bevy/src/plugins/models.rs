@@ -7,9 +7,9 @@ use bevy::prelude::*;
 use nh_core::monster::Monster;
 
 use crate::components::{Billboard, MapPosition, MonsterMarker, PlayerMarker};
-use crate::plugins::model_assets::{model_name_from_sprite_path, ModelAssets};
+use crate::plugins::model_assets::{ModelAssets, model_name_from_sprite_path};
 use crate::plugins::sprites::{
-    lookup_object_sprite, monster_size_scale, player_sprite_path, SpriteAssets,
+    SpriteAssets, lookup_object_sprite, monster_size_scale, player_sprite_path,
 };
 use crate::resources::AssetRegistryResource;
 
@@ -149,12 +149,8 @@ impl<'a> BillboardSpawner<'a> {
         obj: &nh_core::object::Object,
         transform: Transform,
     ) -> Option<Entity> {
-        let texture = lookup_object_sprite(
-            obj,
-            self.sprite_assets,
-            self.registry,
-            self.asset_server,
-        )?;
+        let texture =
+            lookup_object_sprite(obj, self.sprite_assets, self.registry, self.asset_server)?;
         let material = self.make_sprite_material(texture);
         let quad_size = 0.4;
 
@@ -185,9 +181,7 @@ impl<'a> BillboardSpawner<'a> {
         let model_assets = self.model_assets?;
 
         // Resolve sprite path from the asset registry
-        let sprite_path = self
-            .registry
-            .and_then(|reg| reg.0.get_sprite_path(obj))?;
+        let sprite_path = self.registry.and_then(|reg| reg.0.get_sprite_path(obj))?;
 
         let model_name = model_name_from_sprite_path(sprite_path);
         let entry = model_assets.models.get(model_name)?;

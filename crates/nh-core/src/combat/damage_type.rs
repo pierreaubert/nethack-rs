@@ -337,15 +337,12 @@ pub fn dmgval(rng: &mut GameRng, attack: &Attack) -> i32 {
 ///
 /// In NetHack, some weapons do extra damage against certain monster types.
 /// This is a simplified version.
-pub fn weapon_dmgval_bonus(weapon_type: i16, is_large_target: bool) -> i32 {
+pub fn weapon_dmgval_bonus(_weapon_type: i16, is_large_target: bool) -> i32 {
     // Simplified - in full NetHack this looks up the weapon's damage dice
     // vs small vs large creatures. Here we just provide a bonus/penalty.
     if is_large_target {
         // Large monsters - some weapons do more or less damage
-        match weapon_type {
-            // Long sword does more vs large
-            _ => 0,
-        }
+        0
     } else {
         0
     }
@@ -601,7 +598,6 @@ pub fn can_erode_material(material: u8, erosion_type: ErosionType) -> bool {
     // Material constants (simplified - would come from objclass)
     const METAL: u8 = 0;
     const IRON: u8 = 1;
-    const COPPER: u8 = 2;
     const SILVER: u8 = 3;
     const GOLD: u8 = 4;
     const WOOD: u8 = 5;

@@ -7,10 +7,9 @@
 use crate::compat::*;
 
 use crate::magic::{
-    ArtifactEffects, CursedConsequence, CursedEffect, Luckstone, apply_all_equipment_properties,
-    apply_artifact_effects, apply_cursed_effect, calculate_curse_magnitude, check_fumble,
-    cursed_effect_message, determine_cursed_effects, determine_item_properties,
-    get_artifact_effects, remove_all_equipment_properties, remove_artifact_effects,
+    CursedConsequence, apply_all_equipment_properties, apply_artifact_effects, check_fumble,
+    cursed_effect_message, get_artifact_effects, remove_all_equipment_properties,
+    remove_artifact_effects,
 };
 use crate::player::You;
 use crate::rng::GameRng;
@@ -91,7 +90,11 @@ pub fn reapply_equipment_properties(player: &mut You) {
 }
 
 /// Equip an item and apply its effects
-pub fn equip_item_with_effects(player: &mut You, object_id: u32, rng: &mut GameRng) -> Vec<String> {
+pub fn equip_item_with_effects(
+    player: &mut You,
+    object_id: u32,
+    _rng: &mut GameRng,
+) -> Vec<String> {
     let mut messages = Vec::new();
 
     // Add to equipped list
@@ -121,7 +124,7 @@ pub fn equip_item_with_effects(player: &mut You, object_id: u32, rng: &mut GameR
 
 /// Unequip an item and remove its effects
 pub fn unequip_item_with_effects(player: &mut You, object_id: u32) -> Vec<String> {
-    let mut messages = Vec::new();
+    let messages = Vec::new();
 
     // Remove from equipped list
     player.equipped_items.retain(|&id| id != object_id);
@@ -172,21 +175,20 @@ pub fn remove_artifact_from_player(player: &mut You, artifact_id: u8) {
 
 /// Check artifact warning for nearby monsters
 pub fn check_artifact_warning(
-    player: &You,
+    _player: &You,
     artifact_id: u8,
     nearby_monsters: &[(char, String)],
 ) -> Option<String> {
     use crate::magic::should_warn_of_monster;
 
     for (monster_symbol, _monster_name) in nearby_monsters {
-        if should_warn_of_monster(artifact_id, *monster_symbol) {
-            if get_artifact_effects(artifact_id)
+        if should_warn_of_monster(artifact_id, *monster_symbol)
+            && get_artifact_effects(artifact_id)
                 .ability
                 .description()
                 .contains("warns")
-            {
-                return Some("You sense a nearby threat!".to_string());
-            }
+        {
+            return Some("You sense a nearby threat!".to_string());
         }
     }
 
@@ -199,12 +201,12 @@ pub fn apply_poisoned_weapon_damage(
     weapon_id: u32,
     rng: &mut GameRng,
 ) -> Option<(i32, String)> {
-    if let Some(poison) = player.special_item_tracker.get_poisoned_weapon(weapon_id) {
-        if rng.percent(poison.poison_chance() as u32) {
-            let damage = poison.poison_damage();
-            let message = format!("The {} poison drips from the weapon!", poison.poison_type);
-            return Some((damage, message));
-        }
+    if let Some(poison) = player.special_item_tracker.get_poisoned_weapon(weapon_id)
+        && rng.percent(poison.poison_chance() as u32)
+    {
+        let damage = poison.poison_damage();
+        let message = format!("The {} poison drips from the weapon!", poison.poison_type);
+        return Some((damage, message));
     }
 
     None
@@ -212,10 +214,10 @@ pub fn apply_poisoned_weapon_damage(
 
 /// Reduce greased item charge
 pub fn use_grease_charge(player: &mut You, item_id: u32, rng: &mut GameRng) -> Option<String> {
-    if let Some(greased) = player.special_item_tracker.get_greased_item_mut(item_id) {
-        if greased.try_use_charge(rng) {
-            return Some("The grease coating wears off.".to_string());
-        }
+    if let Some(greased) = player.special_item_tracker.get_greased_item_mut(item_id)
+        && greased.try_use_charge(rng)
+    {
+        return Some("The grease coating wears off.".to_string());
     }
 
     None

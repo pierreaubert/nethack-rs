@@ -181,6 +181,7 @@ fn apply_fog_to_tiles(
 }
 
 /// Apply fog of war to entities (monsters, items)
+#[allow(clippy::type_complexity)]
 fn apply_fog_to_entities(
     visibility: Res<VisibilityMap>,
     settings: Res<FogSettings>,

@@ -94,10 +94,8 @@ pub fn load_c_monsters() -> Vec<CMonster> {
             continue;
         }
 
-        if in_mons_array {
-            if let Some(monster) = parse_mon_macro(line) {
-                monsters.push(monster);
-            }
+        if in_mons_array && let Some(monster) = parse_mon_macro(line) {
+            monsters.push(monster);
         }
     }
 

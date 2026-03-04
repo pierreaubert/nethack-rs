@@ -6,7 +6,7 @@
 use crate::compat::*;
 
 use super::advanced;
-use crate::dungeon::{DLevel, Level};
+use crate::dungeon::Level;
 use crate::monster::MonsterId;
 use crate::player::{Attribute, Property, You};
 use crate::rng::GameRng;
@@ -659,11 +659,6 @@ pub fn cast_spell(
         SpellType::CreateMonster => cast_create_monster(direction, level, rng, &mut result),
         SpellType::StoneSkin => cast_stone_skin(player, &mut result),
         SpellType::Polymorph => cast_polymorph(direction, player, level, rng, &mut result),
-        _ => {
-            result
-                .messages
-                .push("That spell is not yet implemented.".to_string());
-        }
     }
 
     result
@@ -1046,7 +1041,8 @@ fn cast_teleport_away(
             let ny = rng.rn2(crate::ROWNO as u32) as i8;
 
             if level.is_walkable(nx, ny) && level.monster_at(nx, ny).is_none() {
-                let name = level.monster(monster_id)
+                let name = level
+                    .monster(monster_id)
                     .map(|m| m.name.clone())
                     .unwrap_or_default();
                 level.move_monster(monster_id, nx, ny);
@@ -1363,8 +1359,8 @@ fn cast_detect_treasure(level: &Level, result: &mut SpellResult) {
 
 fn cast_create_monster(
     direction: Option<(i8, i8)>,
-    level: &Level,
-    rng: &mut GameRng,
+    _level: &Level,
+    _rng: &mut GameRng,
     result: &mut SpellResult,
 ) {
     let (dx, dy) = direction.unwrap_or((0, 0));
@@ -1401,12 +1397,12 @@ fn cast_polymorph(
     let tx = player.pos.x + dx;
     let ty = player.pos.y + dy;
 
-    if let Some(monster) = level.monster_at_mut(tx, ty) {
+    if let Some(_monster) = level.monster_at_mut(tx, ty) {
         // Polymorph the monster into a different form
-        let new_monster_type = rng.rnd(100) as i16;
+        let _new_monster_type = rng.rnd(100) as i16;
         result
             .messages
-            .push(format!("The monster shimmers and transforms!"));
+            .push("The monster shimmers and transforms!".to_string());
         // Would update monster.monster_type in full implementation
     } else {
         result
@@ -1739,16 +1735,16 @@ pub fn monster_cast_spell(
             // Find undead monsters and make them flee
             let monster_ids: Vec<_> = level.monster_ids().collect();
             for monster_id in monster_ids {
-                if let Some(target) = level.monster_mut(monster_id) {
-                    if is_undead_monster(target) {
-                        let dist = (target.x - caster.x).abs().max((target.y - caster.y).abs());
-                        if dist <= 6 {
-                            // Set fleeing state and timeout
-                            target.state.fleeing = true;
-                            target.flee_timeout = 10 + rng.rnd(20) as u16;
-                            result.messages.push(format!("The {} flees!", target.name));
-                            affected_count += 1;
-                        }
+                if let Some(target) = level.monster_mut(monster_id)
+                    && is_undead_monster(target)
+                {
+                    let dist = (target.x - caster.x).abs().max((target.y - caster.y).abs());
+                    if dist <= 6 {
+                        // Set fleeing state and timeout
+                        target.state.fleeing = true;
+                        target.flee_timeout = 10 + rng.rnd(20) as u16;
+                        result.messages.push(format!("The {} flees!", target.name));
+                        affected_count += 1;
                     }
                 }
             }
@@ -1841,7 +1837,7 @@ pub fn monster_cast_spell(
 
                 // Set polymorph timeout (duration: 100-200 turns)
                 let polymorph_duration = 100 + rng.rnd(100);
-                player.polymorph_timeout = polymorph_duration as u32;
+                player.polymorph_timeout = polymorph_duration;
 
                 // Apply temporary stat changes while polymorphed
                 let stat_mod = rng.rnd(2) as i8 - 1; // -1, 0, or +1
@@ -2409,7 +2405,7 @@ pub fn regenerate_mana(player: &mut You) {
     let regen_rate = calculate_mana_regen(player);
 
     // Every 10 turns should regenerate some mana
-    if player.turns_played % 10 == 0 {
+    if player.turns_played.is_multiple_of(10) {
         let regen_amount = (regen_rate * 10.0) as i32;
         player.energy = (player.energy + regen_amount).min(max_mana);
     }

@@ -19,6 +19,7 @@ pub mod keybindings;
 pub mod kick;
 pub mod level_change;
 pub mod movement;
+pub mod music;
 pub mod name;
 pub mod open_close;
 pub mod pickup;
@@ -30,7 +31,6 @@ pub mod teleport;
 pub mod throw;
 pub mod trap;
 pub mod wear;
-pub mod music;
 pub mod zap;
 
 /// Player command types

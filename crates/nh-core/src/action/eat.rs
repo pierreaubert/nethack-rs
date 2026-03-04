@@ -148,10 +148,11 @@ pub fn calculate_nutrition(obj: &Object, race: Race) -> i32 {
     };
 
     // Race nutrition modifiers (eat.c line 323-336)
-    let modified = match obj.object_type {
+
+    match obj.object_type {
         otyp::LEMBAS_WAFER => match race {
-            Race::Elf => base + base / 4,   // 800 -> 1000
-            Race::Orc => base - base / 4,   // 800 -> 600
+            Race::Elf => base + base / 4, // 800 -> 1000
+            Race::Orc => base - base / 4, // 800 -> 600
             _ => base,
         },
         otyp::CRAM_RATION => match race {
@@ -159,9 +160,7 @@ pub fn calculate_nutrition(obj: &Object, race: Race) -> i32 {
             _ => base,
         },
         _ => base,
-    };
-
-    modified
+    }
 }
 
 /// Legacy interface without race (backward compat)
@@ -181,10 +180,10 @@ pub fn is_rotten(obj: &Object, current_turn: i64) -> bool {
     }
 
     // Check nonrotting corpse
-    if let Some(template) = get_monster(obj.corpse_type) {
-        if template.nonrotting_corpse() {
-            return false;
-        }
+    if let Some(template) = get_monster(obj.corpse_type)
+        && template.nonrotting_corpse()
+    {
+        return false;
     }
 
     let age = current_turn - obj.age;
@@ -199,10 +198,10 @@ pub fn is_rotten(obj: &Object, current_turn: i64) -> bool {
 /// Calculate rot level for C-faithful rot handling.
 /// Returns rot value matching C's (monstermoves - age) / (10 + rn2(20)).
 pub fn calculate_rot(obj: &Object, current_turn: i64, rng: &mut GameRng) -> i64 {
-    if let Some(template) = get_monster(obj.corpse_type) {
-        if template.nonrotting_corpse() {
-            return 0;
-        }
+    if let Some(template) = get_monster(obj.corpse_type)
+        && template.nonrotting_corpse()
+    {
+        return 0;
     }
 
     let age = current_turn - obj.age;
@@ -270,12 +269,13 @@ pub fn cprefx(state: &mut GameState, pm: i16) -> ActionResult {
     };
 
     // Petrification check (flesh_petrifies)
-    if template.flesh_petrifies() {
-        if !state.player.properties.has(Property::StoneResistance) {
-            state.message(format!("You turn to stone from tasting {} meat.", template.name));
-            state.player.hp = 0;
-            return ActionResult::Died(format!("tasting {} meat", template.name));
-        }
+    if template.flesh_petrifies() && !state.player.properties.has(Property::StoneResistance) {
+        state.message(format!(
+            "You turn to stone from tasting {} meat.",
+            template.name
+        ));
+        state.player.hp = 0;
+        return ActionResult::Died(format!("tasting {} meat", template.name));
     }
 
     // Domestic animals: guilt + aggravate (eat.c lines 696-707)
@@ -288,10 +288,8 @@ pub fn cprefx(state: &mut GameState, pm: i16) -> ActionResult {
     }
 
     // Lizard: cure stoning (eat.c line 708-711)
-    if template.symbol == ':' && template.name == "lizard" {
-        if state.player.stoning_timeout > 0 {
-            fix_petrification(state);
-        }
+    if template.symbol == ':' && template.name == "lizard" && state.player.stoning_timeout > 0 {
+        fix_petrification(state);
     }
 
     // Riders: instant death (eat.c lines 712-728)
@@ -302,13 +300,12 @@ pub fn cprefx(state: &mut GameState, pm: i16) -> ActionResult {
     }
 
     // Green slime: start sliming (eat.c lines 730-735)
-    if template.name == "green slime" {
-        if state.player.sliming_timeout == 0
-            && !state.player.properties.has(Property::Unchanging)
-        {
-            state.message("You don't feel very well.");
-            make_slimed(state, 10);
-        }
+    if template.name == "green slime"
+        && state.player.sliming_timeout == 0
+        && !state.player.properties.has(Property::Unchanging)
+    {
+        state.message("You don't feel very well.");
+        make_slimed(state, 10);
     }
 
     // Acidic monsters: cure stoning (eat.c lines 738-740)
@@ -401,9 +398,7 @@ pub fn cpostfx(state: &mut GameState, pm: i16) {
     match template.name {
         // Newt: energy boost (eat.c lines 958-974)
         "newt" => {
-            if state.rng.rn2(3) != 0
-                || 3 * state.player.energy <= 2 * state.player.energy_max
-            {
+            if state.rng.rn2(3) != 0 || 3 * state.player.energy <= 2 * state.player.energy_max {
                 let old_en = state.player.energy;
                 let boost = state.rng.rnd(3) as i32;
                 state.player.energy += boost;
@@ -454,13 +449,26 @@ pub fn cpostfx(state: &mut GameState, pm: i16) {
 
         // Stalker: invisibility + see invisible + stun (eat.c lines 996-1015)
         "stalker" => {
-            if !state.player.properties.has_intrinsic(Property::Invisibility) {
+            if !state
+                .player
+                .properties
+                .has_intrinsic(Property::Invisibility)
+            {
                 // Grant invisibility (C uses HInvis += rn1(100,50) for timed)
-                state.player.properties.grant_intrinsic(Property::Invisibility);
+                state
+                    .player
+                    .properties
+                    .grant_intrinsic(Property::Invisibility);
                 state.message("You feel hidden!");
             } else {
-                state.player.properties.grant_intrinsic(Property::Invisibility);
-                state.player.properties.grant_intrinsic(Property::SeeInvisible);
+                state
+                    .player
+                    .properties
+                    .grant_intrinsic(Property::Invisibility);
+                state
+                    .player
+                    .properties
+                    .grant_intrinsic(Property::SeeInvisible);
             }
             // Fallthrough to stun
             let stun_dur = 30u16;
@@ -601,7 +609,7 @@ pub fn cpostfx(state: &mut GameState, pm: i16) {
         }
 
         // Check each conveyable resistance
-        for (i, (resist_flag, property)) in CONVEYABLE_INTRINSICS.iter().enumerate() {
+        for (i, (resist_flag, _property)) in CONVEYABLE_INTRINSICS.iter().enumerate() {
             if template.conveys.contains(*resist_flag) {
                 count += 1;
                 // 1/count chance to replace previous selection
@@ -662,11 +670,11 @@ pub fn cpostfx(state: &mut GameState, pm: i16) {
     }
 
     // Lycanthropy (eat.c lines 1151-1154)
-    if let Some(_were_type) = catch_lycanthropy {
-        if state.player.lycanthropy.is_none() {
-            state.player.lycanthropy = Some(pm);
-            state.message("You feel feverish.");
-        }
+    if let Some(_were_type) = catch_lycanthropy
+        && state.player.lycanthropy.is_none()
+    {
+        state.player.lycanthropy = Some(pm);
+        state.message("You feel feverish.");
     }
 }
 
@@ -697,7 +705,8 @@ pub fn fprefx(state: &mut GameState, object_type: i16, corpse_type: i16) {
                     // 50% chance of vomiting for non-orcs, non-carnivores
                     if state.rng.rn2(2) != 0 {
                         let dur = (state.rng.rnd(14) + 14) as u16;
-                        state.player.vomiting_timeout = state.player.vomiting_timeout.saturating_add(dur);
+                        state.player.vomiting_timeout =
+                            state.player.vomiting_timeout.saturating_add(dur);
                     }
                 }
             }
@@ -722,14 +731,14 @@ pub fn fprefx(state: &mut GameState, object_type: i16, corpse_type: i16) {
         }
         otyp::EGG => {
             // eat.c lines 1875-1880: rotten/stale eggs
-            if let Some(template) = get_monster(corpse_type) {
-                if template.flesh_petrifies() {
-                    if !state.player.properties.has(Property::StoneResistance) {
-                        state.message("Tstrstrstrch!");
-                        state.player.stoning_timeout = 5;
-                    } else {
-                        state.message("This egg doesn't taste like a chicken egg.");
-                    }
+            if let Some(template) = get_monster(corpse_type)
+                && template.flesh_petrifies()
+            {
+                if !state.player.properties.has(Property::StoneResistance) {
+                    state.message("Tstrstrstrch!");
+                    state.player.stoning_timeout = 5;
+                } else {
+                    state.message("This egg doesn't taste like a chicken egg.");
                 }
             }
         }
@@ -811,15 +820,13 @@ pub fn fpostfx(state: &mut GameState, object_type: i16, buc: BucStatus, corpse_t
         }
         otyp::EGG => {
             // eat.c lines 2232-2245: cockatrice egg petrification
-            if let Some(template) = get_monster(corpse_type) {
-                if template.flesh_petrifies() {
-                    if !state.player.properties.has(Property::StoneResistance)
-                        && state.player.stoning_timeout == 0
-                    {
-                        state.player.stoning_timeout = 5;
-                        state.message("You are turning to stone!");
-                    }
-                }
+            if let Some(template) = get_monster(corpse_type)
+                && template.flesh_petrifies()
+                && !state.player.properties.has(Property::StoneResistance)
+                && state.player.stoning_timeout == 0
+            {
+                state.player.stoning_timeout = 5;
+                state.message("You are turning to stone!");
             }
         }
         otyp::EUCALYPTUS_LEAF => {
@@ -837,9 +844,7 @@ pub fn fpostfx(state: &mut GameState, object_type: i16, buc: BucStatus, corpse_t
         }
         otyp::APPLE => {
             // eat.c lines 2252-2264: cursed apple = sleep (Snow White)
-            if buc == BucStatus::Cursed
-                && !state.player.properties.has(Property::SleepResistance)
-            {
+            if buc == BucStatus::Cursed && !state.player.properties.has(Property::SleepResistance) {
                 let dur = (state.rng.rnd(11) + 20) as u16;
                 state.player.sleeping_timeout = state.player.sleeping_timeout.saturating_add(dur);
                 state.message("You fall asleep.");
@@ -862,10 +867,15 @@ pub fn do_eat(state: &mut GameState, obj_letter: Option<char>) -> ActionResult {
     } else {
         // Look for food on the floor
         let pos = state.player.pos;
-        if let Some(_floor_obj) = state.current_level.objects_at(pos.x, pos.y).iter().find(|o| o.class == ObjectClass::Food) {
+        if let Some(_floor_obj) = state
+            .current_level
+            .objects_at(pos.x, pos.y)
+            .iter()
+            .find(|o| o.class == ObjectClass::Food)
+        {
             // In original NetHack, if there's food on the floor, we'd pick it up or eat it directly.
             // For now, let's assume we need to pick it up first or provide a way to eat from floor.
-            // Simplified: if there's food on the floor, we can't eat it directly yet in this impl 
+            // Simplified: if there's food on the floor, we can't eat it directly yet in this impl
             // without more complex logic (like identifying which one).
             // For now, just fail with message if it's None and nothing edible is found.
             return ActionResult::Failed("There is nothing here to eat.".to_string());
@@ -911,7 +921,15 @@ pub fn do_eat(state: &mut GameState, obj_letter: Option<char>) -> ActionResult {
 
     // Corpse handling
     if object_type == otyp::CORPSE {
-        return do_eat_corpse(state, letter, obj_name, corpse_type, buc, obj_age, nutrition);
+        return do_eat_corpse(
+            state,
+            letter,
+            obj_name,
+            corpse_type,
+            buc,
+            obj_age,
+            nutrition,
+        );
     }
 
     // Non-corpse food
@@ -997,7 +1015,10 @@ fn do_eat_corpse(
             state.message("Ecch - that must have been poisonous!");
             if !state.player.properties.has(Property::PoisonResistance) {
                 let str_loss = state.rng.rnd(4) as i8;
-                state.player.attr_current.modify(Attribute::Strength, -str_loss);
+                state
+                    .player
+                    .attr_current
+                    .modify(Attribute::Strength, -str_loss);
                 let dmg = state.rng.rnd(15) as i32;
                 state.player.hp -= dmg;
                 if state.player.hp <= 0 {
@@ -1020,15 +1041,16 @@ fn do_eat_corpse(
     }
 
     // Not rotten or survived rot: try rotten food effects
-    if template.map_or(false, |t| !t.nonrotting_corpse()) && (rotted > 0 || state.rng.rn2(7) == 0) {
+    if template.is_some_and(|t| !t.nonrotting_corpse()) && (rotted > 0 || state.rng.rn2(7) == 0) {
         rottenfood(state);
     }
 
     // Taste message
-    if let Some(t) = template {
-        if t.flesh_petrifies() && state.player.properties.has(Property::StoneResistance) {
-            state.message("This tastes just like chicken!");
-        }
+    if let Some(t) = template
+        && t.flesh_petrifies()
+        && state.player.properties.has(Property::StoneResistance)
+    {
+        state.message("This tastes just like chicken!");
     }
 
     state.message(format!("You eat the {}.", obj_name));
@@ -1079,10 +1101,10 @@ fn calculate_rot_from_age(
     corpse_type: i16,
     rng: &mut GameRng,
 ) -> i64 {
-    if let Some(template) = get_monster(corpse_type) {
-        if template.nonrotting_corpse() {
-            return 0;
-        }
+    if let Some(template) = get_monster(corpse_type)
+        && template.nonrotting_corpse()
+    {
+        return 0;
     }
 
     let age_diff = current_turn - obj_age;
@@ -1115,10 +1137,7 @@ fn do_eat_tin(state: &mut GameState, obj_letter: char) -> ActionResult {
 
     // Multi-turn opening would be tracked in TinContext
     // For now, consume immediately with a message about the delay
-    state.message(format!(
-        "You spend {} turns opening the tin.",
-        open_time
-    ));
+    state.message(format!("You spend {} turns opening the tin.", open_time));
 
     consume_tin(state, obj_letter)
 }
@@ -1139,7 +1158,7 @@ fn calculate_tin_open_time(state: &GameState) -> i32 {
 
 /// Consume an opened tin.
 fn consume_tin(state: &mut GameState, obj_letter: char) -> ActionResult {
-    let (nutrition, corpse_type, buc) = {
+    let (nutrition, corpse_type, _buc) = {
         let obj = match state.get_inventory_item(obj_letter) {
             Some(o) => o,
             None => return ActionResult::Failed("The tin is gone.".to_string()),
@@ -1499,7 +1518,10 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
     // C: FAINTING handling — check for starvation death and fainting
     if new_state == HungerState::Fainting {
         // C: u.uhunger < -(100 + 10 * ACURR(A_CON)) → STARVED → death
-        let con = state.player.attr_current.get(crate::player::Attribute::Constitution) as i32;
+        let con = state
+            .player
+            .attr_current
+            .get(crate::player::Attribute::Constitution) as i32;
         let starvation_threshold = -(100 + 10 * con);
         if state.player.nutrition < starvation_threshold {
             state.player.hunger_state = HungerState::Starved;
@@ -1600,7 +1622,7 @@ pub fn gethungry(state: &mut GameState) -> Vec<String> {
 
     let moves = state.turns;
 
-    if moves % 2 != 0 {
+    if !moves.is_multiple_of(2) {
         // Odd turns (C: if (moves % 2))
 
         // Regeneration uses up food, unless due to an artifact
@@ -1786,8 +1808,7 @@ pub fn apply_corpse_effects(
                 }
             }
             CorpseEffect::GainEnergy { amount } => {
-                state.player.energy =
-                    (state.player.energy + amount).min(state.player.energy_max);
+                state.player.energy = (state.player.energy + amount).min(state.player.energy_max);
                 if *amount > 0 {
                     messages.push("You feel a mild buzz.".to_string());
                 }
@@ -1804,8 +1825,10 @@ pub fn apply_corpse_effects(
                 messages.push("You feel much better!".to_string());
             }
             CorpseEffect::Confusion { duration } => {
-                state.player.confused_timeout =
-                    state.player.confused_timeout.saturating_add(*duration as u16);
+                state.player.confused_timeout = state
+                    .player
+                    .confused_timeout
+                    .saturating_add(*duration as u16);
                 messages.push("Yuk--Loss of strength saps the mind.".to_string());
             }
             CorpseEffect::Hallucination { duration } => {
@@ -1816,13 +1839,17 @@ pub fn apply_corpse_effects(
                 messages.push("Oh wow! Great stuff!".to_string());
             }
             CorpseEffect::Stun { duration } => {
-                state.player.stunned_timeout =
-                    state.player.stunned_timeout.saturating_add(*duration as u16);
+                state.player.stunned_timeout = state
+                    .player
+                    .stunned_timeout
+                    .saturating_add(*duration as u16);
                 messages.push("You feel dizzy.".to_string());
             }
             CorpseEffect::Blindness { duration } => {
-                state.player.blinded_timeout =
-                    state.player.blinded_timeout.saturating_add(*duration as u16);
+                state.player.blinded_timeout = state
+                    .player
+                    .blinded_timeout
+                    .saturating_add(*duration as u16);
                 messages.push("A cloud of darkness falls upon you.".to_string());
             }
             CorpseEffect::CureStoning => {
@@ -1863,11 +1890,12 @@ pub fn apply_corpse_effects(
             }
             CorpseEffect::InstantDeath { cause } => {
                 if state.player.properties.has(Property::LifeSaving) {
-                    state.player.properties.remove_intrinsic(Property::LifeSaving);
+                    state
+                        .player
+                        .properties
+                        .remove_intrinsic(Property::LifeSaving);
                     messages.push("But wait...".to_string());
-                    messages.push(
-                        "Your medallion of life saving crumbles to dust!".to_string(),
-                    );
+                    messages.push("Your medallion of life saving crumbles to dust!".to_string());
                     state.player.hp = state.player.hp_max / 2;
                 } else {
                     messages.push(format!("You die from {}.", cause));
@@ -2031,10 +2059,7 @@ mod tests {
         let mut state = GameState::new(GameRng::from_entropy());
         let initial_level = state.player.exp_level;
 
-        let wraith_idx = MONSTERS
-            .iter()
-            .position(|m| m.name == "wraith")
-            .unwrap() as i16;
+        let wraith_idx = MONSTERS.iter().position(|m| m.name == "wraith").unwrap() as i16;
 
         cpostfx(&mut state, wraith_idx);
         assert_eq!(state.player.exp_level, initial_level + 1);
@@ -2085,8 +2110,20 @@ mod tests {
 
         if let Some((idx, template)) = fire_conveyor {
             let effects = corpse_effects(idx as i16);
-            let has_fire = effects.iter().any(|e| matches!(e, CorpseEffect::GainIntrinsic { property: Property::FireResistance, .. }));
-            assert!(has_fire, "Monster {} should convey fire resistance", template.name);
+            let has_fire = effects.iter().any(|e| {
+                matches!(
+                    e,
+                    CorpseEffect::GainIntrinsic {
+                        property: Property::FireResistance,
+                        ..
+                    }
+                )
+            });
+            assert!(
+                has_fire,
+                "Monster {} should convey fire resistance",
+                template.name
+            );
         }
     }
 }

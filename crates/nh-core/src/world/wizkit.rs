@@ -81,31 +81,29 @@ pub fn proc_wizkit_line(line: &str, kit: &mut WizardKit) -> Result<(), String> {
     let mut enchantment = None;
     let mut note = None;
 
-    if idx < parts.len() {
-        if let Ok(q) = parts[idx].parse::<u32>() {
-            quantity = q;
-            idx += 1;
-        }
+    if idx < parts.len()
+        && let Ok(q) = parts[idx].parse::<u32>()
+    {
+        quantity = q;
+        idx += 1;
     }
 
     // Parse enchantment (starts with + or -)
     if idx < parts.len() {
         let part = parts[idx];
-        if part.starts_with('+') || part.starts_with('-') {
-            if let Ok(e) = part.parse::<i32>() {
-                enchantment = Some(e);
-                idx += 1;
-            }
+        if (part.starts_with('+') || part.starts_with('-'))
+            && let Ok(e) = part.parse::<i32>()
+        {
+            enchantment = Some(e);
+            idx += 1;
         }
     }
 
     // Parse note (everything after ~ marker)
-    if idx < parts.len() {
-        if parts[idx] == "~" {
-            idx += 1;
-            if idx < parts.len() {
-                note = Some(parts[idx..].join(" "));
-            }
+    if idx < parts.len() && parts[idx] == "~" {
+        idx += 1;
+        if idx < parts.len() {
+            note = Some(parts[idx..].join(" "));
         }
     }
 

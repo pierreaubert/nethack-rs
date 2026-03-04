@@ -71,15 +71,15 @@ pub fn extract_role_names() -> Vec<String> {
         }
 
         // Look for { { "Name", pattern which indicates role name
-        if trimmed.starts_with("{ { \"") {
-            if let Some(start) = trimmed.find('"') {
-                let rest = &trimmed[start + 1..];
-                if let Some(end) = rest.find('"') {
-                    let name = rest[..end].to_string();
-                    // Only include if it's a known role name
-                    if KNOWN_ROLES.contains(&name.as_str()) {
-                        names.push(name);
-                    }
+        if trimmed.starts_with("{ { \"")
+            && let Some(start) = trimmed.find('"')
+        {
+            let rest = &trimmed[start + 1..];
+            if let Some(end) = rest.find('"') {
+                let name = rest[..end].to_string();
+                // Only include if it's a known role name
+                if KNOWN_ROLES.contains(&name.as_str()) {
+                    names.push(name);
                 }
             }
         }
@@ -171,22 +171,22 @@ pub fn extract_role_ranks() -> Vec<(String, Vec<String>)> {
         // Detect role header: `    { { "RoleName",` at 4-space indent.
         // First rank starts at 6-space indent: `      { { "Digger",`.
         // We distinguish them by checking if the extracted name is a known role.
-        if trimmed.starts_with("{ { \"") {
-            if let Some(name) = extract_first_quoted(trimmed) {
-                if KNOWN_ROLES.contains(&name.as_str()) {
-                    // Save previous role if any
-                    if let Some(prev) = current_role.take() {
-                        results.push((prev, std::mem::take(&mut current_ranks)));
-                    }
-                    current_role = Some(name);
-                    current_ranks.clear();
-                    continue;
+        if trimmed.starts_with("{ { \"")
+            && let Some(name) = extract_first_quoted(trimmed)
+        {
+            if KNOWN_ROLES.contains(&name.as_str()) {
+                // Save previous role if any
+                if let Some(prev) = current_role.take() {
+                    results.push((prev, std::mem::take(&mut current_ranks)));
                 }
-                // Not a known role — must be the first rank title (e.g. "Digger")
-                if current_role.is_some() && current_ranks.len() < 9 {
-                    current_ranks.push(name);
-                    continue;
-                }
+                current_role = Some(name);
+                current_ranks.clear();
+                continue;
+            }
+            // Not a known role — must be the first rank title (e.g. "Digger")
+            if current_role.is_some() && current_ranks.len() < 9 {
+                current_ranks.push(name);
+                continue;
             }
         }
 
@@ -194,10 +194,9 @@ pub fn extract_role_ranks() -> Vec<(String, Vec<String>)> {
         if current_role.is_some()
             && trimmed.starts_with("{ \"")
             && current_ranks.len() < 9
+            && let Some(rank) = extract_first_quoted(trimmed)
         {
-            if let Some(rank) = extract_first_quoted(trimmed) {
-                current_ranks.push(rank);
-            }
+            current_ranks.push(rank);
         }
     }
 

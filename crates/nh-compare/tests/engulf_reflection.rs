@@ -3,14 +3,11 @@
 //! Behavioral tests verifying engulfed state restrictions, engulf/expel lifecycle,
 //! player and monster reflection, polymorph escape from engulfment, and gaze reflection.
 
-use nh_core::combat::{
-    Attack, AttackType, CombatEffect, DamageType,
-    expels, gazemu, gulpmu,
-};
+use nh_core::GameRng;
+use nh_core::combat::{Attack, AttackType, CombatEffect, DamageType, expels, gazemu, gulpmu};
 use nh_core::magic::zap::{ZapType, ZapVariant, buzz};
 use nh_core::monster::{Monster, MonsterId};
 use nh_core::player::{Property, You};
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -107,7 +104,10 @@ fn test_expelled_when_engulfer_dies() {
     player.swallowed = true;
 
     let msg = expels(&mut player, "purple worm", true, DamageType::Physical);
-    assert!(!player.swallowed, "Player should not be engulfed after expels");
+    assert!(
+        !player.swallowed,
+        "Player should not be engulfed after expels"
+    );
     assert!(
         msg.contains("regurgitated"),
         "Animal should regurgitate: got '{}'",
@@ -117,7 +117,10 @@ fn test_expelled_when_engulfer_dies() {
     // Non-animal expulsion
     player.swallowed = true;
     let msg2 = expels(&mut player, "air elemental", false, DamageType::Electric);
-    assert!(!player.swallowed, "Player should not be engulfed after expels");
+    assert!(
+        !player.swallowed,
+        "Player should not be engulfed after expels"
+    );
     assert!(
         msg2.contains("expelled") && msg2.contains("sparks"),
         "Electric expulsion should mention sparks: got '{}'",
@@ -143,15 +146,20 @@ fn test_reflect_magic_missile() {
     let result = buzz(
         ZapType::MagicMissile,
         ZapVariant::Wand,
-        5, 5,
-        1, 0,
+        5,
+        5,
+        1,
+        0,
         20,
         &mut player,
         &mut level,
         &mut rng,
     );
 
-    assert_eq!(result.player_damage, 0, "Reflected MM should deal no damage");
+    assert_eq!(
+        result.player_damage, 0,
+        "Reflected MM should deal no damage"
+    );
     assert!(result.reflected, "Ray should be reflected");
 }
 
@@ -173,8 +181,10 @@ fn test_reflect_death_ray() {
     let result = buzz(
         ZapType::Death,
         ZapVariant::Wand,
-        5, 5,
-        1, 0,
+        5,
+        5,
+        1,
+        0,
         20,
         &mut player,
         &mut level,
@@ -182,7 +192,10 @@ fn test_reflect_death_ray() {
     );
 
     assert!(!result.player_died, "Reflected death ray should not kill");
-    assert_eq!(result.player_damage, 0, "Reflected death ray should deal no damage");
+    assert_eq!(
+        result.player_damage, 0,
+        "Reflected death ray should deal no damage"
+    );
     assert!(result.reflected, "Death ray should be reflected");
 }
 
@@ -210,7 +223,10 @@ fn test_monster_reflect_gaze() {
 
     // Gaze should be reflected back — player takes no damage
     assert!(!result.hit, "Reflected gaze should not hit player");
-    assert!(!result.defender_died, "Player should survive reflected gaze");
+    assert!(
+        !result.defender_died,
+        "Player should survive reflected gaze"
+    );
     // If medusa doesn't resist stone, she should die from her own gaze
     assert!(
         result.attacker_died,
@@ -247,7 +263,10 @@ fn test_polymorph_escapes_engulf() {
     if matches!(medium_size, MonsterSize::Huge | MonsterSize::Gigantic) {
         player.swallowed = false;
     }
-    assert!(player.swallowed, "Medium polymorph should NOT escape engulf");
+    assert!(
+        player.swallowed,
+        "Medium polymorph should NOT escape engulf"
+    );
 }
 
 // ============================================================================

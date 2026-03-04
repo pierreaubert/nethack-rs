@@ -4,10 +4,10 @@
 //! armor class, skill levels, weapon skills, status effects,
 //! and combat modifiers.
 
+use nh_core::GameRng;
 use nh_core::combat::*;
 use nh_core::monster::{Monster, MonsterId};
 use nh_core::object::{Object, ObjectClass, ObjectId};
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -50,7 +50,11 @@ fn test_attack_inactive() {
 fn test_attack_average_damage() {
     let atk = Attack::new(AttackType::Weapon, DamageType::Physical, 2, 6);
     let avg = atk.average_damage();
-    assert!((avg - 7.0).abs() < 0.01, "2d6 average should be 7.0, got {}", avg);
+    assert!(
+        (avg - 7.0).abs() < 0.01,
+        "2d6 average should be 7.0, got {}",
+        avg
+    );
 }
 
 // ============================================================================
@@ -103,7 +107,11 @@ fn test_grease_protect_not_greased() {
 #[test]
 fn test_weapon_skill_names() {
     for skill in WeaponSkill::all() {
-        assert!(!skill.name().is_empty(), "Skill {:?} should have a name", skill);
+        assert!(
+            !skill.name().is_empty(),
+            "Skill {:?} should have a name",
+            skill
+        );
     }
 }
 
@@ -245,7 +253,11 @@ fn test_apply_damage_reduction_half() {
 #[test]
 fn test_apply_damage_reduction_total() {
     let result = apply_damage_reduction(10, 1.0);
-    assert!(result <= 1, "Full reduction should leave minimal damage, got {}", result);
+    assert!(
+        result <= 1,
+        "Full reduction should leave minimal damage, got {}",
+        result
+    );
 }
 
 // ============================================================================

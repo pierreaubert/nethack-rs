@@ -174,10 +174,7 @@ fn early_return_audit() {
     }
 
     println!("\n=== Early Return Audit (potential shallow stubs) ===");
-    println!(
-        "Files with >5 early-return patterns: {}",
-        suspicious.len()
-    );
+    println!("Files with >5 early-return patterns: {}", suspicious.len());
     println!();
 
     let mut sorted: Vec<_> = suspicious.iter().collect();
@@ -192,5 +189,7 @@ fn early_return_audit() {
 
     println!("{}", "-".repeat(58));
     println!("{:<50} {:>6}", "TOTAL", total);
-    println!("\nNote: High counts in large files may be normal. Focus on small files with many early returns.");
+    println!(
+        "\nNote: High counts in large files may be normal. Focus on small files with many early returns."
+    );
 }

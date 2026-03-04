@@ -72,10 +72,13 @@ pub fn worm_move(
     growing: bool,
 ) -> Option<(i8, i8)> {
     // Add old head position as new first segment
-    tail.segments.insert(0, WormSegment {
-        x: old_head_x,
-        y: old_head_y,
-    });
+    tail.segments.insert(
+        0,
+        WormSegment {
+            x: old_head_x,
+            y: old_head_y,
+        },
+    );
 
     if growing && tail.segments.len() < MAX_WORM_LENGTH {
         // Growing — keep all segments
@@ -98,9 +101,12 @@ pub fn worm_at(tail: &WormTail, x: i8, y: i8) -> bool {
 ///
 /// Returns the segments that were cut off (back half).
 pub fn cutworm(tail: &mut WormTail, cut_x: i8, cut_y: i8) -> Vec<WormSegment> {
-    if let Some(idx) = tail.segments.iter().position(|s| s.x == cut_x && s.y == cut_y) {
-        let cut_off = tail.segments.split_off(idx);
-        cut_off
+    if let Some(idx) = tail
+        .segments
+        .iter()
+        .position(|s| s.x == cut_x && s.y == cut_y)
+    {
+        tail.segments.split_off(idx)
     } else {
         Vec::new()
     }

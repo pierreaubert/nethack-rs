@@ -80,12 +80,7 @@ pub fn dig_target(level: &Level, x: i8, y: i8, has_pick: bool) -> DigTarget {
 /// Check if digging down is possible at (x, y) (dig_check equivalent from dig.c:183).
 ///
 /// Returns None if digging is allowed, or an error message if not.
-pub fn dig_check(
-    level: &Level,
-    x: i8,
-    y: i8,
-    _dlevel: &DLevel,
-) -> Option<&'static str> {
+pub fn dig_check(level: &Level, x: i8, y: i8, _dlevel: &DLevel) -> Option<&'static str> {
     if !level.is_valid_pos(x, y) {
         return Some("You can't dig here.");
     }
@@ -185,9 +180,8 @@ pub fn dig_turn(
 
     // Calculate effort for this turn
     let str_bonus = (player.attr_current.get(Attribute::Strength) - 10).max(0) as i32;
-    let mut effort_gain = 10 + rng.rn2(5) as i32 + str_bonus
-        + weapon_spe as i32
-        - weapon_erosion as i32;
+    let mut effort_gain =
+        10 + rng.rn2(5) as i32 + str_bonus + weapon_spe as i32 - weapon_erosion as i32;
 
     // Dwarves dig faster (matches C: effort doubled)
     if is_dwarf {
@@ -215,11 +209,7 @@ pub fn dig_turn(
 }
 
 /// Complete a dig — modify terrain (called when effort > 250).
-fn complete_dig(
-    level: &mut Level,
-    ctx: &mut DigContext,
-    rng: &mut GameRng,
-) -> DigResult {
+fn complete_dig(level: &mut Level, ctx: &mut DigContext, rng: &mut GameRng) -> DigResult {
     let x = ctx.x;
     let y = ctx.y;
 
@@ -364,7 +354,9 @@ pub fn zap_dig_horizontal(
 
         // Check for non-diggable flag
         if cell.flags & 0x40 != 0 {
-            result.messages.push("The wall glows then fades.".to_string());
+            result
+                .messages
+                .push("The wall glows then fades.".to_string());
             break;
         }
 
@@ -373,21 +365,27 @@ pub fn zap_dig_horizontal(
             t if t.is_wall() => {
                 let cell = &mut level.cells[cx as usize][cy as usize];
                 cell.typ = CellType::Corridor;
-                result.cells_modified.push((cx, cy, old_typ, CellType::Corridor));
+                result
+                    .cells_modified
+                    .push((cx, cy, old_typ, CellType::Corridor));
                 remaining_depth -= 2; // Walls cost 2 depth
             }
             // Stone → corridor
             CellType::Stone => {
                 let cell = &mut level.cells[cx as usize][cy as usize];
                 cell.typ = CellType::Corridor;
-                result.cells_modified.push((cx, cy, old_typ, CellType::Corridor));
+                result
+                    .cells_modified
+                    .push((cx, cy, old_typ, CellType::Corridor));
                 remaining_depth -= 1;
             }
             // Secret corridor → corridor
             CellType::SecretCorridor => {
                 let cell = &mut level.cells[cx as usize][cy as usize];
                 cell.typ = CellType::Corridor;
-                result.cells_modified.push((cx, cy, old_typ, CellType::Corridor));
+                result
+                    .cells_modified
+                    .push((cx, cy, old_typ, CellType::Corridor));
                 remaining_depth -= 1;
             }
             // Secret door → door (open)
@@ -395,21 +393,27 @@ pub fn zap_dig_horizontal(
                 let cell = &mut level.cells[cx as usize][cy as usize];
                 cell.typ = CellType::Door;
                 cell.set_door_state(crate::dungeon::DoorState::BROKEN);
-                result.cells_modified.push((cx, cy, old_typ, CellType::Door));
+                result
+                    .cells_modified
+                    .push((cx, cy, old_typ, CellType::Door));
                 remaining_depth -= 2;
             }
             // Door → broken
             CellType::Door => {
                 let cell = &mut level.cells[cx as usize][cy as usize];
                 cell.set_door_state(crate::dungeon::DoorState::BROKEN);
-                result.cells_modified.push((cx, cy, old_typ, CellType::Door));
+                result
+                    .cells_modified
+                    .push((cx, cy, old_typ, CellType::Door));
                 remaining_depth -= 2;
             }
             // Tree → room
             CellType::Tree => {
                 let cell = &mut level.cells[cx as usize][cy as usize];
                 cell.typ = CellType::Room;
-                result.cells_modified.push((cx, cy, old_typ, CellType::Room));
+                result
+                    .cells_modified
+                    .push((cx, cy, old_typ, CellType::Room));
                 remaining_depth -= 2;
             }
             // Passable terrain → beam passes through
@@ -426,7 +430,10 @@ pub fn zap_dig_horizontal(
     if result.cells_modified.is_empty() {
         result.messages.push("The zap hits the wall.".to_string());
     } else {
-        result.messages.push(format!("The beam digs through {} cell(s).", result.cells_modified.len()));
+        result.messages.push(format!(
+            "The beam digs through {} cell(s).",
+            result.cells_modified.len()
+        ));
     }
 
     result
@@ -507,10 +514,7 @@ pub struct GravePenalty {
 /// - 2: Zombie
 /// - 3: Mummy
 /// - 4: Empty ("grave seems unused")
-pub fn dig_up_grave(
-    player: &You,
-    rng: &mut GameRng,
-) -> (GraveContents, Option<GravePenalty>) {
+pub fn dig_up_grave(player: &You, rng: &mut GameRng) -> (GraveContents, Option<GravePenalty>) {
     use crate::player::Role;
 
     // Determine alignment penalty
@@ -748,12 +752,20 @@ mod tests {
         let player = test_player();
         let mut level = test_level();
         let mut ctx1 = DigContext {
-            x: 4, y: 5, down: false, effort: 0,
-            target: Some(DigTarget::Rock), active: true,
+            x: 4,
+            y: 5,
+            down: false,
+            effort: 0,
+            target: Some(DigTarget::Rock),
+            active: true,
         };
         let mut ctx2 = DigContext {
-            x: 4, y: 5, down: false, effort: 0,
-            target: Some(DigTarget::Rock), active: true,
+            x: 4,
+            y: 5,
+            down: false,
+            effort: 0,
+            target: Some(DigTarget::Rock),
+            active: true,
         };
         let mut rng1 = GameRng::new(42);
         let mut rng2 = GameRng::new(42);

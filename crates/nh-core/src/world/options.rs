@@ -5,8 +5,8 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
-use serde::{Deserialize, Serialize};
 use hashbrown::HashMap;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use std::path::Path;
 
@@ -147,12 +147,12 @@ impl GameOptions {
                 }
             }
             // Parse BIND= lines for keybindings
-            else if let Some(bind) = line.strip_prefix("BIND=") {
-                if let Some((key, cmd)) = bind.split_once(':') {
-                    options
-                        .keybindings
-                        .insert(key.trim().to_string(), cmd.trim().to_string());
-                }
+            else if let Some(bind) = line.strip_prefix("BIND=")
+                && let Some((key, cmd)) = bind.split_once(':')
+            {
+                options
+                    .keybindings
+                    .insert(key.trim().to_string(), cmd.trim().to_string());
             }
         }
 
@@ -378,8 +378,9 @@ impl GameOptions {
 }
 
 /// Pickup burden threshold
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum PickupBurden {
+    #[default]
     Unencumbered,
     Burdened,
     Stressed,
@@ -388,54 +389,33 @@ pub enum PickupBurden {
     Overloaded,
 }
 
-impl Default for PickupBurden {
-    fn default() -> Self {
-        Self::Unencumbered
-    }
-}
-
 /// Number pad mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum NumberPadMode {
-    Off,   // Use hjklyubn
+    #[default]
+    Off, // Use hjklyubn
     On,    // Use number pad
     Phone, // Phone-style (2=up, 8=down)
 }
 
-impl Default for NumberPadMode {
-    fn default() -> Self {
-        Self::Off
-    }
-}
-
 /// Run mode (how fast to display running)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum RunMode {
     Teleport, // Instant
     Run,      // Fast
-    Walk,     // Normal
+    #[default]
+    Walk, // Normal
     Crawl,    // Slow
 }
 
-impl Default for RunMode {
-    fn default() -> Self {
-        Self::Walk
-    }
-}
-
 /// Message window style
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MessageWindow {
-    Single,      // Single line
+    #[default]
+    Single, // Single line
     Full,        // Full window
     Combination, // Combination
     Reverse,     // Reverse order
-}
-
-impl Default for MessageWindow {
-    fn default() -> Self {
-        Self::Single
-    }
 }
 
 /// End-game disclosure options
@@ -449,17 +429,12 @@ pub struct DisclosureOptions {
 }
 
 /// Disclosure choice
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum DisclosureChoice {
     Yes,
     No,
+    #[default]
     Prompt,
-}
-
-impl Default for DisclosureChoice {
-    fn default() -> Self {
-        Self::Prompt
-    }
 }
 
 /// Options parsing error

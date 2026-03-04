@@ -15,11 +15,13 @@ pub struct ItemPickerPlugin;
 impl Plugin for ItemPickerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ItemPickerState>()
-            .add_systems(Update, handle_picker_input.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                Update,
+                handle_picker_input.run_if(in_state(AppState::Playing)),
+            )
             .add_systems(
                 EguiPrimaryContextPass,
-                render_picker
-                    .run_if(in_state(AppState::Playing)),
+                render_picker.run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -118,7 +120,11 @@ fn handle_picker_input(
             // Check if standing on fountain
             use nh_core::dungeon::CellType;
             let pos = game_state.0.player.pos;
-            let cell_type = game_state.0.current_level.cell(pos.x as usize, pos.y as usize).typ;
+            let cell_type = game_state
+                .0
+                .current_level
+                .cell(pos.x as usize, pos.y as usize)
+                .typ;
             if cell_type == CellType::Fountain {
                 commands.write(GameCommand(Command::Dip(target, None)));
             }
@@ -245,10 +251,12 @@ fn render_picker(
     game_state: Res<GameStateResource>,
 ) {
     if !picker_state.active {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     let action_name = picker_state.action.map(|a| a.name()).unwrap_or("select");
     let inventory = &game_state.0.inventory;
 
@@ -256,7 +264,11 @@ fn render_picker(
     if let Some(PickerAction::DipItem(_)) = picker_state.action {
         use nh_core::dungeon::CellType;
         let pos = game_state.0.player.pos;
-        let cell_type = game_state.0.current_level.cell(pos.x as usize, pos.y as usize).typ;
+        let cell_type = game_state
+            .0
+            .current_level
+            .cell(pos.x as usize, pos.y as usize)
+            .typ;
         if cell_type == CellType::Fountain {
             title += " (Esc for fountain)";
         }
@@ -317,8 +329,6 @@ fn render_picker(
                     .color(egui::Color32::GRAY),
             );
         });
-
-    
 }
 
 use super::{item_name, object_class_color};

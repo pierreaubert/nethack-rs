@@ -319,7 +319,11 @@ pub fn getbones(dlevel: &DLevel) -> Option<BonesFile> {
         Ok(data) => match serde_json::from_str::<BonesFile>(&data) {
             Ok(bones) => {
                 let _ = delete_bonesfile(dlevel);
-                if bones.is_compatible() { Some(bones) } else { None }
+                if bones.is_compatible() {
+                    Some(bones)
+                } else {
+                    None
+                }
             }
             Err(_) => None,
         },
@@ -368,7 +372,11 @@ pub fn delete_bonesfile(dlevel: &DLevel) -> Result<(), String> {
 #[cfg(feature = "std")]
 pub fn commit_bonesfile(dlevel: &DLevel) -> Result<(), String> {
     let path = BonesFile::path(dlevel);
-    if path.exists() { Ok(()) } else { Err("Bones file does not exist".to_string()) }
+    if path.exists() {
+        Ok(())
+    } else {
+        Err("Bones file does not exist".to_string())
+    }
 }
 
 #[cfg(feature = "std")]

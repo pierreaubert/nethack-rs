@@ -17,7 +17,6 @@ use crate::gameloop::GameState;
 use crate::monster::{Monster, MonsterId};
 use crate::object::Object;
 use crate::player::You;
-use crate::rng::GameRng;
 
 use super::ShopType;
 
@@ -255,12 +254,11 @@ pub fn create_shopkeeper_extension(
 /// Find shopkeeper in a level for a given room (findshk/shop_keeper equivalent)
 pub fn find_room_shopkeeper(level: &Level, room_num: u8) -> Option<MonsterId> {
     for monster in &level.monsters {
-        if monster.is_shopkeeper {
-            if let Some(ext) = get_shopkeeper_ext(monster) {
-                if ext.shop_room == room_num {
-                    return Some(monster.id);
-                }
-            }
+        if monster.is_shopkeeper
+            && let Some(ext) = get_shopkeeper_ext(monster)
+            && ext.shop_room == room_num
+        {
+            return Some(monster.id);
         }
     }
     None
@@ -293,7 +291,7 @@ pub fn pacify_shopkeeper(monster: &mut Monster) {
 }
 
 /// Move shopkeeper toward shop (shk_move equivalent)
-pub fn move_shopkeeper_to_shop(shopkeeper: &mut Monster, level: &Level, player: &You) -> bool {
+pub fn move_shopkeeper_to_shop(shopkeeper: &mut Monster, level: &Level, _player: &You) -> bool {
     if let Some(ext) = get_shopkeeper_ext_mut(shopkeeper) {
         // Calculate distance to shop
         let shop_x = ext.shop_pos.0;
@@ -491,10 +489,7 @@ pub fn sell_item(state: &mut GameState, obj_letter: char) -> bool {
 pub fn check_leaving_shop(state: &mut GameState, shop: &Shop) -> bool {
     let total = shop.total_debt();
     if total > 0 {
-        state.message(format!(
-            "\"Hey! You owe me {} zorkmids!\"",
-            total
-        ));
+        state.message(format!("\"Hey! You owe me {} zorkmids!\"", total));
         return false;
     }
     true
@@ -520,7 +515,7 @@ pub fn shopkeeper_greeting(state: &mut GameState, shop: &Shop) {
 }
 
 /// Handle shopkeeper conversation (shk_chat equivalent)
-pub fn shopkeeper_chat(shopkeeper: &Monster, level: &Level) -> String {
+pub fn shopkeeper_chat(shopkeeper: &Monster, _level: &Level) -> String {
     let mut response = String::new();
 
     if let Some(ext) = get_shopkeeper_ext(shopkeeper) {
@@ -554,7 +549,7 @@ pub fn shopkeeper_chat(shopkeeper: &Monster, level: &Level) -> String {
 }
 
 /// Player trying to pay shopkeeper debt (dopay equivalent)
-pub fn pay_shopkeeper(shopkeeper: &mut Monster, level: &Level, player: &mut You) -> bool {
+pub fn pay_shopkeeper(shopkeeper: &mut Monster, player: &mut You) -> bool {
     if let Some(ext) = get_shopkeeper_ext_mut(shopkeeper) {
         let total_debt = ext.debit + ext.robbed;
 
@@ -618,7 +613,7 @@ pub fn make_happy_shopkeeper(shopkeeper: &mut Monster) {
 }
 
 /// Check if player is in shop (inhishop equivalent)
-pub fn is_in_shop(shopkeeper: &Monster, level: &Level, player_x: i8, player_y: i8) -> bool {
+pub fn is_in_shop(shopkeeper: &Monster, _level: &Level, player_x: i8, player_y: i8) -> bool {
     if let Some(ext) = get_shopkeeper_ext(shopkeeper) {
         // Simple check: within bounds of shop
         let (x1, y1, x2, y2) = (
@@ -653,7 +648,7 @@ pub fn inside_shop(shop: &Shop, x: i8, y: i8) -> bool {
 }
 
 /// Find which shop (if any) contains a position from a list of shops
-pub fn find_shop_at<'a>(shops: &'a [Shop], x: i8, y: i8) -> Option<&'a Shop> {
+pub fn find_shop_at(shops: &[Shop], x: i8, y: i8) -> Option<&Shop> {
     shops.iter().find(|shop| shop.contains(x, y))
 }
 
@@ -726,7 +721,7 @@ pub fn saleable(shopkeeper: &Monster, obj: &Object) -> bool {
 }
 
 /// Calculate value of stolen items - stolen_value equivalent
-pub fn stolen_value(obj: &Object, shopkeeper: &Monster) -> i32 {
+pub fn stolen_value(obj: &Object, _shopkeeper: &Monster) -> i32 {
     let base = base_price(obj);
 
     // Stolen items valued at 150% of base price (shopkeeper's loss)
@@ -769,25 +764,24 @@ pub fn hot_pursuit(shopkeeper: &mut Monster, customer_name: &str) {
 
 /// Remove object from bill - subfrombill equivalent
 pub fn sub_from_bill(shopkeeper: &mut Monster, obj_id: u32) -> bool {
-    if let Some(ext) = get_shopkeeper_ext_mut(shopkeeper) {
-        if let Some(idx) = ext.bills.iter().position(|b| b.object_id == obj_id) {
-            ext.bills.remove(idx);
-            ext.bill_count = ext.bills.len() as u32;
-            return true;
-        }
+    if let Some(ext) = get_shopkeeper_ext_mut(shopkeeper)
+        && let Some(idx) = ext.bills.iter().position(|b| b.object_id == obj_id)
+    {
+        ext.bills.remove(idx);
+        ext.bill_count = ext.bills.len() as u32;
+        return true;
     }
     false
 }
 
 /// Split bill entry for partial quantity - splitbill equivalent
 pub fn split_bill(shopkeeper: &mut Monster, obj_id: u32, new_quantity: i32) -> bool {
-    if let Some(ext) = get_shopkeeper_ext_mut(shopkeeper) {
-        if let Some(entry) = ext.bills.iter_mut().find(|b| b.object_id == obj_id) {
-            if entry.quantity > new_quantity {
-                entry.quantity = new_quantity;
-                return true;
-            }
-        }
+    if let Some(ext) = get_shopkeeper_ext_mut(shopkeeper)
+        && let Some(entry) = ext.bills.iter_mut().find(|b| b.object_id == obj_id)
+        && entry.quantity > new_quantity
+    {
+        entry.quantity = new_quantity;
+        return true;
     }
     false
 }
@@ -813,7 +807,7 @@ pub fn same_price(obj1: &Object, obj2: &Object) -> bool {
 }
 
 /// Get the cheapest item in a list - cheapest_item equivalent
-pub fn cheapest_item<'a>(items: &'a [Object]) -> Option<&'a Object> {
+pub fn cheapest_item(items: &[Object]) -> Option<&Object> {
     items.iter().min_by_key(|obj| base_price(obj))
 }
 
@@ -830,7 +824,7 @@ pub fn price_quote_str(obj: &Object, charisma: i8) -> String {
 }
 
 /// Check if shopkeeper owns object - shk_owns equivalent
-pub fn shopkeeper_owns(shopkeeper: &Monster, obj: &Object, shop: &Shop) -> bool {
+pub fn shopkeeper_owns(_shopkeeper: &Monster, obj: &Object, shop: &Shop) -> bool {
     // Object is in shop bounds and marked as shop inventory
     obj.unpaid && shop.contains(obj.x, obj.y)
 }

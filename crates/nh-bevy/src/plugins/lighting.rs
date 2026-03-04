@@ -100,10 +100,10 @@ fn update_player_light(
     mut ambient: ResMut<GlobalAmbientLight>,
 ) {
     // Update player light position
-    if let Ok(player_transform) = player_query.single() {
-        if let Ok(mut light_transform) = light_query.single_mut() {
-            light_transform.translation = player_transform.translation + Vec3::Y * 1.5; // Light above player
-        }
+    if let Ok(player_transform) = player_query.single()
+        && let Ok(mut light_transform) = light_query.single_mut()
+    {
+        light_transform.translation = player_transform.translation + Vec3::Y * 1.5; // Light above player
     }
 
     // Adjust ambient based on whether player is in a lit room

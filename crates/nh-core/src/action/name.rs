@@ -40,9 +40,7 @@ pub enum NamingResult {
 pub fn oname(obj: &mut Object, new_name: &str) -> NamingResult {
     // Artifacts resist renaming (matches C line 1313)
     if obj.is_artifact() {
-        return NamingResult::Rejected(
-            "The artifact seems to resist the attempt.".to_string(),
-        );
+        return NamingResult::Rejected("The artifact seems to resist the attempt.".to_string());
     }
 
     // Empty name = remove name
@@ -72,25 +70,23 @@ pub fn oname(obj: &mut Object, new_name: &str) -> NamingResult {
 /// Rejects naming of novels, artifacts, and names matching existing artifacts.
 pub fn do_oname(obj: &mut Object, proposed_name: &str) -> NamingResult {
     // Novels can't be renamed (matches C line 1236)
-    if obj.name.as_ref().is_some_and(|n| n.to_lowercase().contains("novel")) {
-        return NamingResult::Rejected(
-            "It already has a published name.".to_string(),
-        );
+    if obj
+        .name
+        .as_ref()
+        .is_some_and(|n| n.to_lowercase().contains("novel"))
+    {
+        return NamingResult::Rejected("It already has a published name.".to_string());
     }
 
     // Check for artifact naming conflicts
     if obj.is_artifact() {
-        return NamingResult::Rejected(
-            "The artifact seems to resist the attempt.".to_string(),
-        );
+        return NamingResult::Rejected("The artifact seems to resist the attempt.".to_string());
     }
 
     // Check if the proposed name matches an existing artifact
     // (matches C lines 1265-1289: hand slips while engraving)
     if is_artifact_name(proposed_name) && !obj.is_artifact() {
-        return NamingResult::Rejected(
-            "While engraving, your hand slips.".to_string(),
-        );
+        return NamingResult::Rejected("While engraving, your hand slips.".to_string());
     }
 
     oname(obj, proposed_name)
@@ -176,10 +172,7 @@ pub fn do_mname(
 
     // Shopkeepers refuse naming (matches C line 1207)
     if is_shopkeeper {
-        return NamingResult::Rejected(format!(
-            "\"I'm {}, not {}.\"",
-            monster.name, proposed_name
-        ));
+        return NamingResult::Rejected(format!("\"I'm {}, not {}.\"", monster.name, proposed_name));
     }
 
     // Priests and minions refuse naming (matches C line 1212)

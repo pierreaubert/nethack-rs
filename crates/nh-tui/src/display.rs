@@ -2,8 +2,8 @@
 //!
 //! Provides support for both classic ASCII and fancy Unicode box-drawing characters.
 
-use nh_core::dungeon::{CellType, DoorState};
 use nh_core::data::tile::{DungeonTile, Tile};
+use nh_core::dungeon::{CellType, DoorState};
 use strum::{Display, EnumString, VariantNames};
 
 /// Available graphics modes for the TUI.
@@ -23,7 +23,7 @@ pub enum GraphicsMode {
 pub trait GlyphSet: Send + Sync {
     /// Get the character for a dungeon cell.
     fn cell_char(&self, typ: CellType, flags: u8) -> char;
-    
+
     /// Get the character for a general tile (monsters, objects, etc).
     fn tile_char(&self, tile: &Tile) -> char;
 }
@@ -98,19 +98,19 @@ pub fn supports_unicode() -> bool {
     // Check LANG, LC_ALL, or LC_CTYPE for "UTF-8"
     let vars = ["LANG", "LC_ALL", "LC_CTYPE"];
     for var in vars {
-        if let Ok(val) = std::env::var(var) {
-            if val.to_uppercase().contains("UTF-8") || val.to_uppercase().contains("UTF8") {
-                return true;
-            }
-        }
-    }
-    
-    // On macOS/Linux, most modern terminals support UTF-8 by default.
-    // If we're not sure, we can check TERM.
-    if let Ok(term) = std::env::var("TERM") {
-        if term == "xterm-256color" || term == "alacritty" || term == "kitty" || term == "iterm" {
+        if let Ok(val) = std::env::var(var)
+            && (val.to_uppercase().contains("UTF-8") || val.to_uppercase().contains("UTF8"))
+        {
             return true;
         }
+    }
+
+    // On macOS/Linux, most modern terminals support UTF-8 by default.
+    // If we're not sure, we can check TERM.
+    if let Ok(term) = std::env::var("TERM")
+        && (term == "xterm-256color" || term == "alacritty" || term == "kitty" || term == "iterm")
+    {
+        return true;
     }
 
     false

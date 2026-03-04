@@ -4,8 +4,8 @@
 //! attribute clamping, bonuses, luck decay, encumbrance, level gain/loss,
 //! HP/energy regeneration, status effects, and distance calculations.
 
-use nh_core::player::{Attribute, Encumbrance, Gender, HungerState, Property, Race, Role, You};
 use nh_core::GameRng;
+use nh_core::player::{Attribute, Encumbrance, Gender, HungerState, Property, Race, Role, You};
 
 // ============================================================================
 // Helpers
@@ -46,14 +46,20 @@ fn make_player_with_role(role: Role) -> You {
 fn test_attr_clamp_minimum() {
     let mut p = make_player();
     p.set_attr(Attribute::Strength, 1);
-    assert!(p.acurr(Attribute::Strength) >= 3, "Attributes clamp to minimum 3");
+    assert!(
+        p.acurr(Attribute::Strength) >= 3,
+        "Attributes clamp to minimum 3"
+    );
 }
 
 #[test]
 fn test_attr_clamp_maximum() {
     let mut p = make_player();
     p.set_attr(Attribute::Strength, 30);
-    assert!(p.acurr(Attribute::Strength) <= 25, "Attributes clamp to maximum 25");
+    assert!(
+        p.acurr(Attribute::Strength) <= 25,
+        "Attributes clamp to maximum 25"
+    );
 }
 
 #[test]

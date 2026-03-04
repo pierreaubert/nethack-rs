@@ -138,10 +138,10 @@ use worn_mask::*;
 /// Determine which armor slot an item should use based on object_type.
 /// Data-driven: looks up ArmorCategory from OBJECTS definition.
 fn armor_slot(object_type: i16) -> u32 {
-    if let Some(def) = obj_def(object_type) {
-        if let Some(cat) = def.armor_category {
-            return cat.worn_mask();
-        }
+    if let Some(def) = obj_def(object_type)
+        && let Some(cat) = def.armor_category
+    {
+        return cat.worn_mask();
     }
     W_ARM // Default to body armor
 }
@@ -745,7 +745,9 @@ pub fn amulet_on(state: &mut GameState, amulet: &Object) -> EquipmentEffect {
         }
         AMULET_OF_STRANGULATION => {
             // Start strangling countdown (6 turns to death)
-            effect.messages.push("It constricts your throat!".to_string());
+            effect
+                .messages
+                .push("It constricts your throat!".to_string());
             effect.identify = true;
             state.player.strangled = 6;
         }
@@ -809,7 +811,9 @@ pub fn amulet_off(state: &mut GameState, amulet: &Object) -> EquipmentEffect {
         }
         AMULET_OF_STRANGULATION => {
             state.player.strangled = 0;
-            effect.messages.push("You can breathe more easily now.".to_string());
+            effect
+                .messages
+                .push("You can breathe more easily now.".to_string());
         }
         AMULET_OF_MAGICAL_BREATHING => {
             if state.player.underwater && !state.player.properties.has(Property::MagicBreathing) {
@@ -1022,7 +1026,10 @@ pub fn boots_on(state: &mut GameState, obj: &Object) {
     // Grant base property from object data
     if let Some(prop) = obj_property(obj.object_type) {
         let had_prop = state.player.properties.has(prop);
-        state.player.properties.grant_extrinsic(prop, PropertyFlags::FROM_BOOTS);
+        state
+            .player
+            .properties
+            .grant_extrinsic(prop, PropertyFlags::FROM_BOOTS);
 
         // Item-specific messages (do_wear.c Boots_on)
         match name {
@@ -1057,7 +1064,10 @@ pub fn boots_off(state: &mut GameState, obj: &Object) {
     let name = obj_def(obj.object_type).map(|d| d.name).unwrap_or("");
 
     if let Some(prop) = obj_property(obj.object_type) {
-        state.player.properties.remove_extrinsic(prop, PropertyFlags::FROM_BOOTS);
+        state
+            .player
+            .properties
+            .remove_extrinsic(prop, PropertyFlags::FROM_BOOTS);
 
         match name {
             "speed boots" => {
@@ -1089,7 +1099,10 @@ pub fn cloak_on(state: &mut GameState, obj: &Object) {
     // Grant base property from object data
     if let Some(prop) = obj_property(obj.object_type) {
         let had_prop = state.player.properties.has(prop);
-        state.player.properties.grant_extrinsic(prop, PropertyFlags::FROM_CLOAK);
+        state
+            .player
+            .properties
+            .grant_extrinsic(prop, PropertyFlags::FROM_CLOAK);
 
         match name {
             "elven cloak" => {
@@ -1128,10 +1141,10 @@ pub fn cloak_on(state: &mut GameState, obj: &Object) {
         }
         "alchemy smock" => {
             // Alchemy smock grants acid resistance in addition to poison
-            state.player.properties.grant_extrinsic(
-                Property::AcidResistance,
-                PropertyFlags::FROM_CLOAK,
-            );
+            state
+                .player
+                .properties
+                .grant_extrinsic(Property::AcidResistance, PropertyFlags::FROM_CLOAK);
         }
         _ => {}
     }
@@ -1142,7 +1155,10 @@ pub fn cloak_off(state: &mut GameState, obj: &Object) {
     let name = obj_def(obj.object_type).map(|d| d.name).unwrap_or("");
 
     if let Some(prop) = obj_property(obj.object_type) {
-        state.player.properties.remove_extrinsic(prop, PropertyFlags::FROM_CLOAK);
+        state
+            .player
+            .properties
+            .remove_extrinsic(prop, PropertyFlags::FROM_CLOAK);
 
         match name {
             "elven cloak" => {
@@ -1170,10 +1186,10 @@ pub fn cloak_off(state: &mut GameState, obj: &Object) {
 
     // Alchemy smock: also remove acid resistance
     if name == "alchemy smock" {
-        state.player.properties.remove_extrinsic(
-            Property::AcidResistance,
-            PropertyFlags::FROM_CLOAK,
-        );
+        state
+            .player
+            .properties
+            .remove_extrinsic(Property::AcidResistance, PropertyFlags::FROM_CLOAK);
     }
 }
 
@@ -1183,7 +1199,10 @@ pub fn gloves_on(state: &mut GameState, obj: &Object) {
     let name = obj_def(obj.object_type).map(|d| d.name).unwrap_or("");
 
     if let Some(prop) = obj_property(obj.object_type) {
-        state.player.properties.grant_extrinsic(prop, PropertyFlags::FROM_GLOVES);
+        state
+            .player
+            .properties
+            .grant_extrinsic(prop, PropertyFlags::FROM_GLOVES);
     }
 
     match name {
@@ -1195,7 +1214,10 @@ pub fn gloves_on(state: &mut GameState, obj: &Object) {
             // adj_abon: enchantment modifies dexterity
             let bonus = obj.enchantment;
             if bonus != 0 {
-                state.player.attr_current.modify(Attribute::Dexterity, bonus);
+                state
+                    .player
+                    .attr_current
+                    .modify(Attribute::Dexterity, bonus);
             }
         }
         "gauntlets of fumbling" => {
@@ -1211,7 +1233,10 @@ pub fn gloves_off(state: &mut GameState, obj: &Object) {
     let name = obj_def(obj.object_type).map(|d| d.name).unwrap_or("");
 
     if let Some(prop) = obj_property(obj.object_type) {
-        state.player.properties.remove_extrinsic(prop, PropertyFlags::FROM_GLOVES);
+        state
+            .player
+            .properties
+            .remove_extrinsic(prop, PropertyFlags::FROM_GLOVES);
     }
 
     match name {
@@ -1221,7 +1246,10 @@ pub fn gloves_off(state: &mut GameState, obj: &Object) {
         "gauntlets of dexterity" => {
             let bonus = obj.enchantment;
             if bonus != 0 {
-                state.player.attr_current.modify(Attribute::Dexterity, -bonus);
+                state
+                    .player
+                    .attr_current
+                    .modify(Attribute::Dexterity, -bonus);
             }
         }
         "gauntlets of fumbling" => {
@@ -1245,7 +1273,10 @@ pub fn helmet_on(state: &mut GameState, obj: &Object) {
 
     // Grant base property from object data
     if let Some(prop) = obj_property(obj.object_type) {
-        state.player.properties.grant_extrinsic(prop, PropertyFlags::FROM_HELM);
+        state
+            .player
+            .properties
+            .grant_extrinsic(prop, PropertyFlags::FROM_HELM);
     }
 
     match name {
@@ -1253,13 +1284,20 @@ pub fn helmet_on(state: &mut GameState, obj: &Object) {
             // adj_abon: enchantment modifies INT and WIS
             let bonus = obj.enchantment;
             if bonus != 0 {
-                state.player.attr_current.modify(Attribute::Intelligence, bonus);
+                state
+                    .player
+                    .attr_current
+                    .modify(Attribute::Intelligence, bonus);
                 state.player.attr_current.modify(Attribute::Wisdom, bonus);
             }
         }
         "cornuthaum" => {
             // Wizards get +1 CHA, non-wizards get -1 CHA
-            let bonus: i8 = if state.player.role == crate::player::Role::Wizard { 1 } else { -1 };
+            let bonus: i8 = if state.player.role == crate::player::Role::Wizard {
+                1
+            } else {
+                -1
+            };
             state.player.attr_current.modify(Attribute::Charisma, bonus);
         }
         "dunce cap" => {
@@ -1280,7 +1318,10 @@ pub fn helmet_off(state: &mut GameState, obj: &Object) {
     let name = obj_def(obj.object_type).map(|d| d.name).unwrap_or("");
 
     if let Some(prop) = obj_property(obj.object_type) {
-        state.player.properties.remove_extrinsic(prop, PropertyFlags::FROM_HELM);
+        state
+            .player
+            .properties
+            .remove_extrinsic(prop, PropertyFlags::FROM_HELM);
 
         if prop == Property::Telepathy && !state.player.properties.has(Property::Telepathy) {
             state.message("Your senses fail!");
@@ -1291,12 +1332,19 @@ pub fn helmet_off(state: &mut GameState, obj: &Object) {
         "helm of brilliance" => {
             let bonus = obj.enchantment;
             if bonus != 0 {
-                state.player.attr_current.modify(Attribute::Intelligence, -bonus);
+                state
+                    .player
+                    .attr_current
+                    .modify(Attribute::Intelligence, -bonus);
                 state.player.attr_current.modify(Attribute::Wisdom, -bonus);
             }
         }
         "cornuthaum" => {
-            let bonus: i8 = if state.player.role == crate::player::Role::Wizard { -1 } else { 1 };
+            let bonus: i8 = if state.player.role == crate::player::Role::Wizard {
+                -1
+            } else {
+                1
+            };
             state.player.attr_current.modify(Attribute::Charisma, bonus);
         }
         "helm of opposite alignment" => {
@@ -1318,14 +1366,20 @@ pub fn ring_off_or_gone(_state: &mut GameState, _obj: &Object, _gone: bool) {
 /// In C, shields don't have special on-wear effects; properties are set by setworn().
 pub fn shield_on(state: &mut GameState, obj: &Object) {
     if let Some(prop) = obj_property(obj.object_type) {
-        state.player.properties.grant_extrinsic(prop, PropertyFlags::FROM_SHIELD);
+        state
+            .player
+            .properties
+            .grant_extrinsic(prop, PropertyFlags::FROM_SHIELD);
     }
 }
 
 /// Remove effects when taking off a shield (Shield_off from do_wear.c lines 628-650).
 pub fn shield_off(state: &mut GameState, obj: &Object) {
     if let Some(prop) = obj_property(obj.object_type) {
-        state.player.properties.remove_extrinsic(prop, PropertyFlags::FROM_SHIELD);
+        state
+            .player
+            .properties
+            .remove_extrinsic(prop, PropertyFlags::FROM_SHIELD);
     }
 }
 
@@ -1518,10 +1572,7 @@ mod tests {
     #[test]
     fn test_property_from_constant_telepathy() {
         use crate::data::objects::TELEPAT;
-        assert_eq!(
-            property_from_constant(TELEPAT),
-            Some(Property::Telepathy)
-        );
+        assert_eq!(property_from_constant(TELEPAT), Some(Property::Telepathy));
     }
 
     #[test]
@@ -1860,7 +1911,8 @@ mod tests {
             let def = obj_def(idx).unwrap_or_else(|| panic!("no obj at index {idx}"));
             assert_eq!(def.name, expected_name, "name mismatch at index {idx}");
             assert_eq!(
-                obj_property(idx), expected_prop,
+                obj_property(idx),
+                expected_prop,
                 "property mismatch for {expected_name}"
             );
         }
@@ -1878,7 +1930,8 @@ mod tests {
             let def = obj_def(idx).unwrap_or_else(|| panic!("no obj at index {idx}"));
             assert_eq!(def.name, expected_name, "name mismatch at index {idx}");
             assert_eq!(
-                obj_property(idx), expected_prop,
+                obj_property(idx),
+                expected_prop,
                 "property mismatch for {expected_name}"
             );
         }
@@ -1894,7 +1947,8 @@ mod tests {
             let def = obj_def(idx).unwrap_or_else(|| panic!("no obj at index {idx}"));
             assert_eq!(def.name, expected_name, "name mismatch at index {idx}");
             assert_eq!(
-                obj_property(idx), expected_prop,
+                obj_property(idx),
+                expected_prop,
                 "property mismatch for {expected_name}"
             );
         }

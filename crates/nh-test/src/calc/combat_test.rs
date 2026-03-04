@@ -1,6 +1,5 @@
 //! Combat logic comparison tests
 
-use crate::ffi::CGameEngineSubprocess as CGameEngine;
 #[cfg(test)]
 use serial_test::serial;
 

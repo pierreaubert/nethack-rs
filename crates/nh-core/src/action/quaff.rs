@@ -79,7 +79,7 @@ pub fn peffects(state: &mut GameState, obj: &Object) {
     dopotion(state, obj);
 }
 
-pub fn potionhit(state: &mut GameState, obj: &Object) {
+pub fn potionhit(state: &mut GameState, _obj: &Object) {
     state.message("The potion shatters!");
 }
 
@@ -244,11 +244,12 @@ pub fn dipfountain(state: &mut GameState, obj: &mut Object) {
         }
         3..=5 => {
             // Object might rust
-            if obj.class == ObjectClass::Weapon || obj.class == ObjectClass::Armor {
-                if obj.erosion1 < 3 && !obj.erosion_proof {
-                    obj.erosion1 += 1;
-                    state.message("The object rusts!");
-                }
+            if (obj.class == ObjectClass::Weapon || obj.class == ObjectClass::Armor)
+                && obj.erosion1 < 3
+                && !obj.erosion_proof
+            {
+                obj.erosion1 += 1;
+                state.message("The object rusts!");
             }
         }
         6..=8 => {
@@ -336,21 +337,18 @@ pub fn mixtype(obj1: &Object, obj2: &Object, rng: &mut crate::rng::GameRng) -> i
     let mut o2typ = obj2.object_type;
 
     // C normalization: swap so that the "catalyst" potions are always o2
-    if obj1.class == ObjectClass::Potion {
-        match PotionType::from_object_type(o2typ) {
-            Some(
-                PotionType::GainLevel
-                | PotionType::GainEnergy
-                | PotionType::Healing
-                | PotionType::ExtraHealing
-                | PotionType::FullHealing
-                | PotionType::Enlightenment
-                | PotionType::FruitJuice,
-            ) => {
-                core::mem::swap(&mut o1typ, &mut o2typ);
-            }
-            _ => {}
-        }
+    if obj1.class == ObjectClass::Potion
+        && let Some(
+            PotionType::GainLevel
+            | PotionType::GainEnergy
+            | PotionType::Healing
+            | PotionType::ExtraHealing
+            | PotionType::FullHealing
+            | PotionType::Enlightenment
+            | PotionType::FruitJuice,
+        ) = PotionType::from_object_type(o2typ)
+    {
+        core::mem::swap(&mut o1typ, &mut o2typ);
     }
 
     let p1 = PotionType::from_object_type(o1typ);
@@ -373,30 +371,26 @@ pub fn mixtype(obj1: &Object, obj2: &Object, rng: &mut crate::rng::GameRng) -> i
                 _ => {}
             }
         }
-        Some(PotionType::ExtraHealing) => {
-            match p2 {
-                Some(PotionType::GainLevel | PotionType::GainEnergy) => {
-                    return PotionType::FullHealing as i16;
-                }
-                Some(PotionType::Sickness) => return PotionType::FruitJuice as i16,
-                Some(PotionType::Hallucination | PotionType::Blindness | PotionType::Confusion) => {
-                    return PotionType::Water as i16;
-                }
-                _ => {}
+        Some(PotionType::ExtraHealing) => match p2 {
+            Some(PotionType::GainLevel | PotionType::GainEnergy) => {
+                return PotionType::FullHealing as i16;
             }
-        }
-        Some(PotionType::FullHealing) => {
-            match p2 {
-                Some(PotionType::GainLevel | PotionType::GainEnergy) => {
-                    return PotionType::GainAbility as i16;
-                }
-                Some(PotionType::Sickness) => return PotionType::FruitJuice as i16,
-                Some(PotionType::Hallucination | PotionType::Blindness | PotionType::Confusion) => {
-                    return PotionType::Water as i16;
-                }
-                _ => {}
+            Some(PotionType::Sickness) => return PotionType::FruitJuice as i16,
+            Some(PotionType::Hallucination | PotionType::Blindness | PotionType::Confusion) => {
+                return PotionType::Water as i16;
             }
-        }
+            _ => {}
+        },
+        Some(PotionType::FullHealing) => match p2 {
+            Some(PotionType::GainLevel | PotionType::GainEnergy) => {
+                return PotionType::GainAbility as i16;
+            }
+            Some(PotionType::Sickness) => return PotionType::FruitJuice as i16,
+            Some(PotionType::Hallucination | PotionType::Blindness | PotionType::Confusion) => {
+                return PotionType::Water as i16;
+            }
+            _ => {}
+        },
         Some(PotionType::GainLevel | PotionType::GainEnergy) => {
             match p2 {
                 Some(PotionType::Confusion) => {
@@ -415,30 +409,26 @@ pub fn mixtype(obj1: &Object, obj2: &Object, rng: &mut crate::rng::GameRng) -> i
                 _ => {}
             }
         }
-        Some(PotionType::FruitJuice) => {
-            match p2 {
-                Some(PotionType::Sickness) => return PotionType::Sickness as i16,
-                Some(PotionType::Enlightenment | PotionType::Speed) => {
-                    return PotionType::Booze as i16;
-                }
-                Some(PotionType::GainLevel | PotionType::GainEnergy) => {
-                    return PotionType::SeeInvisible as i16;
-                }
-                _ => {}
+        Some(PotionType::FruitJuice) => match p2 {
+            Some(PotionType::Sickness) => return PotionType::Sickness as i16,
+            Some(PotionType::Enlightenment | PotionType::Speed) => {
+                return PotionType::Booze as i16;
             }
-        }
-        Some(PotionType::Enlightenment) => {
-            match p2 {
-                Some(PotionType::Levitation) => {
-                    if rng.rn2(3) != 0 {
-                        return PotionType::GainLevel as i16;
-                    }
-                }
-                Some(PotionType::FruitJuice) => return PotionType::Booze as i16,
-                Some(PotionType::Booze) => return PotionType::Confusion as i16,
-                _ => {}
+            Some(PotionType::GainLevel | PotionType::GainEnergy) => {
+                return PotionType::SeeInvisible as i16;
             }
-        }
+            _ => {}
+        },
+        Some(PotionType::Enlightenment) => match p2 {
+            Some(PotionType::Levitation) => {
+                if rng.rn2(3) != 0 {
+                    return PotionType::GainLevel as i16;
+                }
+            }
+            Some(PotionType::FruitJuice) => return PotionType::Booze as i16,
+            Some(PotionType::Booze) => return PotionType::Confusion as i16,
+            _ => {}
+        },
         _ => {}
     }
 

@@ -95,9 +95,8 @@ fn test_monster_fields_extraction() {
 #[test]
 fn test_monster_level_comparison() {
     let c_monsters = extract_c_monster_fields();
-    let c_map: HashMap<&str, &CMonsterFields> = c_monsters.iter()
-        .map(|m| (m.name.as_str(), m))
-        .collect();
+    let c_map: HashMap<&str, &CMonsterFields> =
+        c_monsters.iter().map(|m| (m.name.as_str(), m)).collect();
 
     let rust_monsters = nh_core::data::monsters::MONSTERS;
 
@@ -133,16 +132,19 @@ fn test_monster_level_comparison() {
     let total_compared = matched + mismatched.len();
     if total_compared > 0 {
         let pct = matched * 100 / total_compared;
-        assert!(pct >= 90, "Only {}% of monster levels match (need 90%+)", pct);
+        assert!(
+            pct >= 90,
+            "Only {}% of monster levels match (need 90%+)",
+            pct
+        );
     }
 }
 
 #[test]
 fn test_monster_speed_comparison() {
     let c_monsters = extract_c_monster_fields();
-    let c_map: HashMap<&str, &CMonsterFields> = c_monsters.iter()
-        .map(|m| (m.name.as_str(), m))
-        .collect();
+    let c_map: HashMap<&str, &CMonsterFields> =
+        c_monsters.iter().map(|m| (m.name.as_str(), m)).collect();
 
     let rust_monsters = nh_core::data::monsters::MONSTERS;
 
@@ -173,16 +175,19 @@ fn test_monster_speed_comparison() {
     let total_compared = matched + mismatched.len();
     if total_compared > 0 {
         let pct = matched * 100 / total_compared;
-        assert!(pct >= 90, "Only {}% of monster speeds match (need 90%+)", pct);
+        assert!(
+            pct >= 90,
+            "Only {}% of monster speeds match (need 90%+)",
+            pct
+        );
     }
 }
 
 #[test]
 fn test_monster_ac_comparison() {
     let c_monsters = extract_c_monster_fields();
-    let c_map: HashMap<&str, &CMonsterFields> = c_monsters.iter()
-        .map(|m| (m.name.as_str(), m))
-        .collect();
+    let c_map: HashMap<&str, &CMonsterFields> =
+        c_monsters.iter().map(|m| (m.name.as_str(), m)).collect();
 
     let rust_monsters = nh_core::data::monsters::MONSTERS;
 
@@ -220,9 +225,8 @@ fn test_monster_ac_comparison() {
 #[test]
 fn test_monster_mr_comparison() {
     let c_monsters = extract_c_monster_fields();
-    let c_map: HashMap<&str, &CMonsterFields> = c_monsters.iter()
-        .map(|m| (m.name.as_str(), m))
-        .collect();
+    let c_map: HashMap<&str, &CMonsterFields> =
+        c_monsters.iter().map(|m| (m.name.as_str(), m)).collect();
 
     let rust_monsters = nh_core::data::monsters::MONSTERS;
 
@@ -260,9 +264,8 @@ fn test_monster_mr_comparison() {
 #[test]
 fn test_monster_weight_comparison() {
     let c_monsters = extract_c_monster_fields();
-    let c_map: HashMap<&str, &CMonsterFields> = c_monsters.iter()
-        .map(|m| (m.name.as_str(), m))
-        .collect();
+    let c_map: HashMap<&str, &CMonsterFields> =
+        c_monsters.iter().map(|m| (m.name.as_str(), m)).collect();
 
     let rust_monsters = nh_core::data::monsters::MONSTERS;
 
@@ -293,16 +296,19 @@ fn test_monster_weight_comparison() {
     let total_compared = matched + mismatched.len();
     if total_compared > 0 {
         let pct = matched * 100 / total_compared;
-        assert!(pct >= 90, "Only {}% of monster weights match (need 90%+)", pct);
+        assert!(
+            pct >= 90,
+            "Only {}% of monster weights match (need 90%+)",
+            pct
+        );
     }
 }
 
 #[test]
 fn test_monster_nutrition_comparison() {
     let c_monsters = extract_c_monster_fields();
-    let c_map: HashMap<&str, &CMonsterFields> = c_monsters.iter()
-        .map(|m| (m.name.as_str(), m))
-        .collect();
+    let c_map: HashMap<&str, &CMonsterFields> =
+        c_monsters.iter().map(|m| (m.name.as_str(), m)).collect();
 
     let rust_monsters = nh_core::data::monsters::MONSTERS;
 
@@ -333,7 +339,11 @@ fn test_monster_nutrition_comparison() {
     let total_compared = matched + mismatched.len();
     if total_compared > 0 {
         let pct = matched * 100 / total_compared;
-        assert!(pct >= 90, "Only {}% of monster nutritions match (need 90%+)", pct);
+        assert!(
+            pct >= 90,
+            "Only {}% of monster nutritions match (need 90%+)",
+            pct
+        );
     }
 }
 
@@ -344,13 +354,20 @@ fn test_monster_nutrition_comparison() {
 #[test]
 fn test_monster_field_summary() {
     let c_monsters = extract_c_monster_fields();
-    let c_map: HashMap<&str, &CMonsterFields> = c_monsters.iter()
-        .map(|m| (m.name.as_str(), m))
-        .collect();
+    let c_map: HashMap<&str, &CMonsterFields> =
+        c_monsters.iter().map(|m| (m.name.as_str(), m)).collect();
 
     let rust_monsters = nh_core::data::monsters::MONSTERS;
 
-    let fields = ["level", "speed", "ac", "mr", "alignment", "weight", "nutrition"];
+    let fields = [
+        "level",
+        "speed",
+        "ac",
+        "mr",
+        "alignment",
+        "weight",
+        "nutrition",
+    ];
     let mut results: HashMap<&str, (usize, usize)> = HashMap::new(); // (matched, total)
 
     for rm in rust_monsters.iter() {

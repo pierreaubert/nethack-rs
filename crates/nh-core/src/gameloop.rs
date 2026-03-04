@@ -4,11 +4,11 @@ use hashbrown::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(not(feature = "std"))]
-use crate::compat::*;
 use crate::NORMAL_SPEED;
 use crate::action::{ActionResult, Command};
 use crate::combat::artifact::ArtifactTracker;
+#[cfg(not(feature = "std"))]
+use crate::compat::*;
 use crate::dungeon::{DLevel, Level};
 use crate::magic::genocide::MonsterVitals;
 use crate::monster::MonsterId;
@@ -69,10 +69,8 @@ mod dlevel_map_serde {
                     if parts.len() != 2 {
                         return Err(de::Error::custom(format!("invalid DLevel key: {}", key)));
                     }
-                    let dungeon_num: i8 =
-                        parts[0].parse().map_err(de::Error::custom)?;
-                    let level_num: i8 =
-                        parts[1].parse().map_err(de::Error::custom)?;
+                    let dungeon_num: i8 = parts[0].parse().map_err(de::Error::custom)?;
+                    let level_num: i8 = parts[1].parse().map_err(de::Error::custom)?;
                     map.insert(
                         DLevel {
                             dungeon_num,
@@ -209,8 +207,14 @@ impl GameState {
         let mut current_level = current_level;
         current_level.update_visibility(start_x, start_y, SIGHT_RANGE);
 
-        // Spawn starting pet near player
-        if let Some(pet) = crate::special::dog::create_starting_pet(&player, &mut rng) {
+        // Spawn starting pet near player.
+        // C: makedog() calls makemon() which checks MON_AT and uses enexto
+        // to find a free adjacent position.  Match that here.
+        if let Some(mut pet) = crate::special::dog::create_starting_pet(&player, &mut rng)
+            && let Some((px, py)) = crate::dungeon::enexto(start_x, start_y, &current_level)
+        {
+            pet.x = px; // pre-add: not yet in level grid
+            pet.y = py; // pre-add: not yet in level grid
             current_level.add_monster(pet);
         }
 
@@ -623,12 +627,24 @@ impl GameLoop {
         if self.state.player.swallowed {
             match &command {
                 // Allowed while engulfed: attack engulfer, use items on self, info commands
-                Command::Rest | Command::Quit | Command::Save
-                | Command::Inventory | Command::Look | Command::History
-                | Command::Discoveries | Command::Help | Command::WhatsHere => {}
-                Command::Eat(_) | Command::Quaff(_) | Command::Read(_)
-                | Command::Apply(_) | Command::Wear(_) | Command::TakeOff(_)
-                | Command::Wield(_) | Command::PutOn(_) | Command::Remove(_)
+                Command::Rest
+                | Command::Quit
+                | Command::Save
+                | Command::Inventory
+                | Command::Look
+                | Command::History
+                | Command::Discoveries
+                | Command::Help
+                | Command::WhatsHere => {}
+                Command::Eat(_)
+                | Command::Quaff(_)
+                | Command::Read(_)
+                | Command::Apply(_)
+                | Command::Wear(_)
+                | Command::TakeOff(_)
+                | Command::Wield(_)
+                | Command::PutOn(_)
+                | Command::Remove(_)
                 | Command::CastSpell => {}
                 Command::Zap(letter, _) => {
                     // Zapping while engulfed hits the engulfer
@@ -697,7 +713,9 @@ impl GameLoop {
             }
             Command::PutOn(letter) => crate::action::wear::do_puton(&mut self.state, *letter),
             Command::Remove(letter) => crate::action::wear::do_remove(&mut self.state, *letter),
-            Command::Quaff(letter_opt) => crate::action::quaff::dodrink(&mut self.state, *letter_opt),
+            Command::Quaff(letter_opt) => {
+                crate::action::quaff::dodrink(&mut self.state, *letter_opt)
+            }
             Command::Read(letter_opt) => crate::action::read::do_read(&mut self.state, *letter_opt),
             Command::Zap(letter, dir_opt) => {
                 crate::action::zap::do_zap(&mut self.state, *letter, *dir_opt)
@@ -746,23 +764,34 @@ impl GameLoop {
 
                 // Evaluate encounter if multiple adjacent monsters and no active encounter
                 if state.active_encounter.is_none() {
-                    let adjacent_count = state.current_level.count_adjacent_monsters(
-                        state.player.pos.x, state.player.pos.y,
-                    );
+                    let adjacent_count = state
+                        .current_level
+                        .count_adjacent_monsters(state.player.pos.x, state.player.pos.y);
                     if adjacent_count >= 2 {
-                        let monster_ids: Vec<_> = state.current_level.monsters.iter()
-                            .filter(|m| (m.x - state.player.pos.x).abs() <= 1
-                                     && (m.y - state.player.pos.y).abs() <= 1)
+                        let monster_ids: Vec<_> = state
+                            .current_level
+                            .monsters
+                            .iter()
+                            .filter(|m| {
+                                (m.x - state.player.pos.x).abs() <= 1
+                                    && (m.y - state.player.pos.y).abs() <= 1
+                            })
                             .map(|m| m.id)
                             .collect();
                         let encounter_state = crate::combat::init_encounter_state(monster_ids);
-                        let adjacent_monsters: Vec<_> = state.current_level.monsters.iter()
-                            .filter(|m| (m.x - state.player.pos.x).abs() <= 1
-                                     && (m.y - state.player.pos.y).abs() <= 1)
+                        let adjacent_monsters: Vec<_> = state
+                            .current_level
+                            .monsters
+                            .iter()
+                            .filter(|m| {
+                                (m.x - state.player.pos.x).abs() <= 1
+                                    && (m.y - state.player.pos.y).abs() <= 1
+                            })
                             .cloned()
                             .collect();
                         let difficulty = crate::combat::calculate_encounter_difficulty(
-                            &adjacent_monsters, encounter_state.encounter.formation,
+                            &adjacent_monsters,
+                            encounter_state.encounter.formation,
                         );
                         let label = crate::combat::get_difficulty_label(difficulty);
                         state.message(format!("You are surrounded! ({} encounter)", label));
@@ -796,17 +825,6 @@ impl GameLoop {
                             monster_name, result.damage
                         ));
 
-                        #[cfg(feature = "extensions")]
-                        {
-                            use crate::monster::combat_hooks;
-                            combat_hooks::on_player_hit_monster(
-                                monster_id,
-                                &mut state.current_level,
-                                result.damage,
-                                &state.player,
-                            );
-                        }
-
                         if result.defender_died {
                             state.message(format!("You kill the {}!", monster_name));
                             // Clone monster data before mutating state
@@ -822,13 +840,24 @@ impl GameLoop {
                                 crate::player::check_level_gain(&mut state.player, &mut state.rng);
 
                                 // Award loot drops
-                                let loot_value = crate::combat::award_monster_loot(&mut state.player, monster, &mut state.rng);
+                                let loot_value = crate::combat::award_monster_loot(
+                                    &mut state.player,
+                                    monster,
+                                    &mut state.rng,
+                                );
                                 if loot_value > 0 {
                                     state.message(format!("You find {} gold pieces.", loot_value));
                                 }
-                                let hoard_value = crate::combat::award_boss_hoard(&mut state.player, monster, &mut state.rng);
+                                let hoard_value = crate::combat::award_boss_hoard(
+                                    &mut state.player,
+                                    monster,
+                                    &mut state.rng,
+                                );
                                 if hoard_value > 0 {
-                                    state.message(format!("You discover a treasure hoard worth {} gold!", hoard_value));
+                                    state.message(format!(
+                                        "You discover a treasure hoard worth {} gold!",
+                                        hoard_value
+                                    ));
                                 }
                             }
                             // Alignment penalty for killing peaceful monsters
@@ -844,7 +873,10 @@ impl GameLoop {
 
                             // Check encounter victory
                             if let Some(ref encounter_state) = state.active_encounter {
-                                let alive_count = encounter_state.encounter.monsters.iter()
+                                let alive_count = encounter_state
+                                    .encounter
+                                    .monsters
+                                    .iter()
                                     .filter(|id| state.current_level.monster(**id).is_some())
                                     .count();
                                 if alive_count == 0 {
@@ -854,7 +886,10 @@ impl GameLoop {
                                         state.player.hp_max,
                                     );
                                     if xp > 0 {
-                                        state.message(format!("Encounter victory! Bonus {} XP.", xp));
+                                        state.message(format!(
+                                            "Encounter victory! Bonus {} XP.",
+                                            xp
+                                        ));
                                     }
                                     state.active_encounter = None;
                                 }
@@ -872,9 +907,7 @@ impl GameLoop {
 
             // Special actions
             Command::Pray => crate::action::pray::do_pray(&mut self.state),
-            Command::Engrave(text) => {
-                crate::action::engrave::do_engrave(&mut self.state, text)
-            }
+            Command::Engrave(text) => crate::action::engrave::do_engrave(&mut self.state, text),
 
             // Information commands (no time cost)
             Command::Inventory => {
@@ -944,6 +977,15 @@ impl GameLoop {
             Command::Pay => {
                 if let Some(shop_idx) = self.state.player.in_shop {
                     crate::special::shk::pay_bill_at(&mut self.state, shop_idx)
+                } else if let Some(shk_id) = self.find_shopkeeper_nearby() {
+                    let shk = self.state.current_level.monster_mut(shk_id).unwrap();
+                    if crate::special::shk::pay_shopkeeper(shk, &mut self.state.player) {
+                        self.state.message("You pay your debt.");
+                        ActionResult::Success
+                    } else {
+                        self.state.message("You don't owe anything.");
+                        ActionResult::NoTime
+                    }
                 } else {
                     self.state.message("There is nobody here to pay.");
                     ActionResult::NoTime
@@ -966,11 +1008,7 @@ impl GameLoop {
                 let px = self.state.player.pos.x;
                 let py = self.state.player.pos.y;
                 let on_altar = self.state.current_level.is_valid_pos(px, py)
-                    && self
-                        .state
-                        .current_level
-                        .cell(px as usize, py as usize)
-                        .typ
+                    && self.state.current_level.cell(px as usize, py as usize).typ
                         == crate::dungeon::CellType::Altar;
                 if !on_altar {
                     self.state.message("There is no altar here.");
@@ -1026,7 +1064,8 @@ impl GameLoop {
                 ActionResult::NoTime
             }
             Command::Options => {
-                self.state.message("Options menu not available in this interface.");
+                self.state
+                    .message("Options menu not available in this interface.");
                 ActionResult::NoTime
             }
             Command::Feed => {
@@ -1070,18 +1109,28 @@ impl GameLoop {
                 // Find nearest adjacent monster
                 let px = self.state.player.pos.x;
                 let py = self.state.player.pos.y;
-                let target_id = self.state.current_level.monsters.iter()
+                let target_id = self
+                    .state
+                    .current_level
+                    .monsters
+                    .iter()
                     .find(|m| (m.x - px).abs() <= 1 && (m.y - py).abs() <= 1)
                     .map(|m| m.id);
                 if let Some(monster_id) = target_id {
                     if let Some(target) = self.state.current_level.monster_mut(monster_id) {
                         let result = crate::combat::player_cast_spell(
-                            &mut self.state.player, target, spell, &mut self.state.rng,
+                            &mut self.state.player,
+                            target,
+                            spell,
+                            &mut self.state.rng,
                         );
                         if result.success {
                             self.state.message(format!("You cast {}!", spell.name()));
                             if result.damage > 0 {
-                                self.state.message(format!("The spell hits for {} damage!", result.damage));
+                                self.state.message(format!(
+                                    "The spell hits for {} damage!",
+                                    result.damage
+                                ));
                             }
                         } else {
                             self.state.message("Your spell fizzles.");
@@ -1089,7 +1138,8 @@ impl GameLoop {
                     }
                     ActionResult::Success
                 } else {
-                    self.state.message("There are no monsters nearby to target.");
+                    self.state
+                        .message("There are no monsters nearby to target.");
                     ActionResult::NoTime
                 }
             }
@@ -1097,7 +1147,12 @@ impl GameLoop {
             // Object manipulation extensions
             Command::SelectQuiver(letter) => {
                 // Ready a projectile for firing (dowieldquiver from wield.c)
-                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == *letter) {
+                if let Some(obj) = self
+                    .state
+                    .inventory
+                    .iter()
+                    .find(|o| o.inv_letter == *letter)
+                {
                     let name = obj.display_name();
                     self.state.message(format!("You ready {}.", name));
                     ActionResult::Success
@@ -1122,10 +1177,16 @@ impl GameLoop {
             }
             Command::Tip(letter) => {
                 // Tip over a container (dotip from pickup.c)
-                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == *letter) {
+                if let Some(obj) = self
+                    .state
+                    .inventory
+                    .iter()
+                    .find(|o| o.inv_letter == *letter)
+                {
                     if obj.is_container() {
                         let name = obj.display_name();
-                        self.state.message(format!("You turn {} upside down.", name));
+                        self.state
+                            .message(format!("You turn {} upside down.", name));
                         ActionResult::Success
                     } else {
                         self.state.message("That isn't a container.");
@@ -1138,7 +1199,12 @@ impl GameLoop {
             }
             Command::Rub(letter) => {
                 // Rub a lamp or touchstone (dorub from apply.c)
-                if let Some(obj) = self.state.inventory.iter().find(|o| o.inv_letter == *letter) {
+                if let Some(obj) = self
+                    .state
+                    .inventory
+                    .iter()
+                    .find(|o| o.inv_letter == *letter)
+                {
                     let name = obj.display_name();
                     self.state.message(format!("You rub {}.", name));
                     ActionResult::Success
@@ -1160,22 +1226,39 @@ impl GameLoop {
                 // Force a lock on a container at player position (doforce from lock.c)
                 let px = self.state.player.pos.x;
                 let py = self.state.player.pos.y;
-                let container_id = self.state.current_level.objects_at(px, py)
+                let container_id = self
+                    .state
+                    .current_level
+                    .objects_at(px, py)
                     .iter()
                     .find(|o| o.is_container() && o.locked)
                     .map(|o| o.id);
                 if let Some(obj_id) = container_id {
                     // Clone container for doforce (needs &mut container + &player + &mut rng)
-                    let mut container_clone = self.state.current_level.objects
-                        .iter().find(|o| o.id == obj_id).cloned().unwrap();
+                    let mut container_clone = self
+                        .state
+                        .current_level
+                        .objects
+                        .iter()
+                        .find(|o| o.id == obj_id)
+                        .cloned()
+                        .unwrap();
                     let result = crate::action::open_close::doforce(
-                        &self.state.player, &mut container_clone, &mut self.state.rng,
+                        &self.state.player,
+                        &mut container_clone,
+                        &mut self.state.rng,
                     );
                     for msg in &result.messages {
                         self.state.message(msg.clone());
                     }
                     // Apply results back to the real object
-                    if let Some(container) = self.state.current_level.objects.iter_mut().find(|o| o.id == obj_id) {
+                    if let Some(container) = self
+                        .state
+                        .current_level
+                        .objects
+                        .iter_mut()
+                        .find(|o| o.id == obj_id)
+                    {
                         if result.lock_broken {
                             container.locked = false;
                         }
@@ -1219,9 +1302,8 @@ impl GameLoop {
                                 ActionResult::NoTime
                             }
                             crate::magic::InvokeResult::Tired => {
-                                self.state.message(
-                                    "The artifact feels exhausted. Try again later.",
-                                );
+                                self.state
+                                    .message("The artifact feels exhausted. Try again later.");
                                 ActionResult::NoTime
                             }
                             crate::magic::InvokeResult::Success(msg) => {
@@ -1235,8 +1317,7 @@ impl GameLoop {
                         }
                     }
                     None => {
-                        self.state
-                            .message("You don't have an invokable artifact.");
+                        self.state.message("You don't have an invokable artifact.");
                         ActionResult::NoTime
                     }
                 }
@@ -1295,12 +1376,11 @@ impl GameLoop {
                     }
                 }
             }
-            Command::TurnUndead => {
-                crate::action::pray::doturn(&mut self.state)
-            }
+            Command::TurnUndead => crate::action::pray::doturn(&mut self.state),
             Command::MonsterAbility => {
                 // Use monster special ability while polymorphed (domonability)
-                self.state.message("You don't have a special ability to use.");
+                self.state
+                    .message("You don't have a special ability to use.");
                 ActionResult::NoTime
             }
             Command::EnhanceSkill => {
@@ -1314,7 +1394,12 @@ impl GameLoop {
             }
             Command::NameItem(letter, new_name) => {
                 // Name an item (docallcmd/do_oname from do_name.c)
-                if let Some(obj) = self.state.inventory.iter_mut().find(|o| o.inv_letter == *letter) {
+                if let Some(obj) = self
+                    .state
+                    .inventory
+                    .iter_mut()
+                    .find(|o| o.inv_letter == *letter)
+                {
                     let result = crate::action::name::oname(obj, new_name);
                     match result {
                         crate::action::name::NamingResult::Named(name) => {
@@ -1337,14 +1422,23 @@ impl GameLoop {
             }
             Command::NameLevel(new_name) => {
                 // Annotate level (donamelevel from do_name.c)
-                self.state.message(format!("Level annotated: {}.", new_name));
+                self.state
+                    .message(format!("Level annotated: {}.", new_name));
                 ActionResult::NoTime
             }
             Command::Organize(from_letter, to_letter) => {
                 // Reorganize inventory (doorganize from invent.c)
-                let from_idx = self.state.inventory.iter().position(|o| o.inv_letter == *from_letter);
+                let from_idx = self
+                    .state
+                    .inventory
+                    .iter()
+                    .position(|o| o.inv_letter == *from_letter);
                 if let Some(idx) = from_idx {
-                    let already_used = self.state.inventory.iter().any(|o| o.inv_letter == *to_letter);
+                    let already_used = self
+                        .state
+                        .inventory
+                        .iter()
+                        .any(|o| o.inv_letter == *to_letter);
                     if already_used {
                         // Swap letters
                         for obj in &mut self.state.inventory {
@@ -1355,7 +1449,8 @@ impl GameLoop {
                         }
                     }
                     self.state.inventory[idx].inv_letter = *to_letter;
-                    self.state.message(format!("Moved item to slot '{}'.", to_letter));
+                    self.state
+                        .message(format!("Moved item to slot '{}'.", to_letter));
                     ActionResult::NoTime
                 } else {
                     self.state.message("You don't have that item.");
@@ -1380,7 +1475,10 @@ impl GameLoop {
             }
             Command::ShowEquipment => {
                 // Show currently worn equipment (doprinuse from invent.c)
-                let worn_items: Vec<_> = self.state.inventory.iter()
+                let worn_items: Vec<_> = self
+                    .state
+                    .inventory
+                    .iter()
                     .filter(|o| o.worn_mask != 0)
                     .map(|o| format!("{} - {} (worn)", o.inv_letter, o.display_name()))
                     .collect();
@@ -1445,7 +1543,10 @@ impl GameLoop {
             Command::TypeInventory(class_char) => {
                 // Show inventory filtered by class (dotypeinv from invent.c)
                 let class = crate::object::ObjectClass::from_symbol(*class_char);
-                let matching: Vec<_> = self.state.inventory.iter()
+                let matching: Vec<_> = self
+                    .state
+                    .inventory
+                    .iter()
                     .filter(|o| class.is_none() || Some(o.class) == class)
                     .collect();
                 if matching.is_empty() {
@@ -1453,7 +1554,9 @@ impl GameLoop {
                 } else {
                     for obj in &matching {
                         self.state.messages.push(format!(
-                            "{} - {}", obj.inv_letter, obj.display_name()
+                            "{} - {}",
+                            obj.inv_letter,
+                            obj.display_name()
                         ));
                     }
                 }
@@ -1462,8 +1565,7 @@ impl GameLoop {
             Command::Vanquished => {
                 // Show kill list (dovanquished from end.c)
                 // Per-monster kill tracking needed in GameState for full vanquished list
-                let genocided =
-                    crate::magic::genocide::list_genocided(&self.state.monster_vitals);
+                let genocided = crate::magic::genocide::list_genocided(&self.state.monster_vitals);
                 if genocided.is_empty() {
                     self.state.message("You have no vanquished foes to recall.");
                 } else {
@@ -1564,9 +1666,7 @@ impl GameLoop {
                 }
                 ActionResult::NoTime
             }
-            "cast" => {
-                self.execute_command(Command::CastSpell)
-            }
+            "cast" => self.execute_command(Command::CastSpell),
             _ => {
                 // Try to execute as extended command
                 if let Some(cmd) = extended::doextcmd(cmd_name) {
@@ -1595,7 +1695,8 @@ impl GameLoop {
         let (dx, dy) = crate::action::movement::confdir(state, dx, dy);
 
         // Check if player is trapped (bear trap, pit, web, etc.)
-        if state.player.utrap > 0 && state.player.utrap_type != crate::player::PlayerTrapType::None {
+        if state.player.utrap > 0 && state.player.utrap_type != crate::player::PlayerTrapType::None
+        {
             let player_tt = state.player.utrap_type;
             // Convert player trap type to dungeon trap type for escape logic
             let trap_type = match player_tt {
@@ -1605,7 +1706,10 @@ impl GameLoop {
                 crate::player::PlayerTrapType::Web => crate::dungeon::TrapType::Web,
                 _ => crate::dungeon::TrapType::Pit, // fallback
             };
-            let strength = state.player.attr_current.get(crate::player::Attribute::Strength);
+            let strength = state
+                .player
+                .attr_current
+                .get(crate::player::Attribute::Strength);
             if crate::dungeon::trap::try_escape_trap(&mut state.rng, trap_type, strength) {
                 let msg = crate::dungeon::trap::escape_trap_message(trap_type);
                 state.message(msg);
@@ -1685,17 +1789,6 @@ impl GameLoop {
                         monster_name, result.damage
                     ));
 
-                    #[cfg(feature = "extensions")]
-                    {
-                        use crate::monster::combat_hooks;
-                        combat_hooks::on_player_hit_monster(
-                            monster_id,
-                            &mut state.current_level,
-                            result.damage,
-                            &state.player,
-                        );
-                    }
-
                     if result.defender_died {
                         state.message(format!("You kill the {}!", monster_name));
                         // Clone monster data before mutating state
@@ -1711,7 +1804,8 @@ impl GameLoop {
                             crate::player::check_level_gain(&mut state.player, &mut state.rng);
 
                             // Drop gold on the floor at monster's position (C: mkgold in mondead)
-                            let gold_amount = crate::combat::calculate_monster_gold(monster, &mut state.rng);
+                            let gold_amount =
+                                crate::combat::calculate_monster_gold(monster, &mut state.rng);
                             if gold_amount > 0 {
                                 let gold = crate::object::Object::new_gold(gold_amount);
                                 state.current_level.add_object(gold, new_x, new_y);
@@ -1730,7 +1824,10 @@ impl GameLoop {
 
                         // Check encounter victory
                         if let Some(ref encounter_state) = state.active_encounter {
-                            let alive_count = encounter_state.encounter.monsters.iter()
+                            let alive_count = encounter_state
+                                .encounter
+                                .monsters
+                                .iter()
                                 .filter(|id| state.current_level.monster(**id).is_some())
                                 .count();
                             if alive_count == 0 {
@@ -1753,7 +1850,9 @@ impl GameLoop {
             } else {
                 // Swap positions with peaceful monster (use move_monster for grid sync)
                 let player_pos = state.player.pos;
-                state.current_level.move_monster(monster_id, player_pos.x, player_pos.y);
+                state
+                    .current_level
+                    .move_monster(monster_id, player_pos.x, player_pos.y);
                 state.player.prev_pos = state.player.pos;
                 state.player.pos.x = new_x;
                 state.player.pos.y = new_y;
@@ -1790,10 +1889,20 @@ impl GameLoop {
         // Check terrain hazards at new position
         if state.current_level.is_valid_pos(new_x, new_y) {
             let cell_type = state.current_level.cell(new_x as usize, new_y as usize).typ;
-            if crate::dungeon::is_pool(cell_type) && !state.player.properties.has(crate::player::Property::Levitation) {
+            if crate::dungeon::is_pool(cell_type)
+                && !state
+                    .player
+                    .properties
+                    .has(crate::player::Property::Levitation)
+            {
                 let surface_name = crate::dungeon::waterbody_name(cell_type);
                 state.message(format!("You fall into the {}!", surface_name));
-            } else if crate::dungeon::is_lava(cell_type) && !state.player.properties.has(crate::player::Property::Levitation) {
+            } else if crate::dungeon::is_lava(cell_type)
+                && !state
+                    .player
+                    .properties
+                    .has(crate::player::Property::Levitation)
+            {
                 state.message("You fall into the lava!");
                 crate::player::losehp(&mut state.player, 10, Some("lava"));
             }
@@ -1810,19 +1919,22 @@ impl GameLoop {
             .update_visibility(new_x, new_y, SIGHT_RANGE);
 
         // Check for traps at new position
-        if let Some(trap_type) = state.current_level.trap_at(new_x, new_y).map(|t| t.trap_type) {
-            let dex = state.player.attr_current.get(crate::player::Attribute::Dexterity);
+        if let Some(trap_type) = state
+            .current_level
+            .trap_at(new_x, new_y)
+            .map(|t| t.trap_type)
+        {
+            let dex = state
+                .player
+                .attr_current
+                .get(crate::player::Attribute::Dexterity);
             let resistances = crate::dungeon::trap::resistances_from_properties(
                 |prop| state.player.properties.has(prop),
                 dex,
             );
             if let Some(trap) = state.current_level.trap_at_mut(new_x, new_y) {
-                let result = crate::dungeon::trap::dotrap(
-                    &mut state.rng,
-                    trap,
-                    &resistances,
-                    false,
-                );
+                let result =
+                    crate::dungeon::trap::dotrap(&mut state.rng, trap, &resistances, false);
 
                 for msg in &result.messages {
                     state.message(msg.clone());
@@ -1834,7 +1946,11 @@ impl GameLoop {
 
                 if result.held_turns > 0 {
                     let player_trap = crate::action::trap::to_player_trap_type(trap_type);
-                    crate::player::set_utrap(&mut state.player, result.held_turns as u32, player_trap);
+                    crate::player::set_utrap(
+                        &mut state.player,
+                        result.held_turns as u32,
+                        player_trap,
+                    );
                 }
 
                 if result.trap_destroyed {
@@ -1852,12 +1968,20 @@ impl GameLoop {
 
         // Check for shop entry/exit
         let prev_shop = state.player.in_shop;
-        let new_shop = state.current_level.shops().iter().position(|s| s.contains(new_x, new_y));
+        let new_shop = state
+            .current_level
+            .shops()
+            .iter()
+            .position(|s| s.contains(new_x, new_y));
         if new_shop != prev_shop {
             if let Some(_shop_idx) = prev_shop {
                 // Left a shop
-                let debt = state.current_level.shops().get(_shop_idx)
-                    .map(|s| s.debt).unwrap_or(0);
+                let debt = state
+                    .current_level
+                    .shops()
+                    .get(_shop_idx)
+                    .map(|s| s.debt)
+                    .unwrap_or(0);
                 if debt > 0 {
                     state.message(format!("\"Hey! You owe me {} zorkmids!\"", debt));
                 }
@@ -1873,7 +1997,9 @@ impl GameLoop {
                         crate::special::ShopType::Food => "Welcome! Hungry?",
                         crate::special::ShopType::Scroll => "Welcome to my scroll emporium!",
                         crate::special::ShopType::Potion => "Welcome! Need a potion?",
-                        crate::special::ShopType::Wand => "Welcome! Looking for magical implements?",
+                        crate::special::ShopType::Wand => {
+                            "Welcome! Looking for magical implements?"
+                        }
                         crate::special::ShopType::Tool => "Welcome! Need some tools?",
                         crate::special::ShopType::Book => "Welcome to my bookstore!",
                         crate::special::ShopType::Ring => "Welcome! Looking for jewelry?",
@@ -1999,15 +2125,15 @@ impl GameLoop {
         // Migrate pets that will follow to new level
         let mut migrating_pets = Vec::new();
         for pet_id in pet_ids {
-            if let Some(pet) = self.state.current_level.monster(pet_id) {
-                if dog::pet_will_follow(pet, &self.state.player) {
-                    if let Some(pet_data) = crate::dungeon::migrate_monster_to_level(
-                        pet_id, &mut self.state.current_level,
-                    ) {
-                        migrating_pets.push(pet_data);
-                    }
-                    self.state.active_pets.push(pet_id);
+            if let Some(pet) = self.state.current_level.monster(pet_id)
+                && dog::pet_will_follow(pet, &self.state.player)
+            {
+                if let Some(pet_data) =
+                    crate::dungeon::migrate_monster_to_level(pet_id, &mut self.state.current_level)
+                {
+                    migrating_pets.push(pet_data);
                 }
+                self.state.active_pets.push(pet_id);
             }
         }
 
@@ -2031,15 +2157,14 @@ impl GameLoop {
             #[cfg(feature = "std")]
             {
                 let bones_manager = crate::dungeon::BonesManager::default();
-                if bones_manager.should_load_bones(&mut self.state.rng) {
-                    if let Some(_bones) = crate::dungeon::getbones(&destination) {
-                        // Merge bones level data into current level
-                        bones_manager.process_loaded_bones(
-                            &mut self.state.current_level,
-                            &mut self.state.rng,
-                        );
-                        self.state.message("You get a strange feeling about this level...");
-                    }
+                if bones_manager.should_load_bones(&mut self.state.rng)
+                    && let Some(_bones) = crate::dungeon::getbones(&destination)
+                {
+                    // Merge bones level data into current level
+                    bones_manager
+                        .process_loaded_bones(&mut self.state.current_level, &mut self.state.rng);
+                    self.state
+                        .message("You get a strange feeling about this level...");
                 }
             }
         }
@@ -2066,9 +2191,8 @@ impl GameLoop {
             pet.x = self.state.player.pos.x; // pre-add: not yet in level grid
             pet.y = self.state.player.pos.y; // pre-add: not yet in level grid
             // Try to find an adjacent open spot
-            if let Some((px, py)) = crate::dungeon::enexto(
-                pet.x, pet.y, &self.state.current_level,
-            ) {
+            if let Some((px, py)) = crate::dungeon::enexto(pet.x, pet.y, &self.state.current_level)
+            {
                 pet.x = px; // pre-add: not yet in level grid
                 pet.y = py; // pre-add: not yet in level grid
             }
@@ -2113,7 +2237,7 @@ impl GameLoop {
 
         // Check if player entered a vault
         for vault_data in &mut self.state.vaults {
-            if vault_data.contains(self.state.player.pos.x as i8, self.state.player.pos.y as i8) {
+            if vault_data.contains(self.state.player.pos.x, self.state.player.pos.y) {
                 // Player entered vault - guard may appear
                 vault::summon_vault_guard(
                     &mut self.state.current_level,
@@ -2149,12 +2273,12 @@ impl GameLoop {
                             found = true;
                             state.message("You find a hidden door!");
                         }
-                    } else if cell.typ == crate::dungeon::CellType::SecretCorridor {
-                        if state.rng.one_in(7) || state.player.luck > 0 && state.rng.one_in(3) {
-                            cell.typ = crate::dungeon::CellType::Corridor;
-                            found = true;
-                            state.message("You find a hidden passage!");
-                        }
+                    } else if cell.typ == crate::dungeon::CellType::SecretCorridor
+                        && (state.rng.one_in(7) || state.player.luck > 0 && state.rng.one_in(3))
+                    {
+                        cell.typ = crate::dungeon::CellType::Corridor;
+                        found = true;
+                        state.message("You find a hidden passage!");
                     }
                 }
             }
@@ -2173,7 +2297,10 @@ impl GameLoop {
         let mut any_moved = false;
 
         // Get list of monster IDs with diagnostic info
-        let monster_ids: Vec<_> = state.current_level.monsters.iter()
+        let monster_ids: Vec<_> = state
+            .current_level
+            .monsters
+            .iter()
             .map(|m| (m.id, m.monster_type, m.x, m.y, m.name.clone()))
             .collect();
 
@@ -2212,11 +2339,10 @@ impl GameLoop {
                     // Handle special NPC AI - determine type and get needed data
                     let npc_type_and_data = if let Some(monster) = state.current_level.monster(id) {
                         if monster.is_priest {
-                            if let Some(ext) = &monster.priest_extension {
-                                Some(("priest", ext.shrine_pos))
-                            } else {
-                                None
-                            }
+                            monster
+                                .priest_extension
+                                .as_ref()
+                                .map(|ext| ("priest", ext.shrine_pos))
                         } else if monster.is_shopkeeper {
                             Some(("shopkeeper", (0i8, 0i8)))
                         } else if monster.is_guard {
@@ -2345,11 +2471,12 @@ impl GameLoop {
                 let rng_after = state.rng.call_count();
                 let rng_delta = rng_after - rng_before;
                 // Get post-movement position for comparison with C
-                let (_post_x, _post_y) = state.current_level.monster(id)
+                let (_post_x, _post_y) = state
+                    .current_level
+                    .monster(id)
                     .map(|m| (m.x, m.y))
                     .unwrap_or((*mx, *my));
-                if rng_delta > 0 || cfg!(debug_assertions) {
-                }
+                if rng_delta > 0 || cfg!(debug_assertions) {}
             }
 
             // Check if player got movement back
@@ -2374,10 +2501,10 @@ impl GameLoop {
         if state.player.multi < 0 {
             // Paralysis/helpless: increment toward 0
             state.player.multi += 1;
-            if state.player.multi == 0 {
-                if let Some(reason) = state.player.multi_reason.take() {
-                    state.message(format!("You can move again. (was {})", reason));
-                }
+            if state.player.multi == 0
+                && let Some(reason) = state.player.multi_reason.take()
+            {
+                state.message(format!("You can move again. (was {})", reason));
             }
         } else if state.player.multi > 0 {
             // Multi-turn action: decrement
@@ -2387,7 +2514,7 @@ impl GameLoop {
         // Check for fainting from hunger
         if crate::player::is_fainted(&state.player) {
             // Fainted players can't act; try to wake up periodically
-            if state.turns % 10 == 0 {
+            if state.turns.is_multiple_of(10) {
                 crate::player::unfaint(&mut state.player);
             }
         }
@@ -2432,7 +2559,7 @@ impl GameLoop {
             if state.rng.rn2(spawn_threshold) == 0 {
                 // Spawn a random monster on the level — match C's makemon(0,0,0,NO_MM_FLAGS)
                 let depth = state.current_level.dlevel.depth();
-                let player_level = state.player.exp_level as i32;
+                let player_level = state.player.exp_level;
                 let player_alignment = state.player.alignment.typ.value();
                 let align_record = state.player.alignment.record;
                 let in_hell = crate::dungeon::in_hell(&state.current_level.dlevel);
@@ -2454,17 +2581,17 @@ impl GameLoop {
 
             // C: if (Very_fast) { if (rn2(3) != 0) moveamt += NORMAL_SPEED; }
             //    else if (Fast) { if (rn2(3) == 0) moveamt += NORMAL_SPEED; }
-            let has_very_fast =
-                state.player.properties.has(crate::player::Property::VeryFast);
+            let has_very_fast = state
+                .player
+                .properties
+                .has(crate::player::Property::VeryFast);
             let has_fast = state.player.properties.has(crate::player::Property::Speed);
             if has_very_fast {
                 if state.rng.rn2(3) != 0 {
                     moveamt += NORMAL_SPEED;
                 }
-            } else if has_fast {
-                if state.rng.rn2(3) == 0 {
-                    moveamt += NORMAL_SPEED;
-                }
+            } else if has_fast && state.rng.rn2(3) == 0 {
+                moveamt += NORMAL_SPEED;
             }
 
             // Apply encumbrance (C: allmain.c:148-165)
@@ -2559,7 +2686,7 @@ impl GameLoop {
         }
 
         // Update pet time every 100 turns
-        if state.turns % 100 == 0 {
+        if state.turns.is_multiple_of(100) {
             let pet_ids: Vec<_> = state
                 .current_level
                 .monsters
@@ -2576,10 +2703,8 @@ impl GameLoop {
                         false
                     }
                 };
-                if died {
-                    if let Some(pet) = state.current_level.monster(pet_id) {
-                        state.message(format!("Your {} has starved!", pet.name));
-                    }
+                if died && let Some(pet) = state.current_level.monster(pet_id) {
+                    state.message(format!("Your {} has starved!", pet.name));
                 }
             }
         }
@@ -2603,10 +2728,15 @@ impl GameLoop {
             }
 
             // Check flanking
-            let adjacent_monsters: Vec<_> = monster_ids.iter()
+            let adjacent_monsters: Vec<_> = monster_ids
+                .iter()
                 .filter_map(|id| state.current_level.monster(*id).cloned())
                 .collect();
-            if crate::combat::are_monsters_flanking(&adjacent_monsters, formation, &state.player.pos) {
+            if crate::combat::are_monsters_flanking(
+                &adjacent_monsters,
+                formation,
+                &state.player.pos,
+            ) {
                 let bonus = crate::combat::get_flanking_bonus(&adjacent_monsters, formation);
                 if bonus > 1.0 {
                     state.message("The monsters are flanking you!");
@@ -2632,8 +2762,8 @@ impl GameLoop {
         // 1. exerper() — periodic accumulations (hunger/encumbrance/status exercise)
         // 2. Attribute test + rescheduling when moves >= next_attrib_check
         {
-            use crate::player::record_exercise;
             use crate::player::Attribute;
+            use crate::player::record_exercise;
 
             // Cache values that borrow &self on player before mutable field borrows
             let is_poly = state.player.is_polymorphed();
@@ -2655,7 +2785,7 @@ impl GameLoop {
 
             // C: exerper() from attrib.c:447
             // At moves%10==0: hunger and encumbrance exercise checks
-            if state.turns % 10 == 0 {
+            if state.turns.is_multiple_of(10) {
                 // Hunger checks (C: attrib.c:452-479)
                 // C uses its OWN thresholds here, different from display thresholds:
                 //   uhunger > 1000 → SATIATED
@@ -2722,31 +2852,41 @@ impl GameLoop {
                 }
             }
             // Status checks at moves%5==0 (C: attrib.c:499-512)
-            if state.turns % 5 == 0 {
+            if state.turns.is_multiple_of(5) {
                 // C: if ((HClairvoyant & (INTRINSIC|TIMEOUT)) && !BClairvoyant)
-                if state.player.properties.has(crate::player::Property::Clairvoyant) {
+                if state
+                    .player
+                    .properties
+                    .has(crate::player::Property::Clairvoyant)
+                {
                     exercise!(Attribute::Wisdom, true);
                 }
                 // C: if (HRegeneration)
-                if state.player.properties.has(crate::player::Property::Regeneration) {
+                if state
+                    .player
+                    .properties
+                    .has(crate::player::Property::Regeneration)
+                {
                     exercise!(Attribute::Strength, true);
                 }
                 // C: if (Sick || Vomiting)
-                if state.player.sickness_timeout > 0
-                    || state.player.vomiting_timeout > 0
-                {
+                if state.player.sickness_timeout > 0 || state.player.vomiting_timeout > 0 {
                     exercise!(Attribute::Constitution, false);
                 }
                 // C: if (Confusion || Hallucination)
-                if state.player.confused_timeout > 0
-                    || state.player.hallucinating_timeout > 0
-                {
+                if state.player.confused_timeout > 0 || state.player.hallucinating_timeout > 0 {
                     exercise!(Attribute::Wisdom, false);
                 }
                 // C: if ((Wounded_legs && !u.usteed) || Fumbling || HStun)
-                if (state.player.properties.has(crate::player::Property::WoundedLegs)
+                if (state
+                    .player
+                    .properties
+                    .has(crate::player::Property::WoundedLegs)
                     && state.player.steed.is_none())
-                    || state.player.properties.has(crate::player::Property::Fumbling)
+                    || state
+                        .player
+                        .properties
+                        .has(crate::player::Property::Fumbling)
                     || state.player.stunned_timeout > 0
                 {
                     exercise!(Attribute::Dexterity, false);
@@ -2754,9 +2894,7 @@ impl GameLoop {
             }
 
             // Attribute test + rescheduling (C: attrib.c:538-609)
-            if state.turns >= state.player.next_attrib_check
-                && state.player.multi == 0
-            {
+            if state.turns >= state.player.next_attrib_check && state.player.multi == 0 {
                 const AVAL: u32 = 50;
                 let is_poly = state.player.is_polymorphed();
 
@@ -2787,7 +2925,7 @@ impl GameLoop {
                         abase >= hilim
                     };
 
-                    if !at_limit && !(is_poly && attr != Attribute::Wisdom) {
+                    if !at_limit && (!is_poly || attr == Attribute::Wisdom) {
                         // C: if (rn2(AVAL) > threshold) goto nextattrib
                         let threshold = if attr != Attribute::Wisdom {
                             (ax.unsigned_abs() as u32) * 2 / 3
@@ -2799,9 +2937,7 @@ impl GameLoop {
                             // C: if (adjattrib(i, mod_val, -1))
                             if state.player.adjattrib(attr, mod_val) {
                                 state.player.exercise[i] = 0;
-                                if let Some(msg) =
-                                    crate::player::exercise_message(i, mod_val > 0)
-                                {
+                                if let Some(msg) = crate::player::exercise_message(i, mod_val > 0) {
                                     state.message(msg);
                                 }
                                 // exercise zeroed, skip decay
@@ -2852,8 +2988,7 @@ impl GameLoop {
                             // C: extra rn2 for hard engravings (ENGRAVE, MARK)
                             // if (ep->engr_type != DUST && ep->engr_type != ENGR_BLOOD)
                             //     cnt = rn2(1 + 50/(cnt+1)) ? 0 : 1;
-                            let actual_cnt = if engr_type
-                                != crate::dungeon::EngravingType::Dust
+                            let actual_cnt = if engr_type != crate::dungeon::EngravingType::Dust
                                 && engr_type != crate::dungeon::EngravingType::BloodStain
                             {
                                 // rn2(1 + 50/(cnt+1)): usually nonzero → actual_cnt=0
@@ -2867,17 +3002,14 @@ impl GameLoop {
                             };
 
                             if actual_cnt > 0 {
-                                let text = state.current_level.engravings[idx]
-                                    .text
-                                    .as_bytes()
-                                    .to_vec();
+                                let text =
+                                    state.current_level.engravings[idx].text.as_bytes().to_vec();
                                 crate::dungeon::generation::wipeout_text_rng(
                                     &text,
                                     actual_cnt,
                                     &mut state.rng,
                                 );
-                                let len =
-                                    state.current_level.engravings[idx].text.len();
+                                let len = state.current_level.engravings[idx].text.len();
                                 if actual_cnt >= len {
                                     state.current_level.engravings.remove(idx);
                                 } else {
@@ -2898,7 +3030,7 @@ impl GameLoop {
         use crate::special::quest;
 
         // Update quest timeout display every 100 turns
-        if self.state.turns % 100 == 0 {
+        if self.state.turns.is_multiple_of(100) {
             let info = quest::get_quest_info(self.state.player.role);
             let status_msg = quest::get_quest_status_message(&self.state.quest_status, &info);
             self.state.message(status_msg);
@@ -3050,42 +3182,23 @@ impl GameLoop {
             TimedEventType::ObjectTimeout(object_id) => {
                 // Lamp fuel depletion, candle burnout
                 // Check inventory for the object and deplete charges
-                let went_out = if let Some(obj) =
-                    state.inventory.iter_mut().find(|o| o.id == object_id)
-                {
-                    if obj.enchantment > 0 {
-                        obj.enchantment -= 1;
-                        if obj.enchantment == 0 {
-                            Some(obj.display_name())
+                let went_out =
+                    if let Some(obj) = state.inventory.iter_mut().find(|o| o.id == object_id) {
+                        if obj.enchantment > 0 {
+                            obj.enchantment -= 1;
+                            if obj.enchantment == 0 {
+                                Some(obj.display_name())
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
                     } else {
                         None
-                    }
-                } else {
-                    None
-                };
+                    };
                 if let Some(name) = went_out {
                     state.message(format!("Your {} has gone out!", name));
-                }
-            }
-            TimedEventType::FigurineAnimate(object_id) => {
-                // Animate figurine into a monster
-                if let Some(fig) = state.current_level.remove_object(object_id) {
-                    let monster_type = fig.corpse_type;
-                    let x = fig.x;
-                    let y = fig.y;
-                    let mid = crate::monster::MonsterId(state.rng.rn2(u32::MAX));
-                    let mut mon = crate::monster::Monster::new(mid, monster_type, x, y);
-                    if let Some(pm) = crate::data::MONSTERS.get(monster_type as usize) {
-                        mon.name = pm.name.to_string();
-                        mon.level = pm.level as u8;
-                        mon.hp = pm.level.max(1) as i32;
-                        mon.hp_max = mon.hp;
-                    }
-                    state.current_level.add_monster(mon);
-                    state.message(format!("The figurine comes to life at ({}, {})!", x, y));
                 }
             }
             TimedEventType::Stoning => {
@@ -3098,24 +3211,6 @@ impl GameLoop {
                     state.player.hp = 0; // Instant death
                 }
             }
-            TimedEventType::FigurineAnimate(object_id) => {
-                // Animate figurine into a monster
-                if let Some(fig) = state.current_level.remove_object(object_id) {
-                    let monster_type = fig.corpse_type;
-                    let x = fig.x;
-                    let y = fig.y;
-                    let mid = crate::monster::MonsterId(state.rng.rn2(u32::MAX));
-                    let mut mon = crate::monster::Monster::new(mid, monster_type, x, y);
-                    if let Some(pm) = crate::data::MONSTERS.get(monster_type as usize) {
-                        mon.name = pm.name.to_string();
-                        mon.level = pm.level as u8;
-                        mon.hp = pm.level.max(1) as i32;
-                        mon.hp_max = mon.hp;
-                    }
-                    state.current_level.add_monster(mon);
-                    state.message(format!("The figurine comes to life at ({}, {})!", x, y));
-                }
-            }
             _ => {}
         }
     }
@@ -3124,7 +3219,7 @@ impl GameLoop {
     fn process_regeneration(state: &mut GameState) {
         use crate::player::Attribute;
 
-        let ulevel = state.player.exp_level as i32;
+        let ulevel = state.player.exp_level;
         let turns = state.turns;
 
         if turns == 0 {
@@ -3140,7 +3235,7 @@ impl GameLoop {
                 (30 + 12) / (ulevel + 2) + 1
             };
 
-            if turns % hp_freq as u64 == 0 {
+            if turns.is_multiple_of(hp_freq as u64) {
                 let mut heal = 1;
                 if ulevel > 9 {
                     let con = state.player.attr_current.get(Attribute::Constitution) as i32;
@@ -3159,7 +3254,10 @@ impl GameLoop {
         if state.player.energy < state.player.energy_max {
             let is_wizard = state.player.role == crate::player::Role::Wizard;
             let en_freq = ((30 + 8 - ulevel) * (if is_wizard { 3 } else { 4 }) / 6) as u64;
-            let has_energy_regen = state.player.properties.has(crate::player::Property::EnergyRegeneration);
+            let has_energy_regen = state
+                .player
+                .properties
+                .has(crate::player::Property::EnergyRegeneration);
             let not_encumbered = !matches!(
                 state.player.encumbrance(),
                 crate::player::Encumbrance::Stressed
@@ -3168,7 +3266,9 @@ impl GameLoop {
                     | crate::player::Encumbrance::Overloaded
             );
 
-            if en_freq > 0 && ((not_encumbered && turns % en_freq == 0) || has_energy_regen) {
+            if en_freq > 0
+                && ((not_encumbered && turns.is_multiple_of(en_freq)) || has_energy_regen)
+            {
                 let wis = state.player.attr_current.get(Attribute::Wisdom) as i32;
                 let int = state.player.attr_current.get(Attribute::Intelligence) as i32;
                 let rn1_range = ((wis + int) / 15 + 1) as u32;
@@ -3185,6 +3285,7 @@ impl GameLoop {
 
 /// How the game ended
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum DeathHow {
     /// Killed by something
     Killed,
@@ -3556,7 +3657,7 @@ mod tests {
     /// Regression test: player must start on a walkable cell with visibility.
     #[test]
     fn test_player_starts_on_walkable_cell() {
-        use crate::player::{Gender, Race, Role, AlignmentType};
+        use crate::player::{AlignmentType, Gender, Race, Role};
         use crate::rng::GameRng;
 
         let rng = GameRng::new(42);
@@ -3576,18 +3677,29 @@ mod tests {
         // Player must be on a walkable cell
         assert!(
             cell.is_walkable(),
-            "Player on unwalkable cell: {:?} at ({}, {})", cell.typ, px, py
+            "Player on unwalkable cell: {:?} at ({}, {})",
+            cell.typ,
+            px,
+            py
         );
 
         // Player cell must be explored and visible
-        assert!(state.current_level.is_explored(px, py), "Player cell not explored");
-        assert!(state.current_level.is_visible(px, py), "Player cell not visible");
+        assert!(
+            state.current_level.is_explored(px, py),
+            "Player cell not explored"
+        );
+        assert!(
+            state.current_level.is_visible(px, py),
+            "Player cell not visible"
+        );
 
         // Must have reasonable visibility (more than just the 3x3 area)
         let mut explored = 0;
         for x in 0..80i8 {
             for y in 0..21i8 {
-                if state.current_level.is_explored(x, y) { explored += 1; }
+                if state.current_level.is_explored(x, y) {
+                    explored += 1;
+                }
             }
         }
         assert!(explored > 10, "Too few explored cells: {}", explored);

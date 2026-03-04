@@ -216,10 +216,10 @@ pub fn list_saves() -> Result<Vec<(std::path::PathBuf, SaveHeader)>, SaveError> 
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().map(|e| e == "json").unwrap_or(false) {
-            if let Ok(header) = load_header(&path) {
-                saves.push((path, header));
-            }
+        if path.extension().map(|e| e == "json").unwrap_or(false)
+            && let Ok(header) = load_header(&path)
+        {
+            saves.push((path, header));
         }
     }
 

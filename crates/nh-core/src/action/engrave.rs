@@ -195,7 +195,11 @@ pub fn wand_engrave_effect(wand_type: i16) -> WandEngraveEffect {
 }
 
 /// Apply wand engraving effect to a level position
-fn apply_wand_effect(state: &mut GameState, effect: WandEngraveEffect, text: &str) -> EngravingType {
+fn apply_wand_effect(
+    state: &mut GameState,
+    effect: WandEngraveEffect,
+    text: &str,
+) -> EngravingType {
     match effect {
         WandEngraveEffect::Burns => {
             state.message("Flames engulf the floor!");
@@ -209,7 +213,9 @@ fn apply_wand_effect(state: &mut GameState, effect: WandEngraveEffect, text: &st
             // Erase existing engraving at position
             let x = state.player.pos.x;
             let y = state.player.pos.y;
-            if let Some(idx) = state.current_level.engravings
+            if let Some(idx) = state
+                .current_level
+                .engravings
                 .iter()
                 .position(|e| e.x == x && e.y == y)
             {
@@ -265,7 +271,11 @@ pub fn do_engrave_full(
     }
 
     // Check if player is levitating (can't engrave on floor)
-    if state.player.properties.has(crate::player::Property::Levitation) {
+    if state
+        .player
+        .properties
+        .has(crate::player::Property::Levitation)
+    {
         state.message("You can't reach the floor!");
         return ActionResult::NoTime;
     }
@@ -293,7 +303,9 @@ pub fn do_engrave_full(
     let _time = engrave_time_cost(text.len(), engr_type);
 
     // Check for existing engraving at this location
-    let existing_idx = state.current_level.engravings
+    let existing_idx = state
+        .current_level
+        .engravings
         .iter()
         .position(|e| e.x == x && e.y == y);
 
@@ -429,7 +441,9 @@ pub fn read_engrave(state: &GameState) -> Option<String> {
     let x = state.player.pos.x;
     let y = state.player.pos.y;
 
-    state.current_level.engravings
+    state
+        .current_level
+        .engravings
         .iter()
         .find(|e| e.x == x && e.y == y)
         .map(|e| e.text.clone())
@@ -479,7 +493,9 @@ pub fn sengr_at(state: &GameState, text: &str, x: i8, y: i8, strict: bool) -> bo
 
 /// Check if "Elbereth" is engraved at position (scares most monsters)
 pub fn has_elbereth(state: &GameState, x: i8, y: i8) -> bool {
-    state.current_level.engravings
+    state
+        .current_level
+        .engravings
         .iter()
         .any(|e| e.x == x && e.y == y && e.text.to_lowercase().contains("elbereth"))
 }
@@ -494,10 +510,7 @@ pub fn has_elbereth(state: &GameState, x: i8, y: i8) -> bool {
 /// Only dust and blood engravings can be wiped by walking/monsters.
 /// Hard engravings persist.
 pub fn wipe_engr_at(level: &mut crate::dungeon::Level, x: i8, y: i8, count: usize) {
-    if let Some(idx) = level.engravings
-        .iter()
-        .position(|e| e.x == x && e.y == y)
-    {
+    if let Some(idx) = level.engravings.iter().position(|e| e.x == x && e.y == y) {
         let engr_type = level.engravings[idx].engr_type;
 
         // Only dust, blood, and mark engravings are wipeable
@@ -525,7 +538,9 @@ pub fn wipe_engr_at(level: &mut crate::dungeon::Level, x: i8, y: i8, count: usiz
 
 /// Wipe engraving at position (state-based version, removes only dust)
 pub fn wipe_engrave_at(state: &mut GameState, x: i8, y: i8) {
-    if let Some(idx) = state.current_level.engravings
+    if let Some(idx) = state
+        .current_level
+        .engravings
         .iter()
         .position(|e| e.x == x && e.y == y && e.engr_type == EngravingType::Dust)
     {
@@ -568,10 +583,10 @@ pub fn u_wipe_engr(state: &mut GameState, cnt: usize) {
 
 pub fn maybe_smudge_engr(state: &mut GameState, x: i8, y: i8, val: i32) {
     // Smudge dust engraving
-    if let Some(engraving) = engr_at(state, x, y) {
-        if engraving.engr_type == EngravingType::Dust {
-            wipe_engr_at_state(state, x, y, val as usize);
-        }
+    if let Some(engraving) = engr_at(state, x, y)
+        && engraving.engr_type == EngravingType::Dust
+    {
+        wipe_engr_at_state(state, x, y, val as usize);
     }
 }
 
@@ -700,10 +715,7 @@ pub fn make_grave(
     };
 
     // Remove any existing engraving
-    if let Some(idx) = level.engravings
-        .iter()
-        .position(|e| e.x == x && e.y == y)
-    {
+    if let Some(idx) = level.engravings.iter().position(|e| e.x == x && e.y == y) {
         level.engravings.remove(idx);
     }
 
@@ -826,7 +838,10 @@ mod tests {
     #[test]
     fn test_engrave_full_levitating() {
         let mut state = make_state();
-        state.player.properties.grant_intrinsic(crate::player::Property::Levitation);
+        state
+            .player
+            .properties
+            .grant_intrinsic(crate::player::Property::Levitation);
         let result = do_engrave_full(&mut state, "Test", ObjectClass::Weapon, None);
         assert!(matches!(result, ActionResult::NoTime));
     }
@@ -957,10 +972,7 @@ mod tests {
         let mut rng = GameRng::new(42);
         let mut state = make_state();
         make_grave(&mut state.current_level, 5, 5, Some("RIP"), &mut rng);
-        assert_eq!(
-            state.current_level.cell(5, 5).typ,
-            CellType::Grave
-        );
+        assert_eq!(state.current_level.cell(5, 5).typ, CellType::Grave);
         let engr = engrave_at(&state, 5, 5).unwrap();
         assert_eq!(engr.text, "RIP");
         assert_eq!(engr.engr_type, EngravingType::Headstone);
@@ -1062,22 +1074,34 @@ mod tests {
 
     #[test]
     fn test_tool_type_weapon() {
-        assert_eq!(engrave_type_for_tool(ObjectClass::Weapon), EngravingType::Engrave);
+        assert_eq!(
+            engrave_type_for_tool(ObjectClass::Weapon),
+            EngravingType::Engrave
+        );
     }
 
     #[test]
     fn test_tool_type_wand() {
-        assert_eq!(engrave_type_for_tool(ObjectClass::Wand), EngravingType::Dust);
+        assert_eq!(
+            engrave_type_for_tool(ObjectClass::Wand),
+            EngravingType::Dust
+        );
     }
 
     #[test]
     fn test_tool_type_tool() {
-        assert_eq!(engrave_type_for_tool(ObjectClass::Tool), EngravingType::Mark);
+        assert_eq!(
+            engrave_type_for_tool(ObjectClass::Tool),
+            EngravingType::Mark
+        );
     }
 
     #[test]
     fn test_tool_type_other() {
-        assert_eq!(engrave_type_for_tool(ObjectClass::Food), EngravingType::Dust);
+        assert_eq!(
+            engrave_type_for_tool(ObjectClass::Food),
+            EngravingType::Dust
+        );
     }
 
     // ── make_engr_at / read_engr_at / del_engr tests ─────────────────────

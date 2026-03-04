@@ -63,7 +63,7 @@ fn keyboard_to_command(
         // If no items match, we could show a message, but for now just open empty or don't open?
         // Standard NetHack behavior: "You don't have anything to eat."
         // We open it anyway so user can see "No applicable items found" or use contextual Esc (e.g. fountain dip)
-        
+
         picker_state.active = true;
         picker_state.action = Some(action);
         picker_state.selected_index = 0;
@@ -239,49 +239,88 @@ fn keyboard_to_command(
         commands.write(GameCommand(Command::ShowAttributes));
     }
     // Item commands
-    else if input.just_pressed(KeyCode::KeyE) && !input.pressed(KeyCode::ShiftLeft) && !input.pressed(KeyCode::ShiftRight) {
+    else if input.just_pressed(KeyCode::KeyE)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+    {
         // Check if any food on floor
         use nh_core::object::ObjectClass;
         let pos = game_state.0.player.pos;
-        let has_food_on_floor = game_state.0.current_level.objects_at(pos.x, pos.y).iter().any(|o| o.class == ObjectClass::Food);
+        let has_food_on_floor = game_state
+            .0
+            .current_level
+            .objects_at(pos.x, pos.y)
+            .iter()
+            .any(|o| o.class == ObjectClass::Food);
         if has_food_on_floor {
             commands.write(GameCommand(Command::Eat(None)));
         } else {
             open_picker(PickerAction::Eat);
         }
-    } else if input.just_pressed(KeyCode::KeyQ) && !input.pressed(KeyCode::ShiftLeft) && !input.pressed(KeyCode::ShiftRight) {
+    } else if input.just_pressed(KeyCode::KeyQ)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+    {
         // Check if standing on fountain/sink
         use nh_core::dungeon::CellType;
         let pos = game_state.0.player.pos;
-        let cell_type = game_state.0.current_level.cell(pos.x as usize, pos.y as usize).typ;
+        let cell_type = game_state
+            .0
+            .current_level
+            .cell(pos.x as usize, pos.y as usize)
+            .typ;
         if matches!(cell_type, CellType::Fountain | CellType::Sink) {
             commands.write(GameCommand(Command::Quaff(None)));
         } else {
             open_picker(PickerAction::Quaff);
         }
-    } else if input.just_pressed(KeyCode::KeyR) && !input.pressed(KeyCode::ShiftLeft) && !input.pressed(KeyCode::ShiftRight) {
+    } else if input.just_pressed(KeyCode::KeyR)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+    {
         // Check if standing on throne/statue
         use nh_core::dungeon::CellType;
         let pos = game_state.0.player.pos;
-        let cell_type = game_state.0.current_level.cell(pos.x as usize, pos.y as usize).typ;
+        let cell_type = game_state
+            .0
+            .current_level
+            .cell(pos.x as usize, pos.y as usize)
+            .typ;
         if matches!(cell_type, CellType::Throne) {
             commands.write(GameCommand(Command::Read(None)));
         } else {
             open_picker(PickerAction::Read);
         }
-    } else if input.just_pressed(KeyCode::KeyZ) && !input.pressed(KeyCode::ShiftLeft) && !input.pressed(KeyCode::ShiftRight) {
+    } else if input.just_pressed(KeyCode::KeyZ)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+    {
         open_picker(PickerAction::Zap);
-    } else if input.just_pressed(KeyCode::KeyA) && !input.pressed(KeyCode::ShiftLeft) && !input.pressed(KeyCode::ShiftRight) {
+    } else if input.just_pressed(KeyCode::KeyA)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+    {
         open_picker(PickerAction::Apply);
-    } else if input.just_pressed(KeyCode::KeyW) && !input.pressed(KeyCode::ShiftLeft) && !input.pressed(KeyCode::ShiftRight) {
+    } else if input.just_pressed(KeyCode::KeyW)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+    {
         open_picker(PickerAction::Wield);
-    } else if input.just_pressed(KeyCode::KeyW) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)) {
+    } else if input.just_pressed(KeyCode::KeyW)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
         open_picker(PickerAction::Wear);
-    } else if input.just_pressed(KeyCode::KeyT) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)) {
+    } else if input.just_pressed(KeyCode::KeyT)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
         open_picker(PickerAction::TakeOff);
-    } else if input.just_pressed(KeyCode::KeyP) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)) {
+    } else if input.just_pressed(KeyCode::KeyP)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
         open_picker(PickerAction::PutOn);
-    } else if input.just_pressed(KeyCode::KeyR) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)) {
+    } else if input.just_pressed(KeyCode::KeyR)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
         open_picker(PickerAction::Remove);
     } else if input.just_pressed(KeyCode::KeyD)
         && !input.pressed(KeyCode::ShiftLeft)
@@ -289,38 +328,61 @@ fn keyboard_to_command(
         && !input.pressed(KeyCode::ControlLeft)
     {
         open_picker(PickerAction::Drop);
-    } else if input.just_pressed(KeyCode::KeyT) && !input.pressed(KeyCode::ShiftLeft) && !input.pressed(KeyCode::ShiftRight) {
+    } else if input.just_pressed(KeyCode::KeyT)
+        && !input.pressed(KeyCode::ShiftLeft)
+        && !input.pressed(KeyCode::ShiftRight)
+    {
         open_picker(PickerAction::Throw);
     }
     // Actions
-    else if input.just_pressed(KeyCode::KeyP) && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight)) {
+    else if input.just_pressed(KeyCode::KeyP)
+        && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight))
+    {
         // Alt+P - pray
         commands.write(GameCommand(Command::Pray));
-    } else if input.just_pressed(KeyCode::KeyO) && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight)) {
+    } else if input.just_pressed(KeyCode::KeyO)
+        && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight))
+    {
         // Alt+O - offer
         commands.write(GameCommand(Command::Offer));
-    } else if input.just_pressed(KeyCode::KeyC) && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight)) {
+    } else if input.just_pressed(KeyCode::KeyC)
+        && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight))
+    {
         // Alt+C - chat
         commands.write(GameCommand(Command::Chat));
-    } else if input.just_pressed(KeyCode::KeyS) && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight)) {
+    } else if input.just_pressed(KeyCode::KeyS)
+        && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight))
+    {
         // Alt+S - sit
         commands.write(GameCommand(Command::Sit));
-    } else if input.just_pressed(KeyCode::KeyJ) && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight)) {
+    } else if input.just_pressed(KeyCode::KeyJ)
+        && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight))
+    {
         // Alt+J - jump
         commands.write(GameCommand(Command::Jump));
-    } else if input.just_pressed(KeyCode::KeyI) && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight)) {
+    } else if input.just_pressed(KeyCode::KeyI)
+        && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight))
+    {
         // Alt+I - invoke
         commands.write(GameCommand(Command::Invoke));
-    } else if input.just_pressed(KeyCode::KeyL) && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight)) {
+    } else if input.just_pressed(KeyCode::KeyL)
+        && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight))
+    {
         // Alt+L - loot
         commands.write(GameCommand(Command::Loot));
-    } else if input.just_pressed(KeyCode::KeyT) && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight)) {
+    } else if input.just_pressed(KeyCode::KeyT)
+        && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight))
+    {
         // Alt+T - turn undead
         commands.write(GameCommand(Command::TurnUndead));
-    } else if input.just_pressed(KeyCode::KeyA) && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight)) {
+    } else if input.just_pressed(KeyCode::KeyA)
+        && (input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight))
+    {
         // Shift+A - monster ability
         commands.write(GameCommand(Command::MonsterAbility));
-    } else if input.just_pressed(KeyCode::KeyR) && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight)) {
+    } else if input.just_pressed(KeyCode::KeyR)
+        && (input.pressed(KeyCode::AltLeft) || input.pressed(KeyCode::AltRight))
+    {
         // Alt+R - ride
         commands.write(GameCommand(Command::Ride));
     }
@@ -340,11 +402,13 @@ fn process_game_command(
         // Create game loop and execute command
         let state = std::mem::take(&mut game_state.0);
         let mut game_loop = nh_core::GameLoop::new(state);
-        
+
         let result = if let nh_core::action::Command::Quaff(obj_letter) = command {
             let action_result = nh_core::action::quaff::dodrink(game_loop.state_mut(), *obj_letter);
             match action_result {
-                nh_core::action::ActionResult::Died(msg) => nh_core::GameLoopResult::PlayerDied(msg),
+                nh_core::action::ActionResult::Died(msg) => {
+                    nh_core::GameLoopResult::PlayerDied(msg)
+                }
                 nh_core::action::ActionResult::Quit => nh_core::GameLoopResult::PlayerQuit,
                 nh_core::action::ActionResult::Save => nh_core::GameLoopResult::SaveAndQuit,
                 _ => nh_core::GameLoopResult::Continue,
@@ -352,7 +416,9 @@ fn process_game_command(
         } else if let nh_core::action::Command::Eat(obj_letter) = command {
             let action_result = nh_core::action::eat::do_eat(game_loop.state_mut(), *obj_letter);
             match action_result {
-                nh_core::action::ActionResult::Died(msg) => nh_core::GameLoopResult::PlayerDied(msg),
+                nh_core::action::ActionResult::Died(msg) => {
+                    nh_core::GameLoopResult::PlayerDied(msg)
+                }
                 nh_core::action::ActionResult::Quit => nh_core::GameLoopResult::PlayerQuit,
                 nh_core::action::ActionResult::Save => nh_core::GameLoopResult::SaveAndQuit,
                 _ => nh_core::GameLoopResult::Continue,
@@ -360,15 +426,20 @@ fn process_game_command(
         } else if let nh_core::action::Command::Read(obj_letter) = command {
             let action_result = nh_core::action::read::do_read(game_loop.state_mut(), *obj_letter);
             match action_result {
-                nh_core::action::ActionResult::Died(msg) => nh_core::GameLoopResult::PlayerDied(msg),
+                nh_core::action::ActionResult::Died(msg) => {
+                    nh_core::GameLoopResult::PlayerDied(msg)
+                }
                 nh_core::action::ActionResult::Quit => nh_core::GameLoopResult::PlayerQuit,
                 nh_core::action::ActionResult::Save => nh_core::GameLoopResult::SaveAndQuit,
                 _ => nh_core::GameLoopResult::Continue,
             }
         } else if let nh_core::action::Command::Dip(item, potion) = command {
-            let action_result = nh_core::action::quaff::dodip(game_loop.state_mut(), *item, *potion);
+            let action_result =
+                nh_core::action::quaff::dodip(game_loop.state_mut(), *item, *potion);
             match action_result {
-                nh_core::action::ActionResult::Died(msg) => nh_core::GameLoopResult::PlayerDied(msg),
+                nh_core::action::ActionResult::Died(msg) => {
+                    nh_core::GameLoopResult::PlayerDied(msg)
+                }
                 nh_core::action::ActionResult::Quit => nh_core::GameLoopResult::PlayerQuit,
                 nh_core::action::ActionResult::Save => nh_core::GameLoopResult::SaveAndQuit,
                 _ => nh_core::GameLoopResult::Continue,
@@ -390,8 +461,7 @@ fn process_game_command(
                 game_over_info.cause_of_death = Some(msg);
                 game_over_info.is_victory = false;
                 // Delete save file (permadeath)
-                let path =
-                    nh_core::save::default_save_path(&game_state.0.player.name);
+                let path = nh_core::save::default_save_path(&game_state.0.player.name);
                 let _ = nh_core::save::delete_save(&path);
                 next_app_state.set(AppState::GameOver);
             }
@@ -403,14 +473,12 @@ fn process_game_command(
                 game_over_info.cause_of_death = None;
                 game_over_info.is_victory = true;
                 // Delete save file (ascension is permanent too)
-                let path =
-                    nh_core::save::default_save_path(&game_state.0.player.name);
+                let path = nh_core::save::default_save_path(&game_state.0.player.name);
                 let _ = nh_core::save::delete_save(&path);
                 next_app_state.set(AppState::Victory);
             }
             nh_core::GameLoopResult::SaveAndQuit => {
-                let path =
-                    nh_core::save::default_save_path(&game_state.0.player.name);
+                let path = nh_core::save::default_save_path(&game_state.0.player.name);
                 if let Err(e) = nh_core::save::save_game(&game_state.0, &path) {
                     error!("Failed to save game: {}", e);
                 }

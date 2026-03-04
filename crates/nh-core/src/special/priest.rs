@@ -18,7 +18,6 @@ use crate::monster::{Monster, MonsterId, MonsterState};
 use crate::object::Object;
 use crate::player::{AlignmentType, You};
 use crate::rng::GameRng;
-use hashbrown::HashMap;
 
 /// Priest type index (simplified - in real NetHack uses PM_* constants)
 const PM_PRIEST: i16 = 100;
@@ -191,11 +190,11 @@ pub fn get_priest_ext_mut(monster: &mut Monster) -> Option<&mut PriestExtension>
 /// Called when a monster becomes a priest
 pub fn create_priest_extension(
     monster: &mut Monster,
-    alignment: AltarAlignment,
-    room: u8,
-    shrine_x: i8,
-    shrine_y: i8,
-    level: ShrineLevelId,
+    _alignment: AltarAlignment,
+    _room: u8,
+    _shrine_x: i8,
+    _shrine_y: i8,
+    _level: ShrineLevelId,
 ) {
     // In full implementation, would allocate PriestExtension and attach to monster
     // For now, we note that this should be done
@@ -277,7 +276,7 @@ pub fn is_in_own_shrine(priest: &Monster, shrine: &PriestExtension) -> bool {
 pub fn shrine_is_valid(
     level: &Level,
     shrine_pos: (i8, i8),
-    expected_alignment: AltarAlignment,
+    _expected_alignment: AltarAlignment,
 ) -> bool {
     // Check bounds
     if !level.is_valid_pos(shrine_pos.0, shrine_pos.1) {
@@ -297,7 +296,7 @@ pub fn shrine_is_valid(
 }
 
 /// Find the priest assigned to a temple (findpriest equivalent)
-pub fn find_shrine_priest(level: &Level, room_num: u8) -> Option<MonsterId> {
+pub fn find_shrine_priest(level: &Level, _room_num: u8) -> Option<MonsterId> {
     // Search through monsters on this level for a priest in the specified room
     for monster in &level.monsters {
         if monster.is_priest {
@@ -330,8 +329,6 @@ pub fn get_priest_name(priest: &Monster, is_invisible: bool) -> String {
 
 /// Handle priest interaction/conversation (priest_talk equivalent)
 pub fn handle_priest_talk(priest: &mut Monster, player: &You, donation_amount: i32) -> String {
-    let mut response = String::new();
-
     // Check if player and priest share alignment
     let co_aligned = match priest.alignment.signum() {
         0 => player.alignment.typ == crate::player::AlignmentType::Neutral,
@@ -342,32 +339,30 @@ pub fn handle_priest_talk(priest: &mut Monster, player: &You, donation_amount: i
     if donation_amount <= 0 {
         // No donation
         if co_aligned {
-            response = format!(
+            format!(
                 "\"Greetings, fellow {}. May you find blessing in this place.\"",
                 match priest.alignment.signum() {
                     x if x > 0 => "lawful",
                     0 => "neutral",
                     _ => "chaotic",
                 }
-            );
+            )
         } else {
-            response = "\"I have no time for the unfaithful.\"".to_string();
+            "\"I have no time for the unfaithful.\"".to_string()
         }
     } else if co_aligned {
         // Co-aligned donation
         if donation_amount < 100 {
-            response = "\"Your meager donation is noted, but insufficient.\"".to_string();
+            "\"Your meager donation is noted, but insufficient.\"".to_string()
         } else if donation_amount < 500 {
-            response = "\"Your generous donation is appreciated.\"".to_string();
+            "\"Your generous donation is appreciated.\"".to_string()
         } else {
-            response = "\"Truly blessed are you. Go forth with our blessing.\"".to_string();
+            "\"Truly blessed are you. Go forth with our blessing.\"".to_string()
         }
     } else {
         // Cross-aligned donation
-        response = "\"The altar accepts this offering, but you remain unfaithful.\"".to_string();
+        "\"The altar accepts this offering, but you remain unfaithful.\"".to_string()
     }
-
-    response
 }
 
 /// Move priest toward their shrine (pri_move equivalent)
@@ -394,7 +389,7 @@ pub fn handle_temple_entry(
     level: &Level,
     player: &You,
     shrine: &PriestExtension,
-    game_turn: u32,
+    _game_turn: u32,
 ) -> Vec<String> {
     let mut messages = Vec::new();
 
@@ -432,8 +427,8 @@ pub fn clear_priests_for_save(level: &mut Level) {
 
 /// Restore priest after loading save file (restpriest equivalent)
 pub fn restore_priest_after_load(
-    priest: &mut Monster,
-    current_level: ShrineLevelId,
+    _priest: &mut Monster,
+    _current_level: ShrineLevelId,
     is_bones_file: bool,
 ) {
     if is_bones_file {
@@ -445,15 +440,7 @@ pub fn restore_priest_after_load(
 
 /// Check if any temple room exists in an array of room IDs (temple_occupied equivalent)
 pub fn find_temple_in_rooms(room_ids: &[u8]) -> Option<u8> {
-    for &room_id in room_ids {
-        // In full implementation, would check if room type is TEMPLE
-        // For now, simplified check
-        if room_id < 50 {
-            // Arbitrary temple room number range
-            return Some(room_id);
-        }
-    }
-    None
+    room_ids.iter().find(|&&room_id| room_id < 50).copied()
 }
 
 /// Priest greeting when player enters temple
@@ -662,10 +649,10 @@ pub fn on_altar(level: &Level, x: i8, y: i8) -> bool {
 pub fn anger_priest(temple: &mut Temple, level: &mut Level) {
     temple.priest_angry = true;
 
-    if let Some(priest_id) = temple.priest_id {
-        if let Some(priest) = level.monster_mut(priest_id) {
-            priest.state.peaceful = false;
-        }
+    if let Some(priest_id) = temple.priest_id
+        && let Some(priest) = level.monster_mut(priest_id)
+    {
+        priest.state.peaceful = false;
     }
 }
 

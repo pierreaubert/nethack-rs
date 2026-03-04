@@ -84,10 +84,7 @@ impl ConvergenceReport {
         println!("\n============================================================");
         println!("Convergence Report: {}", self.label);
         println!("Seed: {}, Turns: {}", self.seed, self.total_turns);
-        println!(
-            "Result: {}",
-            if self.passed() { "PASS" } else { "FAIL" }
-        );
+        println!("Result: {}", if self.passed() { "PASS" } else { "FAIL" });
         println!(
             "Diffs: {} critical, {} major, {} minor",
             self.critical_count, self.major_count, self.minor_count
@@ -112,7 +109,10 @@ impl ConvergenceReport {
                 }
             }
             if self.turn_diffs.len() > show {
-                println!("  ... and {} more turns with diffs", self.turn_diffs.len() - show);
+                println!(
+                    "  ... and {} more turns with diffs",
+                    self.turn_diffs.len() - show
+                );
             }
         }
 

@@ -21,7 +21,14 @@ struct RunResult {
 /// Create a game with full player identity and run the given commands
 fn run_with_identity(seed: u64, role: Role, commands: &[Command]) -> RunResult {
     let rng = GameRng::new(seed);
-    let state = GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
+    let state = GameState::new_with_identity(
+        rng,
+        "Hero".into(),
+        role,
+        Race::Human,
+        Gender::Male,
+        role.default_alignment(),
+    );
     let mut gl = GameLoop::new(state);
     let mut results = Vec::new();
 
@@ -97,8 +104,14 @@ const ALL_ROLES: [Role; 13] = [
 fn test_all_13_roles_initialize() {
     for role in ALL_ROLES {
         let rng = GameRng::new(42);
-        let state =
-            GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
+        let state = GameState::new_with_identity(
+            rng,
+            "Hero".into(),
+            role,
+            Race::Human,
+            Gender::Male,
+            role.default_alignment(),
+        );
 
         assert!(
             state.player.hp > 0,
@@ -158,13 +171,29 @@ fn test_role_hp_energy_values() {
 
     for &(role, expected_hp_min, expected_energy_min) in expected {
         let rng = GameRng::new(42);
-        let state =
-            GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
+        let state = GameState::new_with_identity(
+            rng,
+            "Hero".into(),
+            role,
+            Race::Human,
+            Gender::Male,
+            role.default_alignment(),
+        );
 
-        assert!(state.player.hp_max >= expected_hp_min, 
-            "{:?}: HP {} should be >= {}", role, state.player.hp_max, expected_hp_min);
-        assert!(state.player.energy_max >= expected_energy_min,
-            "{:?}: energy {} should be >= {}", role, state.player.energy_max, expected_energy_min);
+        assert!(
+            state.player.hp_max >= expected_hp_min,
+            "{:?}: HP {} should be >= {}",
+            role,
+            state.player.hp_max,
+            expected_hp_min
+        );
+        assert!(
+            state.player.energy_max >= expected_energy_min,
+            "{:?}: energy {} should be >= {}",
+            role,
+            state.player.energy_max,
+            expected_energy_min
+        );
     }
 }
 
@@ -174,25 +203,31 @@ fn test_role_hp_energy_values() {
 fn test_role_inventory_counts() {
     // Minimum base items per role (without optional extras)
     let expected_min: &[(Role, usize)] = &[
-        (Role::Archeologist, 8),   // +0-1 optional (tinopener/lamp/marker)
-        (Role::Barbarian, 4),      // +0-1 optional (lamp)
-        (Role::Caveman, 5),        // no optionals
-        (Role::Healer, 10),        // +0-1 optional (lamp)
-        (Role::Knight, 8),         // no optionals
-        (Role::Monk, 9),           // +0-1 optional (marker/lamp)
-        (Role::Priest, 7),         // +0-1 optional (marker/lamp)
-        (Role::Ranger, 6),         // no optionals
-        (Role::Rogue, 6),          // +0-1 optional (blindfold)
-        (Role::Samurai, 5),        // +0-1 optional (blindfold)
-        (Role::Tourist, 7),        // +0-1 optional (tinopener/leash/towel/marker)
-        (Role::Valkyrie, 4),       // +0-1 optional (lamp)
-        (Role::Wizard, 8),         // +0-2 optional (marker, blindfold)
+        (Role::Archeologist, 8), // +0-1 optional (tinopener/lamp/marker)
+        (Role::Barbarian, 4),    // +0-1 optional (lamp)
+        (Role::Caveman, 5),      // no optionals
+        (Role::Healer, 10),      // +0-1 optional (lamp)
+        (Role::Knight, 8),       // no optionals
+        (Role::Monk, 9),         // +0-1 optional (marker/lamp)
+        (Role::Priest, 7),       // +0-1 optional (marker/lamp)
+        (Role::Ranger, 6),       // no optionals
+        (Role::Rogue, 6),        // +0-1 optional (blindfold)
+        (Role::Samurai, 5),      // +0-1 optional (blindfold)
+        (Role::Tourist, 7),      // +0-1 optional (tinopener/leash/towel/marker)
+        (Role::Valkyrie, 4),     // +0-1 optional (lamp)
+        (Role::Wizard, 8),       // +0-2 optional (marker, blindfold)
     ];
 
     for &(role, min_count) in expected_min {
         let rng = GameRng::new(42);
-        let state =
-            GameState::new_with_identity(rng, "Hero".into(), role, Race::Human, Gender::Male, role.default_alignment());
+        let state = GameState::new_with_identity(
+            rng,
+            "Hero".into(),
+            role,
+            Race::Human,
+            Gender::Male,
+            role.default_alignment(),
+        );
         assert!(
             state.inventory.len() >= min_count && state.inventory.len() <= min_count + 2,
             "{:?}: should have {}-{} items, got {}",
@@ -256,7 +291,8 @@ fn test_1000_turn_stress_10_seeds() {
             assert!(
                 state.turns > 100,
                 "seed {}: player died too early at turn {}",
-                seed, state.turns
+                seed,
+                state.turns
             );
         }
     }
@@ -266,8 +302,14 @@ fn test_1000_turn_stress_10_seeds() {
 #[test]
 fn test_all_command_variants_no_panic() {
     let rng = GameRng::new(42);
-    let state =
-        GameState::new_with_identity(rng, "Hero".into(), Role::Valkyrie, Race::Human, Gender::Male, Role::Valkyrie.default_alignment());
+    let state = GameState::new_with_identity(
+        rng,
+        "Hero".into(),
+        Role::Valkyrie,
+        Race::Human,
+        Gender::Male,
+        Role::Valkyrie.default_alignment(),
+    );
     let mut gl = GameLoop::new(state);
 
     let commands: Vec<Command> = vec![
@@ -295,10 +337,10 @@ fn test_all_command_variants_no_panic() {
         // Object manipulation
         Command::Pickup,
         Command::Drop('a'),
-        Command::Eat('a'),
-        Command::Quaff('a'),
-        Command::Read('a'),
-        Command::Zap('a', Direction::North),
+        Command::Eat(Some('a')),
+        Command::Quaff(Some('a')),
+        Command::Read(Some('a')),
+        Command::Zap('a', Some(Direction::North)),
         Command::Apply('a'),
         Command::Wear('a'),
         Command::TakeOff('a'),
@@ -309,7 +351,7 @@ fn test_all_command_variants_no_panic() {
         Command::SelectQuiver('a'),
         Command::Loot,
         Command::Tip('a'),
-        Command::Dip,
+        Command::Dip('a', None),
         Command::Rub('a'),
         Command::Wipe,
         Command::Force(Direction::North),
@@ -407,7 +449,8 @@ fn test_save_restore_roundtrip() {
         assert!(
             found.is_some(),
             "monster_at({}, {}) should find monster after restore",
-            monster.x, monster.y
+            monster.x,
+            monster.y
         );
     }
 
@@ -416,7 +459,8 @@ fn test_save_restore_roundtrip() {
         assert!(
             !found.is_empty(),
             "objects_at({}, {}) should find objects after restore",
-            obj.x, obj.y
+            obj.x,
+            obj.y
         );
     }
 }
@@ -425,8 +469,14 @@ fn test_save_restore_roundtrip() {
 #[test]
 fn test_starvation_death() {
     let rng = GameRng::new(42);
-    let mut state =
-        GameState::new_with_identity(rng, "Hero".into(), Role::Valkyrie, Race::Human, Gender::Male, Role::Valkyrie.default_alignment());
+    let mut state = GameState::new_with_identity(
+        rng,
+        "Hero".into(),
+        Role::Valkyrie,
+        Race::Human,
+        Gender::Male,
+        Role::Valkyrie.default_alignment(),
+    );
     state.player.nutrition = 10;
     let mut gl = GameLoop::new(state);
 
@@ -540,9 +590,9 @@ fn generate_fuzz_commands(n: usize, seed: u64) -> Vec<Command> {
     for _ in 0..n {
         let dir = directions[rng.rn2(8) as usize];
         let cmd = match rng.rn2(20) {
-            0..=7 => Command::Move(dir),      // 40% movement
-            8 => Command::Run(dir),            // running
-            9 => Command::Fight(dir),          // force-attack
+            0..=7 => Command::Move(dir), // 40% movement
+            8 => Command::Run(dir),      // running
+            9 => Command::Fight(dir),    // force-attack
             10 => Command::Search,
             11 => Command::Rest,
             12 => Command::Pickup,

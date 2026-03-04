@@ -35,10 +35,12 @@ fn render_discoveries(
     }
 
     if !state.open {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     egui::Window::new("Discoveries")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(true)
@@ -74,8 +76,6 @@ fn render_discoveries(
                 state.open = false;
             }
         });
-
-    
 }
 
 fn render_category(ui: &mut egui::Ui, class: ObjectClass, _game_state: &nh_core::GameState) {

@@ -63,10 +63,10 @@ pub fn extract_artifacts() -> Vec<CArtifact> {
         let trimmed = line.trim();
 
         // Skip the terminator and empty entries
-        if trimmed.starts_with("A(\"") {
-            if let Some(artifact) = parse_artifact_line(trimmed) {
-                artifacts.push(artifact);
-            }
+        if trimmed.starts_with("A(\"")
+            && let Some(artifact) = parse_artifact_line(trimmed)
+        {
+            artifacts.push(artifact);
         }
     }
 

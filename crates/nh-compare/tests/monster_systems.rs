@@ -2,10 +2,10 @@
 //!
 //! Tests monster AI, behavior, tactics, and creation systems.
 
+use nh_core::GameRng;
 use nh_core::dungeon::{DLevel, Level};
 use nh_core::magic::MonsterVitals;
 use nh_core::monster::{Monster, MonsterId, SpeedState};
-use nh_core::GameRng;
 
 // ============================================================================
 // Helpers
@@ -57,20 +57,14 @@ fn test_monster_sleeping_cant_act() {
 fn test_monster_paralyzed_cant_act() {
     let mut m = Monster::new(MonsterId::NONE, 0, 5, 5);
     m.state.paralyzed = true;
-    assert!(
-        !m.can_act(),
-        "Paralyzed monster should not be able to act"
-    );
+    assert!(!m.can_act(), "Paralyzed monster should not be able to act");
 }
 
 #[test]
 fn test_monster_frozen_cant_act() {
     let mut m = Monster::new(MonsterId::NONE, 0, 5, 5);
     m.frozen_timeout = 5;
-    assert!(
-        !m.can_act(),
-        "Frozen monster should not be able to act"
-    );
+    assert!(!m.can_act(), "Frozen monster should not be able to act");
 }
 
 #[test]
@@ -221,7 +215,10 @@ fn test_level_add_remove_monster() {
     let monster = make_hostile_monster("orc", 20, 10);
     let mid = level.add_monster(monster);
 
-    assert!(level.monster(mid).is_some(), "Monster should exist after adding");
+    assert!(
+        level.monster(mid).is_some(),
+        "Monster should exist after adding"
+    );
     assert_eq!(level.monster(mid).unwrap().name, "orc");
 
     level.remove_monster(mid);
@@ -281,7 +278,10 @@ fn test_level_multiple_monsters() {
 
     level.remove_monster(mid1);
     assert!(level.monster(mid1).is_none());
-    assert!(level.monster(mid2).is_some(), "Removing one monster shouldn't affect another");
+    assert!(
+        level.monster(mid2).is_some(),
+        "Removing one monster shouldn't affect another"
+    );
 }
 
 // ============================================================================
@@ -356,15 +356,39 @@ fn test_monster_special_flags() {
 #[test]
 fn test_monster_systems_summary() {
     println!("\n=== Monster Systems Summary ===");
-    println!("{:<25} {:<10} {:<10} {:<10}", "Module", "Lines", "Coverage", "Status");
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "Module", "Lines", "Coverage", "Status"
+    );
     println!("{}", "-".repeat(55));
-    println!("{:<25} {:<10} {:<10} {:<10}", "monster/monst.rs", "391", "80%", "Strong");
-    println!("{:<25} {:<10} {:<10} {:<10}", "monster/ai.rs", "449", "70%", "Good");
-    println!("{:<25} {:<10} {:<10} {:<10}", "monster/tactics.rs", "470", "65%", "Framework");
-    println!("{:<25} {:<10} {:<10} {:<10}", "monster/permonst.rs", "319", "75%", "Good");
-    println!("{:<25} {:<10} {:<10} {:<10}", "monster/makemon.rs", "N/A", "0%", "MISSING");
-    println!("{:<25} {:<10} {:<10} {:<10}", "magic/polymorph.rs", "N/A", "0%", "MISSING");
-    println!("{:<25} {:<10} {:<10} {:<10}", "magic/detect.rs", "N/A", "0%", "MISSING");
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "monster/monst.rs", "391", "80%", "Strong"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "monster/ai.rs", "449", "70%", "Good"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "monster/tactics.rs", "470", "65%", "Framework"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "monster/permonst.rs", "319", "75%", "Good"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "monster/makemon.rs", "N/A", "0%", "MISSING"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "magic/polymorph.rs", "N/A", "0%", "MISSING"
+    );
+    println!(
+        "{:<25} {:<10} {:<10} {:<10}",
+        "magic/detect.rs", "N/A", "0%", "MISSING"
+    );
     println!();
     println!("=== Known Divergences from C ===");
     println!("1. makemon.rs does not exist - monster creation scattered across modules");

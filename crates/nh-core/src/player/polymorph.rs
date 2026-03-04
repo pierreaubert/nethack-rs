@@ -13,11 +13,11 @@
 #[cfg(not(feature = "std"))]
 use crate::compat::*;
 
+use crate::action::ActionResult;
 use crate::combat::{Attack, AttackType, DamageType};
 use crate::gameloop::GameState;
 use crate::monster::{MonsterFlags, MonsterSize, PerMonst};
 use crate::player::Property;
-use crate::action::ActionResult;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Polymorph flags
@@ -65,62 +65,201 @@ pub enum BodyPart {
 
 /// Body part name tables (C: humanoid_parts, animal_parts, etc.)
 const HUMANOID_PARTS: &[&str; 19] = &[
-    "arm", "eye", "face", "finger", "fingertip", "foot", "hand", "handed",
-    "head", "leg", "light headed", "neck", "spine", "toe", "hair", "blood",
-    "lung", "nose", "stomach",
+    "arm",
+    "eye",
+    "face",
+    "finger",
+    "fingertip",
+    "foot",
+    "hand",
+    "handed",
+    "head",
+    "leg",
+    "light headed",
+    "neck",
+    "spine",
+    "toe",
+    "hair",
+    "blood",
+    "lung",
+    "nose",
+    "stomach",
 ];
 
 const ANIMAL_PARTS: &[&str; 19] = &[
-    "forelimb", "eye", "face", "foreclaw", "claw tip", "rear claw",
-    "foreclaw", "clawed", "head", "rear limb", "light headed", "neck",
-    "spine", "rear claw tip", "fur", "blood", "lung", "nose", "stomach",
+    "forelimb",
+    "eye",
+    "face",
+    "foreclaw",
+    "claw tip",
+    "rear claw",
+    "foreclaw",
+    "clawed",
+    "head",
+    "rear limb",
+    "light headed",
+    "neck",
+    "spine",
+    "rear claw tip",
+    "fur",
+    "blood",
+    "lung",
+    "nose",
+    "stomach",
 ];
 
 const BIRD_PARTS: &[&str; 19] = &[
-    "wing", "eye", "face", "wing", "wing tip", "foot", "wing", "winged",
-    "head", "leg", "light headed", "neck", "spine", "toe", "feathers",
-    "blood", "lung", "bill", "stomach",
+    "wing",
+    "eye",
+    "face",
+    "wing",
+    "wing tip",
+    "foot",
+    "wing",
+    "winged",
+    "head",
+    "leg",
+    "light headed",
+    "neck",
+    "spine",
+    "toe",
+    "feathers",
+    "blood",
+    "lung",
+    "bill",
+    "stomach",
 ];
 
 const HORSE_PARTS: &[&str; 19] = &[
-    "foreleg", "eye", "face", "forehoof", "hoof tip", "rear hoof",
-    "forehoof", "hooved", "head", "rear leg", "light headed", "neck",
-    "backbone", "rear hoof tip", "mane", "blood", "lung", "nose", "stomach",
+    "foreleg",
+    "eye",
+    "face",
+    "forehoof",
+    "hoof tip",
+    "rear hoof",
+    "forehoof",
+    "hooved",
+    "head",
+    "rear leg",
+    "light headed",
+    "neck",
+    "backbone",
+    "rear hoof tip",
+    "mane",
+    "blood",
+    "lung",
+    "nose",
+    "stomach",
 ];
 
 const JELLY_PARTS: &[&str; 19] = &[
-    "pseudopod", "dark spot", "front", "pseudopod extension",
-    "pseudopod extremity", "pseudopod root", "grasp", "grasped",
-    "cerebral area", "lower pseudopod", "viscous", "middle", "surface",
-    "pseudopod extremity", "ripples", "juices", "surface", "sensor",
+    "pseudopod",
+    "dark spot",
+    "front",
+    "pseudopod extension",
+    "pseudopod extremity",
+    "pseudopod root",
+    "grasp",
+    "grasped",
+    "cerebral area",
+    "lower pseudopod",
+    "viscous",
+    "middle",
+    "surface",
+    "pseudopod extremity",
+    "ripples",
+    "juices",
+    "surface",
+    "sensor",
     "stomach",
 ];
 
 const SNAKE_PARTS: &[&str; 19] = &[
-    "vestigial limb", "eye", "face", "large scale", "large scale tip",
-    "rear region", "scale gap", "scale gapped", "head", "rear region",
-    "light headed", "neck", "length", "rear scale", "scales", "blood",
-    "lung", "forked tongue", "stomach",
+    "vestigial limb",
+    "eye",
+    "face",
+    "large scale",
+    "large scale tip",
+    "rear region",
+    "scale gap",
+    "scale gapped",
+    "head",
+    "rear region",
+    "light headed",
+    "neck",
+    "length",
+    "rear scale",
+    "scales",
+    "blood",
+    "lung",
+    "forked tongue",
+    "stomach",
 ];
 
 const SPHERE_PARTS: &[&str; 19] = &[
-    "appendage", "optic nerve", "body", "tentacle", "tentacle tip",
-    "lower appendage", "tentacle", "tentacled", "body", "lower tentacle",
-    "rotational", "equator", "body", "lower tentacle tip", "cilia",
-    "life force", "retina", "olfactory nerve", "interior",
+    "appendage",
+    "optic nerve",
+    "body",
+    "tentacle",
+    "tentacle tip",
+    "lower appendage",
+    "tentacle",
+    "tentacled",
+    "body",
+    "lower tentacle",
+    "rotational",
+    "equator",
+    "body",
+    "lower tentacle tip",
+    "cilia",
+    "life force",
+    "retina",
+    "olfactory nerve",
+    "interior",
 ];
 
 const FUNGUS_PARTS: &[&str; 19] = &[
-    "mycelium", "visual area", "front", "hypha", "hypha", "root",
-    "strand", "stranded", "cap area", "rhizome", "sporulated", "stalk",
-    "root", "rhizome tip", "spores", "juices", "gill", "gill", "interior",
+    "mycelium",
+    "visual area",
+    "front",
+    "hypha",
+    "hypha",
+    "root",
+    "strand",
+    "stranded",
+    "cap area",
+    "rhizome",
+    "sporulated",
+    "stalk",
+    "root",
+    "rhizome tip",
+    "spores",
+    "juices",
+    "gill",
+    "gill",
+    "interior",
 ];
 
 const VORTEX_PARTS: &[&str; 19] = &[
-    "region", "eye", "front", "minor current", "minor current",
-    "lower current", "swirl", "swirled", "central core", "lower current",
-    "addled", "center", "currents", "edge", "currents", "life force",
-    "center", "leading edge", "interior",
+    "region",
+    "eye",
+    "front",
+    "minor current",
+    "minor current",
+    "lower current",
+    "swirl",
+    "swirled",
+    "central core",
+    "lower current",
+    "addled",
+    "center",
+    "currents",
+    "edge",
+    "currents",
+    "life force",
+    "center",
+    "leading edge",
+    "interior",
 ];
 
 /// Get the body part name for the player's current form (C: body_part)
@@ -147,15 +286,15 @@ pub fn mbodypart(mptr: &PerMonst, part: BodyPart) -> &'static str {
 
     // Symbol-based body part selection (C: mlet checks)
     match symbol {
-        'e' | 'E' => SPHERE_PARTS[idx],   // eyes/elementals
-        'P' => JELLY_PARTS[idx],           // puddings/jellies
-        'b' => JELLY_PARTS[idx],           // blobs
-        'F' => FUNGUS_PARTS[idx],          // fungus
-        'v' | 'V' => VORTEX_PARTS[idx],    // vortices/vampires(V uses humanoid below)
-        'S' => SNAKE_PARTS[idx],           // snakes
-        'w' => SNAKE_PARTS[idx],           // worms (close enough)
-        'B' => BIRD_PARTS[idx],            // bats → birds
-        'u' | 'q' => HORSE_PARTS[idx],     // unicorns/quadrupeds
+        'e' | 'E' => SPHERE_PARTS[idx], // eyes/elementals
+        'P' => JELLY_PARTS[idx],        // puddings/jellies
+        'b' => JELLY_PARTS[idx],        // blobs
+        'F' => FUNGUS_PARTS[idx],       // fungus
+        'v' | 'V' => VORTEX_PARTS[idx], // vortices/vampires(V uses humanoid below)
+        'S' => SNAKE_PARTS[idx],        // snakes
+        'w' => SNAKE_PARTS[idx],        // worms (close enough)
+        'B' => BIRD_PARTS[idx],         // bats → birds
+        'u' | 'q' => HORSE_PARTS[idx],  // unicorns/quadrupeds
         _ => {
             // Check for humanoid
             if mptr.flags.contains(MonsterFlags::HUMANOID)
@@ -191,7 +330,10 @@ pub fn polyok(mptr: &PerMonst) -> bool {
         return false;
     }
     // Lords and princes are too powerful
-    if mptr.flags.intersects(MonsterFlags::LORD | MonsterFlags::PRINCE) {
+    if mptr
+        .flags
+        .intersects(MonsterFlags::LORD | MonsterFlags::PRINCE)
+    {
         return false;
     }
     true
@@ -234,51 +376,93 @@ pub fn set_uasmon(state: &mut GameState, monsters: &[PerMonst]) {
             state.player.properties.grant_intrinsic(Property::Swimming);
         }
         if mptr.passes_walls() {
-            state.player.properties.grant_intrinsic(Property::PassesWalls);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::PassesWalls);
         }
         if mptr.flags.contains(MonsterFlags::BREATHLESS) {
-            state.player.properties.grant_intrinsic(Property::MagicBreathing);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::MagicBreathing);
         }
 
         // Resistances from form
         use crate::monster::MonsterResistances;
         if mptr.resistances.contains(MonsterResistances::FIRE) {
-            state.player.properties.grant_intrinsic(Property::FireResistance);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::FireResistance);
         }
         if mptr.resistances.contains(MonsterResistances::COLD) {
-            state.player.properties.grant_intrinsic(Property::ColdResistance);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::ColdResistance);
         }
         if mptr.resistances.contains(MonsterResistances::SLEEP) {
-            state.player.properties.grant_intrinsic(Property::SleepResistance);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::SleepResistance);
         }
         if mptr.resistances.contains(MonsterResistances::DISINT) {
-            state.player.properties.grant_intrinsic(Property::DisintResistance);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::DisintResistance);
         }
         if mptr.resistances.contains(MonsterResistances::ELEC) {
-            state.player.properties.grant_intrinsic(Property::ShockResistance);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::ShockResistance);
         }
         if mptr.resistances.contains(MonsterResistances::POISON) {
-            state.player.properties.grant_intrinsic(Property::PoisonResistance);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::PoisonResistance);
         }
         if mptr.resistances.contains(MonsterResistances::ACID) {
-            state.player.properties.grant_intrinsic(Property::AcidResistance);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::AcidResistance);
         }
         if mptr.resistances.contains(MonsterResistances::STONE) {
-            state.player.properties.grant_intrinsic(Property::StoneResistance);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::StoneResistance);
         }
 
         // Vision from form
         if mptr.sees_invisible() {
-            state.player.properties.grant_intrinsic(Property::SeeInvisible);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::SeeInvisible);
         }
         if mptr.regenerates() {
-            state.player.properties.grant_intrinsic(Property::Regeneration);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::Regeneration);
         }
         if mptr.flags.contains(MonsterFlags::TPORT) {
-            state.player.properties.grant_intrinsic(Property::Teleportation);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::Teleportation);
         }
         if mptr.flags.contains(MonsterFlags::TPORT_CNTRL) {
-            state.player.properties.grant_intrinsic(Property::TeleportControl);
+            state
+                .player
+                .properties
+                .grant_intrinsic(Property::TeleportControl);
         }
 
         // Stealth for certain forms
@@ -356,11 +540,14 @@ pub fn polymon(state: &mut GameState, monster_type: i16, monsters: &[PerMonst]) 
     state.message(format!("You turn into {}!", article_a(mptr.name)));
 
     // C: polyself.c — if engulfed and new form is too large, escape engulfer
-    if state.player.swallowed {
-        if matches!(mptr.size, crate::monster::MonsterSize::Huge | crate::monster::MonsterSize::Gigantic) {
-            state.player.swallowed = false;
-            state.message("You break free of the engulfer!");
-        }
+    if state.player.swallowed
+        && matches!(
+            mptr.size,
+            crate::monster::MonsterSize::Huge | crate::monster::MonsterSize::Gigantic
+        )
+    {
+        state.player.swallowed = false;
+        state.message("You break free of the engulfer!");
     }
 
     true
@@ -457,8 +644,8 @@ fn break_armor(state: &mut GameState, mptr: &PerMonst) {
         || mptr.flags.contains(MonsterFlags::AMORPHOUS)
         || mptr.flags.contains(MonsterFlags::UNSOLID);
 
-    let no_hands = mptr.flags.contains(MonsterFlags::NOHANDS)
-        || mptr.flags.contains(MonsterFlags::NOLIMBS);
+    let no_hands =
+        mptr.flags.contains(MonsterFlags::NOHANDS) || mptr.flags.contains(MonsterFlags::NOLIMBS);
 
     if breaks_armor || no_hands {
         state.message("Your armor falls off!");
@@ -468,8 +655,8 @@ fn break_armor(state: &mut GameState, mptr: &PerMonst) {
 
 /// Drop weapon if new form can't wield (C: drop_weapon)
 fn drop_weapon(state: &mut GameState, mptr: &PerMonst) {
-    let no_hands = mptr.flags.contains(MonsterFlags::NOHANDS)
-        || mptr.flags.contains(MonsterFlags::NOLIMBS);
+    let no_hands =
+        mptr.flags.contains(MonsterFlags::NOHANDS) || mptr.flags.contains(MonsterFlags::NOLIMBS);
 
     if no_hands {
         state.message("You drop your weapon!");
@@ -531,10 +718,7 @@ pub fn do_breathe(state: &mut GameState, monsters: &[PerMonst]) -> ActionResult 
 
     // Apply breath weapon in a line from player position
     // Simplified: just report the damage type and amount
-    state.message(format!(
-        "The {} deals {} damage.",
-        breath_name, damage
-    ));
+    state.message(format!("The {} deals {} damage.", breath_name, damage));
 
     ActionResult::Success
 }
@@ -668,8 +852,11 @@ pub fn do_mindblast(state: &mut GameState, monsters: &[PerMonst]) -> ActionResul
     }
 
     if hit_count > 0 {
-        state.message(format!("You lock in on {} mind{}.", hit_count,
-            if hit_count == 1 { "" } else { "s" }));
+        state.message(format!(
+            "You lock in on {} mind{}.",
+            hit_count,
+            if hit_count == 1 { "" } else { "s" }
+        ));
     }
 
     ActionResult::Success
@@ -825,7 +1012,7 @@ pub fn newman(state: &mut GameState, monsters: &[PerMonst]) -> ActionResult {
     let delta = state.rng.rn2(5) as i32 - 2;
     let new_level_i = old_level + delta;
 
-    if new_level_i < 1 || new_level_i > 127 {
+    if !(1..=127).contains(&new_level_i) {
         state.message("Your new form doesn't seem to work out...");
         state.player.hp = 0;
         return ActionResult::Died("unsuccessful polymorph".to_string());
@@ -981,7 +1168,7 @@ pub fn dosummon(state: &mut GameState, monsters: &[PerMonst]) -> ActionResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::combat::{empty_attacks, Attack, AttackType, DamageType};
+    use crate::combat::{Attack, AttackType, DamageType, empty_attacks};
     use crate::dungeon::Cell;
     use crate::gameloop::GameState;
     use crate::monster::{MonsterFlags, MonsterResistances, MonsterSize, MonsterSound, PerMonst};
@@ -1082,7 +1269,12 @@ mod tests {
         let mut attacks = empty_attacks();
         attacks[0] = Attack::new(AttackType::Spit, DamageType::Acid, 2, 6);
 
-        let mut m = make_monster("spitting cobra", 'S', 4, MonsterFlags::SLITHY | MonsterFlags::ANIMAL);
+        let mut m = make_monster(
+            "spitting cobra",
+            'S',
+            4,
+            MonsterFlags::SLITHY | MonsterFlags::ANIMAL,
+        );
         m.attacks = attacks;
         m
     }
@@ -1091,26 +1283,49 @@ mod tests {
         let mut attacks = empty_attacks();
         attacks[0] = Attack::new(AttackType::Gaze, DamageType::Stone, 0, 0);
 
-        let mut m = make_monster("medusa", 'M', 20, MonsterFlags::NOPOLY | MonsterFlags::HOSTILE);
+        let mut m = make_monster(
+            "medusa",
+            'M',
+            20,
+            MonsterFlags::NOPOLY | MonsterFlags::HOSTILE,
+        );
         m.attacks = attacks;
         m
     }
 
     fn make_hiding_monster() -> PerMonst {
-        make_monster("trapper", 't', 12, MonsterFlags::HIDE | MonsterFlags::ANIMAL)
+        make_monster(
+            "trapper",
+            't',
+            12,
+            MonsterFlags::HIDE | MonsterFlags::ANIMAL,
+        )
     }
 
     fn make_monsters() -> Vec<PerMonst> {
         vec![
-            make_monster("newt", ':', 0, MonsterFlags::SWIM | MonsterFlags::ANIMAL),     // 0
-            make_dragon(),                                                                 // 1
-            make_mind_flayer(),                                                            // 2
-            make_spit_monster(),                                                           // 3
-            make_hiding_monster(),                                                         // 4
-            make_gaze_monster(),                                                           // 5
-            make_monster("human", '@', 1, MonsterFlags::HUMANOID | MonsterFlags::HUMAN),  // 6
-            make_monster("angel", 'A', 14, MonsterFlags::HUMANOID | MonsterFlags::LORD | MonsterFlags::MINION | MonsterFlags::FLY), // 7
-            make_monster("jelly", 'j', 3, MonsterFlags::AMORPHOUS),                       // 8
+            make_monster("newt", ':', 0, MonsterFlags::SWIM | MonsterFlags::ANIMAL), // 0
+            make_dragon(),                                                           // 1
+            make_mind_flayer(),                                                      // 2
+            make_spit_monster(),                                                     // 3
+            make_hiding_monster(),                                                   // 4
+            make_gaze_monster(),                                                     // 5
+            make_monster(
+                "human",
+                '@',
+                1,
+                MonsterFlags::HUMANOID | MonsterFlags::HUMAN,
+            ), // 6
+            make_monster(
+                "angel",
+                'A',
+                14,
+                MonsterFlags::HUMANOID
+                    | MonsterFlags::LORD
+                    | MonsterFlags::MINION
+                    | MonsterFlags::FLY,
+            ), // 7
+            make_monster("jelly", 'j', 3, MonsterFlags::AMORPHOUS),                  // 8
         ]
     }
 
@@ -1145,7 +1360,10 @@ mod tests {
     #[test]
     fn test_could_poly_unchanging() {
         let mut state = make_state();
-        state.player.properties.grant_intrinsic(Property::Unchanging);
+        state
+            .player
+            .properties
+            .grant_intrinsic(Property::Unchanging);
         assert!(!could_poly(&state));
     }
 
@@ -1193,7 +1411,10 @@ mod tests {
     fn test_polyself_unchanging() {
         let mut state = make_state();
         let monsters = make_monsters();
-        state.player.properties.grant_intrinsic(Property::Unchanging);
+        state
+            .player
+            .properties
+            .grant_intrinsic(Property::Unchanging);
         let result = polyself(&mut state, PolyselfFlags::default(), &monsters);
         assert!(!result);
     }
@@ -1286,7 +1507,10 @@ mod tests {
         let monsters = make_monsters();
         state.player.monster_num = Some(3); // spitting cobra (S)
         assert_eq!(body_part(&state, BodyPart::Hand, &monsters), "scale gap");
-        assert_eq!(body_part(&state, BodyPart::Nose, &monsters), "forked tongue");
+        assert_eq!(
+            body_part(&state, BodyPart::Nose, &monsters),
+            "forked tongue"
+        );
     }
 
     #[test]

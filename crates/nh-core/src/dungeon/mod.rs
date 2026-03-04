@@ -15,12 +15,12 @@ mod mapseen;
 mod maze;
 mod quest;
 mod rect;
+pub mod region;
 pub mod room;
 mod shop;
 mod special_level;
 mod special_rooms;
 mod topology;
-pub mod region;
 pub mod trap;
 
 pub use bones::{BonesFile, BonesHeader, BonesManager};
@@ -35,7 +35,6 @@ pub use cell::{
     waterbody_name,
 };
 pub use corridor::corr;
-pub use rect::{add_rect_to_reg, inside_rect};
 pub use corridor::{ConnectivityTracker, generate_corridors};
 pub use dlevel::{
     DLevel,
@@ -142,6 +141,7 @@ pub use quest::{
     intermed,
 };
 pub use rect::{MAXRECT, NhRect, RectManager, XLIM, YLIM};
+pub use rect::{add_rect_to_reg, inside_rect};
 pub use room::{
     MAX_SUBROOMS,
     Room,

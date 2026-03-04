@@ -338,7 +338,10 @@ pub fn pick_lock(state: &mut GameState, tool: &Object, x: i8, y: i8) -> ActionRe
     }
 
     // Calculate success chance based on tool, dexterity, role
-    let dex = state.player.attr_current.get(crate::player::Attribute::Dexterity);
+    let dex = state
+        .player
+        .attr_current
+        .get(crate::player::Attribute::Dexterity);
     let is_rogue = state.player.role == crate::player::Role::Rogue;
     let is_cursed = tool.buc == crate::object::BucStatus::Cursed;
     let chance = calculate_pick_chance(pick_type, dex, is_rogue, true, is_cursed);
@@ -766,10 +769,14 @@ pub fn is_blade_weapon(weapon: &crate::object::Object) -> bool {
         // Check weapon name for blade-like keywords
         if let Some(ref name) = weapon.name {
             let lower = name.to_lowercase();
-            return lower.contains("sword") || lower.contains("dagger")
-                || lower.contains("knife") || lower.contains("blade")
-                || lower.contains("katana") || lower.contains("scimitar")
-                || lower.contains("saber") || lower.contains("axe");
+            return lower.contains("sword")
+                || lower.contains("dagger")
+                || lower.contains("knife")
+                || lower.contains("blade")
+                || lower.contains("katana")
+                || lower.contains("scimitar")
+                || lower.contains("saber")
+                || lower.contains("axe");
         }
     }
     false
@@ -817,9 +824,13 @@ pub fn doforce(
     let is_blade = false; // Simplified: assume blunt by default
 
     if is_blade {
-        result.messages.push("You force your weapon into a crack and pry.".to_string());
+        result
+            .messages
+            .push("You force your weapon into a crack and pry.".to_string());
     } else {
-        result.messages.push("You start bashing it with your weapon.".to_string());
+        result
+            .messages
+            .push("You start bashing it with your weapon.".to_string());
     }
 
     // Calculate success chance (matches C line 596: objects[uwep->otyp].oc_wldam * 2)
@@ -838,12 +849,16 @@ pub fn doforce(
         // Success (matches C line 255-263)
         result.success = true;
         result.lock_broken = true;
-        result.messages.push("You succeed in forcing the lock.".to_string());
+        result
+            .messages
+            .push("You succeed in forcing the lock.".to_string());
 
         // Blunt weapons: chance of destroying container (matches C line 260)
         if !is_blade && rng.rn2(3) == 0 {
             result.container_destroyed = true;
-            result.messages.push("In fact, you've totally destroyed it!".to_string());
+            result
+                .messages
+                .push("In fact, you've totally destroyed it!".to_string());
         }
     } else {
         // Failure — the lock holds
@@ -965,16 +980,15 @@ pub struct ForceContext {
 ///
 /// Matches C forcelock() from lock.c. Each call = one turn of forcing.
 /// Returns 1 if still working, 0 if done/cancelled.
-pub fn forcelock(
-    ctx: &mut ForceContext,
-    rng: &mut crate::rng::GameRng,
-) -> (u32, ForceResult) {
+pub fn forcelock(ctx: &mut ForceContext, rng: &mut crate::rng::GameRng) -> (u32, ForceResult) {
     ctx.used_time += 1;
 
     // Give up after 50 turns (matches C: xlock.usedtime++ >= 50)
     if ctx.used_time >= 50 {
         let mut result = ForceResult::new();
-        result.messages.push("You give up your attempt to force the lock.".to_string());
+        result
+            .messages
+            .push("You give up your attempt to force the lock.".to_string());
         return (0, result);
     }
 
@@ -994,7 +1008,9 @@ pub fn forcelock(
     let mut result = ForceResult::new();
     result.success = true;
     result.lock_broken = true;
-    result.messages.push("You succeed in forcing the lock.".to_string());
+    result
+        .messages
+        .push("You succeed in forcing the lock.".to_string());
 
     // Blunt weapons: 1/3 chance of destroying container (matches C line 260)
     if !ctx.is_blade && rng.rn2(3) == 0 {
@@ -1073,7 +1089,9 @@ pub fn doorlock_spell(
             let msg = match () {
                 _ if door_state.contains(DoorState::CLOSED) => "The door locks!",
                 _ if door_state.contains(DoorState::OPEN) => "The door swings shut, and locks!",
-                _ if door_state.contains(DoorState::BROKEN) => "The broken door reassembles and locks!",
+                _ if door_state.contains(DoorState::BROKEN) => {
+                    "The broken door reassembles and locks!"
+                }
                 _ => "A cloud of dust springs up and assembles itself into a door!",
             };
             let cell = level.cell_mut(x as usize, y as usize);
@@ -1362,13 +1380,21 @@ mod tests {
 
     #[test]
     fn test_lock_action_desc_door_locked() {
-        let desc = lock_action_desc(&LockTarget::Door { x: 5, y: 5 }, true, PickType::SkeletonKey);
+        let desc = lock_action_desc(
+            &LockTarget::Door { x: 5, y: 5 },
+            true,
+            PickType::SkeletonKey,
+        );
         assert_eq!(desc, "unlocking the door");
     }
 
     #[test]
     fn test_lock_action_desc_door_unlocked() {
-        let desc = lock_action_desc(&LockTarget::Door { x: 5, y: 5 }, false, PickType::SkeletonKey);
+        let desc = lock_action_desc(
+            &LockTarget::Door { x: 5, y: 5 },
+            false,
+            PickType::SkeletonKey,
+        );
         assert_eq!(desc, "locking the door");
     }
 
@@ -1544,7 +1570,7 @@ mod tests {
         let mut ctx = LockContext {
             target: Some(LockTarget::Door { x: 10, y: 10 }),
             pick_type: Some(PickType::LockPick),
-            chance: 0, // Will never succeed
+            chance: 0,     // Will never succeed
             used_time: 49, // About to time out
             magic_key: false,
             door_x: Some(10),

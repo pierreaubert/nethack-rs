@@ -5,6 +5,7 @@
 //! These fixtures are committed to data/fixtures/ and used by movement/combat/item
 //! drift tests to ensure both engines operate on identical terrain.
 
+use nh_core::CGameEngineTrait;
 use nh_core::dungeon::LevelFixture;
 use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use serial_test::serial;
@@ -18,14 +19,9 @@ const FIXTURE_DIR: &str = "data/fixtures";
 
 fn generate_level_fixtures() {
     let seeds = [1u64, 2, 3, 4, 5, 10, 42, 100, 12345, 99999];
-    let roles = [
-        ("Valkyrie", "Human"),
-        ("Wizard", "Elf"),
-        ("Rogue", "Human"),
-    ];
+    let roles = [("Valkyrie", "Human"), ("Wizard", "Elf"), ("Rogue", "Human")];
 
-    let fixture_dir =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE_DIR);
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE_DIR);
     std::fs::create_dir_all(&fixture_dir).expect("Failed to create fixture directory");
 
     let mut generated = 0;
@@ -43,14 +39,9 @@ fn generate_level_fixtures() {
             // Validate it parses as a LevelFixture
             match serde_json::from_str::<LevelFixture>(&level_json) {
                 Ok(fixture) => {
-                    let filename = format!(
-                        "level_seed{}_{}.json",
-                        seed,
-                        role.to_lowercase()
-                    );
+                    let filename = format!("level_seed{}_{}.json", seed, role.to_lowercase());
                     let path = fixture_dir.join(&filename);
-                    std::fs::write(&path, &level_json)
-                        .expect("Failed to write fixture");
+                    std::fs::write(&path, &level_json).expect("Failed to write fixture");
                     println!(
                         "Generated: {} ({}x{}, {} rooms, {} stairs, {} objects, {} monsters)",
                         filename,
@@ -68,24 +59,33 @@ fn generate_level_fixtures() {
                         "WARNING: Failed to parse fixture for seed={} role={}: {}",
                         seed, role, e
                     );
-                    eprintln!("Raw JSON (first 500 chars): {}", &level_json[..level_json.len().min(500)]);
+                    eprintln!(
+                        "Raw JSON (first 500 chars): {}",
+                        &level_json[..level_json.len().min(500)]
+                    );
                 }
             }
         }
     }
 
-    println!("\nGenerated {} fixtures in {}", generated, fixture_dir.display());
+    println!(
+        "\nGenerated {} fixtures in {}",
+        generated,
+        fixture_dir.display()
+    );
     assert!(generated > 0, "No fixtures were generated");
 }
 
 /// Verify that existing fixtures load correctly into Rust Level structs.
 #[test]
 fn test_load_fixtures() {
-    let fixture_dir =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE_DIR);
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE_DIR);
 
     if !fixture_dir.exists() {
-        println!("No fixture directory found at {}. Run generate_level_fixtures first.", fixture_dir.display());
+        println!(
+            "No fixture directory found at {}. Run generate_level_fixtures first.",
+            fixture_dir.display()
+        );
         return;
     }
 

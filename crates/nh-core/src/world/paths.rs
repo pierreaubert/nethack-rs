@@ -5,7 +5,7 @@
 
 use crate::world::errors::{FileError, validate_file_path};
 use std::fs::{File, OpenOptions, create_dir_all, remove_file};
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 
 /// Construct a lock filename from a base name
@@ -27,7 +27,12 @@ pub fn lock_file(path: &Path) -> Result<File, FileError> {
 
     let lock_path = make_lockname(&path.to_string_lossy());
 
-    match OpenOptions::new().write(true).create(true).open(&lock_path) {
+    match OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&lock_path)
+    {
         Ok(file) => Ok(file),
         Err(e) => Err(FileError::CouldNotOpen {
             path: lock_path,
@@ -59,14 +64,14 @@ pub fn clearlocks(lock_dir: &Path) -> Result<u32, FileError> {
     match std::fs::read_dir(lock_dir) {
         Ok(entries) => {
             for entry in entries.flatten() {
-                if let Ok(metadata) = entry.metadata() {
-                    if metadata.is_file() {
-                        let path = entry.path();
-                        if path.extension().and_then(|s| s.to_str()) == Some("lock") {
-                            if remove_file(&path).is_ok() {
-                                count += 1;
-                            }
-                        }
+                if let Ok(metadata) = entry.metadata()
+                    && metadata.is_file()
+                {
+                    let path = entry.path();
+                    if path.extension().and_then(|s| s.to_str()) == Some("lock")
+                        && remove_file(&path).is_ok()
+                    {
+                        count += 1;
                     }
                 }
             }
@@ -99,6 +104,7 @@ pub fn assure_syscf_file(file_path: &Path, default_content: &str) -> Result<(), 
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(file_path)
             .map_err(|e| FileError::CouldNotOpen {
                 path: file_path.to_string_lossy().to_string(),

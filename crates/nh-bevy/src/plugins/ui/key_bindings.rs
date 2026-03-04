@@ -70,15 +70,14 @@ fn handle_key_bindings_input(
 }
 
 /// Render the key bindings display
-fn render_key_bindings(
-    mut contexts: EguiContexts,
-    mut state: ResMut<KeyBindingsState>,
-) {
+fn render_key_bindings(mut contexts: EguiContexts, mut state: ResMut<KeyBindingsState>) {
     if !state.open {
-        return ;
+        return;
     }
 
-    let Ok(ctx) = contexts.ctx_mut() else { return; };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
     egui::Window::new("Key Bindings")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .resizable(true)
@@ -146,8 +145,6 @@ fn render_key_bindings(
                     .small(),
             );
         });
-
-    
 }
 
 /// Render movement key bindings

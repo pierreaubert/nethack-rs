@@ -203,7 +203,14 @@ fn dodoor(level: &mut Level, x: usize, y: usize, room_idx: usize, rng: &mut Game
 /// Sets door type and state based on C's logic including shop awareness.
 /// Public wrapper for dosdoor — used by niche generation.
 /// `room_idx` matches C's `aroom` parameter for add_door tracking.
-pub fn dosdoor_public(level: &mut Level, x: usize, y: usize, door_type: CellType, room_idx: usize, rng: &mut GameRng) {
+pub fn dosdoor_public(
+    level: &mut Level,
+    x: usize,
+    y: usize,
+    door_type: CellType,
+    room_idx: usize,
+    rng: &mut GameRng,
+) {
     add_door_tracking(level, x, y, room_idx);
     dosdoor(level, x, y, door_type, rng);
 }
@@ -270,13 +277,14 @@ fn dosdoor(level: &mut Level, x: usize, y: usize, mut door_type: CellType, rng: 
         }
 
         // C mklev.c:461-474 — D_TRAPPED mimic check
-        if level.cells[x][y].door_state().contains(DoorState::TRAPPED) {
-            if depth >= 9 && rng.rn2(5) == 0 {
-                // C: levl[x][y].doormask = D_NODOOR;
-                //    mtmp = makemon(mkclass(S_MIMIC, 0), x, y, NO_MM_FLAGS);
-                level.cells[x][y].set_door_state(DoorState::NO_DOOR);
-                super::generation::mimic_door_c_rng(depth, rng);
-            }
+        if level.cells[x][y].door_state().contains(DoorState::TRAPPED)
+            && depth >= 9
+            && rng.rn2(5) == 0
+        {
+            // C: levl[x][y].doormask = D_NODOOR;
+            //    mtmp = makemon(mkclass(S_MIMIC, 0), x, y, NO_MM_FLAGS);
+            level.cells[x][y].set_door_state(DoorState::NO_DOOR);
+            super::generation::mimic_door_c_rng(depth, rng);
         }
 
         // C: Rogue level check — skip for now (not rogue level at depth 14)
@@ -457,7 +465,9 @@ pub fn dig_corridor_inner_public(
     btyp: CellType,
     rng: &mut GameRng,
 ) -> bool {
-    dig_corridor_inner(level, start_x, start_y, end_x, end_y, nxcor, ftyp, btyp, rng)
+    dig_corridor_inner(
+        level, start_x, start_y, end_x, end_y, nxcor, ftyp, btyp, rng,
+    )
 }
 
 /// 1:1 port of C's join() from mklev.c:245-317

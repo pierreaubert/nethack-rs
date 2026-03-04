@@ -341,15 +341,15 @@ impl GameAction {
 
     /// Check if action consumes time
     pub fn consumes_time(&self) -> bool {
-        match self {
+        !matches!(
+            self,
             GameAction::Inventory
-            | GameAction::Look
-            | GameAction::History
-            | GameAction::Help
-            | GameAction::Save
-            | GameAction::Quit => false,
-            _ => true,
-        }
+                | GameAction::Look
+                | GameAction::History
+                | GameAction::Help
+                | GameAction::Save
+                | GameAction::Quit
+        )
     }
 }
 
