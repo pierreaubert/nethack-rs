@@ -54,7 +54,7 @@ atty = "0.2"
 dirs = "5.0"
 
 # RNG
-rand = { version = "0.8", default-features = false }
+rand = { version = "0.9", default-features = false }
 rand_chacha = "0.3"
 
 # Serialization
