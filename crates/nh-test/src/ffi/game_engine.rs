@@ -159,6 +159,7 @@ unsafe extern "C" {
     pub fn nh_ffi_disable_rng_tracing();
     pub fn nh_ffi_get_rng_trace() -> *mut c_char;
     pub fn nh_ffi_clear_rng_trace();
+    pub fn nh_ffi_set_rng_caller(caller: *const c_char);
 
     // Function-level isolation testing (Phase 1)
     pub fn nh_ffi_test_finddpos(
@@ -372,6 +373,11 @@ impl CGameEngine {
 
     pub fn clear_rng_trace(&self) {
         unsafe { nh_ffi_clear_rng_trace() };
+    }
+
+    pub fn set_rng_caller(&self, caller: &str) {
+        let c_str = std::ffi::CString::new(caller).unwrap_or_default();
+        unsafe { nh_ffi_set_rng_caller(c_str.as_ptr()) };
     }
 
     pub fn get_visibility(&self) -> Vec<Vec<bool>> {

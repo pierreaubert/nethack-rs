@@ -978,6 +978,18 @@ pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mu
         _ => BucStatus::Uncursed, // UNDEF_BLESS = uncursed (C: obj->cursed = 0)
     };
 
+    // Copy static properties from object definition
+    if let Some(def) = crate::data::objects::OBJECTS.get(item.otyp as usize) {
+        obj.weight = def.weight as u32;
+        if obj.name.is_none() {
+            obj.name = Some(def.name.to_string());
+        }
+        // Armor AC: C stores a_ac = 10 - arm_ac (objects.c ARMOR macro)
+        if item.class == ObjectClass::Armor {
+            obj.base_ac = (10 - def.bonus as i32) as i8;
+        }
+    }
+
     obj
 }
 

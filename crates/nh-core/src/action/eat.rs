@@ -1611,12 +1611,16 @@ pub fn gethungry(state: &mut GameState) -> Vec<String> {
     // C: if (u.uinvulnerable) return;
     // We don't track invulnerability separately, skip
 
-    // C: Base hunger - ordinary food consumption
-    // (!Unaware || !rn2(10)) check: we treat player as always aware when resting
+    // C: Base hunger — ordinary food consumption
+    // (!Unaware || !rn2(10)): slow metabolic rate while asleep/fainted
     // (carnivorous || herbivorous || metallivorous): true for human form
     // !Slow_digestion: only skip base hunger, not ring/amulet hunger
+    let unaware = state.player.sleeping_timeout > 0
+        || crate::player::is_fainted(&state.player);
+    // C short-circuits: !Unaware is checked first, rn2(10) only called if unaware
+    let aware_check = if !unaware { true } else { state.rng.rn2(10) == 0 };
     let has_slow_digestion = state.player.properties.has(Property::SlowDigestion);
-    if !has_slow_digestion {
+    if aware_check && !has_slow_digestion {
         state.player.nutrition -= 1; // C: u.uhunger--
     }
 

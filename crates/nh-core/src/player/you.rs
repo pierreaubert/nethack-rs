@@ -375,7 +375,7 @@ impl Default for You {
             casting_turns_remaining: 0,
             casting_interrupted: false,
 
-            next_attrib_check: 0,
+            next_attrib_check: 600, // C: allmain.c:590 — arbitrary first setting
         }
     }
 }

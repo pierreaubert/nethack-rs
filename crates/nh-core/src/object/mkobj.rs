@@ -514,9 +514,11 @@ pub fn mksobj_with_data(
         obj.weapon_tohit = def.bonus;
     }
 
-    // Armor AC
+    // Armor AC — C stores a_ac = 10 - arm_ac (objects.c ARMOR macro line 321)
+    // Our ObjClassDef.bonus stores the raw arm_ac (e.g. 9 for small shield),
+    // so we apply the same transformation to get the actual armor bonus.
     if def.class == ObjectClass::Armor {
-        obj.base_ac = def.bonus; // bonus field is AC for armor
+        obj.base_ac = (10 - def.bonus as i32) as i8;
     }
 
     // Multi-generation items (arrows, rocks, etc.) get quantity

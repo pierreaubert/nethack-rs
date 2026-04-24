@@ -230,7 +230,7 @@ impl GameState {
             context: Context::default(),
             rng,
             timeouts: TimeoutManager::new(),
-            turns: 0,
+            turns: 1, // C: moves starts at 1 (decl.c:195)
             monster_turns: 0,
             messages: Vec::new(),
             message_history: Vec::new(),
@@ -324,7 +324,7 @@ impl GameState {
             context: Context::default(),
             rng,
             timeouts: TimeoutManager::new(),
-            turns: 0,
+            turns: 1, // C: moves starts at 1 (decl.c:195)
             monster_turns: 0,
             messages: Vec::new(),
             message_history: Vec::new(),
@@ -3229,10 +3229,6 @@ impl GameLoop {
 
         let ulevel = state.player.exp_level;
         let turns = state.turns;
-
-        if turns == 0 {
-            return;
-        }
 
         // HP Regeneration (C: regen_hp from allmain.c)
         if state.player.hp < state.player.hp_max {

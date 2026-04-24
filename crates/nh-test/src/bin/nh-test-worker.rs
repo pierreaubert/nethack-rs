@@ -101,6 +101,7 @@ enum Command {
     DisableRngTracing,
     GetRngTrace,
     ClearRngTrace,
+    SetRngCaller { caller: String },
     GetVisibility,
     GetCouldsee,
     // Function-level isolation testing (Phase 1)
@@ -334,6 +335,10 @@ fn main() {
             Command::GetRngTrace => Response::String(engine.rng_trace_json()),
             Command::ClearRngTrace => {
                 engine.clear_rng_trace();
+                Response::Ok
+            }
+            Command::SetRngCaller { caller } => {
+                engine.set_rng_caller(&caller);
                 Response::Ok
             }
             Command::GetVisibility => {

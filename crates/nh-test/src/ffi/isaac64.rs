@@ -106,6 +106,7 @@ impl CIsaac64 {
                 arg: x as u64,
                 result: result as u64,
                 raw,
+                caller: "",
             });
         }
         result
@@ -125,6 +126,7 @@ impl CIsaac64 {
                 arg: x as u64,
                 result: result as u64,
                 raw,
+                caller: "",
             });
         }
         result

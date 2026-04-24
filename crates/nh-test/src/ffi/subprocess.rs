@@ -102,6 +102,7 @@ enum CommandMsg {
     DisableRngTracing,
     GetRngTrace,
     ClearRngTrace,
+    SetRngCaller { caller: String },
     GetVisibility,
     GetCouldsee,
     // Function-level isolation testing (Phase 1)
@@ -597,6 +598,12 @@ impl CGameEngineSubprocess {
 
     pub fn clear_rng_trace(&self) {
         let _ = self.send_command(CommandMsg::ClearRngTrace);
+    }
+
+    pub fn set_rng_caller(&self, caller: &str) {
+        let _ = self.send_command(CommandMsg::SetRngCaller {
+            caller: caller.to_string(),
+        });
     }
 
     pub fn rng_rn2(&self, limit: i32) -> i32 {

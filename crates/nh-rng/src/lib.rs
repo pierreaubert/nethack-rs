@@ -22,6 +22,9 @@ pub struct RngTraceEntry {
     pub result: u64,
     /// Raw u64 consumed from ISAAC64
     pub raw: u64,
+    /// Calling game function (e.g. "gethungry", "makemon") — set via set_caller()
+    #[serde(default, skip_serializing_if = "str::is_empty")]
+    pub caller: &'static str,
 }
 
 /// ISAAC64 random number generator context
@@ -47,6 +50,9 @@ pub struct Isaac64 {
     /// Trace log (only populated when tracing is true)
     #[serde(skip)]
     trace: Vec<RngTraceEntry>,
+    /// Current caller tag — set via set_caller(), included in trace entries
+    #[serde(skip)]
+    caller: &'static str,
 }
 
 impl core::fmt::Debug for Isaac64 {
@@ -81,6 +87,7 @@ impl Isaac64 {
             call_count: 0,
             tracing: false,
             trace: Vec::new(),
+            caller: "",
         };
 
         ctx.init(&seed_bytes);
@@ -288,6 +295,7 @@ impl Isaac64 {
                     arg: n,
                     result: 0,
                     raw,
+                    caller: self.caller,
                 });
             }
             return 0;
@@ -309,6 +317,7 @@ impl Isaac64 {
                         arg: n,
                         result: v,
                         raw,
+                        caller: self.caller,
                     });
                 }
                 return v;
@@ -405,6 +414,13 @@ impl Isaac64 {
     /// Enable RNG tracing (alias)
     pub fn start_tracing(&mut self) {
         self.enable_tracing();
+    }
+
+    /// Set the current caller tag for RNG trace entries.
+    /// Subsequent RNG calls will include this caller name in their trace.
+    /// Set to "" to clear.
+    pub fn set_caller(&mut self, caller: &'static str) {
+        self.caller = caller;
     }
 
     /// Get current RNG trace

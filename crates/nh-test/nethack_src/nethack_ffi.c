@@ -516,6 +516,8 @@ int nh_ffi_reset(unsigned long seed) {
        Tests sync stats from Rust via set_state() anyway. */
     moves = 1L;
     multi = 0;
+    youmonst.movement = NORMAL_SPEED; /* match allmain.c:79 — prevents double gethungry */
+    context.next_attrib_check = 600L; /* match allmain.c:590 */
     return 0;
 #else
     (void)seed;
@@ -1746,11 +1748,13 @@ struct rng_trace_entry {
     char func[8]; /* "rn2", "rnd", "rne", "rnz" */
     unsigned long arg;
     unsigned long result;
+    char caller[32]; /* calling game function (e.g. "gethungry", "makemon") */
 };
 
 static struct rng_trace_entry g_rng_trace[RNG_TRACE_SIZE];
 static unsigned long g_rng_trace_count = 0;
 static int g_rng_tracing = 0;
+static char g_rng_caller[32] = "";
 
 void nh_ffi_enable_rng_tracing(void) {
     g_rng_tracing = 1;
@@ -1761,6 +1765,16 @@ void nh_ffi_disable_rng_tracing(void) {
     g_rng_tracing = 0;
 }
 
+/* Set the current caller tag for RNG trace entries (copies the string) */
+void nh_ffi_set_rng_caller(const char *caller) {
+    if (caller) {
+        strncpy(g_rng_caller, caller, sizeof(g_rng_caller) - 1);
+        g_rng_caller[sizeof(g_rng_caller) - 1] = '\0';
+    } else {
+        g_rng_caller[0] = '\0';
+    }
+}
+
 static void rng_trace_record(const char *func, unsigned long arg, unsigned long result) {
     if (!g_rng_tracing) return;
     unsigned long idx = g_rng_trace_count % RNG_TRACE_SIZE;
@@ -1769,6 +1783,8 @@ static void rng_trace_record(const char *func, unsigned long arg, unsigned long 
     g_rng_trace[idx].func[sizeof(g_rng_trace[idx].func) - 1] = '\0';
     g_rng_trace[idx].arg = arg;
     g_rng_trace[idx].result = result;
+    strncpy(g_rng_trace[idx].caller, g_rng_caller, sizeof(g_rng_trace[idx].caller) - 1);
+    g_rng_trace[idx].caller[sizeof(g_rng_trace[idx].caller) - 1] = '\0';
     g_rng_trace_count++;
 }
 
@@ -1777,8 +1793,8 @@ char* nh_ffi_get_rng_trace(void) {
     unsigned long count = g_rng_trace_count < RNG_TRACE_SIZE ? g_rng_trace_count : RNG_TRACE_SIZE;
     unsigned long start = g_rng_trace_count <= RNG_TRACE_SIZE ? 0 : (g_rng_trace_count % RNG_TRACE_SIZE);
 
-    /* Estimate buffer: ~80 chars per entry */
-    size_t buf_size = count * 80 + 16;
+    /* Estimate buffer: ~120 chars per entry (with caller field) */
+    size_t buf_size = count * 120 + 16;
     char* json = (char*)malloc(buf_size);
     if (json == NULL) return strdup("[]");
 
@@ -1787,9 +1803,16 @@ char* nh_ffi_get_rng_trace(void) {
     for (unsigned long i = 0; i < count; i++) {
         unsigned long idx = (start + i) % RNG_TRACE_SIZE;
         if (i > 0) p += sprintf(p, ",");
-        p += sprintf(p, "{\"seq\":%lu,\"func\":\"%s\",\"arg\":%lu,\"result\":%lu}",
-            g_rng_trace[idx].seq, g_rng_trace[idx].func,
-            g_rng_trace[idx].arg, g_rng_trace[idx].result);
+        if (g_rng_trace[idx].caller[0]) {
+            p += sprintf(p, "{\"seq\":%lu,\"func\":\"%s\",\"arg\":%lu,\"result\":%lu,\"caller\":\"%s\"}",
+                g_rng_trace[idx].seq, g_rng_trace[idx].func,
+                g_rng_trace[idx].arg, g_rng_trace[idx].result,
+                g_rng_trace[idx].caller);
+        } else {
+            p += sprintf(p, "{\"seq\":%lu,\"func\":\"%s\",\"arg\":%lu,\"result\":%lu}",
+                g_rng_trace[idx].seq, g_rng_trace[idx].func,
+                g_rng_trace[idx].arg, g_rng_trace[idx].result);
+        }
     }
     p += sprintf(p, "]");
     return json;

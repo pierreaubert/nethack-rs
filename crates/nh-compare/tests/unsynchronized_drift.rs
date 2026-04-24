@@ -71,6 +71,38 @@ fn rust_snapshot(gs: &GameState, turn: u64) -> GameSnapshot {
     }
 }
 
+/// Sync Rust player state from C engine to eliminate init divergence.
+/// Only syncs attributes, HP, energy, nutrition, AC — not level/monsters.
+fn sync_rust_from_c(rust_state: &mut GameState, c_engine: &CGameEngine) {
+    use nh_core::player::Attribute;
+
+    // Sync HP/energy/nutrition/AC
+    rust_state.player.hp = c_engine.hp();
+    rust_state.player.hp_max = c_engine.max_hp();
+    rust_state.player.energy = c_engine.energy();
+    rust_state.player.energy_max = c_engine.max_energy();
+    rust_state.player.nutrition = c_engine.nutrition();
+    rust_state.player.armor_class = c_engine.armor_class() as i8;
+
+    // Sync attributes from C
+    let attrs_json: serde_json::Value =
+        serde_json::from_str(&c_engine.attributes_json()).expect("parse C attributes JSON");
+    let attrs = [
+        (Attribute::Strength, "str"),
+        (Attribute::Intelligence, "int"),
+        (Attribute::Wisdom, "wis"),
+        (Attribute::Dexterity, "dex"),
+        (Attribute::Constitution, "con"),
+        (Attribute::Charisma, "cha"),
+    ];
+    for (attr, key) in &attrs {
+        if let Some(val) = attrs_json[key].as_i64() {
+            rust_state.player.attr_current.set(*attr, val as i8);
+            rust_state.player.attr_max.set(*attr, val as i8);
+        }
+    }
+}
+
 fn collect_status_effects(p: &nh_core::player::You) -> Vec<String> {
     let mut effects = Vec::new();
     if p.confused_timeout > 0 {
@@ -203,6 +235,11 @@ fn test_unsynchronized_rest_drift_1000_turns() {
     rust_state.player.pos.x = cx as i8;
     rust_state.player.pos.y = cy as i8;
     rust_state.skip_invariant_checks = true;
+
+    // Sync initial state from C to eliminate init-path divergence
+    // (C u_init vs Rust new_with_identity use different RNG call orders)
+    sync_rust_from_c(&mut rust_state, &c_engine);
+
     let mut rust_loop = GameLoop::new(rust_state);
 
     let mut report = ConvergenceReport::new(
@@ -219,8 +256,13 @@ fn test_unsynchronized_rest_drift_1000_turns() {
 
         // Snapshot every 10 turns (and turn 0, 1 for early drift)
         if turn < 5 || turn % 10 == 0 || turn == num_turns - 1 {
-            let rs = rust_snapshot(rust_loop.state(), turn as u64);
-            let cs = c_snapshot(&c_engine, turn as u64);
+            let mut rs = rust_snapshot(rust_loop.state(), turn as u64);
+            let mut cs = c_snapshot(&c_engine, turn as u64);
+            // Exclude monsters/inventory — unsynchronized test uses different levels
+            rs.monsters.clear();
+            cs.monsters.clear();
+            rs.inventory.clear();
+            cs.inventory.clear();
             let diffs = diff_snapshots(&rs, &cs);
 
             if !diffs.is_empty() {
@@ -292,6 +334,7 @@ fn test_unsynchronized_rest_drift_multi_seed() {
         rust_state.player.pos.x = cx as i8;
         rust_state.player.pos.y = cy as i8;
         rust_state.skip_invariant_checks = true;
+        sync_rust_from_c(&mut rust_state, &c_engine);
         let mut rust_loop = GameLoop::new(rust_state);
 
         let mut report = ConvergenceReport::new(
@@ -305,8 +348,12 @@ fn test_unsynchronized_rest_drift_multi_seed() {
 
             // Snapshot every 50 turns
             if turn % 50 == 0 || turn == num_turns - 1 {
-                let rs = rust_snapshot(rust_loop.state(), turn as u64);
-                let cs = c_snapshot(&c_engine, turn as u64);
+                let mut rs = rust_snapshot(rust_loop.state(), turn as u64);
+                let mut cs = c_snapshot(&c_engine, turn as u64);
+                rs.monsters.clear();
+                cs.monsters.clear();
+                rs.inventory.clear();
+                cs.inventory.clear();
                 let diffs = diff_snapshots(&rs, &cs);
                 report.add_turn(turn as u64, diffs);
             }
