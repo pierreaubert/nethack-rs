@@ -130,7 +130,7 @@ fn check_level_change(
             entity_state.current_dlevel, current_dlevel, force_respawn
         );
 
-        // Despawn all entities
+        // Despawn all entities (Bevy 0.18 despawn() is recursive for Children)
         for entity in player_query.iter() {
             commands.entity(entity).despawn();
         }
@@ -728,6 +728,7 @@ fn sync_entity_positions(
 #[allow(clippy::too_many_arguments)]
 fn sync_floor_objects(
     game_state: Res<GameStateResource>,
+    entity_state: Res<EntityState>,
     existing_objects: Query<Entity, With<FloorObjectMarker>>,
     existing_piles: Query<Entity, With<PileMarker>>,
     mut commands: Commands,
@@ -739,6 +740,11 @@ fn sync_floor_objects(
     model_assets: Option<Res<ModelAssets>>,
 ) {
     if !game_state.is_changed() {
+        return;
+    }
+
+    // Skip if a level change just happened - respawn_entities already handled floor objects
+    if entity_state.needs_respawn {
         return;
     }
 

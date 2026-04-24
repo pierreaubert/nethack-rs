@@ -978,7 +978,10 @@ impl GameLoop {
                 if let Some(shop_idx) = self.state.player.in_shop {
                     crate::special::shk::pay_bill_at(&mut self.state, shop_idx)
                 } else if let Some(shk_id) = self.find_shopkeeper_nearby() {
-                    let shk = self.state.current_level.monster_mut(shk_id).unwrap();
+                    let Some(shk) = self.state.current_level.monster_mut(shk_id) else {
+                        self.state.message("Shopkeeper not found.");
+                        return ActionResult::NoTime;
+                    };
                     if crate::special::shk::pay_shopkeeper(shk, &mut self.state.player) {
                         self.state.message("You pay your debt.");
                         ActionResult::Success
@@ -1763,15 +1766,20 @@ impl GameLoop {
 
         // Check for monster
         if let Some(monster_id) = state.current_level.monster_at(new_x, new_y).map(|m| m.id) {
-            let monster = state.current_level.monster(monster_id).unwrap();
+            let Some(monster) = state.current_level.monster(monster_id) else {
+                return ActionResult::NoTime;
+            };
             if monster.is_hostile() {
                 // Initiate combat
                 let monster_name = monster.name.clone();
 
                 // Simple unarmed attack for now
+                let Some(monster_mut) = state.current_level.monster_mut(monster_id) else {
+                    return ActionResult::NoTime;
+                };
                 let result = crate::combat::player_attack_monster(
                     &mut state.player,
-                    state.current_level.monster_mut(monster_id).unwrap(),
+                    monster_mut,
                     None, // No weapon
                     &mut state.rng,
                 );

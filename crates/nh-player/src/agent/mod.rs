@@ -284,6 +284,9 @@ pub fn run_session(
         // Select action
         let action = player.select_action(rust_state);
 
+        // Capture old state for learning
+        let old_rust_state = rust_state.clone();
+
         // Apply action to both states (simplified - just advance turn)
         // In real implementation, would execute through extractors
 
@@ -291,11 +294,11 @@ pub fn run_session(
         c_state.turn += 1;
 
         // Calculate reward
-        let reward = player.calculate_reward(rust_state, rust_state, &action, &[]);
+        let reward = player.calculate_reward(&old_rust_state, rust_state, &action, &[]);
         result.total_reward += reward;
 
         // Update Q-values
-        player.update(rust_state, &action, reward, rust_state);
+        player.update(&old_rust_state, &action, reward, rust_state);
 
         // Check for game over
         if rust_state.is_dead && c_state.is_dead {

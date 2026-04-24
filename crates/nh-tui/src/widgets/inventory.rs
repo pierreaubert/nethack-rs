@@ -356,6 +356,10 @@ impl<'a> SelectionMenu<'a> {
     }
 
     pub fn move_cursor(&mut self, delta: i32) {
+        if self.items.is_empty() {
+            self.cursor = 0;
+            return;
+        }
         let new_pos = self.cursor as i32 + delta;
         self.cursor = new_pos.clamp(0, self.items.len() as i32 - 1) as usize;
     }

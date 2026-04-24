@@ -271,63 +271,68 @@ impl Isaac64 {
         val
     }
 
-    /// Returns a random value in [0, n)
+    /// Returns a random value in [0, n) using rejection sampling to match C's
+    /// isaac64_next_uint. Rejects values in the top partial bucket to eliminate
+    /// modulo bias and — critically — to consume the same number of raw u64s as C.
     pub fn next_uint(&mut self, n: u64) -> u64 {
         if n == 0 {
             return 0;
         }
-        let raw = self.next_u64();
-        let res = raw % n;
-        if self.tracing {
-            self.trace.push(RngTraceEntry {
-                seq: self.call_count - 1,
-                func: "next_uint",
-                arg: n,
-                result: res,
-                raw,
-            });
+        // Match C: rn2(1) consumes a raw u64 even though result is always 0
+        if n == 1 {
+            let raw = self.next_u64();
+            if self.tracing {
+                self.trace.push(RngTraceEntry {
+                    seq: self.call_count - 1,
+                    func: "next_uint",
+                    arg: n,
+                    result: 0,
+                    raw,
+                });
+            }
+            return 0;
         }
-        res
+        // Rejection sampling matching C's loop:
+        //   do { r = next_u64(); v = r % n; d = r - v; }
+        //   while (((d + n - 1) & MASK) < d);
+        // This rejects raw values in the top partial bucket [floor(2^64/n)*n, 2^64).
+        loop {
+            let raw = self.next_u64();
+            let v = raw % n;
+            let d = raw - v;
+            // Accept unless d + n - 1 wraps around (top partial bucket)
+            if d.wrapping_add(n).wrapping_sub(1) >= d {
+                if self.tracing {
+                    self.trace.push(RngTraceEntry {
+                        seq: self.call_count - 1,
+                        func: "next_uint",
+                        arg: n,
+                        result: v,
+                        raw,
+                    });
+                }
+                return v;
+            }
+        }
     }
 
     /// Returns a random value in [0, x) - matches rn2(x)
     #[inline]
     pub fn rn2(&mut self, x: u32) -> u32 {
-        if x <= 1 {
-            return 0;
-        }
-        let raw = self.next_u64();
-        let res = (raw % x as u64) as u32;
-        if self.tracing {
-            self.trace.push(RngTraceEntry {
-                seq: self.call_count - 1,
-                func: "rn2",
-                arg: x as u64,
-                result: res as u64,
-                raw,
-            });
-        }
-        res
-    }
-
-    /// Returns a random value in [1, x] - matches rnd(x)
-    #[inline]
-    pub fn rnd(&mut self, x: u32) -> u32 {
         if x == 0 {
             return 0;
         }
-        let raw = self.next_u64();
-        let res = (raw % x as u64) as u32 + 1;
-        if self.tracing {
-            self.trace.push(RngTraceEntry {
-                seq: self.call_count - 1,
-                func: "rnd",
-                arg: x as u64,
-                result: res as u64,
-                raw,
-            });
+        self.next_uint(x as u64) as u32
+    }
+
+    /// Returns a random value in [1, x] - matches rnd(x) which is rn2(x) + 1
+    #[inline]
+    pub fn rnd(&mut self, x: u32) -> u32 {
+        if x == 0 {
+            // C: rnd(0) = rn2(0) + 1 = 0 + 1 = 1
+            return 1;
         }
-        res
+        self.rn2(x) + 1
     }
 
     /// Roll n dice of x sides - matches d(n, x)

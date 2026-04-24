@@ -44,7 +44,10 @@ impl AssetRegistry {
                 continue;
             }
 
-            let obj = Object::new(ObjectId(0), 0, class);
+            let mut obj = Object::new(ObjectId(0), 0, class);
+            obj.known = true;
+            obj.desc_known = true;
+            obj.buc_known = true;
             if self.get_icon(&obj).is_err() {
                 return Err(RegistryError::NotFound(format!(
                     "Missing mapping for class: {:?}",
@@ -122,7 +125,8 @@ impl AssetRegistry {
     /// Helper to convert a color string to a ratatui color.
     pub fn parse_color(color_name: &str) -> Option<ratatui::style::Color> {
         use ratatui::style::Color;
-        match color_name.to_lowercase().as_str() {
+        let lower = color_name.to_lowercase();
+        match lower.as_str() {
             "black" => Some(Color::Black),
             "red" => Some(Color::Red),
             "green" => Some(Color::Green),
@@ -140,7 +144,21 @@ impl AssetRegistry {
             "lightcyan" | "light_cyan" => Some(Color::LightCyan),
             "white" => Some(Color::White),
             _ => {
-                // Potential hex color parsing could go here
+                // Try hex color parsing (#RRGGBB or RRGGBB format)
+                let hex = if lower.starts_with('#') {
+                    lower.trim_start_matches('#')
+                } else {
+                    &lower
+                };
+                if hex.len() == 6 {
+                    if let Ok(r) = u8::from_str_radix(&hex[0..2], 16) {
+                        if let Ok(g) = u8::from_str_radix(&hex[2..4], 16) {
+                            if let Ok(b) = u8::from_str_radix(&hex[4..6], 16) {
+                                return Some(Color::Rgb(r, g, b));
+                            }
+                        }
+                    }
+                }
                 None
             }
         }

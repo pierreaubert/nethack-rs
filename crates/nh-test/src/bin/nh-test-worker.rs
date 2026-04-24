@@ -296,7 +296,7 @@ fn main() {
                 Response::String(CGameEngineTrait::alignment_string(&engine))
             }
             Command::GetResultMessage => Response::String(engine.result_message()),
-            Command::GetRngCallCount => Response::Int(engine.rng_call_count() as i32),
+            Command::GetRngCallCount => Response::Long(engine.rng_call_count()),
             Command::SetSkipMovemon { skip } => {
                 engine.set_skip_movemon(skip);
                 Response::Ok

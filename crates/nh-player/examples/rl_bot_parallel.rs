@@ -301,10 +301,11 @@ fn run_episode(
         };
 
         let action = valid_actions[action_idx].clone();
+        let prev_state = rust_engine.extract_state();
         let (_reward, msg) = rust_engine.step(&action);
         let new_state = rust_engine.extract_state();
         let next_state_features = state_to_features(&new_state);
-        let r = calculate_reward(&rust_engine.extract_state(), &new_state, &action, &msg);
+        let r = calculate_reward(&prev_state, &new_state, &action, &msg);
         total_reward += r;
         let done = new_state.is_dead || new_state.is_won;
 

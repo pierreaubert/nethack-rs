@@ -94,23 +94,25 @@ impl DualGameOrchestrator {
             let (rust_reward, _rust_message) = rust_wrapper.step(&action);
             let rust_messages = rust_wrapper.last_messages();
 
+            // Get new Rust state after the step
+            let new_rust_state = rust_wrapper.extract_state();
+
             // RE-SYNC State before C step to ensure C is testing the SAME situation
-            // Use rust_state (which was used to select the action)
+            // Use new_rust_state (which is the actual state after the action was taken)
             c_wrapper.set_state(
-                rust_state.hp,
-                rust_state.max_hp,
-                rust_state.position.0,
-                rust_state.position.1,
-                rust_state.armor_class,
-                rust_state.turn as i64,
+                new_rust_state.hp,
+                new_rust_state.max_hp,
+                new_rust_state.position.0,
+                new_rust_state.position.1,
+                new_rust_state.armor_class,
+                new_rust_state.turn as i64,
             );
 
             // Execute on C
             let (c_reward, _c_message) = c_wrapper.step(&action);
             let c_messages = c_wrapper.last_messages();
 
-            // Get new states
-            let new_rust_state = rust_wrapper.extract_state();
+            // Get C's state after the step
             let new_c_state = c_wrapper.extract_state();
 
             // Calculate combined reward (average of both)

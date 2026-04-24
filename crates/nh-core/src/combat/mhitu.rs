@@ -225,6 +225,14 @@ pub fn could_seduce(
 
     // Gender check: opposite genders can seduce, same gender cannot (except nymphs)
     // Gender: 0=male, 1=female, 2=neuter
+    if defender_gender == 2 {
+        // Neuter creatures cannot be seduced
+        return SeduceResult::No;
+    }
+    if attacker_gender == 2 {
+        // Neuter attackers use normal attack, not seduction
+        return SeduceResult::No;
+    }
     if attacker_gender == 1 - defender_gender {
         // Opposite gender
         SeduceResult::Yes
@@ -677,8 +685,8 @@ pub fn monster_attack_player(
             player.hp -= damage;
             // Check if spell is interrupted by damage
             if player.casting_spell.is_some() && !player.properties.has(Property::Concentration) {
-                // DC based on damage amount (10 + damage/10)
-                let dc = 10 + (damage / 10);
+                // DC based on damage amount (10 + damage/10), capped at 100%
+                let dc = (10 + (damage / 10)).min(100);
                 if rng.percent(dc as u32) {
                     player.casting_interrupted = true;
                 }
@@ -731,7 +739,7 @@ pub fn monster_attack_player(
                         1,
                     );
                     if special_effect.is_none() {
-                        special_effect = Some(CombatEffect::Blinded);
+                        special_effect = Some(CombatEffect::Stunned);
                     }
                 }
             }
@@ -820,7 +828,7 @@ fn apply_damage_effect(
                 // Put player to sleep for 5-14 turns
                 let duration = rng.rnd(10) as u16 + 5;
                 player.sleeping_timeout = player.sleeping_timeout.saturating_add(duration);
-                Some(CombatEffect::Paralyzed)
+                Some(CombatEffect::Asleep)
             } else {
                 None
             }
@@ -933,8 +941,9 @@ fn apply_damage_effect(
             if player.properties.has(Property::DisintResistance) {
                 None
             } else {
-                // Disintegration is usually instant death
-                Some(CombatEffect::Petrifying) // Reusing for instant death effect
+                // Disintegration is instant death
+                player.hp = 0;
+                Some(CombatEffect::Disintegrated)
             }
         }
 
@@ -974,9 +983,9 @@ fn apply_damage_effect(
         DamageType::StealGold => {
             // Steal some gold (10-50%)
             if player.gold > 0 {
-                let steal_percent = rng.rnd(40) as i32 + 10;
-                let stolen = (player.gold * steal_percent) / 100;
-                player.gold -= stolen.max(1);
+                let steal_percent = rng.rnd(40) as i64 + 10;
+                let stolen = ((player.gold as i64 * steal_percent) / 100).max(1) as i32;
+                player.gold = player.gold.saturating_sub(stolen);
                 Some(CombatEffect::GoldStolen)
             } else {
                 None

@@ -218,6 +218,7 @@ impl CombatResult {
 /// Special effects that can occur during combat
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CombatEffect {
+    Asleep,
     Poisoned,
     Paralyzed,
     Slowed,
@@ -226,6 +227,7 @@ pub enum CombatEffect {
     Blinded,
     Drained,
     Diseased,
+    Disintegrated,
     Petrifying,
     Teleported,
     ItemStolen,
@@ -685,8 +687,8 @@ pub fn calculate_skill_enhanced_damage(
 
     // Apply critical multiplier
     if critical == CriticalHitType::InstantKill {
-        // Instant kill - return massive damage
-        i32::MAX
+        // Instant kill - use a large but safe value that won't overflow when accumulated
+        9999
     } else {
         let multiplier = critical.damage_multiplier();
         (damage as f32 * multiplier) as i32

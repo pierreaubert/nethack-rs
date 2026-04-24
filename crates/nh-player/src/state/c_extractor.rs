@@ -146,7 +146,7 @@ fn extract_monsters<E: CGameEngineTrait>(engine: &E) -> Vec<UnifiedMonster> {
                         .unwrap_or('?'),
                     level: monster["level"].as_i64().unwrap_or(1) as i32,
                     hp: monster["hp"].as_i64().unwrap_or(1) as i32,
-                    max_hp: monster["hp"].as_i64().unwrap_or(1) as i32,
+                    max_hp: monster["max_hp"].as_i64().unwrap_or(1) as i32,
                     armor_class: monster["armor_class"].as_i64().unwrap_or(10) as i32,
                     position: (
                         monster["x"].as_i64().unwrap_or(0) as i32,

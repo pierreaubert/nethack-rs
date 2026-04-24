@@ -75,7 +75,7 @@ fn render_hud(
                     ui.add_space(4.0);
 
                     // HP Bar
-                    let hp_ratio = player.hp as f32 / player.hp_max.max(1) as f32;
+                    let hp_ratio = (player.hp as f32 / player.hp_max.max(1) as f32).clamp(0.0, 1.0);
                     let hp_color = if hp_ratio > 0.5 {
                         egui::Color32::from_rgb(50, 205, 50) // Green
                     } else if hp_ratio > 0.25 {

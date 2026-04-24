@@ -19,7 +19,10 @@ impl Plugin for AnimationPlugin {
         app.init_resource::<AnimationSettings>()
             .init_resource::<CombatTracker>()
             .add_message::<AnimationEvent>()
-            .add_systems(Startup, setup_environmental_animations)
+            .add_systems(
+                Startup,
+                setup_environmental_animations.after(crate::plugins::map::spawn_map),
+            )
             .add_systems(
                 Update,
                 (

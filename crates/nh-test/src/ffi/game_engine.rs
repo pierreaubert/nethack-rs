@@ -375,25 +375,27 @@ impl CGameEngine {
     }
 
     pub fn get_visibility(&self) -> Vec<Vec<bool>> {
-        let mut buffer = vec![0i8; 16384];
-        unsafe { nh_ffi_get_visibility(buffer.as_mut_ptr()) };
-        let json = unsafe {
-            CStr::from_ptr(buffer.as_ptr())
-                .to_string_lossy()
-                .into_owned()
-        };
-        serde_json::from_str(&json).unwrap_or_else(|_| vec![vec![false; 21]; 80])
+        let mut buffer = vec![0u8; nh_core::COLNO * nh_core::ROWNO];
+        unsafe { nh_ffi_get_visibility(buffer.as_mut_ptr() as *mut c_char) };
+        let mut result = vec![vec![false; nh_core::ROWNO]; nh_core::COLNO];
+        for x in 0..nh_core::COLNO {
+            for y in 0..nh_core::ROWNO {
+                result[x][y] = buffer[x * nh_core::ROWNO + y] != 0;
+            }
+        }
+        result
     }
 
     pub fn get_couldsee(&self) -> Vec<Vec<bool>> {
-        let mut buffer = vec![0i8; 16384];
-        unsafe { nh_ffi_get_couldsee(buffer.as_mut_ptr()) };
-        let json = unsafe {
-            CStr::from_ptr(buffer.as_ptr())
-                .to_string_lossy()
-                .into_owned()
-        };
-        serde_json::from_str(&json).unwrap_or_else(|_| vec![vec![false; 21]; 80])
+        let mut buffer = vec![0u8; nh_core::COLNO * nh_core::ROWNO];
+        unsafe { nh_ffi_get_couldsee(buffer.as_mut_ptr() as *mut c_char) };
+        let mut result = vec![vec![false; nh_core::ROWNO]; nh_core::COLNO];
+        for x in 0..nh_core::COLNO {
+            for y in 0..nh_core::ROWNO {
+                result[x][y] = buffer[x * nh_core::ROWNO + y] != 0;
+            }
+        }
+        result
     }
 
     pub fn test_finddpos(&self, xl: i32, yl: i32, xh: i32, yh: i32) -> (i32, i32) {
@@ -496,9 +498,7 @@ impl CGameEngine {
         if ptr.is_null() {
             return String::new();
         }
-        let result = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
-        unsafe { nh_ffi_free_string(ptr as *mut c_void) };
-        result
+        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
     }
 
     pub fn debug_mfndpos(&self, mon_index: i32) -> String {
@@ -506,9 +506,7 @@ impl CGameEngine {
         if ptr.is_null() {
             return String::new();
         }
-        let result = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
-        unsafe { nh_ffi_free_string(ptr as *mut c_void) };
-        result
+        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
     }
 }
 

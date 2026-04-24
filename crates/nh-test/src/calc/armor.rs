@@ -243,15 +243,16 @@ mod tests {
         // So C_AC = 10 - expected_bonus, or expected_bonus = 10 - C_AC
         for c_armor in &c_armors {
             if let Some(&expected_bonus) = expected.get(c_armor.name.as_str()) {
-                let expected_resulting_ac = BASE_PLAYER_AC - expected_bonus;
-                if expected_resulting_ac == c_armor.ac_bonus {
+                // Compare expected bonus with C's bonus (extracted from resulting AC)
+                let c_bonus = BASE_PLAYER_AC - c_armor.ac_bonus;
+                if expected_bonus == c_bonus {
                     matched += 1;
                 } else {
                     mismatched.push((
                         c_armor.name.clone(),
                         c_armor.ac_bonus,
-                        expected_resulting_ac,
                         expected_bonus,
+                        c_bonus,
                     ));
                 }
             }

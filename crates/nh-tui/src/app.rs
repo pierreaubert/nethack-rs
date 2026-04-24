@@ -624,7 +624,10 @@ impl App {
             "sit" => Some(Command::Sit),
             "chat" => Some(Command::Chat),
             "pay" => Some(Command::Pay),
-            "dip" => Some(Command::Dip(' ', None)),
+            "dip" => {
+                self.enter_item_select("What do you want to dip?", PendingAction::Dip, None);
+                None
+            }
             "jump" => Some(Command::Jump),
             "ride" => Some(Command::Ride),
             "wipe" => Some(Command::Wipe),
@@ -854,7 +857,11 @@ impl App {
             PendingAction::ThrowDir(item) => Command::Throw(item, dir),
             PendingAction::Untrap => Command::Untrap(dir),
             PendingAction::Force => Command::Force(dir),
-            _ => Command::Rest, // Should not happen
+            #[allow(unreachable_patterns)]
+            other => panic!(
+                "action_with_direction called with non-directional action: {:?}",
+                other
+            ),
         }
     }
 
@@ -1555,28 +1562,53 @@ Press ESC or SPACE to close"#;
                 match key.code {
                     KeyCode::Char('y') | KeyCode::Char('Y') => {
                         // Random selection
-                        let role = nh_core::player::pick_role(
+                        let Some(role) = nh_core::player::pick_role(
                             None,
                             None,
                             None,
                             &nh_core::player::RoleFilter::new(),
-                        )
-                        .unwrap();
-                        let race = nh_core::player::pick_race(
+                        ) else {
+                            self.mode =
+                                UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                                    name,
+                                    cursor: 0,
+                                });
+                            return;
+                        };
+                        let Some(race) = nh_core::player::pick_race(
                             Some(role),
                             None,
                             None,
                             &nh_core::player::RoleFilter::new(),
-                        )
-                        .unwrap();
-                        let gender = nh_core::player::pick_gend(
+                        ) else {
+                            self.mode =
+                                UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                                    name,
+                                    cursor: 0,
+                                });
+                            return;
+                        };
+                        let Some(gender) = nh_core::player::pick_gend(
                             Some(role),
                             race,
                             None,
                             &nh_core::player::RoleFilter::new(),
-                        )
-                        .unwrap();
-                        let alignment = nh_core::player::pick_align(role).unwrap();
+                        ) else {
+                            self.mode =
+                                UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                                    name,
+                                    cursor: 0,
+                                });
+                            return;
+                        };
+                        let Some(alignment) = nh_core::player::pick_align(role) else {
+                            self.mode =
+                                UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                                    name,
+                                    cursor: 0,
+                                });
+                            return;
+                        };
 
                         self.mode = UiMode::CharacterCreation(CharacterCreationState::Done {
                             name,
@@ -1592,28 +1624,53 @@ Press ESC or SPACE to close"#;
                     KeyCode::Enter => {
                         if cursor == 0 {
                             // "Yes"
-                            let role = nh_core::player::pick_role(
+                            let Some(role) = nh_core::player::pick_role(
                                 None,
                                 None,
                                 None,
                                 &nh_core::player::RoleFilter::new(),
-                            )
-                            .unwrap();
-                            let race = nh_core::player::pick_race(
+                            ) else {
+                                self.mode =
+                                    UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                                        name,
+                                        cursor: 0,
+                                    });
+                                return;
+                            };
+                            let Some(race) = nh_core::player::pick_race(
                                 Some(role),
                                 None,
                                 None,
                                 &nh_core::player::RoleFilter::new(),
-                            )
-                            .unwrap();
-                            let gender = nh_core::player::pick_gend(
+                            ) else {
+                                self.mode =
+                                    UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                                        name,
+                                        cursor: 0,
+                                    });
+                                return;
+                            };
+                            let Some(gender) = nh_core::player::pick_gend(
                                 Some(role),
                                 race,
                                 None,
                                 &nh_core::player::RoleFilter::new(),
-                            )
-                            .unwrap();
-                            let alignment = nh_core::player::pick_align(role).unwrap();
+                            ) else {
+                                self.mode =
+                                    UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                                        name,
+                                        cursor: 0,
+                                    });
+                                return;
+                            };
+                            let Some(alignment) = nh_core::player::pick_align(role) else {
+                                self.mode =
+                                    UiMode::CharacterCreation(CharacterCreationState::AskRandom {
+                                        name,
+                                        cursor: 0,
+                                    });
+                                return;
+                            };
 
                             self.mode = UiMode::CharacterCreation(CharacterCreationState::Done {
                                 name,
@@ -1676,14 +1733,14 @@ Press ESC or SPACE to close"#;
                         }
                     }
                     KeyCode::Char('*') => {
-                        let role = nh_core::player::pick_role(
+                        if let Some(role) = nh_core::player::pick_role(
                             None,
                             None,
                             None,
                             &nh_core::player::RoleFilter::new(),
-                        )
-                        .unwrap();
-                        self.advance_character_creation(name, Some(role), None, None, None);
+                        ) {
+                            self.advance_character_creation(name, Some(role), None, None, None);
+                        }
                     }
                     KeyCode::Esc => {
                         self.mode = UiMode::CharacterCreation(CharacterCreationState::AskRandom {
@@ -1736,14 +1793,20 @@ Press ESC or SPACE to close"#;
                         }
                     }
                     KeyCode::Char('*') => {
-                        let race = nh_core::player::pick_race(
+                        if let Some(race) = nh_core::player::pick_race(
                             Some(role),
                             None,
                             None,
                             &nh_core::player::RoleFilter::new(),
-                        )
-                        .unwrap();
-                        self.advance_character_creation(name, Some(role), Some(race), None, None);
+                        ) {
+                            self.advance_character_creation(
+                                name,
+                                Some(role),
+                                Some(race),
+                                None,
+                                None,
+                            );
+                        }
                     }
                     KeyCode::Esc => {
                         self.advance_character_creation(name, None, None, None, None);
@@ -1797,20 +1860,20 @@ Press ESC or SPACE to close"#;
                         );
                     }
                     KeyCode::Char('*') => {
-                        let gender = nh_core::player::pick_gend(
+                        if let Some(gender) = nh_core::player::pick_gend(
                             Some(role),
                             race,
                             None,
                             &nh_core::player::RoleFilter::new(),
-                        )
-                        .unwrap();
-                        self.advance_character_creation(
-                            name,
-                            Some(role),
-                            Some(race),
-                            Some(gender),
-                            None,
-                        );
+                        ) {
+                            self.advance_character_creation(
+                                name,
+                                Some(role),
+                                Some(race),
+                                Some(gender),
+                                None,
+                            );
+                        }
                     }
                     KeyCode::Esc => {
                         self.advance_character_creation(name, Some(role), None, None, None);
@@ -1835,6 +1898,16 @@ Press ESC or SPACE to close"#;
                 .filter(|&a| nh_core::player::validalign(role, race, gender, a))
                 .collect();
                 let aligns_len = aligns.len();
+                // If no valid alignments, use a default and go back
+                if aligns_len == 0 {
+                    self.mode = UiMode::CharacterCreation(CharacterCreationState::SelectGender {
+                        name,
+                        role,
+                        race,
+                        cursor: 0,
+                    });
+                    return;
+                }
                 // If only one alignment is valid, skip selection
                 if aligns_len == 1 {
                     self.advance_character_creation(

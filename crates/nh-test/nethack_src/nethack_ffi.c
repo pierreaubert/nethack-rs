@@ -724,7 +724,7 @@ const char* nh_ffi_get_map_json(void) {
     for (int i = 0; rooms[i].hx >= 0 && i < MAXNROFROOMS; i++) {
         p += sprintf(p, "{\"lx\": %d, \"hx\": %d, \"ly\": %d, \"hy\": %d, \"type\": %d}%s",
             rooms[i].lx, rooms[i].hx, rooms[i].ly, rooms[i].hy, rooms[i].rtype,
-            (rooms[i+1].hx >= 0 && i+1 < MAXNROFROOMS) ? "," : "");
+            (i + 1 < MAXNROFROOMS && rooms[i + 1].hx >= 0) ? "," : "");
     }
     p += sprintf(p, "]}");
     return strdup(g_json_buffer);

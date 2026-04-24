@@ -182,8 +182,12 @@ pub fn diff_snapshots(rust: &GameSnapshot, c: &GameSnapshot) -> Vec<StateDiff> {
         c.player.charisma,
     );
 
-    // Status effects (minor)
-    if rust.player.status_effects != c.player.status_effects {
+    // Status effects (minor) - sort before comparing since order doesn't matter
+    let mut rust_effects = rust.player.status_effects.clone();
+    let mut c_effects = c.player.status_effects.clone();
+    rust_effects.sort();
+    c_effects.sort();
+    if rust_effects != c_effects {
         diffs.push(StateDiff {
             severity: Severity::Minor,
             field: "player.status_effects".into(),
@@ -349,10 +353,12 @@ pub fn compare_rng_traces(rust: &[RngTraceEntry], c: &[RngTraceEntry]) -> Option
 
     // Check for length mismatch
     if rust.len() != c.len() {
+        let context_start = len.saturating_sub(3);
+        let context_end = len;
         return Some(RngDivergence {
             call_index: len,
-            rust_context: rust[len.saturating_sub(3)..rust.len().min(len + 3)].to_vec(),
-            c_context: c[len.saturating_sub(3)..c.len().min(len + 3)].to_vec(),
+            rust_context: rust[context_start..context_end].to_vec(),
+            c_context: c[context_start..context_end].to_vec(),
             description: format!(
                 "Trace length mismatch: rust={} calls, c={} calls",
                 rust.len(),

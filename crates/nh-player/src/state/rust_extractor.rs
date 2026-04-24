@@ -81,8 +81,8 @@ impl<'a> RustGameEngine<'a> {
             inventory: state.inventory.iter().map(extract_object).collect(),
             nearby_monsters: extract_monsters(state),
             conduct: extract_conduct(state),
-            is_dead: state.player.is_dead() || state.flags.ascended,
-            death_message: if state.player.is_dead() || state.flags.ascended {
+            is_dead: state.player.is_dead(),
+            death_message: if state.player.is_dead() {
                 Some("Killed in the Rust implementation".to_string())
             } else {
                 None

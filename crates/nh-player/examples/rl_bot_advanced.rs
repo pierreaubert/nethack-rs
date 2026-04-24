@@ -695,11 +695,12 @@ fn worker_thread(
             };
 
             let action = valid_actions[action_idx].clone();
+            let prev_state = rust_engine.extract_state();
             let (_reward, msg) = rust_engine.step(&action);
             let new_state = rust_engine.extract_state();
             let next_state_features = state_to_features(&new_state);
 
-            let reward = calculate_reward(&rust_engine.extract_state(), &new_state, &action, &msg);
+            let reward = calculate_reward(&prev_state, &new_state, &action, &msg);
             episode_reward += reward;
             avg_q += reward; // Simplified
             q_samples += 1;
@@ -855,8 +856,8 @@ fn train_advanced_rl_bot(config: Config) {
 
             // Update target network
             if episode % config.target_update_freq == 0 {
-                // Soft update
-                let current = shared_network.lock().unwrap().clone();
+                // Soft update - use the already-locked network
+                let current = network.clone();
                 // In a real implementation, we'd interpolate
             }
         }

@@ -260,21 +260,18 @@ fn run_startup_menu(
                         return run_character_creation(terminal, args);
                     }
                     StartMenuAction::LoadGame => {
-                        // For now, load default if exists, or show error?
-                        // Better: prompt for name if not provided?
-                        // For simplicity, let's look for a save if name was provided,
-                        // or ask for name if not.
                         let player_name = args.name.clone().unwrap_or_else(|| "Player".to_string());
                         let save_path = default_save_path(&player_name);
                         if save_path.exists() {
                             match load_game(&save_path) {
                                 Ok(loaded_state) => return Ok(loaded_state),
-                                Err(_) => {
-                                    // TODO: show error message in UI
+                                Err(e) => {
+                                    app.state_mut()
+                                        .message(&format!("Could not load save file: {}", e));
                                 }
                             }
                         } else {
-                            // TODO: show "No save found" message in UI
+                            app.state_mut().message("No save file found.");
                         }
                     }
                     StartMenuAction::Quit => {

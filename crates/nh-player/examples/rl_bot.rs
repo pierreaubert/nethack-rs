@@ -165,7 +165,7 @@ fn state_to_features(state: &UnifiedGameState) -> Vec<f64> {
     let mut features = Vec::with_capacity(STATE_SIZE);
 
     // HP (normalized)
-    let hp_ratio = (state.hp as f64 / state.max_hp as f64).clamp(0.0, 1.0);
+    let hp_ratio = (state.hp as f64 / state.max_hp.max(1) as f64).clamp(0.0, 1.0);
     features.push(hp_ratio);
 
     // Dungeon depth
@@ -372,12 +372,12 @@ fn train_episode(
         };
 
         // Execute action
+        let prev_state = rust_engine.extract_state();
         let (_rust_reward, rust_msg) = rust_engine.step(&action);
         let new_state = rust_engine.extract_state();
         let next_state_features = state_to_features(&new_state);
 
         // Calculate reward
-        let prev_state = rust_engine.extract_state();
         let reward = calculate_reward(&prev_state, &new_state, &action, &rust_msg);
         total_reward += reward;
 

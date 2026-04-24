@@ -130,10 +130,15 @@ fn update_ambient_lighting(
     settings: Res<LightingSettings>,
     lava_lights: Query<Entity, With<LavaLight>>,
     fountain_lights: Query<Entity, With<FountainLight>>,
-    mut initialized: Local<bool>,
+    mut last_dlevel: Local<Option<(i32, i32)>>,
 ) {
-    // Only initialize special lights once
-    if *initialized {
+    let current_dlevel = (
+        game_state.0.current_level.dlevel.dungeon_num as i32,
+        game_state.0.current_level.dlevel.level_num as i32,
+    );
+
+    // Only reinitialize if the dlevel has changed
+    if *last_dlevel == Some(current_dlevel) {
         return;
     }
 
@@ -197,5 +202,5 @@ fn update_ambient_lighting(
         }
     }
 
-    *initialized = true;
+    *last_dlevel = Some(current_dlevel);
 }
