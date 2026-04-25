@@ -1182,6 +1182,12 @@ fn roll_attributes(player: &mut You, rng: &mut GameRng) {
     }
 
     // Distribute remaining points based on role distribution
+    // C: ATTRMAX(STR) = STR18(100) = 118 for non-polymorphed; other attrs use racial max.
+    // STR can exceed 18 during init (values 19+ represent exceptional strength 18/01+).
+    // We must allow this or the distribution diverges from C.
+    let mut attrmax = race_data.attrmax;
+    attrmax[0] = 125; // STR: allow up to 125 during init (C: STR18(100)=118)
+
     let mut try_count = 0;
     while np > 0 && try_count < 100 {
         let mut x = rng.rn2(100) as i32;
@@ -1197,8 +1203,8 @@ fn roll_attributes(player: &mut You, rng: &mut GameRng) {
             continue;
         }
 
-        // Check racial max
-        if values[i] >= race_data.attrmax[i] {
+        // Check racial max (uses exceptional STR max for index 0)
+        if values[i] >= attrmax[i] {
             try_count += 1;
             continue;
         }
@@ -1764,6 +1770,27 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
 
     // Auto-equip starting items (C: u_init.c:1114-1146)
     auto_equip_starting_inventory(&mut inventory);
+
+    // Boost STR/CON if overloaded by starting inventory (C: u_init.c:912-919)
+    // C: while (inv_weight() > 0) { adjattrib(A_STR, 1) || adjattrib(A_CON, 1) }
+    // inv_weight() = total_weight - weight_cap()
+    {
+        use crate::player::Attribute;
+        loop {
+            let total_wt: i32 = inventory.iter().map(|o| o.weight as i32 * o.quantity).sum();
+            let cap = player.weight_cap();
+            if total_wt <= cap {
+                break;
+            }
+            if player.adjattrib(Attribute::Strength, 1) {
+                continue;
+            }
+            if player.adjattrib(Attribute::Constitution, 1) {
+                continue;
+            }
+            break;
+        }
+    }
 
     inventory
 }

@@ -930,26 +930,15 @@ impl Level {
     /// 3. any walkable cell
     pub fn find_player_start(&self) -> (i8, i8) {
         // 1. Prefer upstairs (normal case for deeper levels)
+        // C: if (xupstair) { u.ux = xupstair; u.uy = yupstair; }
         if let Some(pos) = self.find_upstairs() {
             return pos;
         }
 
-        // 2. On level 1, place in a room.  Pick a room cell near downstairs.
-        if let Some((dx, dy)) = self.find_downstairs() {
-            // Find the room containing the downstairs and pick a floor cell
-            for room in &self.rooms {
-                if room.contains(dx as usize, dy as usize) {
-                    // Use the room center as starting position
-                    let cx = room.x + room.width / 2;
-                    let cy = room.y + room.height / 2;
-                    if self.is_valid_pos(cx as i8, cy as i8)
-                        && self.cells[cx][cy].is_walkable()
-                        && !(cx as i8 == dx && cy as i8 == dy)
-                    {
-                        return (cx as i8, cy as i8);
-                    }
-                }
-            }
+        // 2. On level 1 (no upstairs), place at downstairs
+        // C: else if (xdnstair) { u.ux = xdnstair; u.uy = ydnstair; }
+        if let Some(pos) = self.find_downstairs() {
+            return pos;
         }
 
         // 3. Pick a room center from the first available room

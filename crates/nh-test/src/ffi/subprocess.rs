@@ -18,6 +18,9 @@ enum CommandMsg {
     ResetRng {
         seed: u64,
     },
+    SetSeed {
+        seed: u64,
+    },
     GenerateLevel,
     GenerateAndPlace,
     GenerateMaze,
@@ -439,6 +442,18 @@ impl CGameEngineSubprocess {
     pub fn reset_rng(&mut self, seed: u64) -> Result<(), String> {
         match self
             .send_command(CommandMsg::ResetRng { seed })
+            .map_err(|e| e.to_string())?
+        {
+            ResponseMsg::Ok => Ok(()),
+            ResponseMsg::Error(e) => Err(e),
+            _ => Err("Unexpected response".to_string()),
+        }
+    }
+
+    /// Set the seed for the next init() call (before global init).
+    pub fn set_seed(&mut self, seed: u64) -> Result<(), String> {
+        match self
+            .send_command(CommandMsg::SetSeed { seed })
             .map_err(|e| e.to_string())?
         {
             ResponseMsg::Ok => Ok(()),

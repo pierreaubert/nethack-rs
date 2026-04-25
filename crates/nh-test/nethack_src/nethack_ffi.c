@@ -388,9 +388,9 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
             perror("FFI: chdir failed");
         }
 
-        /* Set RNG seed */
-        init_isaac64(42, rn2);
-        init_isaac64(42, rn2_on_display_rng);
+        /* Set RNG seed — g_seed may have been pre-set via reset_rng() */
+        init_isaac64(g_seed, rn2);
+        init_isaac64(g_seed, rn2_on_display_rng);
 
         /* NetHack 3.6.7 initialization sequence */
         strncpy(plname, "Hero", sizeof(plname)-1);
@@ -407,6 +407,13 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
         global_initialized = TRUE;
     } 
     
+    /* Reseed RNG before u_init so character creation starts at rng position 0.
+       Global init (init_objects etc.) consumes RNG calls that offset the stream;
+       reseeding here ensures u_init sees the same sequence as Rust's u_init. */
+    init_isaac64(g_seed, rn2);
+    init_isaac64(g_seed, rn2_on_display_rng);
+    { extern unsigned long rng_call_counter; rng_call_counter = 0; }
+
     /* ALWAYS zero core structures before u_init() to avoid double-free/SIGABRT */
     nh_ffi_cleanup_globals();
 
@@ -444,7 +451,14 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
 
     fprintf(stderr, "FFI: u_init()...\n");
     fflush(stderr);
+    { extern unsigned long rng_call_counter;
+      fprintf(stderr, "C FFI: before u_init rng_calls=%lu\n", rng_call_counter);
+      fflush(stderr); }
     u_init();
+    { extern unsigned long rng_call_counter;
+      fprintf(stderr, "C FFI: after u_init rng_calls=%lu str=%d int=%d wis=%d dex=%d con=%d cha=%d\n",
+        rng_call_counter, ABASE(A_STR), ABASE(A_INT), ABASE(A_WIS), ABASE(A_DEX), ABASE(A_CON), ABASE(A_CHA));
+      fflush(stderr); }
 
     /* Fix ubirthday to a constant for reproducible antholemon() results */
     ubirthday = 0;
@@ -1677,6 +1691,14 @@ void nh_ffi_reset_rng(unsigned long seed) {
     init_isaac64(seed, rn2_on_display_rng);
     { extern unsigned long rng_call_counter; rng_call_counter = 0; }
 #endif
+}
+
+/* Set the seed that will be used by the NEXT nh_ffi_init() call.
+ * Unlike reset_rng, this does NOT immediately reseed — it just stores
+ * the value so init() picks it up. Use before the first init() call
+ * to control the seed used during u_init(). */
+void nh_ffi_set_seed(unsigned long seed) {
+    g_seed = seed;
 }
 
 /* Override reseed_random to keep things deterministic */

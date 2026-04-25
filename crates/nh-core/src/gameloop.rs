@@ -272,17 +272,22 @@ impl GameState {
         // (MATCHES C: u_init handles all character initialization including items)
         let inventory = crate::player::init::u_init(&mut player, &mut rng);
 
-        // 3. Generate Level (MATCHES C: mklev happens after u_init)
+        // 3. Reseed before level generation (MATCHES C: mklev calls
+        //    reseed_random(rn2) at line 1154, which in the FFI test harness
+        //    resets ISAAC64 back to seed. This ensures level gen starts
+        //    from a known RNG position regardless of u_init consumption.)
+        let level_seed = rng.seed();
+        rng = GameRng::new(level_seed);
+
+        // 4. Generate Level (MATCHES C: mklev happens after u_init)
         let monster_vitals = MonsterVitals::new();
         let dlevel = DLevel::main_dungeon_start();
         let current_level = Level::new_generated(dlevel, &mut rng, &monster_vitals);
 
-        // 4. Reseed RNG after level generation (MATCHES C: mklev calls
-        //    reseed_random(rn2) at the end, which in the FFI test harness
-        //    resets ISAAC64 back to seed position 0.  This ensures both
-        //    engines start gameplay with identical RNG state.)
-        let gameplay_seed = rng.seed();
-        rng = GameRng::new(gameplay_seed);
+        // 5. Reseed RNG after level generation (MATCHES C: mklev calls
+        //    reseed_random(rn2) at end too, ensuring both engines start
+        //    gameplay with identical RNG state.)
+        rng = GameRng::new(level_seed);
 
         // 5. Place player at starting position (C: u_on_upstairs / u_on_newpos)
         //    On level 1 there are no upstairs, so find_player_start() picks a room.

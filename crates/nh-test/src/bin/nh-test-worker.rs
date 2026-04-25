@@ -17,6 +17,9 @@ enum Command {
     ResetRng {
         seed: u64,
     },
+    SetSeed {
+        seed: u64,
+    },
     GenerateLevel,
     GenerateAndPlace,
     GenerateMaze,
@@ -215,6 +218,10 @@ fn main() {
                 Ok(_) => Response::Ok,
                 Err(e) => Response::Error(e),
             },
+            Command::SetSeed { seed } => {
+                engine.set_seed(seed);
+                Response::Ok
+            }
             Command::GenerateLevel => match engine.generate_level() {
                 Ok(_) => Response::Ok,
                 Err(e) => Response::Error(e),

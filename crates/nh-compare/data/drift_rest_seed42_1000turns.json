@@ -6,7 +6,7 @@
   "turns_with_diffs": 16,
   "critical_count": 0,
   "major_count": 0,
-  "minor_count": 27,
+  "minor_count": 26,
   "turn_diffs": [
     {
       "turn": 850,
@@ -68,12 +68,6 @@
       "diffs": [
         {
           "severity": "Minor",
-          "field": "player.nutrition",
-          "rust_value": "-1",
-          "c_value": "0"
-        },
-        {
-          "severity": "Minor",
           "field": "player.strength",
           "rust_value": "19",
           "c_value": "18"
@@ -86,7 +80,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-4",
+          "rust_value": "-1",
           "c_value": "-2"
         },
         {
@@ -103,7 +97,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-5",
+          "rust_value": "-2",
           "c_value": "-8"
         },
         {
@@ -120,7 +114,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-6",
+          "rust_value": "-3",
           "c_value": "-11"
         },
         {
@@ -137,7 +131,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-7",
+          "rust_value": "-5",
           "c_value": "-13"
         },
         {
@@ -154,7 +148,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-9",
+          "rust_value": "-6",
           "c_value": "-23"
         },
         {
@@ -171,7 +165,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-11",
+          "rust_value": "-7",
           "c_value": "-30"
         },
         {
@@ -188,7 +182,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-14",
+          "rust_value": "-9",
           "c_value": "-32"
         },
         {
@@ -205,7 +199,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-15",
+          "rust_value": "-11",
           "c_value": "-41"
         },
         {
@@ -222,7 +216,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-17",
+          "rust_value": "-12",
           "c_value": "-42"
         },
         {
@@ -239,7 +233,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-19",
+          "rust_value": "-14",
           "c_value": "-46"
         },
         {

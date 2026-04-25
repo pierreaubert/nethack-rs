@@ -69,6 +69,7 @@ unsafe extern "C" {
     pub fn nh_ffi_free();
     pub fn nh_ffi_reset(seed: c_ulong) -> c_int;
     pub fn nh_ffi_reset_rng(seed: c_ulong);
+    pub fn nh_ffi_set_seed(seed: c_ulong);
     pub fn nh_ffi_generate_level() -> c_int;
     pub fn nh_ffi_generate_and_place() -> c_int;
     pub fn nh_ffi_generate_maze();
@@ -219,6 +220,12 @@ impl CGameEngine {
 
         unsafe { nh_ffi_reset_rng(seed as c_ulong) };
         Ok(())
+    }
+
+    /// Set the seed for the NEXT init() call without immediately reseeding.
+    /// Call this BEFORE init() to control the seed used during u_init().
+    pub fn set_seed(&self, seed: u64) {
+        unsafe { nh_ffi_set_seed(seed as c_ulong) };
     }
 
     pub fn generate_level(&self) -> Result<(), String> {
