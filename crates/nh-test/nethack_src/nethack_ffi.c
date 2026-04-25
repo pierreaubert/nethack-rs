@@ -25,6 +25,7 @@ static void install_crash_handler(void) {
 
 #ifdef REAL_NETHACK
 #include "hack.h"
+#include "isaac64.h"
 #include "dlb.h"
 #include "func_tab.h"
 #include "mfndpos.h"
@@ -1878,6 +1879,43 @@ char* nh_ffi_get_attributes_json(void) {
     return json;
 #else
     return strdup("{\"str\": 10, \"int\": 10, \"wis\": 10, \"dex\": 10, \"con\": 10, \"cha\": 10}");
+#endif
+}
+
+/* Export the CORE ISAAC64 RNG state as a JSON string.
+ * Format: {"n": <u32>, "r": [<256 x u64>], "m": [<256 x u64>],
+ *          "a": <u64>, "b": <u64>, "c": <u64>, "call_count": <u64>}
+ * All u64 values are serialized as decimal strings to avoid JSON integer limits. */
+char *nh_ffi_export_rng_state(void) {
+#ifdef REAL_NETHACK
+    extern isaac64_ctx *nh_get_core_rng_state(void);
+    extern unsigned long rng_call_counter;
+    isaac64_ctx *ctx = nh_get_core_rng_state();
+
+    /* Estimate: 256 u64s * ~20 chars each * 2 arrays + overhead ≈ 12KB */
+    size_t bufsize = 16384;
+    char *buf = (char *)malloc(bufsize);
+    if (!buf) return NULL;
+
+    int pos = 0;
+    pos += snprintf(buf + pos, bufsize - pos, "{\"n\":%u,\"a\":\"%llu\",\"b\":\"%llu\",\"c\":\"%llu\",\"call_count\":\"%lu\",\"r\":[",
+        ctx->n, (unsigned long long)ctx->a, (unsigned long long)ctx->b,
+        (unsigned long long)ctx->c, rng_call_counter);
+
+    for (int i = 0; i < 256; i++) {
+        if (i > 0) buf[pos++] = ',';
+        pos += snprintf(buf + pos, bufsize - pos, "\"%llu\"", (unsigned long long)ctx->r[i]);
+    }
+    pos += snprintf(buf + pos, bufsize - pos, "],\"m\":[");
+    for (int i = 0; i < 256; i++) {
+        if (i > 0) buf[pos++] = ',';
+        pos += snprintf(buf + pos, bufsize - pos, "\"%llu\"", (unsigned long long)ctx->m[i]);
+    }
+    pos += snprintf(buf + pos, bufsize - pos, "]}");
+
+    return buf;
+#else
+    return strdup("{}");
 #endif
 }
 

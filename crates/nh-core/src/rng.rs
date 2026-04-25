@@ -54,6 +54,13 @@ impl GameRng {
         Self::new(seed)
     }
 
+    /// Create a GameRng from an imported C ISAAC64 state.
+    ///
+    /// The `seed` is informational only — the actual state comes from the Isaac64.
+    pub fn from_isaac64(rng: Isaac64, seed: u64) -> Self {
+        Self { rng, seed }
+    }
+
     /// Get the seed used to create this RNG
     pub fn seed(&self) -> u64 {
         self.seed

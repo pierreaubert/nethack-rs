@@ -108,6 +108,7 @@ enum CommandMsg {
     SetRngCaller { caller: String },
     GetVisibility,
     GetCouldsee,
+    ExportRngState,
     // Function-level isolation testing (Phase 1)
     TestFinddpos {
         xl: i32,
@@ -504,6 +505,15 @@ impl CGameEngineSubprocess {
 
     pub fn attributes_json(&self) -> String {
         match self.send_command(CommandMsg::GetAttributesJson).unwrap() {
+            ResponseMsg::String(s) => s,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    /// Export the C engine's ISAAC64 CORE RNG state as a JSON string.
+    /// Parse with `nh_rng::Isaac64::from_c_fields()` to create a synchronized Rust RNG.
+    pub fn export_rng_state(&self) -> String {
+        match self.send_command(CommandMsg::ExportRngState).unwrap() {
             ResponseMsg::String(s) => s,
             _ => panic!("Unexpected response"),
         }

@@ -94,6 +94,35 @@ impl Isaac64 {
         ctx
     }
 
+    /// Import state from C ISAAC64 fields.
+    ///
+    /// Used for RNG synchronization: export the C engine's ISAAC64 context
+    /// and reconstruct an identical Rust Isaac64 to achieve bit-perfect parity.
+    pub fn from_c_fields(
+        n: usize,
+        r: Vec<u64>,
+        m: Vec<u64>,
+        a: u64,
+        b: u64,
+        c: u64,
+        call_count: u64,
+    ) -> Self {
+        assert_eq!(r.len(), ISAAC64_SZ);
+        assert_eq!(m.len(), ISAAC64_SZ);
+        Self {
+            r,
+            m,
+            a,
+            b,
+            c,
+            n,
+            call_count,
+            tracing: false,
+            trace: Vec::new(),
+            caller: "",
+        }
+    }
+
     /// Initialize with seed bytes (matches isaac64_init)
     fn init(&mut self, seed: &[u8]) {
         self.a = 0;

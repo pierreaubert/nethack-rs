@@ -107,6 +107,7 @@ enum Command {
     SetRngCaller { caller: String },
     GetVisibility,
     GetCouldsee,
+    ExportRngState,
     // Function-level isolation testing (Phase 1)
     TestFinddpos {
         xl: i32,
@@ -354,6 +355,7 @@ fn main() {
             Command::GetCouldsee => {
                 Response::String(serde_json::to_string(&engine.get_couldsee()).unwrap())
             }
+            Command::ExportRngState => Response::String(engine.export_rng_state()),
             Command::TestFinddpos { xl, yl, xh, yh } => {
                 let (x, y) = engine.test_finddpos(xl, yl, xh, yh);
                 Response::Pos(x, y)

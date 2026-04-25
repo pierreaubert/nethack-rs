@@ -155,6 +155,9 @@ unsafe extern "C" {
     pub fn nh_ffi_debug_cell(x: c_int, y: c_int) -> *const c_char;
     pub fn nh_ffi_debug_mfndpos(mon_index: c_int) -> *const c_char;
 
+    // RNG state export (convergence framework — bit-perfect sync)
+    pub fn nh_ffi_export_rng_state() -> *mut c_char;
+
     // RNG tracing (convergence framework)
     pub fn nh_ffi_enable_rng_tracing();
     pub fn nh_ffi_disable_rng_tracing();
@@ -357,6 +360,17 @@ impl CGameEngine {
         }
         let result = unsafe { CStr::from_ptr(json_ptr).to_string_lossy().into_owned() };
         unsafe { nh_ffi_free_string(json_ptr as *mut c_void) };
+        result
+    }
+
+    /// Export the C ISAAC64 CORE RNG state as a JSON string.
+    pub fn export_rng_state(&self) -> String {
+        let ptr = unsafe { nh_ffi_export_rng_state() };
+        if ptr.is_null() {
+            return "{}".to_string();
+        }
+        let result = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
+        unsafe { nh_ffi_free_string(ptr as *mut c_void) };
         result
     }
 

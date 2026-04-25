@@ -2513,20 +2513,6 @@ impl GameLoop {
         // Increment turn counter
         state.turns += 1;
 
-        // Process multi-turn actions and paralysis
-        if state.player.multi < 0 {
-            // Paralysis/helpless: increment toward 0
-            state.player.multi += 1;
-            if state.player.multi == 0
-                && let Some(reason) = state.player.multi_reason.take()
-            {
-                state.message(format!("You can move again. (was {})", reason));
-            }
-        } else if state.player.multi > 0 {
-            // Multi-turn action: decrement
-            state.player.multi -= 1;
-        }
-
         // Check for fainting from hunger
         if crate::player::is_fainted(&state.player) {
             // Fainted players can't act; try to wake up periodically
@@ -3114,6 +3100,26 @@ impl GameLoop {
                     }
                 }
             }
+        }
+
+        // Process multi-turn actions and paralysis (C: allmain.c multi handling)
+        // Placed at end of new_turn to match C's order: gethungry/exerchk run
+        // BEFORE multi increment, so newuhs sees the pre-increment multi value.
+        if state.player.multi < 0 {
+            // Paralysis/helpless: increment toward 0
+            state.player.multi += 1;
+            if state.player.multi == 0 {
+                if let Some(reason) = state.player.multi_reason.take() {
+                    state.message(format!("You can move again. (was {})", reason));
+                }
+                // C: unfaint() — revert FAINTED to FAINTING when multi expires
+                if state.player.hunger_state == crate::player::HungerState::Fainted {
+                    state.player.hunger_state = crate::player::HungerState::Fainting;
+                }
+            }
+        } else if state.player.multi > 0 {
+            // Multi-turn action: decrement
+            state.player.multi -= 1;
         }
     }
 

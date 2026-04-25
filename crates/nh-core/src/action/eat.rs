@@ -1515,27 +1515,45 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
     let old_state = state.player.hunger_state;
     let mut new_state = HungerState::from_nutrition(state.player.nutrition);
 
-    // C: FAINTING handling — check for starvation death and fainting
+    // C: FAINTING handling (eat.c:2977-3015)
+    // This block runs EVERY turn when nutrition <= 0, not just on state transitions.
     if new_state == HungerState::Fainting {
-        // C: u.uhunger < -(100 + 10 * ACURR(A_CON)) → STARVED → death
-        let con = state
-            .player
-            .attr_current
-            .get(crate::player::Attribute::Constitution) as i32;
-        let starvation_threshold = -(100 + 10 * con);
-        if state.player.nutrition < starvation_threshold {
-            state.player.hunger_state = HungerState::Starved;
-            messages.push("You die from starvation.".to_string());
-            state.player.hp = 0;
-            return messages;
+        // C: uhunger_div_by_10 = sgn(u.uhunger) * ((abs(u.uhunger) + 5) / 10)
+        let h = state.player.nutrition;
+        let uhunger_div_by_10 = h.signum() * ((h.abs() + 5) / 10);
+
+        // C: if (is_fainted()) newhs = FAINTED;
+        if old_state == HungerState::Fainted {
+            new_state = HungerState::Fainted;
         }
 
-        // C: fainting check — if was WEAK or worse, or random check
-        // if (u.uhs <= WEAK || rn2(20 - uhunger_div_by_10) >= 19)
-        // For simplicity, if transitioning to fainting, trigger faint
-        if old_state >= HungerState::Weak && old_state != HungerState::Fainting {
-            messages.push("You faint from lack of food.".to_string());
-            new_state = HungerState::Fainted;
+        // C: if (u.uhs <= WEAK || rn2(20 - uhunger_div_by_10) >= 19)
+        let faint_check = old_state <= HungerState::Weak
+            || state.rng.rn2((20 - uhunger_div_by_10) as u32) >= 19;
+
+        if faint_check {
+            // C: if (!is_fainted() && multi >= 0)
+            if old_state != HungerState::Fainted && state.player.multi >= 0 {
+                let duration = (10 - uhunger_div_by_10).max(1);
+                messages.push("You faint from lack of food.".to_string());
+                // C: nomul(-duration)
+                state.player.multi = -duration;
+                state.player.multi_reason = Some("fainted from lack of food".to_string());
+                new_state = HungerState::Fainted;
+            }
+        } else {
+            // C: starvation death check (eat.c:3004)
+            let con = state
+                .player
+                .attr_current
+                .get(crate::player::Attribute::Constitution) as i32;
+            let starvation_threshold = -(100 + 10 * con);
+            if state.player.nutrition < starvation_threshold {
+                state.player.hunger_state = HungerState::Starved;
+                messages.push("You die from starvation.".to_string());
+                state.player.hp = 0;
+                return messages;
+            }
         }
     }
 
@@ -1544,12 +1562,14 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
     }
 
     // C: Strength adjustment when crossing WEAK boundary
+    // C uses ATEMP(A_STR) = -1/0 to apply a temporary penalty.
+    // Rust applies/removes directly via attr_current to keep the model simple.
     if new_state >= HungerState::Weak && old_state < HungerState::Weak {
         // C: ATEMP(A_STR) = -1; — temporary str loss when becoming weak
-        state.player.temp_str_bonus = -1;
+        state.player.attr_current.modify(crate::player::Attribute::Strength, -1);
     } else if new_state < HungerState::Weak && old_state >= HungerState::Weak {
         // C: ATEMP(A_STR) = 0; — restore str when no longer weak
-        state.player.temp_str_bonus = 0;
+        state.player.attr_current.modify(crate::player::Attribute::Strength, 1);
     }
 
     // State transition messages
@@ -1615,8 +1635,10 @@ pub fn gethungry(state: &mut GameState) -> Vec<String> {
     // (!Unaware || !rn2(10)): slow metabolic rate while asleep/fainted
     // (carnivorous || herbivorous || metallivorous): true for human form
     // !Slow_digestion: only skip base hunger, not ring/amulet hunger
-    let unaware = state.player.sleeping_timeout > 0
-        || crate::player::is_fainted(&state.player);
+    // C: Unaware = multi < 0 && (unconscious() || is_fainted())
+    let unaware = state.player.multi < 0
+        && (state.player.sleeping_timeout > 0
+            || crate::player::is_fainted(&state.player));
     // C short-circuits: !Unaware is checked first, rn2(10) only called if unaware
     let aware_check = if !unaware { true } else { state.rng.rn2(10) == 0 };
     let has_slow_digestion = state.player.properties.has(Property::SlowDigestion);
