@@ -1701,8 +1701,8 @@ unsigned long nh_ffi_get_rng_call_count(void) {
 
 int nh_ffi_rng_rn2(int limit) {
 #ifdef REAL_NETHACK
+    /* rn2() now traces via nh_ffi_rng_trace_hook, no duplicate needed */
     int r = rn2(limit);
-    rng_trace_record("rn2", (unsigned long)limit, (unsigned long)r);
     fprintf(stderr, "FFI: rn2(%d) = %d\n", limit, r);
     return r;
 #else
@@ -1714,8 +1714,8 @@ int nh_ffi_rng_rn2(int limit) {
 
 int nh_ffi_rng_rnd(int limit) {
 #ifdef REAL_NETHACK
+    /* rnd() now traces via nh_ffi_rng_trace_hook, no duplicate needed */
     int r = rnd(limit);
-    rng_trace_record("rnd", (unsigned long)limit, (unsigned long)r);
     fprintf(stderr, "FFI: rnd(%d) = %d\n", limit, r);
     return r;
 #else
@@ -1821,6 +1821,13 @@ char* nh_ffi_get_rng_trace(void) {
 /* Clear the RNG trace buffer */
 void nh_ffi_clear_rng_trace(void) {
     g_rng_trace_count = 0;
+}
+
+/* Hook called from rnd.c rn2()/rnd() when tracing is enabled.
+ * This is linked via weak symbol from rnd.c so vanilla builds
+ * (without FFI) still work. */
+void nh_ffi_rng_trace_hook(const char *func, unsigned long arg, unsigned long result) {
+    rng_trace_record(func, arg, result);
 }
 
 /* ============================================================================

@@ -285,19 +285,9 @@ impl Isaac64 {
         if n == 0 {
             return 0;
         }
-        // Match C: rn2(1) consumes a raw u64 even though result is always 0
+        // Match C: rn2(1) returns 0 WITHOUT consuming a raw u64.
+        // C code: if (x <= 1) return 0; — no isaac64_next_uint64 call.
         if n == 1 {
-            let raw = self.next_u64();
-            if self.tracing {
-                self.trace.push(RngTraceEntry {
-                    seq: self.call_count - 1,
-                    func: "next_uint",
-                    arg: n,
-                    result: 0,
-                    raw,
-                    caller: self.caller,
-                });
-            }
             return 0;
         }
         // Rejection sampling matching C's loop:

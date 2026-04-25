@@ -352,7 +352,7 @@ impl RectManager {
                 if self.rects[i].intersects(r2) {
                     let intersecting = self.rects[i];
                     if let Some(intersection) = intersecting.intersection(r2) {
-                        self.split_rects(intersecting, &intersection);
+                            self.split_rects(intersecting, &intersection);
                     }
                 }
             }
@@ -366,7 +366,8 @@ impl RectManager {
                     + 4
             {
                 let mut r = r1;
-                r.hy = r2.ly.saturating_sub(2);
+                r.hy = r2.ly.wrapping_sub(2);
+
                 self.add_rect(r);
             }
             if r2.lx as i16 - r1.lx as i16 - 1
@@ -378,21 +379,24 @@ impl RectManager {
                     + 4
             {
                 let mut r = r1;
-                r.hx = r2.lx.saturating_sub(2);
+                r.hx = r2.lx.wrapping_sub(2);
+
                 self.add_rect(r);
             }
             if r1.hy as i16 - r2.hy as i16 - 1
                 > (if r1.ly > 0 { 2 * YLIM } else { YLIM + 1 }) as i16 + 4
             {
                 let mut r = r1;
-                r.ly = r2.hy.saturating_add(2);
+                r.ly = r2.hy.wrapping_add(2);
+
                 self.add_rect(r);
             }
             if r1.hx as i16 - r2.hx as i16 - 1
                 > (if r1.lx > 0 { 2 * XLIM } else { XLIM + 1 }) as i16 + 4
             {
                 let mut r = r1;
-                r.lx = r2.hx.saturating_add(2);
+                r.lx = r2.hx.wrapping_add(2);
+
                 self.add_rect(r);
             }
         }

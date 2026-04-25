@@ -547,6 +547,9 @@ impl GameLoop {
     ///
     /// Based on moveloop() from allmain.c
     pub fn tick(&mut self, command: Command) -> GameLoopResult {
+        // Reset movement flag (C: u.umoved = FALSE before rhack)
+        self.state.context.move_made = false;
+
         // Execute player command
         let result = self.execute_command(command);
 
@@ -2559,11 +2562,19 @@ impl GameLoop {
         // if (!rn2(u.uevent.udemigod ? 25 : (depth > stronghold) ? 50 : 70))
         //     makemon(0, 0, 0, NO_MM_FLAGS);
         {
-            // C uses depth(&u.uz) = depth_start + dlevel - 1
-            // stronghold is typically at depth 25+
-            // For pre-stronghold levels, threshold is 70; for post, 50; demigod, 25
-            // Design note: use 25 for demigod, 50 for post-stronghold depths
-            let spawn_threshold = 70u32;
+            // C: u.uevent.udemigod — set after offering Amulet on high altar
+            // Demigod tracking deferred to endgame implementation
+            let is_demigod = false;
+            let depth = state.current_level.dlevel.depth();
+            // C: stronghold_level depth is typically ~25 (Castle)
+            let stronghold_depth = 25;
+            let spawn_threshold = if is_demigod {
+                25u32
+            } else if depth > stronghold_depth {
+                50u32
+            } else {
+                70u32
+            };
             if state.rng.rn2(spawn_threshold) == 0 {
                 // Spawn a random monster on the level — match C's makemon(0,0,0,NO_MM_FLAGS)
                 let depth = state.current_level.dlevel.depth();
@@ -2629,11 +2640,17 @@ impl GameLoop {
             }
         }
 
-        // Process timed events
+        // Process timed events (C: nh_timeout + run_regions)
         let current_turn = state.turns;
         let triggered_events = state.timeouts.tick(current_turn);
         for event in triggered_events {
             Self::process_timed_event(state, event);
+        }
+
+        // Prayer timeout (C: allmain.c:184-185)
+        // if (u.ublesscnt) u.ublesscnt--;
+        if state.player.bless_count > 0 {
+            state.player.bless_count -= 1;
         }
 
         // Process grab damage if player is held
@@ -2754,6 +2771,68 @@ impl GameLoop {
 
         // Regeneration
         Self::process_regeneration(state);
+
+        // Teleportation check (C: allmain.c:239-252)
+        // if (!u.uinvulnerable && Teleportation && !rn2(85)) tele();
+        // Note: u.uinvulnerable (prayer protection) is not yet tracked; defaults to false
+        if state
+                .player
+                .properties
+                .has(crate::player::Property::Teleportation)
+        {
+            if state.rng.rn2(85) == 0 {
+                crate::action::teleport::tele(state);
+            }
+        }
+
+        // Polymorph check (C: allmain.c:253-271)
+        // if (Polymorph && !rn2(100)) change = 1;
+        // else if (u.ulycn >= LOW_PM && !Upolyd && !rn2(80 - (20 * night()))) change = 2;
+        // Note: u.uinvulnerable check omitted (prayer protection not yet tracked)
+        {
+            if state
+                .player
+                .properties
+                .has(crate::player::Property::Polymorph)
+            {
+                if state.rng.rn2(100) == 0
+                    && !state
+                        .player
+                        .properties
+                        .has(crate::player::Property::Unchanging)
+                {
+                    let flags = crate::player::polymorph::PolyselfFlags::default();
+                    let monsters = crate::data::monsters::MONSTERS;
+                    crate::player::polymorph::polyself(state, flags, monsters);
+                }
+            } else if state.player.lycanthropy.is_some()
+                && !state.player.is_polymorphed()
+            {
+                // C: !rn2(80 - (20 * night()))
+                // night() checks time of day; simplified to 0 for now
+                let night_val = 0i32;
+                let threshold = (80 - 20 * night_val) as u32;
+                if state.rng.rn2(threshold) == 0
+                    && !state
+                        .player
+                        .properties
+                        .has(crate::player::Property::Unchanging)
+                {
+                    state.message("You feel feverish.");
+                }
+            }
+        }
+
+        // Searching intrinsic (C: allmain.c:274-275)
+        // if (Searching && multi >= 0) dosearch0(1);
+        if state
+            .player
+            .properties
+            .has(crate::player::Property::Searching)
+            && state.player.multi >= 0
+        {
+            crate::action::search::dosearch0(state, true);
+        }
 
         // Ambient sounds (C: dosounds() — called between energy regen and do_storms)
         Self::dosounds_turn(state);
@@ -3229,39 +3308,93 @@ impl GameLoop {
 
         let ulevel = state.player.exp_level;
         let turns = state.turns;
+        let has_regen = state
+            .player
+            .properties
+            .has(crate::player::Property::Regeneration);
 
-        // HP Regeneration (C: regen_hp from allmain.c)
+        // C: regen_hp(wtcap) from allmain.c:458
+        // Only called when hp < hpmax (C: allmain.c:200-205)
         if state.player.hp < state.player.hp_max {
-            let hp_freq = if ulevel > 9 {
-                3
-            } else {
-                // (MAXULEV + 12) / (u.ulevel + 2) + 1
-                (30 + 12) / (ulevel + 2) + 1
-            };
+            // C: encumbrance_ok = (wtcap < MOD_ENCUMBER || !u.umoved)
+            let encumbrance_ok = !matches!(
+                state.player.encumbrance(),
+                crate::player::Encumbrance::Stressed
+                    | crate::player::Encumbrance::Strained
+                    | crate::player::Encumbrance::Overtaxed
+                    | crate::player::Encumbrance::Overloaded
+            ) || !state.context.move_made;
 
-            if turns.is_multiple_of(hp_freq as u64) {
-                let mut heal = 1;
+            if encumbrance_ok || has_regen {
+                let mut heal = 0i32;
+
                 if ulevel > 9 {
-                    let con = state.player.attr_current.get(Attribute::Constitution) as i32;
-                    if con > 12 {
-                        heal = state.rng.rnd(con as u32) as i32;
-                        if heal > (ulevel - 9) {
-                            heal = ulevel - 9;
+                    // C: if (!(moves % 3L))
+                    if turns.is_multiple_of(3) {
+                        let con = state.player.attr_current.get(Attribute::Constitution) as i32;
+                        if con <= 12 {
+                            heal = 1;
+                        } else {
+                            heal = state.rng.rnd(con as u32) as i32;
+                            if heal > (ulevel - 9) {
+                                heal = ulevel - 9;
+                            }
                         }
                     }
+                } else {
+                    // C: if (!(moves % (long)((MAXULEV + 12) / (u.ulevel + 2) + 1)))
+                    let hp_freq = ((30 + 12) / (ulevel + 2) + 1) as u64;
+                    if turns.is_multiple_of(hp_freq) {
+                        heal = 1;
+                    }
                 }
-                state.player.hp = (state.player.hp + heal).min(state.player.hp_max);
+
+                // C: if (Regeneration && !heal) heal = 1;
+                if has_regen && heal == 0 {
+                    heal = 1;
+                }
+
+                if heal > 0 {
+                    state.player.hp = (state.player.hp + heal).min(state.player.hp_max);
+                }
             }
         }
 
-        // Energy Regeneration (C: moveloop lines 225-237)
+        // Encumbrance HP drain (C: allmain.c:207-223)
+        // Moving while heavily encumbered costs HP
+        let encumbrance = state.player.encumbrance();
+        if matches!(
+            encumbrance,
+            crate::player::Encumbrance::Strained
+                | crate::player::Encumbrance::Overtaxed
+                | crate::player::Encumbrance::Overloaded
+        ) && state.context.move_made
+        {
+            let drain = match encumbrance {
+                // C: wtcap < EXT_ENCUMBER ? moves % 30 : moves % 10
+                crate::player::Encumbrance::Strained => turns % 30 == 0,
+                _ => turns % 10 == 0,
+            };
+            if drain {
+                if state.player.hp > 1 {
+                    state.player.hp -= 1;
+                } else {
+                    state.message("You pass out from exertion!");
+                    state.player.sleeping_timeout = 10;
+                }
+            }
+        }
+
+        // Energy Regeneration (C: allmain.c:225-237)
         if state.player.energy < state.player.energy_max {
             let is_wizard = state.player.role == crate::player::Role::Wizard;
+            // C: (MAXULEV + 8 - u.ulevel) * (Role_if(PM_WIZARD) ? 3 : 4) / 6
             let en_freq = ((30 + 8 - ulevel) * (if is_wizard { 3 } else { 4 }) / 6) as u64;
             let has_energy_regen = state
                 .player
                 .properties
                 .has(crate::player::Property::EnergyRegeneration);
+            // C: wtcap < MOD_ENCUMBER
             let not_encumbered = !matches!(
                 state.player.encumbrance(),
                 crate::player::Encumbrance::Stressed
@@ -3273,10 +3406,12 @@ impl GameLoop {
             if en_freq > 0
                 && ((not_encumbered && turns.is_multiple_of(en_freq)) || has_energy_regen)
             {
+                // C: rn1((int)(ACURR(A_WIS) + ACURR(A_INT)) / 15 + 1, 1)
+                // rn1(x,1) = rnd(x) = raw % x + 1
                 let wis = state.player.attr_current.get(Attribute::Wisdom) as i32;
                 let int = state.player.attr_current.get(Attribute::Intelligence) as i32;
                 let rn1_range = ((wis + int) / 15 + 1) as u32;
-                let heal = state.rng.rn2(rn1_range) as i32 + 1;
+                let heal = state.rng.rnd(rn1_range) as i32;
                 state.player.energy = (state.player.energy + heal).min(state.player.energy_max);
             }
         }

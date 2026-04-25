@@ -930,6 +930,178 @@ pub fn init_skills(skills: &mut SkillSet, role: Role) {
     }
 }
 
+/// Burn the same RNG calls that C's mksobj(otyp, init=TRUE, artif=FALSE) makes.
+///
+/// In C, ini_inv calls mksobj which generates random enchantment/BUC/quantity
+/// for every item, then ini_inv overwrites most values from the trobj table.
+/// Those "phantom" RNG calls still consume RNG state. We must replicate them
+/// so the Rust RNG stays in sync with C after initialization.
+///
+/// Returns the enchantment and blessed values that mksobj would have produced,
+/// which ini_inv may or may not keep (depending on trspe/trbless).
+fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, i8) {
+    let mut spe: i8 = 0;
+    let mut blessed: i8 = 0;
+
+    match class {
+        ObjectClass::Weapon => {
+            // C: is_multigen check — applies to ammo (arrows, bolts, darts, shuriken)
+            // For non-multigen weapons: quan=1, no RNG call
+            // For multigen: rn1(6,6) = rnd(6)+5
+            // We check by looking at the object definition's skill
+            let is_multigen = if let Some(def) = crate::data::objects::OBJECTS.get(otyp as usize) {
+                // C: oc_skill >= -P_SHURIKEN && oc_skill <= -P_BOW
+                // Ammo skills are negative; arrows/bolts/darts/shuriken
+                def.skill <= -1 && def.skill >= -7 // approximate range for ammo
+            } else {
+                false
+            };
+            if is_multigen {
+                let _quan = rng.rnd(6) + 5; // rn1(6,6)
+            }
+
+            // Enchantment/BUC
+            if rng.rn2(11) == 0 {
+                // Positive enchantment
+                spe = rne(rng, 3) as i8;
+                blessed = rng.rn2(2) as i8;
+            } else if rng.rn2(10) == 0 {
+                // Cursed with negative enchantment
+                spe = -(rne(rng, 3) as i8);
+            } else {
+                // blessorcurse(10): rn2(10), if ==0 then rn2(2)
+                if rng.rn2(10) == 0 {
+                    blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
+                }
+            }
+
+            // is_poisonable check — same definition as is_multigen in 3.6.7
+            if is_multigen {
+                let _poison = rng.rn2(100);
+            }
+            // artif=FALSE, no rn2(20)
+        }
+        ObjectClass::Food => {
+            // Food items: FOOD_RATION is not CORPSE/EGG/TIN/SLIME_MOLD/KELP_FROND
+            // so the switch body is skipped. Then:
+            // if (otyp != CORPSE && otyp != MEAT_RING && otyp != KELP_FROND && !rn2(6))
+            //     quan = 2;
+            let _double = rng.rn2(6);
+        }
+        ObjectClass::Armor => {
+            // C: if (rn2(10) && (special || !rn2(11))) { curse; spe=-rne(3) }
+            //    else if (!rn2(10)) { blessed=rn2(2); spe=rne(3) }
+            //    else blessorcurse(10)
+            use crate::data::objects::ObjectType;
+            let is_special = matches!(
+                otyp,
+                x if x == ObjectType::FumbleBoots as i16
+                    || x == ObjectType::LevitationBoots as i16
+                    || x == ObjectType::HelmOfOppositeAlignment as i16
+                    || x == ObjectType::GauntletsOfFumbling as i16
+            );
+
+            let r1 = rng.rn2(10);
+            // C: short-circuit &&: if r1==0, second part not evaluated
+            let first_branch = if r1 != 0 {
+                if is_special {
+                    true // special armor → always curse
+                } else {
+                    rng.rn2(11) == 0 // !rn2(11)
+                }
+            } else {
+                false
+            };
+
+            if first_branch {
+                // curse + negative enchant
+                spe = -(rne(rng, 3) as i8);
+            } else if rng.rn2(10) == 0 {
+                // NOTE: this is a NEW rn2(10) call (else-if branch)
+                blessed = rng.rn2(2) as i8;
+                spe = rne(rng, 3) as i8;
+            } else {
+                // blessorcurse(10)
+                if rng.rn2(10) == 0 {
+                    let _buc = rng.rn2(2);
+                }
+            }
+            // artif=FALSE, no rn2(40)
+        }
+        ObjectClass::Gem => {
+            // For starting items: TOUCHSTONE, FLINT, ROCK
+            // ROCK: rn1(6,6) = rnd(6)+5
+            // FLINT (not LUCKSTONE): rn2(6) for double quantity
+            // TOUCHSTONE: oc_name check... touchstone IS a LUCKSTONE? No.
+            // C: if (otyp == LOADSTONE) curse
+            //    else if (otyp == ROCK) quan = rn1(6,6)
+            //    else if (otyp != LUCKSTONE && !rn2(6)) quan = 2
+            //    else quan = 1
+            use crate::data::objects::ObjectType;
+            if otyp == ObjectType::Rock as i16 {
+                let _quan = rng.rnd(6) + 5; // rn1(6,6)
+            } else if otyp != ObjectType::Luckstone as i16 {
+                let _double = rng.rn2(6);
+            }
+        }
+        ObjectClass::Tool => {
+            // Tools have specific init per otyp
+            use crate::data::objects::ObjectType;
+            if otyp == ObjectType::TinningKit as i16
+                || otyp == ObjectType::ExpensiveCamera as i16
+                || otyp == ObjectType::MagicMarker as i16
+            {
+                spe = (rng.rnd(70) + 29) as i8; // rn1(70,30)
+            } else if otyp == ObjectType::OilLamp as i16 {
+                // C: spe=1, age=rn1(500,1000), blessorcurse(5)
+                let _age = rng.rnd(500) + 999; // rn1(500,1000)
+                if rng.rn2(5) == 0 {
+                    // blessorcurse triggered
+                    let _buc = rng.rn2(2);
+                }
+            }
+            // SACK: mkbox_cnts — may make RNG calls for box contents
+            // For starting SACK, mkbox_cnts with init box usually empty
+            // Skip for now — SACK contents generation is complex
+        }
+        ObjectClass::Wand => {
+            // C: spe = rn1(5, nodir ? 11 : 4), blessorcurse(17)
+            spe = (rng.rnd(5) + 3) as i8; // rn1(5,4) for directed wands
+            // blessorcurse(17)
+            if rng.rn2(17) == 0 {
+                blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
+            }
+        }
+        ObjectClass::Potion | ObjectClass::Scroll => {
+            // blessorcurse(4)
+            if rng.rn2(4) == 0 {
+                let _buc = rng.rn2(2);
+            }
+        }
+        ObjectClass::Spellbook => {
+            // blessorcurse(17)
+            if rng.rn2(17) == 0 {
+                let _buc = rng.rn2(2);
+            }
+        }
+        _ => {}
+    }
+
+    (spe, blessed)
+}
+
+/// C's rne(x): exponential distribution, min 1 RNG call
+fn rne(rng: &mut GameRng, x: u32) -> u32 {
+    // C: utmp = (u.ulevel < 15) ? 5 : u.ulevel / 3
+    // At game start, ulevel=1, so utmp=5
+    let utmp = 5u32;
+    let mut tmp = 1u32;
+    while tmp < utmp && rng.rn2(x) == 0 {
+        tmp += 1;
+    }
+    tmp
+}
+
 /// Convert a starting item descriptor into an Object (C: ini_inv per-item logic)
 pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mut u32) -> Object {
     let id = *next_id;
@@ -938,34 +1110,17 @@ pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mu
     let mut obj = Object::new(crate::object::ObjectId(id), item.otyp, item.class);
     obj.quantity = item.quantity as i32;
 
+    // Replicate C's mksobj(otyp, init=TRUE, artif=FALSE) RNG calls.
+    // ini_inv overwrites spe/bless/quan from the trobj table, but the
+    // phantom RNG calls must still happen to keep the RNG in sync.
+    let (mksobj_spe, _mksobj_blessed) = mksobj_phantom_rng(item.class, item.otyp, rng);
+
     // Set enchantment
     if item.spe != UNDEF_SPE {
         obj.enchantment = item.spe;
     } else {
-        // Random enchantment based on class (C: mksobj init=TRUE, then ini_inv
-        // keeps mksobj value when trspe == UNDEF_SPE)
-        obj.enchantment = match item.class {
-            ObjectClass::Wand => {
-                // C wand init: spe = rn1(5, 4) = rnd(5)+3 = 4..8 for most wands
-                // But specific wands like WAN_SLEEP use this range
-                (rng.rnd(5) + 3) as i8
-            }
-            ObjectClass::Tool => {
-                // C tool init: MAGIC_MARKER/TINNING_KIT/EXPENSIVE_CAMERA: rn1(70,30) = 30..99
-                // Other tools like PICK_AXE: no special init (0)
-                use crate::data::objects::ObjectType;
-                let otyp = item.otyp;
-                if otyp == ObjectType::TinningKit as i16
-                    || otyp == ObjectType::ExpensiveCamera as i16
-                    || otyp == ObjectType::MagicMarker as i16
-                {
-                    (rng.rnd(70) + 29) as i8
-                } else {
-                    0
-                }
-            }
-            _ => 0,
-        };
+        // UNDEF_SPE: keep the value mksobj produced
+        obj.enchantment = mksobj_spe;
     }
 
     // Set BUC status
