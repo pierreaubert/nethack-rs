@@ -97,7 +97,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-2",
+          "rust_value": "-4",
           "c_value": "-8"
         },
         {
@@ -114,7 +114,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-3",
+          "rust_value": "-5",
           "c_value": "-11"
         },
         {
@@ -131,7 +131,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-5",
+          "rust_value": "-7",
           "c_value": "-13"
         },
         {
@@ -148,7 +148,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-6",
+          "rust_value": "-9",
           "c_value": "-23"
         },
         {
@@ -165,7 +165,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-7",
+          "rust_value": "-11",
           "c_value": "-30"
         },
         {
@@ -182,7 +182,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-9",
+          "rust_value": "-12",
           "c_value": "-32"
         },
         {
@@ -199,7 +199,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-11",
+          "rust_value": "-14",
           "c_value": "-41"
         },
         {
@@ -216,7 +216,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-12",
+          "rust_value": "-16",
           "c_value": "-42"
         },
         {
@@ -233,7 +233,7 @@
         {
           "severity": "Minor",
           "field": "player.nutrition",
-          "rust_value": "-14",
+          "rust_value": "-18",
           "c_value": "-46"
         },
         {

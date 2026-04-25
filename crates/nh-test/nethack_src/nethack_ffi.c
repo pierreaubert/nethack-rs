@@ -1579,9 +1579,10 @@ char* nh_ffi_get_nearby_monsters_json(void) {
     for (mtmp = fmon; mtmp; mtmp = mtmp->nmon) {
         if (!first) strcat(json, ", ");
         char mon_json[512];
-        snprintf(mon_json, 512, 
-            "{\"name\": \"%s\", \"x\": %d, \"y\": %d, \"hp\": %d, \"hp_max\": %d, \"asleep\": %d, \"peaceful\": %d, \"strategy\": %lu}",
+        snprintf(mon_json, 512,
+            "{\"name\": \"%s\", \"mnum\": %d, \"x\": %d, \"y\": %d, \"hp\": %d, \"hp_max\": %d, \"asleep\": %d, \"peaceful\": %d, \"strategy\": %lu}",
             minimal_monnam(mtmp, FALSE),
+            mtmp->mnum,
             mtmp->mx, mtmp->my,
             mtmp->mhp, mtmp->mhpmax,
             mtmp->msleeping ? 1 : 0,

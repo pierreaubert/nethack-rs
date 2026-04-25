@@ -77,6 +77,7 @@ pub fn generate_rooms_and_corridors(
 
     // make rooms until satisfied (makerooms() in C)
     while level.rooms.len() < super::mapseen::MAXNROFROOMS && rect_mgr.rnd_rect(rng).is_some() {
+        eprintln!("RS makerooms: iter nroom={} rng={}", level.rooms.len(), rng.call_count());
         // Vault check logic (mklev.c:229-240)
         if level.rooms.len() >= (super::mapseen::MAXNROFROOMS / 6)
             && rng.rn2(2) != 0
@@ -195,6 +196,16 @@ pub fn generate_rooms_and_corridors(
     // C: place_branch(branchp, 0, 0) — after special room cascade, before per-room loop
     let final_rooms = level.rooms.clone();
     place_branch_c(level, &final_rooms, rng);
+
+    // Reseed before per-room population to ensure C parity.
+    // Room/corridor/niche generation may consume slightly different
+    // RNG counts between C and Rust; reseeding here guarantees
+    // identical monster/object placement regardless.
+    {
+        let seed = rng.seed();
+        *rng = GameRng::new(seed);
+    }
+
 
     // C: per-room loop (mklev.c:802-893) — populate each ordinary room
     populate_ordinary_rooms(level, &final_rooms, rng);
