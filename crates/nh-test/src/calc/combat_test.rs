@@ -1,6 +1,10 @@
 //! Combat logic comparison tests
 
 #[cfg(test)]
+use crate::ffi::CGameEngine;
+#[cfg(test)]
+use nh_core::CGameEngineTrait;
+#[cfg(test)]
 use serial_test::serial;
 
 #[test]
@@ -34,5 +38,5 @@ fn test_rng_access() {
     let mut engine = CGameEngine::new();
     engine.init("Tourist", "Human", 0, 0).unwrap();
     let val = engine.rng_rn2(10);
-    assert!(val >= 0 && val < 10, "RNG value {} out of range", val);
+    assert!((0..10).contains(&val), "RNG value {} out of range", val);
 }

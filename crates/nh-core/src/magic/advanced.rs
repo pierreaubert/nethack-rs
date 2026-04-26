@@ -230,9 +230,7 @@ mod tests {
         let player = You::default();
         let mut rng = GameRng::new(42);
 
-        let fails = check_spell_failure(&player, 1, &mut rng);
-        // Just verify it returns a boolean
-        assert!(fails || !fails);
+        let _ = check_spell_failure(&player, 1, &mut rng);
     }
 
     #[test]
@@ -277,9 +275,7 @@ mod tests {
     fn test_monster_save_vs_magic() {
         let mut rng = GameRng::new(42);
 
-        let saves = monster_save_vs_magic(5, 10, &mut rng);
-        // Should return a boolean
-        assert!(saves || !saves);
+        let _ = monster_save_vs_magic(5, 10, &mut rng);
     }
 
     #[test]

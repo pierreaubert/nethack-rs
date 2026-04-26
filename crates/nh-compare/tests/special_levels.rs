@@ -75,7 +75,7 @@ fn test_sokoban_level_exists() {
 
     // Sokoban level 1 (entry) has upstairs only; higher levels have both up and down
     assert!(
-        level.stairs.len() >= 1,
+        !level.stairs.is_empty(),
         "Sokoban should have at least entry stairs, got {}",
         level.stairs.len()
     );

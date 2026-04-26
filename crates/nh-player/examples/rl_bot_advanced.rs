@@ -10,17 +10,15 @@
 //! - Multi-threaded parallel training
 
 use nh_core::{GameLoop, GameRng, GameState};
-use nh_player::ffi::CGameEngine;
 use nh_player::state::common::{GameAction, UnifiedGameState};
 use nh_player::state::rust_extractor::RustGameEngine;
 
-use rand::{Rng, SeedableRng};
-use std::collections::{HashMap, VecDeque};
+use rand::Rng;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 // ============================================================================
 // Configuration
@@ -379,10 +377,10 @@ impl PrioritizedReplayMemory {
         let mut weights = Vec::new();
 
         for _ in 0..batch_size.min(self.memory.len()) {
-            let mut r = rng.r#gen::<f64>() * total;
+            let r = rng.r#gen::<f64>() * total;
             let mut cumulative = 0.0;
 
-            for (i, t) in self.memory.iter().enumerate() {
+            for (_i, t) in self.memory.iter().enumerate() {
                 cumulative += t.priority.powf(self.alpha);
                 if cumulative >= r {
                     let weight = (self.memory.len() as f64 * cumulative / total).powf(-self.beta);
@@ -583,7 +581,7 @@ fn action_to_index(action: &GameAction, valid_actions: &[GameAction]) -> usize {
 fn calculate_reward(
     old_state: &UnifiedGameState,
     new_state: &UnifiedGameState,
-    action: &GameAction,
+    _action: &GameAction,
     message: &str,
 ) -> f64 {
     let mut reward = 0.0;
@@ -694,7 +692,7 @@ fn worker_thread(
                 best_idx
             };
 
-            let action = valid_actions[action_idx].clone();
+            let action = valid_actions[action_idx];
             let prev_state = rust_engine.extract_state();
             let (_reward, msg) = rust_engine.step(&action);
             let new_state = rust_engine.extract_state();
@@ -821,7 +819,7 @@ fn train_advanced_rl_bot(config: Config) {
             let (batch, weights) = replay_memory.sample(config.batch_size);
 
             // Calculate TD errors and update priorities
-            let mut network = shared_network.lock().unwrap();
+            let network = shared_network.lock().unwrap();
             let mut errors = Vec::new();
 
             for (i, t) in batch.iter().enumerate() {
@@ -855,15 +853,15 @@ fn train_advanced_rl_bot(config: Config) {
             }
 
             // Update target network
-            if episode % config.target_update_freq == 0 {
+            if episode.is_multiple_of(config.target_update_freq) {
                 // Soft update - use the already-locked network
-                let current = network.clone();
+                let _current = network.clone();
                 // In a real implementation, we'd interpolate
             }
         }
 
         // Log progress
-        if episode % 50 == 0 && episode > 0 {
+        if episode.is_multiple_of(50) && episode > 0 {
             let batch_results = &all_results[all_results.len().saturating_sub(50)..];
             let avg_reward: f64 =
                 batch_results.iter().map(|r| r.reward).sum::<f64>() / batch_results.len() as f64;
@@ -907,7 +905,7 @@ fn train_advanced_rl_bot(config: Config) {
         }
 
         // Save checkpoint
-        if episode % 500 == 0 && episode > 0 {
+        if episode.is_multiple_of(500) && episode > 0 {
             let path = format!("{}/checkpoint_{}.txt", save_dir, episode);
             shared_network.lock().unwrap().save(&path);
         }

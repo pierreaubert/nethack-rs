@@ -287,7 +287,6 @@ mod tests {
         let mut rng = GameRng::new(42);
 
         let result = enchant_weapon(&mut obj, &mut rng);
-        assert!(result.success || !result.success); // May succeed or fail randomly
         assert!(obj.enchantment >= result.old_enchantment);
     }
 

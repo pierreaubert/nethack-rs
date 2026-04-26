@@ -7,7 +7,7 @@
 use nh_core::GameRng;
 use nh_core::combat::*;
 use nh_core::monster::{Monster, MonsterId};
-use nh_core::object::{Object, ObjectClass, ObjectId};
+use nh_core::object::{Object, ObjectClass};
 
 // ============================================================================
 // Helpers

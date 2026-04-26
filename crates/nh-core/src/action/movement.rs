@@ -108,9 +108,9 @@ pub fn moverock(state: &mut GameState, sx: i8, sy: i8, dx: i8, dy: i8) -> MoveRo
                     MoveRockResult::Moved
                 };
             }
-            TrapType::LandMine => {
+            TrapType::LandMine
                 // 90% chance landmine detonates
-                if state.rng.rn2(10) != 0 {
+                if state.rng.rn2(10) != 0 => {
                     state.message("KAABLAMM!!! The boulder triggers a land mine.");
                     state.current_level.remove_trap(rx, ry);
                     // Boulder may survive — move it there
@@ -122,7 +122,6 @@ pub fn moverock(state: &mut GameState, sx: i8, sy: i8, dx: i8, dy: i8) -> MoveRo
                     };
                 }
                 // 10% chance: landmine doesn't fire, push normally
-            }
             TrapType::Teleport => {
                 // Boulder teleports randomly
                 state.message("You push the boulder and suddenly it disappears!");

@@ -849,8 +849,8 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
     let cursed = potion.is_cursed();
 
     match ptype {
-        PotionType::Oil => {
-            if potion.is_lit() {
+        PotionType::Oil
+            if potion.is_lit() => {
                 result
                     .messages
                     .push("The burning oil splashes all over you!".to_string());
@@ -859,7 +859,6 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
                     result.effects_applied.push("burning_oil".to_string());
                 }
             }
-        }
         PotionType::Polymorph => {
             result
                 .messages
@@ -868,8 +867,8 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
                 result.effects_applied.push("polymorph".to_string());
             }
         }
-        PotionType::Acid => {
-            if !player.properties.has(Property::AcidResistance) {
+        PotionType::Acid
+            if !player.properties.has(Property::AcidResistance) => {
                 let nd = if cursed { 2 } else { 1 };
                 let nsides = if blessed { 4 } else { 8 };
                 result.damage = rng.dice(nd, nsides) as i32;
@@ -884,7 +883,6 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
                     }
                 ));
             }
-        }
         PotionType::Healing | PotionType::ExtraHealing | PotionType::FullHealing => {
             // Healing potions heal the player when thrown at them
             let heal = match ptype {
@@ -903,12 +901,11 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
                 result.messages.push("Your vision clears.".to_string());
             }
         }
-        PotionType::Sleeping => {
-            if !player.properties.has(Property::SleepResistance) {
+        PotionType::Sleeping
+            if !player.properties.has(Property::SleepResistance) => {
                 player.sleeping_timeout = rng.rnd(12) as u16;
                 result.messages.push("You fall asleep!".to_string());
             }
-        }
         PotionType::Paralysis => {
             if !player.properties.has(Property::FreeAction) {
                 player.paralyzed_timeout =
@@ -954,14 +951,13 @@ pub fn potionhit_player(potion: &Object, player: &mut You, rng: &mut GameRng) ->
                 result.messages.push("You feel contaminated.".to_string());
             }
         }
-        PotionType::Sickness => {
-            if !player.properties.has(Property::PoisonResistance) {
+        PotionType::Sickness
+            if !player.properties.has(Property::PoisonResistance) => {
                 let hp_loss = if player.hp > 2 { player.hp / 2 } else { 1 };
                 player.hp -= hp_loss;
                 result.messages.push("You feel rather ill.".to_string());
                 result.player_died = player.hp <= 0;
             }
-        }
         _ => {
             // Other potions: just splash with no special effect
         }
@@ -1017,9 +1013,9 @@ pub fn potionhit_monster(
             }
             result.effects_applied.push("healing".to_string());
         }
-        PotionType::Sickness => {
+        PotionType::Sickness
             // Sickness halves monster HP
-            if !monster.resistances.contains(MonsterResistances::POISON) {
+            if !monster.resistances.contains(MonsterResistances::POISON) => {
                 if monster.hp_max > 3 {
                     monster.hp_max /= 2;
                 }
@@ -1033,7 +1029,6 @@ pub fn potionhit_monster(
                     .messages
                     .push("The monster looks rather ill.".to_string());
             }
-        }
         PotionType::Confusion | PotionType::Booze => {
             monster.state.confused = true;
             result
@@ -1044,23 +1039,21 @@ pub fn potionhit_monster(
             monster.state.invisible = true;
             result.messages.push("The monster vanishes!".to_string());
         }
-        PotionType::Sleeping => {
-            if !monster.resistances.contains(MonsterResistances::SLEEP) {
+        PotionType::Sleeping
+            if !monster.resistances.contains(MonsterResistances::SLEEP) => {
                 monster.state.sleeping = true;
                 result
                     .messages
                     .push("The monster falls asleep.".to_string());
             }
-        }
-        PotionType::Paralysis => {
-            if monster.state.can_move {
+        PotionType::Paralysis
+            if monster.state.can_move => {
                 monster.state.can_move = false;
                 monster.state.paralyzed = true;
                 result
                     .messages
                     .push("The monster is frozen in place!".to_string());
             }
-        }
         PotionType::Speed => {
             monster.state.hasted = true;
             result
@@ -1071,8 +1064,8 @@ pub fn potionhit_monster(
             monster.state.blinded = true;
             result.messages.push("The monster is blinded.".to_string());
         }
-        PotionType::Acid => {
-            if !monster.resistances.contains(MonsterResistances::ACID) {
+        PotionType::Acid
+            if !monster.resistances.contains(MonsterResistances::ACID) => {
                 let nd = if cursed { 2 } else { 1 };
                 let nsides = if blessed { 4 } else { 8 };
                 let dmg = rng.dice(nd, nsides) as i32;
@@ -1082,7 +1075,6 @@ pub fn potionhit_monster(
                     .messages
                     .push("The monster writhes in pain!".to_string());
             }
-        }
         PotionType::Water => {
             // Holy water damages undead/demons
             if blessed && (monster.is_undead() || monster.is_demon()) {
@@ -1100,8 +1092,8 @@ pub fn potionhit_monster(
                     .push("The monster looks healthier.".to_string());
             }
         }
-        PotionType::Oil => {
-            if potion.is_lit() {
+        PotionType::Oil
+            if potion.is_lit() => {
                 let dmg = rng.dice(3, 6) as i32;
                 monster.hp -= dmg;
                 result.damage += dmg;
@@ -1109,7 +1101,6 @@ pub fn potionhit_monster(
                     .messages
                     .push("The burning oil splashes the monster!".to_string());
             }
-        }
         PotionType::Polymorph => {
             result.effects_applied.push("polymorph".to_string());
             result

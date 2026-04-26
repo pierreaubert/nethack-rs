@@ -267,7 +267,7 @@ fn run_startup_menu(
                                 Ok(loaded_state) => return Ok(loaded_state),
                                 Err(e) => {
                                     app.state_mut()
-                                        .message(&format!("Could not load save file: {}", e));
+                                        .message(format!("Could not load save file: {}", e));
                                 }
                             }
                         } else {

@@ -290,12 +290,11 @@ pub fn spoteffects(state: &mut GameState, x: i8, y: i8) {
                 state.message("You hear a gurgling noise.");
             }
         }
-        CellType::Fountain => {
-            if state.player.confused_timeout > 0 && state.rng.one_in(10) {
+        CellType::Fountain
+            if state.player.confused_timeout > 0 && state.rng.one_in(10) => {
                 state.message("Oops! You drank from the fountain.");
                 crate::action::quaff::drinkfountain(state);
             }
-        }
         CellType::Altar => {
             // hack.c:check_special_room — altar alignment message
             let alignment = state.player.alignment.typ;
@@ -310,12 +309,11 @@ pub fn spoteffects(state: &mut GameState, x: i8, y: i8) {
         CellType::Grave => {
             state.message("You are standing on a grave.");
         }
-        CellType::Ice => {
+        CellType::Ice
             // hack.c:1422 — slippery ice check
-            if crate::action::movement::check_ice_slip(state, x, y) {
+            if crate::action::movement::check_ice_slip(state, x, y) => {
                 crate::action::movement::ice_slip_effects(state);
             }
-        }
         _ => {}
     }
 

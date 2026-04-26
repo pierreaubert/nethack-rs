@@ -550,18 +550,17 @@ pub fn ring_on(state: &mut GameState, ring: &Object) -> EquipmentEffect {
 
         // Special messages for certain properties
         match prop {
-            Property::Invisibility => {
+            Property::Invisibility
                 if !state
                     .player
                     .properties
                     .has_intrinsic(Property::SeeInvisible)
-                {
+                => {
                     effect
                         .messages
                         .push("Suddenly you cannot see yourself.".to_string());
                     effect.identify = true;
                 }
-            }
             Property::SeeInvisible => {
                 effect
                     .messages
@@ -638,12 +637,11 @@ pub fn ring_on(state: &mut GameState, ring: &Object) -> EquipmentEffect {
         RIN_INCREASE_DAMAGE => {
             state.player.damage_bonus = state.player.damage_bonus.saturating_add(ring.enchantment);
         }
-        RIN_PROTECTION => {
+        RIN_PROTECTION
             // Protection ring affects AC
-            if ring.enchantment != 0 {
+            if ring.enchantment != 0 => {
                 effect.identify = true;
             }
-        }
         _ => {}
     }
 
@@ -669,20 +667,18 @@ pub fn ring_off(state: &mut GameState, ring: &Object) -> EquipmentEffect {
 
         // Special messages for certain properties
         match prop {
-            Property::Invisibility => {
-                if !state.player.properties.has(Property::Invisibility) {
+            Property::Invisibility
+                if !state.player.properties.has(Property::Invisibility) => {
                     effect
                         .messages
                         .push("Suddenly you can see yourself again.".to_string());
                 }
-            }
-            Property::Levitation => {
-                if !state.player.properties.has(Property::Levitation) {
+            Property::Levitation
+                if !state.player.properties.has(Property::Levitation) => {
                     effect
                         .messages
                         .push("You float gently to the ground.".to_string());
                 }
-            }
             _ => {}
         }
     }
@@ -802,26 +798,24 @@ pub fn amulet_off(state: &mut GameState, amulet: &Object) -> EquipmentEffect {
 
     // Special removal effects
     match object_type {
-        AMULET_OF_ESP => {
-            if !state.player.properties.has(Property::Telepathy) {
+        AMULET_OF_ESP
+            if !state.player.properties.has(Property::Telepathy) => {
                 effect
                     .messages
                     .push("Your mental acuity fades.".to_string());
             }
-        }
         AMULET_OF_STRANGULATION => {
             state.player.strangled = 0;
             effect
                 .messages
                 .push("You can breathe more easily now.".to_string());
         }
-        AMULET_OF_MAGICAL_BREATHING => {
-            if state.player.underwater && !state.player.properties.has(Property::MagicBreathing) {
+        AMULET_OF_MAGICAL_BREATHING
+            if state.player.underwater && !state.player.properties.has(Property::MagicBreathing) => {
                 effect.messages.push("You can't breathe!".to_string());
                 // Begin drowning: 1 turn of damage
                 state.player.take_damage(state.rng.rnd(8) as i32);
             }
-        }
         _ => {}
     }
 
@@ -1033,24 +1027,21 @@ pub fn boots_on(state: &mut GameState, obj: &Object) {
 
         // Item-specific messages (do_wear.c Boots_on)
         match name {
-            "speed boots" => {
-                if !had_prop {
+            "speed boots"
+                if !had_prop => {
                     state.message("You feel yourself speed up.");
                 }
-            }
-            "levitation boots" => {
-                if !had_prop {
+            "levitation boots"
+                if !had_prop => {
                     state.message("You start to float in the air!");
                 }
-            }
             "water walking boots" => {
                 // spoteffects if in water handled by gameloop
             }
-            "elven boots" => {
-                if !had_prop {
+            "elven boots"
+                if !had_prop => {
                     state.message("You walk very quietly.");
                 }
-            }
             "fumble boots" => {
                 // Fumbling timeout starts
             }
@@ -1070,21 +1061,18 @@ pub fn boots_off(state: &mut GameState, obj: &Object) {
             .remove_extrinsic(prop, PropertyFlags::FROM_BOOTS);
 
         match name {
-            "speed boots" => {
-                if !state.player.properties.has(Property::Speed) {
+            "speed boots"
+                if !state.player.properties.has(Property::Speed) => {
                     state.message("You feel yourself slow down.");
                 }
-            }
-            "levitation boots" => {
-                if !state.player.properties.has(Property::Levitation) {
+            "levitation boots"
+                if !state.player.properties.has(Property::Levitation) => {
                     state.message("You float gently to the ground.");
                 }
-            }
-            "elven boots" => {
-                if !state.player.properties.has(Property::Stealth) {
+            "elven boots"
+                if !state.player.properties.has(Property::Stealth) => {
                     state.message("You sure are noisy.");
                 }
-            }
             _ => {}
         }
     }
@@ -1105,37 +1093,33 @@ pub fn cloak_on(state: &mut GameState, obj: &Object) {
             .grant_extrinsic(prop, PropertyFlags::FROM_CLOAK);
 
         match name {
-            "elven cloak" => {
-                if !had_prop {
+            "elven cloak"
+                if !had_prop => {
                     state.message("You walk very quietly.");
                 }
-            }
-            "cloak of displacement" => {
-                if !had_prop {
+            "cloak of displacement"
+                if !had_prop => {
                     state.message("You feel quite displaced.");
                 }
-            }
-            "cloak of invisibility" => {
-                if !had_prop {
+            "cloak of invisibility"
+                if !had_prop => {
                     if state.player.properties.has(Property::SeeInvisible) {
                         state.message("Suddenly you can see through yourself.");
                     } else {
                         state.message("Suddenly you cannot see yourself.");
                     }
                 }
-            }
             _ => {}
         }
     }
 
     // Special cases not in property system
     match name {
-        "mummy wrapping" => {
+        "mummy wrapping"
             // Mummy wrapping blocks invisibility display
-            if state.player.properties.has(Property::Invisibility) {
+            if state.player.properties.has(Property::Invisibility) => {
                 state.message("You can no longer see through yourself.");
             }
-        }
         "oilskin cloak" => {
             state.message("It fits very tightly.");
         }
@@ -1161,25 +1145,22 @@ pub fn cloak_off(state: &mut GameState, obj: &Object) {
             .remove_extrinsic(prop, PropertyFlags::FROM_CLOAK);
 
         match name {
-            "elven cloak" => {
-                if !state.player.properties.has(Property::Stealth) {
+            "elven cloak"
+                if !state.player.properties.has(Property::Stealth) => {
                     state.message("You sure are noisy.");
                 }
-            }
-            "cloak of displacement" => {
-                if !state.player.properties.has(Property::Displaced) {
+            "cloak of displacement"
+                if !state.player.properties.has(Property::Displaced) => {
                     state.message("You stop shimmering.");
                 }
-            }
-            "cloak of invisibility" => {
-                if !state.player.properties.has(Property::Invisibility) {
+            "cloak of invisibility"
+                if !state.player.properties.has(Property::Invisibility) => {
                     if state.player.properties.has(Property::SeeInvisible) {
                         state.message("Suddenly you can no longer see through yourself.");
                     } else {
                         state.message("Suddenly you can see yourself.");
                     }
                 }
-            }
             _ => {}
         }
     }
@@ -1252,12 +1233,11 @@ pub fn gloves_off(state: &mut GameState, obj: &Object) {
                     .modify(Attribute::Dexterity, -bonus);
             }
         }
-        "gauntlets of fumbling" => {
+        "gauntlets of fumbling"
             // Clear fumble timeout
-            if !state.player.properties.has(Property::Fumbling) {
+            if !state.player.properties.has(Property::Fumbling) => {
                 // Fumbling cleared
             }
-        }
         _ => {}
     }
 

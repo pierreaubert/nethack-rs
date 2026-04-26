@@ -420,11 +420,10 @@ pub fn mixtype(obj1: &Object, obj2: &Object, rng: &mut crate::rng::GameRng) -> i
             _ => {}
         },
         Some(PotionType::Enlightenment) => match p2 {
-            Some(PotionType::Levitation) => {
-                if rng.rn2(3) != 0 {
+            Some(PotionType::Levitation)
+                if rng.rn2(3) != 0 => {
                     return PotionType::GainLevel as i16;
                 }
-            }
             Some(PotionType::FruitJuice) => return PotionType::Booze as i16,
             Some(PotionType::Booze) => return PotionType::Confusion as i16,
             _ => {}

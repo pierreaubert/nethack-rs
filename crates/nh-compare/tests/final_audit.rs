@@ -496,15 +496,12 @@ fn test_no_direct_monster_xy_mutation() {
                 match ch {
                     '{' => brace_depth += 1,
                     '}' => {
-                        if brace_depth > 0 {
-                            brace_depth -= 1;
-                        }
-                        if let Some(test_depth) = brace_depth_at_test_start {
-                            if brace_depth < test_depth {
+                        brace_depth = brace_depth.saturating_sub(1);
+                        if let Some(test_depth) = brace_depth_at_test_start
+                            && brace_depth < test_depth {
                                 in_test_block = false;
                                 brace_depth_at_test_start = None;
                             }
-                        }
                     }
                     _ => {}
                 }

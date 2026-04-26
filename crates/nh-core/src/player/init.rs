@@ -1072,18 +1072,16 @@ fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, 
                 blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
             }
         }
-        ObjectClass::Potion | ObjectClass::Scroll => {
+        ObjectClass::Potion | ObjectClass::Scroll
             // blessorcurse(4)
-            if rng.rn2(4) == 0 {
+            if rng.rn2(4) == 0 => {
                 let _buc = rng.rn2(2);
             }
-        }
-        ObjectClass::Spellbook => {
+        ObjectClass::Spellbook
             // blessorcurse(17)
-            if rng.rn2(17) == 0 {
+            if rng.rn2(17) == 0 => {
                 let _buc = rng.rn2(2);
             }
-        }
         _ => {}
     }
 

@@ -757,9 +757,9 @@ fn fill_zoo_c_rng(
                         rng.rn2(1000); // approximate epitaph file size
                     }
                 }
-                RoomType::Beehive => {
+                RoomType::Beehive
                     // if (!rn2(3)) mksobj_at(LUMP_OF_ROYAL_JELLY, TRUE, FALSE)
-                    if rng.rn2(3) == 0 {
+                    if rng.rn2(3) == 0 => {
                         mksobj_c_rng(
                             objects,
                             bases,
@@ -771,10 +771,9 @@ fn fill_zoo_c_rng(
                             rng,
                         );
                     }
-                }
-                RoomType::Barracks => {
+                RoomType::Barracks
                     // if (!rn2(20)) mksobj_at(rn2(3)?LARGE_BOX:CHEST, TRUE, FALSE)
-                    if rng.rn2(20) == 0 {
+                    if rng.rn2(20) == 0 => {
                         let box_type = if rng.rn2(3) != 0 {
                             R_LARGE_BOX
                         } else {
@@ -791,10 +790,9 @@ fn fill_zoo_c_rng(
                             rng,
                         );
                     }
-                }
-                RoomType::CockatriceNest => {
+                RoomType::CockatriceNest
                     // if (!rn2(3)) { mk_tt_object(STATUE) + container items }
-                    if rng.rn2(3) == 0 {
+                    if rng.rn2(3) == 0 => {
                         // mk_tt_object(STATUE) → mksobj_at(STATUE, FALSE, FALSE)
                         // init=FALSE → no RNG for statue itself
                         // Then: for (i = rn2(5); i; i--) add_to_container(mkobj(RANDOM_CLASS, FALSE))
@@ -803,17 +801,15 @@ fn fill_zoo_c_rng(
                             mkobj_c_rng(objects, bases, depth, rng);
                         }
                     }
-                }
-                RoomType::Anthole => {
+                RoomType::Anthole
                     // if (!rn2(3)) mkobj_at(FOOD_CLASS, FALSE)
-                    if rng.rn2(3) == 0 {
+                    if rng.rn2(3) == 0 => {
                         // mkobj_at(FOOD_CLASS, FALSE) → mkobj(FOOD_CLASS, FALSE)
                         // mkobj with specific class: rn2(num_in_class) for selection, then mksobj(init=FALSE)
                         // init=FALSE → 0 RNG after selection
                         // Actually mkobj(class, FALSE): calls rn2 for selection within class
                         mkobj_class_c_rng(objects, bases, ObjectClass::Food, false, depth, rng);
                     }
-                }
                 _ => {}
             }
             if matches!(
@@ -3027,12 +3023,11 @@ fn m_initinv_c_rng(
     let mut has_gold = false;
 
     match mon.symbol {
-        'M' => {
+        'M'
             // S_MUMMY: rn2(7) chance of mummy wrapping
-            if rng.rn2(7) != 0 {
+            if rng.rn2(7) != 0 => {
                 mongets_c_rng(objects, bases, R_MUMMY_WRAPPING, a, depth, rng);
             }
-        }
         'n' => {
             // S_NYMPH: mirror + potion of object detection
             if rng.rn2(2) == 0 {
@@ -3062,14 +3057,13 @@ fn m_initinv_c_rng(
                 }
             }
         }
-        'W' => {
+        'W'
             // S_WRAITH: nazgul gets ring of invisibility
-            if mon.name == "Nazgul" {
+            if mon.name == "Nazgul" => {
                 // mksobj(RIN_INVISIBILITY, FALSE, FALSE) — ring with init=FALSE
                 // Ring mksobj with init=FALSE: no RNG consumed
                 // (no mongets, direct mksobj+mpickobj, no bless/curse since init=FALSE)
             }
-        }
         'L' => {
             // S_LICH: master lich / arch lich
             if mon.name == "master lich" {
@@ -3090,9 +3084,9 @@ fn m_initinv_c_rng(
                 rng.rn2(4);
             }
         }
-        'Q' => {
+        'Q'
             // S_QUANTMECH: Schroedinger's cat
-            if rng.rn2(20) == 0 {
+            if rng.rn2(20) == 0 => {
                 // mksobj(LARGE_BOX, FALSE, FALSE) — no RNG for box with init=FALSE
                 // mksobj(CORPSE, TRUE, FALSE) — corpse with init=TRUE
                 mksobj_c_rng(
@@ -3106,7 +3100,6 @@ fn m_initinv_c_rng(
                     rng,
                 );
             }
-        }
         'l' => {
             // S_LEPRECHAUN: mkmonmoney(d(level_difficulty(), 30))
             let n = depth.max(1) as u32;
@@ -3115,25 +3108,23 @@ fn m_initinv_c_rng(
             }
             has_gold = true;
         }
-        '&' => {
+        '&'
             // S_DEMON: ice devil spear, asmodeus wands
-            if mon.name == "ice devil" && rng.rn2(4) == 0 {
+            if mon.name == "ice devil" && rng.rn2(4) == 0 => {
                 mongets_c_rng(objects, bases, R_SPEAR, w, depth, rng);
             }
             // asmodeus gets WAN_COLD + WAN_FIRE but is very rare at depth 14
             // Other demons: no inventory
-        }
-        'G' => {
+        'G'
             // S_GNOME: candle check
-            if rng.rn2(60) == 0 {
+            if rng.rn2(60) == 0 => {
                 // mksobj(rn2(4) ? TALLOW_CANDLE : WAX_CANDLE, TRUE, FALSE)
                 let _candle_type = rng.rn2(4);
                 mongets_c_rng(objects, bases, R_TALLOW_CANDLE, t, depth, rng);
             }
-        }
-        '@' => {
+        '@'
             // S_HUMAN: priest inventory
-            if mon.sound == MonsterSound::Priest {
+            if mon.sound == MonsterSound::Priest => {
                 // C: rn2(7) ? ROBE : (rn2(3) ? CLOAK_OF_PROTECTION : CLOAK_OF_MAGIC_RESISTANCE)
                 let robe_type = if rng.rn2(7) != 0 {
                     R_ROBE
@@ -3148,7 +3139,6 @@ fn m_initinv_c_rng(
                 // mkmonmoney(rn1(10, 20)) = rn2(10) + 20
                 rng.rn2(10);
             }
-        }
         _ => {}
     }
 
@@ -4419,11 +4409,10 @@ fn food_init_c_rng(otyp: usize, rng: &mut GameRng) {
         R_CORPSE => {
             rndmonnum_c_rng(rng);
         }
-        R_EGG => {
-            if rng.rn2(3) == 0 {
+        R_EGG
+            if rng.rn2(3) == 0 => {
                 rndmonnum_c_rng(rng);
             }
-        }
         R_TIN => {
             if rng.rn2(6) == 0 {
                 // spinach — no additional RNG

@@ -6,8 +6,8 @@
 
 use nh_core::GameRng;
 use nh_core::magic::zap::*;
-use nh_core::monster::{Monster, MonsterFlags, MonsterId};
-use nh_core::object::{BucStatus, Material, Object, ObjectClass, ObjectId};
+use nh_core::monster::{Monster, MonsterId};
+use nh_core::object::{Object, ObjectClass, ObjectId};
 use nh_core::player::Role;
 
 // ============================================================================
@@ -226,7 +226,7 @@ fn test_wand_durability_factor_range() {
     let wand = make_wand(1, 5);
     let factor = wand_durability_factor(&wand);
     assert!(
-        factor >= 0.0 && factor <= 2.0,
+        (0.0..=2.0).contains(&factor),
         "Durability factor out of range: {}",
         factor
     );

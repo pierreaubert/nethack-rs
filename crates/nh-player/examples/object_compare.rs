@@ -4,7 +4,7 @@
 //! by applying them in identical game states and comparing results.
 
 use nh_core::object::ObjectClass;
-use nh_core::{GameLoop, GameRng, GameState};
+use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_player::ffi::CGameEngine;
 use nh_player::state::c_extractor::CGameWrapper;
 use nh_player::state::common::GameAction;
@@ -192,7 +192,7 @@ fn run_object_tests(seed: u64) {
             c_engine
                 .init("Tourist", "Human", 0, 0)
                 .expect("Failed to init C engine");
-            let mut c_wrapper = CGameWrapper::new(&mut c_engine);
+            let c_wrapper = CGameWrapper::new(&mut c_engine);
 
             // Get initial states
             let rust_state_before = rust_engine.extract_state();
@@ -200,11 +200,11 @@ fn run_object_tests(seed: u64) {
 
             let rust_hp_before = rust_state_before.hp;
             let c_hp_before = c_state_before.hp;
-            let rust_gold_before = rust_state_before.gold;
-            let c_gold_before = c_state_before.gold;
+            let _rust_gold_before = rust_state_before.gold;
+            let _c_gold_before = c_state_before.gold;
 
             // Apply object action - returns (reward, message) tuple
-            let (rust_msg_val, rust_msg) = match object_class {
+            let (_rust_msg_val, rust_msg) = match object_class {
                 ObjectClass::Potion => {
                     let action = GameAction::QuaffFirst;
                     rust_engine.step(&action)
@@ -275,7 +275,7 @@ fn run_object_tests(seed: u64) {
 
     if !differences.is_empty() {
         println!("\nDifferences found:");
-        for (class, name, summary) in differences.iter().take(20) {
+        for (_class, _name, summary) in differences.iter().take(20) {
             println!("  {}", summary);
         }
     }

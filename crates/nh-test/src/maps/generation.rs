@@ -421,10 +421,10 @@ mod tests {
                         level.cells[x][y + 1].typ,
                     ];
 
-                    if neighbors.iter().any(|&t| t == CellType::Room) {
+                    if neighbors.contains(&CellType::Room) {
                         doors_adjacent_to_room += 1;
                     }
-                    if neighbors.iter().any(|&t| t == CellType::Corridor) {
+                    if neighbors.contains(&CellType::Corridor) {
                         doors_adjacent_to_corridor += 1;
                     }
                 }

@@ -4,7 +4,6 @@
 //! attribute clamping, bonuses, luck decay, encumbrance, level gain/loss,
 //! HP/energy regeneration, status effects, and distance calculations.
 
-use nh_core::GameRng;
 use nh_core::player::{Attribute, Encumbrance, Gender, HungerState, Property, Race, Role, You};
 
 // ============================================================================

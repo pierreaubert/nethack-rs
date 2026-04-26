@@ -9,8 +9,7 @@ use nh_player::state::rust_extractor::RustGameEngine;
 
 use clap::{Parser, ValueEnum};
 use rand::Rng;
-use std::fs::{self, File};
-use std::io::Write;
+use std::fs::{self};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, atomic::AtomicUsize};
 use std::thread;
@@ -264,7 +263,7 @@ fn run_episode(
     max_steps: usize,
     q_network: &Arc<Mutex<QNetwork>>,
     _replay_memory: &Arc<Mutex<ReplayMemory>>,
-    gamma: f64,
+    _gamma: f64,
 ) -> (f32, u64, Vec<Transition>) {
     let rust_rng = GameRng::new(seed);
     let rust_state = GameState::new(rust_rng);
@@ -300,7 +299,7 @@ fn run_episode(
             best_idx
         };
 
-        let action = valid_actions[action_idx].clone();
+        let action = valid_actions[action_idx];
         let prev_state = rust_engine.extract_state();
         let (_reward, msg) = rust_engine.step(&action);
         let new_state = rust_engine.extract_state();
@@ -399,10 +398,10 @@ fn train_multithreaded(config: ConfigArgs, args: &Args) {
     let mut batch_rewards = Vec::new();
     let mut optimizer = {
         let vars = network.lock().unwrap().varmap.all_vars();
-        SGD::new(vars, config.learning_rate as f64).unwrap()
+        SGD::new(vars, config.learning_rate).unwrap()
     };
 
-    for (ep, reward, _length, transitions) in episodes_rx {
+    for (_ep, reward, _length, transitions) in episodes_rx {
         total_episodes += 1;
         total_reward += reward;
         if reward < -50.0 {

@@ -1128,8 +1128,7 @@ mod tests {
                 break;
             }
         }
-        // At least one artifact should have luck
-        assert!(found_luck || true); // Allow test to pass if no luck artifacts
+        let _ = found_luck;
     }
 
     #[test]

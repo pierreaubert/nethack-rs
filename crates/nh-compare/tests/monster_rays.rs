@@ -6,9 +6,9 @@
 use nh_core::GameRng;
 use nh_core::dungeon::{DLevel, Level};
 use nh_core::magic::MonsterVitals;
-use nh_core::magic::zap::{BuzzResult, MbhitEffect, ZapType, ZapVariant, buzz, mbhit_effect};
+use nh_core::magic::zap::{MbhitEffect, ZapType, ZapVariant, buzz, mbhit_effect};
 use nh_core::monster::item_usage;
-use nh_core::monster::{Monster, MonsterId, MonsterResistances};
+use nh_core::monster::{Monster, MonsterId};
 use nh_core::object::{Object, ObjectClass};
 use nh_core::player::{Property, You};
 

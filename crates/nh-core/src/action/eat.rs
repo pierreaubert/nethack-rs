@@ -765,20 +765,18 @@ pub fn fprefx(state: &mut GameState, object_type: i16, corpse_type: i16) {
 /// Port of fpostfx() from eat.c lines 2187-2267.
 pub fn fpostfx(state: &mut GameState, object_type: i16, buc: BucStatus, corpse_type: i16) {
     match object_type {
-        otyp::SPRIG_OF_WOLFSBANE => {
+        otyp::SPRIG_OF_WOLFSBANE
             // eat.c lines 2191-2194: cure lycanthropy
-            if state.player.lycanthropy.is_some() {
+            if state.player.lycanthropy.is_some() => {
                 state.player.lycanthropy = None;
                 state.message("You feel purified.");
             }
-        }
-        otyp::CARROT => {
+        otyp::CARROT
             // eat.c lines 2195-2199: cure blindness
-            if state.player.blinded_timeout > 0 {
+            if state.player.blinded_timeout > 0 => {
                 state.player.blinded_timeout = 0;
                 state.message("Your vision improves.");
             }
-        }
         otyp::FORTUNE_COOKIE => {
             // eat.c lines 2200-2204
             state.message("This cookie has a scrap of paper inside.");
@@ -829,9 +827,9 @@ pub fn fpostfx(state: &mut GameState, object_type: i16, buc: BucStatus, corpse_t
                 state.message("You are turning to stone!");
             }
         }
-        otyp::EUCALYPTUS_LEAF => {
+        otyp::EUCALYPTUS_LEAF
             // eat.c lines 2246-2251: cure sickness and vomiting
-            if buc != BucStatus::Cursed {
+            if buc != BucStatus::Cursed => {
                 if state.player.sick_food_timeout > 0 || state.player.sick_illness_timeout > 0 {
                     state.player.sick_food_timeout = 0;
                     state.player.sick_illness_timeout = 0;
@@ -841,15 +839,13 @@ pub fn fpostfx(state: &mut GameState, object_type: i16, buc: BucStatus, corpse_t
                     state.player.vomiting_timeout = 0;
                 }
             }
-        }
-        otyp::APPLE => {
+        otyp::APPLE
             // eat.c lines 2252-2264: cursed apple = sleep (Snow White)
-            if buc == BucStatus::Cursed && !state.player.properties.has(Property::SleepResistance) {
+            if buc == BucStatus::Cursed && !state.player.properties.has(Property::SleepResistance) => {
                 let dur = (state.rng.rnd(11) + 20) as u16;
                 state.player.sleeping_timeout = state.player.sleeping_timeout.saturating_add(dur);
                 state.message("You fall asleep.");
             }
-        }
         _ => {}
     }
 }
@@ -1603,12 +1599,11 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
                     messages.push("You feel weak now.".to_string());
                 }
             }
-            HungerState::NotHungry => {
+            HungerState::NotHungry
                 // C: "Your stomach feels content" when recovering from hungry+
-                if !incr && old_state >= HungerState::Hungry {
+                if !incr && old_state >= HungerState::Hungry => {
                     messages.push("You feel not hungry anymore.".to_string());
                 }
-            }
             HungerState::Satiated => {
                 // Messages handled by lesshungry
             }

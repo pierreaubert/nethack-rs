@@ -280,20 +280,18 @@ pub fn bhito(state: &mut GameState, obj: &mut Object, wand: &Object) -> i32 {
     let beam_type = wand_to_beam_type(wand.object_type);
 
     match beam_type {
-        beam_type::AD_FIRE => {
+        beam_type::AD_FIRE
             // Fire can burn scrolls, wooden items
-            if obj.class == ObjectClass::Scroll {
+            if obj.class == ObjectClass::Scroll => {
                 state.message("The scroll burns!");
                 return 1; // Object destroyed
             }
-        }
-        beam_type::AD_COLD => {
+        beam_type::AD_COLD
             // Cold can freeze potions
-            if obj.class == ObjectClass::Potion {
+            if obj.class == ObjectClass::Potion => {
                 state.message("The potion freezes and shatters!");
                 return 1; // Object destroyed
             }
-        }
         _ => {}
     }
     0

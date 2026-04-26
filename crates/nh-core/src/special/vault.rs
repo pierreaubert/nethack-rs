@@ -807,11 +807,9 @@ mod tests {
         vault.guard_state = GuardState::Demanding;
         let mut rng = GameRng::new(42);
 
-        let result = give_name_to_guard(&mut vault, "Fake Name", false, &mut rng);
+        let _result = give_name_to_guard(&mut vault, "Fake Name", false, &mut rng);
 
-        // Fake name might be accepted but stored as false
         assert!(vault.given_name.is_some());
-        assert!(!vault.player_identified || vault.player_identified);
     }
 
     #[test]

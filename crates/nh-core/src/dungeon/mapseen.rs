@@ -420,16 +420,14 @@ impl MapSeenChain {
                 | RoomType::ToolShop
                 | RoomType::BookShop
                 | RoomType::HealthFoodShop
-                | RoomType::CandleShop => {
-                    if mapseen.feat.shops > 0 {
+                | RoomType::CandleShop
+                    if mapseen.feat.shops > 0 => {
                         return true;
                     }
-                }
-                RoomType::Temple => {
-                    if mapseen.feat.temples > 0 {
+                RoomType::Temple
+                    if mapseen.feat.temples > 0 => {
                         return true;
                     }
-                }
                 _ => {}
             }
         }

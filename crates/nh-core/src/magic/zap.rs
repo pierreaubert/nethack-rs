@@ -1875,36 +1875,32 @@ pub fn cancel_item(obj: &mut Object) -> Vec<String> {
             // Remove erosion protection
             obj.erosion_proof = false;
         }
-        ObjectClass::Scroll | ObjectClass::Spellbook => {
+        ObjectClass::Scroll | ObjectClass::Spellbook
             // Blank scrolls/spellbooks
             // Scroll of blank paper (306) is already blank
-            if obj.object_type != 306 {
+            if obj.object_type != 306 => {
                 obj.object_type = 306; // Become blank paper
                 messages.push("The writing vanishes.".to_string());
             }
-        }
-        ObjectClass::Potion => {
+        ObjectClass::Potion
             // Neutralize to water
-            if obj.object_type != crate::magic::potion::PotionType::Water as i16 {
+            if obj.object_type != crate::magic::potion::PotionType::Water as i16 => {
                 obj.object_type = crate::magic::potion::PotionType::Water as i16;
                 obj.buc = BucStatus::Uncursed;
                 messages.push("The potion turns to water.".to_string());
             }
-        }
-        ObjectClass::Ring => {
+        ObjectClass::Ring
             // Remove enchantment
-            if obj.enchantment != 0 {
+            if obj.enchantment != 0 => {
                 obj.enchantment = 0;
                 messages.push("The ring dulls.".to_string());
             }
-        }
-        ObjectClass::Tool => {
+        ObjectClass::Tool
             // Strip charges from chargeable tools
-            if obj.enchantment > 0 {
+            if obj.enchantment > 0 => {
                 obj.enchantment = 0;
                 messages.push("The tool loses its charge.".to_string());
             }
-        }
         _ => {}
     }
 
@@ -4051,11 +4047,7 @@ mod tests {
         };
 
         let mut rng = GameRng::new(42);
-        let (destroyed, _polymorphed, _messages) = do_osshock(&obj, &mut rng, 0);
-
-        // With seed 42, we should get consistent results
-        // Either destroyed or not based on rng
-        assert!(destroyed || !destroyed); // Just verify it runs
+        let _ = do_osshock(&obj, &mut rng, 0);
     }
 
     #[test]

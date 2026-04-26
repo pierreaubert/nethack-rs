@@ -785,6 +785,7 @@ impl Drop for CGameEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nh_core::CGameEngineTrait;
     use serial_test::serial;
 
     #[test]

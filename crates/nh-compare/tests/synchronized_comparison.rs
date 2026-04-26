@@ -3,7 +3,7 @@
 //! Test: Synchronized turn-by-turn comparison between C and Rust engines.
 //! This uses RNG sync and the expanded state extraction to detect desyncs.
 
-use nh_core::action::{Command, Direction};
+use nh_core::action::Command;
 use nh_core::player::{Gender, Race, Role};
 use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
@@ -326,7 +326,7 @@ fn test_inventory_weight_stress_parity() {
 
     // 2. Add multiple items and check weight accumulation
     // Use a fixed set of items: 100, 50, 25 weight
-    let items_to_add = vec![100, 50, 25, 10, 5];
+    let items_to_add = [100, 50, 25, 10, 5];
 
     for (i, wt) in items_to_add.iter().enumerate() {
         println!("Adding item {} with weight {}", i, wt);

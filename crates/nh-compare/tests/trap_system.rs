@@ -310,7 +310,7 @@ fn test_disarm_difficulty_positive() {
 
 #[test]
 fn test_try_disarm_with_high_skill() {
-    let mut rng = GameRng::new(42);
+    let _rng = GameRng::new(42);
     let trap = create_trap(5, 5, TrapType::Arrow);
     let mut success_count = 0;
     for seed in 0..50 {

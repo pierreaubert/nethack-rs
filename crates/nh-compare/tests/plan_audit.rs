@@ -265,8 +265,8 @@ fn audit_implementation_line_counts() {
 
     println!("\n=== Implementation Line Count Audit ===");
     println!(
-        "{:<25} {:>8} {:>8} {:>6} {:>8} {}",
-        "Module", "Rust", "C", "%", "Min%", "Status"
+        "{:<25} {:>8} {:>8} {:>6} {:>8} Status",
+        "Module", "Rust", "C", "%", "Min%"
     );
     println!("{}", "-".repeat(75));
 
@@ -349,8 +349,8 @@ fn audit_missing_modules() {
 
     println!("\n=== Missing Module Audit ===");
     println!(
-        "{:<30} {:>8} {:>8} {}",
-        "Module", "Exists?", "C Lines", "Status"
+        "{:<30} {:>8} {:>8} Status",
+        "Module", "Exists?", "C Lines"
     );
     println!("{}", "-".repeat(60));
 
@@ -389,7 +389,7 @@ fn audit_missing_modules() {
 #[test]
 fn audit_7_command_enum_completeness() {
     let action_mod =
-        fs::read_to_string(&format!("{}/action/mod.rs", NH_CORE_SRC)).unwrap_or_default();
+        fs::read_to_string(format!("{}/action/mod.rs", NH_CORE_SRC)).unwrap_or_default();
 
     // Commands that should exist per the plan (from C cmd.c)
     let required_commands = [
@@ -433,7 +433,7 @@ fn audit_7_command_enum_completeness() {
     ];
 
     println!("\n=== Step 7 Audit: Command Enum Completeness ===");
-    println!("{:<20} {:>10} {}", "Command", "In Enum?", "Status");
+    println!("{:<20} {:>10} Status", "Command", "In Enum?");
     println!("{}", "-".repeat(45));
 
     let mut present_count = 0;
@@ -457,7 +457,7 @@ fn audit_7_command_enum_completeness() {
     // Also check existing unimplemented commands
     let unimplemented_msg = "not yet implemented";
     let has_stubs = action_mod.contains(unimplemented_msg)
-        || fs::read_to_string(&format!("{}/gameloop.rs", NH_CORE_SRC))
+        || fs::read_to_string(format!("{}/gameloop.rs", NH_CORE_SRC))
             .unwrap_or_default()
             .contains(unimplemented_msg);
 
@@ -467,7 +467,7 @@ fn audit_7_command_enum_completeness() {
     );
 
     // Count variants currently in the enum
-    let variant_count = action_mod.matches("    //").count(); // rough heuristic
+    let _variant_count = action_mod.matches("    //").count(); // rough heuristic
     let enum_lines: Vec<&str> = action_mod
         .lines()
         .skip_while(|l| !l.contains("pub enum Command"))
@@ -667,7 +667,7 @@ fn audit_overall_summary() {
     let mut not_done = 0;
     let mut missing = 0;
 
-    println!("\n{:<45} {:<10} {}", "Requirement", "Status", "Detail");
+    println!("\n{:<45} {:<10} Detail", "Requirement", "Status");
     println!("{}", "-".repeat(100));
 
     for (req, status, detail) in &items {

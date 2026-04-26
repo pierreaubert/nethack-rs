@@ -157,11 +157,10 @@ pub fn multishot_count(
                 multishot += 1;
             }
         }
-        SkillLevel::Skilled => {
-            if !weak {
+        SkillLevel::Skilled
+            if !weak => {
                 multishot += 1;
             }
-        }
         _ => {}
     }
 
@@ -183,28 +182,25 @@ pub fn multishot_count(
             // Dagger bonus
             multishot += 1;
         }
-        Role::Samurai => {
+        Role::Samurai
             // Ya + yumi bonus
-            if ammo_with_launcher {
+            if ammo_with_launcher => {
                 multishot += 1;
             }
-        }
         _ => {}
     }
 
     // Race bonuses (only if not weak)
     if !weak {
         match player.race {
-            Race::Elf => {
-                if ammo_with_launcher {
+            Race::Elf
+                if ammo_with_launcher => {
                     multishot += 1;
                 }
-            }
-            Race::Orc => {
-                if ammo_with_launcher {
+            Race::Orc
+                if ammo_with_launcher => {
                     multishot += 1;
                 }
-            }
             Race::Gnome => {
                 // Crossbow bonus
                 multishot += 1;
@@ -351,14 +347,13 @@ pub fn potionhit(target: &mut Monster, potion: &Object, rng: &mut GameRng) -> Po
                 result.messages.push(format!("{} resists.", target.name));
             }
         }
-        262 => {
+        262
             // Speed
-            if target.speed == crate::monster::SpeedState::Normal {
+            if target.speed == crate::monster::SpeedState::Normal => {
                 target.speed = crate::monster::SpeedState::Fast;
                 result.messages.push(format!("{} speeds up!", target.name));
                 result.affected = true;
             }
-        }
         267 => {
             // Healing - heals monster!
             let heal = rng.dice(6, 4) as i32;

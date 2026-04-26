@@ -115,6 +115,57 @@ pub fn extract_object_weights() -> Vec<(String, i32)> {
     results
 }
 
+/// Extract object names organized by class
+pub fn extract_object_names_by_class() -> HashMap<ObjectClass, Vec<String>> {
+    let objects_c = Path::new(super::NETHACK_SRC).join("src/objects.c");
+
+    if !objects_c.exists() {
+        return HashMap::new();
+    }
+
+    let content = fs::read_to_string(&objects_c).unwrap_or_default();
+    let mut results: HashMap<ObjectClass, Vec<String>> = HashMap::new();
+
+    // Object macro to class mapping
+    let macro_to_class: Vec<(&str, ObjectClass)> = vec![
+        ("WEAPON(", ObjectClass::Weapon),
+        ("ARMOR(", ObjectClass::Armor),
+        ("HELM(", ObjectClass::Armor),
+        ("CLOAK(", ObjectClass::Armor),
+        ("SHIELD(", ObjectClass::Armor),
+        ("GLOVES(", ObjectClass::Armor),
+        ("BOOTS(", ObjectClass::Armor),
+        ("RING(", ObjectClass::Ring),
+        ("AMULET(", ObjectClass::Amulet),
+        ("TOOL(", ObjectClass::Tool),
+        ("FOOD(", ObjectClass::Food),
+        ("POTION(", ObjectClass::Potion),
+        ("SCROLL(", ObjectClass::Scroll),
+        ("SPBOOK(", ObjectClass::Spellbook),
+        ("WAND(", ObjectClass::Wand),
+    ];
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        for (macro_name, class) in &macro_to_class {
+            if trimmed.starts_with(macro_name) {
+                if let Some(start) = trimmed.find('"') {
+                    let rest = &trimmed[start + 1..];
+                    if let Some(end) = rest.find('"') {
+                        let name = rest[..end].to_string();
+                        if !name.is_empty() {
+                            results.entry(*class).or_default().push(name);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -446,7 +497,7 @@ mod tests {
         let mut missing = Vec::new();
 
         for c_name in &c_weapons {
-            let found = rust_weapons.iter().any(|r_name| *r_name == c_name.as_str());
+            let found = rust_weapons.contains(&c_name.as_str());
 
             if found {
                 matched += 1;
@@ -489,7 +540,7 @@ mod tests {
         let mut missing = Vec::new();
 
         for c_name in &c_armor {
-            let found = rust_armor.iter().any(|r_name| *r_name == c_name.as_str());
+            let found = rust_armor.contains(&c_name.as_str());
 
             if found {
                 matched += 1;
@@ -508,55 +559,4 @@ mod tests {
             }
         }
     }
-}
-
-/// Extract object names organized by class
-pub fn extract_object_names_by_class() -> HashMap<ObjectClass, Vec<String>> {
-    let objects_c = Path::new(super::NETHACK_SRC).join("src/objects.c");
-
-    if !objects_c.exists() {
-        return HashMap::new();
-    }
-
-    let content = fs::read_to_string(&objects_c).unwrap_or_default();
-    let mut results: HashMap<ObjectClass, Vec<String>> = HashMap::new();
-
-    // Object macro to class mapping
-    let macro_to_class: Vec<(&str, ObjectClass)> = vec![
-        ("WEAPON(", ObjectClass::Weapon),
-        ("ARMOR(", ObjectClass::Armor),
-        ("HELM(", ObjectClass::Armor),
-        ("CLOAK(", ObjectClass::Armor),
-        ("SHIELD(", ObjectClass::Armor),
-        ("GLOVES(", ObjectClass::Armor),
-        ("BOOTS(", ObjectClass::Armor),
-        ("RING(", ObjectClass::Ring),
-        ("AMULET(", ObjectClass::Amulet),
-        ("TOOL(", ObjectClass::Tool),
-        ("FOOD(", ObjectClass::Food),
-        ("POTION(", ObjectClass::Potion),
-        ("SCROLL(", ObjectClass::Scroll),
-        ("SPBOOK(", ObjectClass::Spellbook),
-        ("WAND(", ObjectClass::Wand),
-    ];
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-        for (macro_name, class) in &macro_to_class {
-            if trimmed.starts_with(macro_name) {
-                if let Some(start) = trimmed.find('"') {
-                    let rest = &trimmed[start + 1..];
-                    if let Some(end) = rest.find('"') {
-                        let name = rest[..end].to_string();
-                        if !name.is_empty() {
-                            results.entry(*class).or_default().push(name);
-                        }
-                    }
-                }
-                break;
-            }
-        }
-    }
-
-    results
 }

@@ -71,7 +71,7 @@ fn test_silver_damage_vs_undead() {
     // silver_damage should return 1..20 for vulnerable target
     let dmg = silver_damage(&target, &mut rng);
     assert!(
-        dmg >= 1 && dmg <= 20,
+        (1..=20).contains(&dmg),
         "Silver damage vs undead should be 1d20, got {dmg}"
     );
 }
@@ -92,7 +92,7 @@ fn test_silver_damage_vs_demon() {
 
     let dmg = silver_damage(&target, &mut rng);
     assert!(
-        dmg >= 1 && dmg <= 20,
+        (1..=20).contains(&dmg),
         "Silver damage vs demon should be 1d20, got {dmg}"
     );
 }
@@ -113,7 +113,7 @@ fn test_silver_damage_vs_werecreature() {
 
     let dmg = silver_damage(&target, &mut rng);
     assert!(
-        dmg >= 1 && dmg <= 20,
+        (1..=20).contains(&dmg),
         "Silver damage vs werecreature should be 1d20, got {dmg}"
     );
 }
@@ -207,7 +207,7 @@ fn test_blessed_weapon_vs_undead_demon() {
     let undead = make_monster("zombie", 30, MonsterFlags::UNDEAD);
     let bonus = buc_damage_bonus(&weapon, &undead, &mut rng);
     assert!(
-        bonus >= 1 && bonus <= 4,
+        (1..=4).contains(&bonus),
         "Blessed weapon vs undead should get +1d4, got {bonus}"
     );
 
@@ -215,7 +215,7 @@ fn test_blessed_weapon_vs_undead_demon() {
     let demon = make_monster("imp", 20, MonsterFlags::DEMON);
     let bonus2 = buc_damage_bonus(&weapon, &demon, &mut rng2);
     assert!(
-        bonus2 >= 1 && bonus2 <= 4,
+        (1..=4).contains(&bonus2),
         "Blessed weapon vs demon should get +1d4, got {bonus2}"
     );
 
@@ -469,9 +469,9 @@ fn test_two_weapon_combat() {
             &mut rng,
         );
 
-        if primary_result.hit {
-            if let Some(ref sec) = secondary_result {
-                if sec.hit {
+        if primary_result.hit
+            && let Some(ref sec) = secondary_result
+                && sec.hit {
                     both_hit = true;
                     assert!(
                         primary_result.damage >= 1,
@@ -483,8 +483,6 @@ fn test_two_weapon_combat() {
                     );
                     break;
                 }
-            }
-        }
     }
 
     assert!(
@@ -625,7 +623,7 @@ fn test_special_dmgval_silver_and_blessed() {
     let bonus = special_dmgval(&weapon, true, true, true, &mut rng);
     // Silver: 1d20 (1-20), blessed: 1d4 (1-4), total 2-24
     assert!(
-        bonus >= 2 && bonus <= 24,
+        (2..=24).contains(&bonus),
         "Silver+blessed vs undead should give 2-24 bonus, got {bonus}"
     );
 
@@ -671,7 +669,7 @@ fn test_silver_sears_message() {
 
     let (dmg, msg) = silver_sears(true, true, "the zombie", &mut rng);
     assert!(
-        dmg >= 1 && dmg <= 20,
+        (1..=20).contains(&dmg),
         "Silver sears damage should be 1d20, got {dmg}"
     );
     assert!(msg.is_some(), "Silver sears should produce a message");

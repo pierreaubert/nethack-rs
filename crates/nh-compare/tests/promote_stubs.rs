@@ -1104,7 +1104,7 @@ fn extract_rust_fns(path: &Path) -> Vec<String> {
         let rest = &trimmed[fn_start..];
         // Find name: it ends at '(' or '<' (generics)
         let end = rest
-            .find(|c: char| c == '(' || c == '<')
+            .find(['(', '<'])
             .unwrap_or(rest.len());
         let name = rest[..end].trim();
         if !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
@@ -1171,14 +1171,13 @@ fn promote_stubs_to_ported() {
         });
 
         // Strategy 1: Known renames table
-        if let Some(&rust_func) = renames.get(&(rust_file.as_str(), c_func.as_str())) {
-            if rust_fns.contains(rust_func) {
+        if let Some(&rust_func) = renames.get(&(rust_file.as_str(), c_func.as_str()))
+            && rust_fns.contains(rust_func) {
                 entry["status"] = serde_json::Value::String("ported".into());
                 entry["rust_func"] = serde_json::Value::String(rust_func.to_string());
                 promoted_to_ported += 1;
                 continue;
             }
-        }
 
         // Strategy 2: Exact match
         if rust_fns.contains(&c_func) {

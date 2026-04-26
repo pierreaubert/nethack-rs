@@ -45,7 +45,7 @@ mod tests {
                 seed, rust, c
             );
             // Range check: d(1,6) should be 1-6
-            assert!(rust >= 1 && rust <= 6, "d(1,6) out of range: {}", rust);
+            assert!((1..=6).contains(&rust), "d(1,6) out of range: {}", rust);
         }
     }
 
@@ -60,7 +60,7 @@ mod tests {
                 seed, rust, c
             );
             // Range check: d(2,6) should be 2-12
-            assert!(rust >= 2 && rust <= 12, "d(2,6) out of range: {}", rust);
+            assert!((2..=12).contains(&rust), "d(2,6) out of range: {}", rust);
         }
     }
 

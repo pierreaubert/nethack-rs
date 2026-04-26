@@ -785,12 +785,11 @@ pub fn artifact_hit(
                 result.had_effect = true;
                 return result;
             }
-            DamageType::Stun => {
+            DamageType::Stun
                 // Magicbane special effects
-                if dieroll <= 8 {
+                if dieroll <= 8 => {
                     return magicbane_hit(target, dmg, dieroll, rng);
                 }
-            }
             _ => {}
         }
     }

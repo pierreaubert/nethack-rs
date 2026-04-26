@@ -704,8 +704,8 @@ pub fn monster_attack_player(
 
         // Try to trigger poison/disease based on attack type
         match attack.attack_type {
-            AttackType::Bite | AttackType::Sting => {
-                if should_trigger_special_effect(&SpecialCombatEffect::Poison, &skill_level, rng) {
+            AttackType::Bite | AttackType::Sting
+                if should_trigger_special_effect(&SpecialCombatEffect::Poison, &skill_level, rng) => {
                     apply_special_effect(
                         &SpecialCombatEffect::Poison,
                         &mut player.status_effects,
@@ -716,9 +716,8 @@ pub fn monster_attack_player(
                         special_effect = Some(CombatEffect::Poisoned);
                     }
                 }
-            }
-            AttackType::Claw => {
-                if should_trigger_special_effect(&SpecialCombatEffect::Disease, &skill_level, rng) {
+            AttackType::Claw
+                if should_trigger_special_effect(&SpecialCombatEffect::Disease, &skill_level, rng) => {
                     apply_special_effect(
                         &SpecialCombatEffect::Disease,
                         &mut player.status_effects,
@@ -729,9 +728,8 @@ pub fn monster_attack_player(
                         special_effect = Some(CombatEffect::ItemDestroyed);
                     }
                 }
-            }
-            AttackType::Gaze => {
-                if should_trigger_special_effect(&SpecialCombatEffect::Stun, &skill_level, rng) {
+            AttackType::Gaze
+                if should_trigger_special_effect(&SpecialCombatEffect::Stun, &skill_level, rng) => {
                     apply_special_effect(
                         &SpecialCombatEffect::Stun,
                         &mut player.status_effects,
@@ -742,7 +740,6 @@ pub fn monster_attack_player(
                         special_effect = Some(CombatEffect::Stunned);
                     }
                 }
-            }
             _ => {}
         }
     }

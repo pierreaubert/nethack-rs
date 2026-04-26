@@ -7,7 +7,7 @@ use nh_core::GameRng;
 use nh_core::magic::potion::*;
 use nh_core::magic::scroll::*;
 use nh_core::object::{BucStatus, Object, ObjectClass, ObjectId};
-use nh_core::player::{Attribute, HungerState, Property, You};
+use nh_core::player::{Attribute, HungerState, You};
 
 // ============================================================================
 // Helpers
@@ -66,7 +66,7 @@ fn test_quaff_healing_restores_hp() {
     let mut player = test_player();
     player.hp = 10;
     let mut rng = GameRng::new(42);
-    let result = quaff_potion(&pot, &mut player, &mut rng);
+    let _result = quaff_potion(&pot, &mut player, &mut rng);
     assert!(player.hp > 10, "Healing potion should restore HP");
 }
 

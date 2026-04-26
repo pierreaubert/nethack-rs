@@ -3,6 +3,10 @@
 //! Verifies inventory weight tracking matches C implementation.
 
 #[cfg(test)]
+use crate::ffi::CGameEngine;
+#[cfg(test)]
+use nh_core::CGameEngineTrait;
+#[cfg(test)]
 use serial_test::serial;
 
 #[test]

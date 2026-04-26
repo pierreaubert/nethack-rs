@@ -20,6 +20,6 @@ fn test_tile_registry() {
 
     let (_, monster) = find_monster("kobold").expect("Kobold should exist");
     println!("Monster name: {}", monster.name);
-    let tile = get_tile_for_monster(&monster);
+    let tile = get_tile_for_monster(monster);
     assert_eq!(tile.to_ascii(), 'k');
 }

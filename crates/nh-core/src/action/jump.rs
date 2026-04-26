@@ -356,9 +356,6 @@ mod tests {
     #[test]
     fn test_get_all_valid_jump_positions() {
         let mut state = GameState::new(GameRng::from_entropy());
-        let positions = get_all_valid_jump_positions(&mut state, 1);
-        // Should return some positions (depends on level generation)
-        // The exact count depends on the level layout
-        assert!(positions.len() >= 0);
+        let _ = get_all_valid_jump_positions(&mut state, 1);
     }
 }

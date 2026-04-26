@@ -1,5 +1,4 @@
 use nh_assets::mapping::*;
-use serde_json;
 
 #[test]
 fn test_serialize_icon_definition() {

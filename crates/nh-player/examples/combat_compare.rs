@@ -6,7 +6,7 @@
 //! - Damage calculation verification
 //! - Combat message comparison
 
-use nh_core::{GameLoop, GameRng, GameState};
+use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_player::ffi::CGameEngine;
 use nh_player::state::c_extractor::CGameWrapper;
 use nh_player::state::common::{GameAction, UnifiedGameState};
@@ -75,7 +75,7 @@ fn run_combat_session(seed: u64, max_turns: u64) {
             println!("[Turn {}] Attacking monster!", turn);
             attack
         } else {
-            let action = random_attack_direction(seed + turn as u64);
+            let action = random_attack_direction(seed + turn);
             let direction_str = match action {
                 GameAction::AttackNorth => "North",
                 GameAction::AttackSouth => "South",
@@ -91,8 +91,8 @@ fn run_combat_session(seed: u64, max_turns: u64) {
         };
 
         // Execute step - returns (reward, message)
-        let (rust_reward, rust_msg) = rust_engine.step(&action);
-        let (c_reward, c_msg) = c_wrapper.step(&action);
+        let (_rust_reward, rust_msg) = rust_engine.step(&action);
+        let (_c_reward, c_msg) = c_wrapper.step(&action);
 
         // Record combat events
         combat_stats.turns += 1;

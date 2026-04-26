@@ -3,14 +3,14 @@
 //! This example trains a reinforcement learning bot to play NetHack
 //! using Q-learning with experience replay and target networks.
 
-use nh_core::{GameLoop, GameRng, GameState};
+use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_player::ffi::CGameEngine;
 use nh_player::state::c_extractor::CGameWrapper;
 use nh_player::state::common::{GameAction, UnifiedGameState};
 use nh_player::state::rust_extractor::RustGameEngine;
 
-use rand::{Rng, SeedableRng};
-use std::collections::{HashMap, VecDeque};
+use rand::Rng;
+use std::collections::VecDeque;
 
 const STATE_SIZE: usize = 1000;
 const ACTION_SIZE: usize = 20;
@@ -260,13 +260,13 @@ fn action_to_index(action: &GameAction, valid_actions: &[GameAction]) -> usize {
 }
 
 fn index_to_action(idx: usize, valid_actions: &[GameAction]) -> GameAction {
-    valid_actions[idx.min(valid_actions.len() - 1)].clone()
+    valid_actions[idx.min(valid_actions.len() - 1)]
 }
 
 fn calculate_reward(
     old_state: &UnifiedGameState,
     new_state: &UnifiedGameState,
-    action: &GameAction,
+    _action: &GameAction,
     message: &str,
 ) -> f64 {
     let mut reward = 0.0;
@@ -328,7 +328,7 @@ fn train_episode(
     metrics: &mut TrainingMetrics,
     seed: u64,
     exploration_rate: f64,
-    target_network: &QNetwork,
+    _target_network: &QNetwork,
 ) -> (f64, u64, bool, bool) {
     // Initialize games
     let rust_rng = GameRng::new(seed);
@@ -356,7 +356,7 @@ fn train_episode(
 
         // Epsilon-greedy action selection
         let action = if rng.r#gen::<f64>() < exploration_rate {
-            valid_actions[rng.gen_range(0..valid_actions.len())].clone()
+            valid_actions[rng.gen_range(0..valid_actions.len())]
         } else {
             let q_values = q_network.forward(&current_state);
             let mut best_idx = 0;
@@ -368,7 +368,7 @@ fn train_episode(
                     best_idx = i;
                 }
             }
-            valid_actions[best_idx].clone()
+            valid_actions[best_idx]
         };
 
         // Execute action
@@ -510,7 +510,7 @@ fn evaluate_bot(q_network: &QNetwork, num_episodes: usize) {
                     best_idx = i;
                 }
             }
-            let action = valid_actions[best_idx].clone();
+            let action = valid_actions[best_idx];
 
             // Execute
             let (_reward, _msg) = rust_engine.step(&action);

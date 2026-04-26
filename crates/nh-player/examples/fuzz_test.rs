@@ -4,7 +4,7 @@
 //! between the Rust and C implementations. It focuses on finding edge cases
 //! by running many short sessions with random seeds.
 
-use nh_core::{GameLoop, GameRng, GameState};
+use nh_core::{CGameEngineTrait, GameLoop, GameRng, GameState};
 use nh_player::ffi::CGameEngine;
 use nh_player::orchestrator::{DualGameOrchestrator, OrchestratorConfig};
 use std::io::Write;

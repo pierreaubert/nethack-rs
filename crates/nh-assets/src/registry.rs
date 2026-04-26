@@ -150,15 +150,12 @@ impl AssetRegistry {
                 } else {
                     &lower
                 };
-                if hex.len() == 6 {
-                    if let Ok(r) = u8::from_str_radix(&hex[0..2], 16) {
-                        if let Ok(g) = u8::from_str_radix(&hex[2..4], 16) {
-                            if let Ok(b) = u8::from_str_radix(&hex[4..6], 16) {
+                if hex.len() == 6
+                    && let Ok(r) = u8::from_str_radix(&hex[0..2], 16)
+                        && let Ok(g) = u8::from_str_radix(&hex[2..4], 16)
+                            && let Ok(b) = u8::from_str_radix(&hex[4..6], 16) {
                                 return Some(Color::Rgb(r, g, b));
                             }
-                        }
-                    }
-                }
                 None
             }
         }

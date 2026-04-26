@@ -3,19 +3,18 @@
 //! Tests for shopkeepers, priests, sounds, steeds, summoning,
 //! vaults, pets, and other special systems from the special/ module.
 
-use nh_core::GameRng;
-use nh_core::monster::{Monster, MonsterFlags, MonsterId, MonsterSound};
-use nh_core::player::{Attribute, Gender, Race, Role, You};
+use nh_core::monster::{Monster, MonsterId, MonsterSound};
+use nh_core::player::{Attribute, You};
 use nh_core::special::shk::*;
 use nh_core::special::sounds::*;
 use nh_core::special::steed::*;
-use nh_core::special::{RoomType, ShopType, SummonResult};
+use nh_core::special::{RoomType, ShopType};
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
-fn make_monster_with_sound(name: &str, sound: MonsterSound) -> Monster {
+fn make_monster_with_sound(name: &str, _sound: MonsterSound) -> Monster {
     let mut m = Monster::new(MonsterId::NONE, 0, 5, 5);
     m.name = name.to_string();
     m.hp = 20;

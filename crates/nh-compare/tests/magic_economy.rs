@@ -15,7 +15,7 @@ use nh_core::magic::potion::{PotionType, quaff_potion};
 use nh_core::magic::scroll::{ScrollType, read_scroll};
 use nh_core::magic::zap::{ZapDirection, ZapType, ZapVariant, zap_wand};
 use nh_core::object::{BucStatus, Object, ObjectClass, ObjectId};
-use nh_core::player::{Attribute, HungerState, Property, You};
+use nh_core::player::{Attribute, HungerState, You};
 
 // ============================================================================
 // Helpers
@@ -359,7 +359,7 @@ fn test_scroll_teleportation() {
     let mut player = test_player();
     player.pos = nh_core::player::Position::new(40, 10);
     let mut level = test_level(&mut rng);
-    let old_pos = player.pos;
+    let _old_pos = player.pos;
     let scroll = make_scroll(ScrollType::Teleportation, BucStatus::Uncursed);
     let _result = read_scroll(&scroll, &mut player, &mut level, &mut rng);
     // Player may or may not have moved depending on level layout
@@ -517,7 +517,7 @@ fn test_prayer_basic() {
 
 #[test]
 fn test_prayer_timeout_prevents_repray() {
-    use nh_core::action::ActionResult;
+    
     let mut state = nh_core::GameState::new(GameRng::new(42));
 
     // First prayer

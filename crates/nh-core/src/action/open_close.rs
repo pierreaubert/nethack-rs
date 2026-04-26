@@ -619,11 +619,10 @@ pub fn openfallingtrap(state: &mut GameState, x: i8, y: i8, trapdoor_only: bool)
             crate::dungeon::TrapType::TrapDoor => return true,
             crate::dungeon::TrapType::Hole
             | crate::dungeon::TrapType::Pit
-            | crate::dungeon::TrapType::SpikedPit => {
-                if !trapdoor_only {
+            | crate::dungeon::TrapType::SpikedPit
+                if !trapdoor_only => {
                     return true;
                 }
-            }
             _ => {}
         }
     }

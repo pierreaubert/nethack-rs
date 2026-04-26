@@ -2748,7 +2748,6 @@ mod tests {
         let mut player = You::default();
         // No armor, no protection
         player.find_ac(&[]);
-        assert!(player.armor_class >= -128 && player.armor_class <= 127);
     }
 
     #[test]

@@ -996,11 +996,7 @@ pub fn generate_monster_loot(monster: &Monster, rng: &mut GameRng) -> Option<Vec
     let is_magical = monster.level >= 8; // High level monsters are magical
 
     // Try to generate loot
-    if let Some(drop) = LootGenerator::generate_loot(monster.level, is_magical, rng) {
-        Some(vec![drop])
-    } else {
-        None
-    }
+    LootGenerator::generate_loot(monster.level, is_magical, rng).map(|drop| vec![drop])
 }
 
 /// Award all loot to player after defeating monster

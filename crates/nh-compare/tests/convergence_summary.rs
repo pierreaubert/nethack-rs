@@ -33,7 +33,7 @@ fn test_replay_basic_movement() {
         Command::Rest,
     ];
 
-    let (gl, results) = replay_commands(42, &commands);
+    let (_gl, results) = replay_commands(42, &commands);
 
     // All commands should succeed (Continue)
     for (i, result) in results.iter().enumerate() {
@@ -214,7 +214,7 @@ fn generate_varied_commands(n: usize, seed: u64) -> Vec<Command> {
             2 => Command::Look,
             3 => Command::Inventory,
             4 => Command::WhatsHere,
-            5 | 6 | 7 | 8 | 9 | 10 | 11 => {
+            5..=11 => {
                 Command::Move(directions[(turn + offset) % directions.len()])
             }
             12 => Command::Discoveries,

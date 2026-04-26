@@ -2826,11 +2826,9 @@ impl GameLoop {
             .player
             .properties
             .has(crate::player::Property::Teleportation)
-        {
-            if state.rng.rn2(85) == 0 {
+            && state.rng.rn2(85) == 0 {
                 crate::action::teleport::tele(state);
             }
-        }
 
         // Polymorph check (C: allmain.c:253-271)
         // if (Polymorph && !rn2(100)) change = 1;
@@ -3353,16 +3351,15 @@ impl GameLoop {
                     state.message(format!("Your {} has gone out!", name));
                 }
             }
-            TimedEventType::Stoning => {
+            TimedEventType::Stoning
                 if !state
                     .player
                     .properties
                     .has(crate::player::Property::StoneResistance)
-                {
+                => {
                     state.message("You have turned to stone.");
                     state.player.hp = 0; // Instant death
                 }
-            }
             _ => {}
         }
     }
@@ -3437,8 +3434,8 @@ impl GameLoop {
         {
             let drain = match encumbrance {
                 // C: wtcap < EXT_ENCUMBER ? moves % 30 : moves % 10
-                crate::player::Encumbrance::Strained => turns % 30 == 0,
-                _ => turns % 10 == 0,
+                crate::player::Encumbrance::Strained => turns.is_multiple_of(30),
+                _ => turns.is_multiple_of(10),
             };
             if drain {
                 if state.player.hp > 1 {

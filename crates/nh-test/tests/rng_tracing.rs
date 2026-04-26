@@ -110,7 +110,7 @@ fn test_rne_rnz_basics() {
     let mut counts = [0u32; 6];
     for _ in 0..10_000 {
         let v = rng.rne(4, 1);
-        assert!(v >= 1 && v <= 5, "rne(4) produced {}", v);
+        assert!((1..=5).contains(&v), "rne(4) produced {}", v);
         counts[v as usize] += 1;
     }
     // 1 should be most common (75% chance per iteration)

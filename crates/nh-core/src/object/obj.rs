@@ -2209,13 +2209,10 @@ pub fn light_radius(obj: &Object) -> i32 {
             }
         }
         ObjectClass::Potion => 2, // Luminous potions
-        ObjectClass::Wand => {
-            if obj.enchantment > 0 {
+        ObjectClass::Wand
+            if obj.enchantment > 0 => {
                 3
-            } else {
-                0
             }
-        }
         _ => 0,
     }
 }
@@ -2501,24 +2498,21 @@ pub fn erode_obj(obj: &mut Object, damage_type: i32, rng: &mut crate::rng::GameR
 
     // Apply erosion
     match damage_type {
-        1 => {
+        1
             // Fire/rust damage → erosion1
-            if (is_rustprone(obj) || is_flammable(obj)) && obj.erosion1 < 3 {
+            if (is_rustprone(obj) || is_flammable(obj)) && obj.erosion1 < 3 => {
                 obj.erosion1 += 1;
             }
-        }
-        2 => {
+        2
             // Acid/corrode → erosion2
-            if is_corrodeable(obj) && obj.erosion2 < 3 {
+            if is_corrodeable(obj) && obj.erosion2 < 3 => {
                 obj.erosion2 += 1;
             }
-        }
-        3 => {
+        3
             // Water/rot → erosion1
-            if is_rottable(obj) && obj.erosion1 < 3 {
+            if is_rottable(obj) && obj.erosion1 < 3 => {
                 obj.erosion1 += 1;
             }
-        }
         _ => {} // Unknown damage type
     }
 }

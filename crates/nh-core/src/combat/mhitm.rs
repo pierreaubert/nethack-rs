@@ -119,41 +119,26 @@ fn damage_multiplier_for_monster_resistance(
     defender: &Monster,
 ) -> (i32, i32) {
     match damage_type {
-        DamageType::Fire => {
-            if defender.resists_fire() {
+        DamageType::Fire
+            if defender.resists_fire() => {
                 (0, 1) // No damage
-            } else {
-                (1, 1) // Full damage
             }
-        }
-        DamageType::Cold => {
-            if defender.resists_cold() {
+        DamageType::Cold
+            if defender.resists_cold() => {
                 (0, 1)
-            } else {
-                (1, 1)
             }
-        }
-        DamageType::Electric => {
-            if defender.resists_elec() {
+        DamageType::Electric
+            if defender.resists_elec() => {
                 (0, 1)
-            } else {
-                (1, 1)
             }
-        }
-        DamageType::Acid => {
-            if defender.resists_acid() {
+        DamageType::Acid
+            if defender.resists_acid() => {
                 (1, 2) // Half damage with acid resistance
-            } else {
-                (1, 1)
             }
-        }
-        DamageType::Disintegrate => {
-            if defender.resists_disint() {
+        DamageType::Disintegrate
+            if defender.resists_disint() => {
                 (0, 1)
-            } else {
-                (1, 1)
             }
-        }
         _ => (1, 1), // Full damage for non-elemental
     }
 }
@@ -498,42 +483,38 @@ pub fn passivemm(
 
         // Passive damage based on damage type
         match attack.damage_type {
-            DamageType::Acid => {
-                if !attacker.resists_acid() {
+            DamageType::Acid
+                if !attacker.resists_acid() => {
                     let damage = rng.dice(attack.dice_num as u32, attack.dice_sides as u32) as i32;
                     attacker.hp -= damage;
                     if attacker.hp <= 0 {
                         result = result.with_agr_died();
                     }
                 }
-            }
-            DamageType::Fire => {
-                if !attacker.resists_fire() {
+            DamageType::Fire
+                if !attacker.resists_fire() => {
                     let damage = rng.dice(attack.dice_num as u32, attack.dice_sides as u32) as i32;
                     attacker.hp -= damage;
                     if attacker.hp <= 0 {
                         result = result.with_agr_died();
                     }
                 }
-            }
-            DamageType::Cold => {
-                if !attacker.resists_cold() {
+            DamageType::Cold
+                if !attacker.resists_cold() => {
                     let damage = rng.dice(attack.dice_num as u32, attack.dice_sides as u32) as i32;
                     attacker.hp -= damage;
                     if attacker.hp <= 0 {
                         result = result.with_agr_died();
                     }
                 }
-            }
-            DamageType::Electric => {
-                if !attacker.resists_elec() {
+            DamageType::Electric
+                if !attacker.resists_elec() => {
                     let damage = rng.dice(attack.dice_num as u32, attack.dice_sides as u32) as i32;
                     attacker.hp -= damage;
                     if attacker.hp <= 0 {
                         result = result.with_agr_died();
                     }
                 }
-            }
             _ => {}
         }
     }
@@ -660,8 +641,8 @@ pub fn monster_attack_monster(
 
         // Try to trigger poison/disease based on attack type
         match attack.attack_type {
-            AttackType::Bite | AttackType::Sting => {
-                if should_trigger_special_effect(&SpecialCombatEffect::Poison, &skill_level, rng) {
+            AttackType::Bite | AttackType::Sting
+                if should_trigger_special_effect(&SpecialCombatEffect::Poison, &skill_level, rng) => {
                     apply_special_effect(
                         &SpecialCombatEffect::Poison,
                         &mut defender.status_effects,
@@ -672,9 +653,8 @@ pub fn monster_attack_monster(
                         special_effect = Some(CombatEffect::Poisoned);
                     }
                 }
-            }
-            AttackType::Claw => {
-                if should_trigger_special_effect(&SpecialCombatEffect::Disease, &skill_level, rng) {
+            AttackType::Claw
+                if should_trigger_special_effect(&SpecialCombatEffect::Disease, &skill_level, rng) => {
                     apply_special_effect(
                         &SpecialCombatEffect::Disease,
                         &mut defender.status_effects,
@@ -685,10 +665,9 @@ pub fn monster_attack_monster(
                         special_effect = Some(CombatEffect::Drained);
                     }
                 }
-            }
-            AttackType::Touch => {
+            AttackType::Touch
                 if should_trigger_special_effect(&SpecialCombatEffect::LifeDrain, &skill_level, rng)
-                {
+                => {
                     apply_special_effect(
                         &SpecialCombatEffect::LifeDrain,
                         &mut defender.status_effects,
@@ -699,7 +678,6 @@ pub fn monster_attack_monster(
                         special_effect = Some(CombatEffect::Drained);
                     }
                 }
-            }
             _ => {}
         }
     }

@@ -2463,13 +2463,10 @@ fn light_radius_for_object(obj: &crate::object::Object) -> i32 {
     // Object types from objects.c (approximate ranges)
     match obj.object_type {
         // Magic lamp
-        188 => {
-            if obj.enchantment > 0 {
+        188
+            if obj.enchantment > 0 => {
                 3
-            } else {
-                2
             }
-        }
         // Oil lamp / brass lantern
         189 => 3,
         // Candles (single candle = 2, more = brighter)
@@ -2938,9 +2935,7 @@ mod tests {
     fn test_dig_check_valid() {
         let state = GameState::new(GameRng::new(42));
         // Level is generated, most positions should be checkable
-        let valid = dig_check(&state, 5, 5);
-        // Just verify it doesn't crash
-        assert!(valid || !valid);
+        let _ = dig_check(&state, 5, 5);
     }
 
     // ---- Camera tests ----

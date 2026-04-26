@@ -160,7 +160,7 @@ fn test_object_names_coverage() {
     let c_set: HashSet<String> = c_names.iter().cloned().collect();
 
     let missing_in_rust: Vec<&String> = c_set.difference(&rust_names).collect();
-    let extra_in_rust: Vec<&String> = rust_names.difference(&c_set).collect();
+    let _extra_in_rust: Vec<&String> = rust_names.difference(&c_set).collect();
 
     let matched = c_set.len() - missing_in_rust.len();
     let coverage = matched as f64 / c_set.len() as f64 * 100.0;

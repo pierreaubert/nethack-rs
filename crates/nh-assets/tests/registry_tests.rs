@@ -1,6 +1,6 @@
 use nh_assets::mapping::*;
 use nh_assets::registry::*;
-use nh_core::object::{Material, Object, ObjectClass, ObjectId};
+use nh_core::object::{Object, ObjectClass, ObjectId};
 
 #[test]
 fn test_registry_lookup_by_type() {
@@ -19,7 +19,7 @@ fn test_registry_lookup_by_type() {
     };
 
     let registry = AssetRegistry::new(mapping);
-    let mut obj = Object::new(ObjectId(1), 100, ObjectClass::Weapon);
+    let obj = Object::new(ObjectId(1), 100, ObjectClass::Weapon);
 
     let icon = registry.get_icon(&obj).expect("Icon should be found");
     assert_eq!(icon.tui_char, '(');
@@ -42,7 +42,7 @@ fn test_registry_fallback_to_class() {
     };
 
     let registry = AssetRegistry::new(mapping);
-    let mut obj = Object::new(ObjectId(1), 999, ObjectClass::Weapon);
+    let obj = Object::new(ObjectId(1), 999, ObjectClass::Weapon);
 
     let icon = registry
         .get_icon(&obj)
@@ -80,7 +80,7 @@ fn test_registry_specificity_priority() {
     };
 
     let registry = AssetRegistry::new(mapping);
-    let mut obj = Object::new(ObjectId(1), 100, ObjectClass::Weapon);
+    let obj = Object::new(ObjectId(1), 100, ObjectClass::Weapon);
 
     let icon = registry.get_icon(&obj).expect("Icon should be found");
     // Should prefer object_type (specificity 10) over class (specificity 1)

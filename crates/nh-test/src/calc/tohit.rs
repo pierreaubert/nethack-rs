@@ -186,7 +186,7 @@ mod tests {
 
         for _ in 0..100000 {
             let roll = rust_rng.rnd(20) as usize;
-            assert!(roll >= 1 && roll <= 20, "Invalid d20 roll: {}", roll);
+            assert!((1..=20).contains(&roll), "Invalid d20 roll: {}", roll);
             counts[roll - 1] += 1;
         }
 

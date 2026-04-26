@@ -248,12 +248,11 @@ pub fn m_use_healing(monster: &Monster) -> Option<(usize, i32)> {
                 // POT_EXTRA_HEALING - second priority
                 healing_priority = Some((idx, MUSE_POT_EXTRA_HEALING));
             }
-            2 => {
+            2
                 // POT_HEALING - lowest priority
-                if healing_priority.is_none() {
+                if healing_priority.is_none() => {
                     healing_priority = Some((idx, MUSE_POT_HEALING));
                 }
-            }
             _ => {}
         }
     }
@@ -1656,11 +1655,9 @@ fn move_towards(
                     .objects_at(nx, ny)
                     .iter()
                     .any(|o| o.object_type == crate::BOULDER)
-                {
-                    if !throws_rocks {
+                    && !throws_rocks {
                         continue;
                     }
-                }
 
                 // C: mon.c:1499-1505 — temple sanctuary check (ALLOW_SANCT)
                 // Monsters can't enter player's temple unless they have ALLOW_SANCT.
@@ -1730,7 +1727,7 @@ fn move_towards(
                         o.class == crate::object::ObjectClass::Scroll
                             && o.name
                                 .as_deref()
-                                .map_or(false, |n| n.to_lowercase().contains("scare monster"))
+                                .is_some_and(|n| n.to_lowercase().contains("scare monster"))
                     });
                 if is_scary && !monster_blinded {
                     continue;
