@@ -1204,19 +1204,26 @@ int nh_ffi_exec_cmd(char cmd) {
         context.run = 0;  /* Normal walk, not running */
         context.nopick = 0;
         domove_attempting |= DOMOVE_WALK;
-        u.umoved = TRUE;
+        /* domove() resets u.umoved to FALSE up front and sets it TRUE only
+           when the player actually moves into an open square. We use the
+           post-call value to decide whether the turn should advance. */
+        u.umoved = FALSE;
         domove();
     } else {
         u.umoved = FALSE;
     }
 
     /* Post-command processing: monster turns, new turn, per-turn effects.
-       This matches C's moveloop after the player takes an action.
-       We use setjmp/longjmp to catch nh_terminate (player death) gracefully. */
+       Mirrors C moveloop semantics: a blocked-into-wall movement does NOT
+       consume time, so we skip the post-command turn machinery in that case.
+       Rest ('.') always consumes a turn. */
     ffi_player_died = 0;
     ffi_in_post_command = 1;
-    if (setjmp(ffi_terminate_jmp) == 0) {
+    int turn_consumed = (!is_movement) || u.umoved;
+    if (turn_consumed && setjmp(ffi_terminate_jmp) == 0) {
         ffi_post_command();
+    } else if (!turn_consumed) {
+        /* Blocked move — no setjmp needed since no per-turn code runs. */
     } else {
         /* Returned via longjmp from nh_terminate — player died */
         fflush(stderr);

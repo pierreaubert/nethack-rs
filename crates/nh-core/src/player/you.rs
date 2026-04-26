@@ -114,6 +114,7 @@ pub struct You {
     pub armor_class: i8,
     pub hit_bonus: i8,
     pub damage_bonus: i8,
+    #[serde(default)]
     pub protection_level: i8, // Magical protection level from blessed items
     pub spell_protection: i8, // Protection from spells and magic
 
@@ -231,6 +232,7 @@ pub struct You {
     // Monster interactions
     pub grabbed_by: Option<MonsterId>,
     pub steed: Option<MonsterId>,
+    #[serde(default)]
     pub galloping: bool,
 
     // Religion
