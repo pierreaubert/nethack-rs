@@ -47,14 +47,36 @@ fn import_c_rng(c_engine: &CGameEngine, seed: u64) -> GameRng {
     let data: serde_json::Value = serde_json::from_str(&rng_json).expect("parse RNG state JSON");
 
     let n = data["n"].as_u64().expect("n field") as usize;
-    let a = data["a"].as_str().expect("a field").parse::<u64>().expect("parse a");
-    let b = data["b"].as_str().expect("b field").parse::<u64>().expect("parse b");
-    let c = data["c"].as_str().expect("c field").parse::<u64>().expect("parse c");
-    let call_count = data["call_count"].as_str().expect("call_count").parse::<u64>().expect("parse call_count");
-    let r: Vec<u64> = data["r"].as_array().expect("r array").iter()
+    let a = data["a"]
+        .as_str()
+        .expect("a field")
+        .parse::<u64>()
+        .expect("parse a");
+    let b = data["b"]
+        .as_str()
+        .expect("b field")
+        .parse::<u64>()
+        .expect("parse b");
+    let c = data["c"]
+        .as_str()
+        .expect("c field")
+        .parse::<u64>()
+        .expect("parse c");
+    let call_count = data["call_count"]
+        .as_str()
+        .expect("call_count")
+        .parse::<u64>()
+        .expect("parse call_count");
+    let r: Vec<u64> = data["r"]
+        .as_array()
+        .expect("r array")
+        .iter()
         .map(|v| v.as_str().unwrap().parse::<u64>().unwrap())
         .collect();
-    let m: Vec<u64> = data["m"].as_array().expect("m array").iter()
+    let m: Vec<u64> = data["m"]
+        .as_array()
+        .expect("m array")
+        .iter()
         .map(|v| v.as_str().unwrap().parse::<u64>().unwrap())
         .collect();
 
@@ -890,15 +912,28 @@ fn test_rng_state_export_import() {
     let a = rng_data["a"].as_str().unwrap().parse::<u64>().unwrap();
     let b = rng_data["b"].as_str().unwrap().parse::<u64>().unwrap();
     let c_val = rng_data["c"].as_str().unwrap().parse::<u64>().unwrap();
-    let call_count = rng_data["call_count"].as_str().unwrap().parse::<u64>().unwrap();
-    let r: Vec<u64> = rng_data["r"].as_array().unwrap().iter()
+    let call_count = rng_data["call_count"]
+        .as_str()
+        .unwrap()
+        .parse::<u64>()
+        .unwrap();
+    let r: Vec<u64> = rng_data["r"]
+        .as_array()
+        .unwrap()
+        .iter()
         .map(|v| v.as_str().unwrap().parse::<u64>().unwrap())
         .collect();
-    let m: Vec<u64> = rng_data["m"].as_array().unwrap().iter()
+    let m: Vec<u64> = rng_data["m"]
+        .as_array()
+        .unwrap()
+        .iter()
         .map(|v| v.as_str().unwrap().parse::<u64>().unwrap())
         .collect();
 
-    println!("Imported C RNG state: n={}, call_count={}, a={}", n, call_count, a);
+    println!(
+        "Imported C RNG state: n={}, call_count={}, a={}",
+        n, call_count, a
+    );
 
     // Create Rust Isaac64 from imported state
     let rust_isaac = nh_rng::Isaac64::from_c_fields(n, r, m, a, b, c_val, call_count);
@@ -916,7 +951,10 @@ fn test_rng_state_export_import() {
     }
 
     println!("RNG state sync test: {}/100 matches", 100 - mismatches);
-    assert_eq!(mismatches, 0, "RNG streams should be identical after state import");
+    assert_eq!(
+        mismatches, 0,
+        "RNG streams should be identical after state import"
+    );
 }
 
 #[test]
@@ -1455,10 +1493,10 @@ fn test_rng_with_movemon_diagnostic() {
     let mut rust_loop = GameLoop::new(rust_state);
 
     eprintln!(
-        "  Rust level: {} monsters",
-        rust_loop.state().current_level.monsters.len()
+        "  Rust level: {} monsters, {} objects",
+        rust_loop.state().current_level.monsters.len(),
+        rust_loop.state().current_level.objects.len()
     );
-    for m in &rust_loop.state().current_level.monsters {}
 
     // Sync player state both ways for maximum parity
     sync_rust_from_c(rust_loop.state_mut(), &c_engine);

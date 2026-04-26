@@ -358,6 +358,14 @@ pub struct Monster {
     /// mtrack[0] is most recent, mtrack[3] is oldest.
     #[serde(default)]
     pub mtrack: [(i8, i8); 4],
+
+    /// Where this monster believes the player is (C: mux, muy from monst.h)
+    /// Set by set_apparxy() each turn. May differ from real player position
+    /// when the monster is blinded or the player is invisible/displaced.
+    #[serde(default)]
+    pub mux: i8,
+    #[serde(default)]
+    pub muy: i8,
 }
 
 impl Monster {
@@ -419,6 +427,8 @@ impl Monster {
             spec_used: 0,
             eating_timeout: 0,
             mtrack: [(0, 0); 4],
+            mux: 0,
+            muy: 0,
         }
     }
 

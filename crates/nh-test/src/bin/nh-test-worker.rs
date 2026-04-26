@@ -104,7 +104,9 @@ enum Command {
     DisableRngTracing,
     GetRngTrace,
     ClearRngTrace,
-    SetRngCaller { caller: String },
+    SetRngCaller {
+        caller: String,
+    },
     GetVisibility,
     GetCouldsee,
     ExportRngState,

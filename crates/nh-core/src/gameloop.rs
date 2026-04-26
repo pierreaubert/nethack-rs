@@ -2767,9 +2767,9 @@ impl GameLoop {
         // if (!u.uinvulnerable && Teleportation && !rn2(85)) tele();
         // Note: u.uinvulnerable (prayer protection) is not yet tracked; defaults to false
         if state
-                .player
-                .properties
-                .has(crate::player::Property::Teleportation)
+            .player
+            .properties
+            .has(crate::player::Property::Teleportation)
         {
             if state.rng.rn2(85) == 0 {
                 crate::action::teleport::tele(state);
@@ -2796,9 +2796,7 @@ impl GameLoop {
                     let monsters = crate::data::monsters::MONSTERS;
                     crate::player::polymorph::polyself(state, flags, monsters);
                 }
-            } else if state.player.lycanthropy.is_some()
-                && !state.player.is_polymorphed()
-            {
+            } else if state.player.lycanthropy.is_some() && !state.player.is_polymorphed() {
                 // C: !rn2(80 - (20 * night()))
                 // night() checks time of day; simplified to 0 for now
                 let night_val = 0i32;

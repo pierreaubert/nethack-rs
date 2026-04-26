@@ -648,6 +648,23 @@ impl Level {
             level.monsters.push(mon);
         }
 
+        // Import floor objects from fixture
+        for fo in &fixture.objects {
+            let id = crate::object::ObjectId(level.next_object_id);
+            level.next_object_id += 1;
+            // Look up object class from OBJECTS table using otyp as index
+            let obj_class = crate::data::objects::OBJECTS
+                .get(fo.otyp as usize)
+                .map(|def| def.class)
+                .unwrap_or(crate::object::ObjectClass::IllObj);
+            let mut obj = crate::object::Object::new(id, fo.otyp, obj_class);
+            obj.x = fo.x as i8;
+            obj.y = fo.y as i8;
+            obj.quantity = fo.quan;
+            obj.enchantment = fo.spe;
+            level.objects.push(obj);
+        }
+
         // Import level flags for dosounds parity
         level.flags.fountain_count = fixture.nfountains;
         level.flags.sink_count = fixture.nsinks;

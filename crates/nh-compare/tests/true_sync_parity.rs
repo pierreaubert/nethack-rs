@@ -9,11 +9,7 @@ use serial_test::serial;
 
 /// Compare player state between Rust and C without any syncing.
 /// Returns a list of field mismatches.
-fn compare_unsynced(
-    rs: &GameState,
-    c: &CGameEngine,
-    turn: u64,
-) -> Vec<String> {
+fn compare_unsynced(rs: &GameState, c: &CGameEngine, turn: u64) -> Vec<String> {
     let mut diffs = Vec::new();
 
     let c_hp = c.hp();
@@ -31,10 +27,7 @@ fn compare_unsynced(
     macro_rules! cmp {
         ($name:expr, $rust:expr, $c_val:expr) => {
             if $rust != $c_val {
-                diffs.push(format!(
-                    "turn {}: {} R={} C={}",
-                    turn, $name, $rust, $c_val
-                ));
+                diffs.push(format!("turn {}: {} R={} C={}", turn, $name, $rust, $c_val));
             }
         };
     }
@@ -91,7 +84,10 @@ fn test_true_sync_rest_100_turns() {
     let c_nutrition = c_engine.nutrition();
     let c_ac = c_engine.armor_class();
 
-    println!("C init: pos=({},{}) hp={}/{} nutr={} ac={}", cx, cy, c_hp, c_maxhp, c_nutrition, c_ac);
+    println!(
+        "C init: pos=({},{}) hp={}/{} nutr={} ac={}",
+        cx, cy, c_hp, c_maxhp, c_nutrition, c_ac
+    );
 
     // 2. Initialize Rust engine with same seed
     let rust_rng = GameRng::new(seed);
@@ -112,50 +108,71 @@ fn test_true_sync_rest_100_turns() {
     let (rx, ry) = (rust_state.player.pos.x, rust_state.player.pos.y);
     println!(
         "Rust init: pos=({},{}) hp={}/{} nutr={} ac={}",
-        rx, ry,
-        rust_state.player.hp, rust_state.player.hp_max,
+        rx,
+        ry,
+        rust_state.player.hp,
+        rust_state.player.hp_max,
         rust_state.player.nutrition,
         rust_state.player.armor_class
     );
 
     // Dump monster lists from both engines
     println!("=== MONSTERS ===");
-    println!("  Rust: {} monsters", rust_state.current_level.monsters.len());
+    println!(
+        "  Rust: {} monsters",
+        rust_state.current_level.monsters.len()
+    );
     for (i, m) in rust_state.current_level.monsters.iter().enumerate() {
-        println!("    R mon[{}]: type={} at ({},{}) hp={}/{} peaceful={} sleeping={}",
-            i, m.monster_type, m.x, m.y, m.hp, m.hp_max,
-            m.state.peaceful, m.state.sleeping);
+        println!(
+            "    R mon[{}]: type={} at ({},{}) hp={}/{} peaceful={} sleeping={}",
+            i, m.monster_type, m.x, m.y, m.hp, m.hp_max, m.state.peaceful, m.state.sleeping
+        );
     }
     let c_mon_str = c_engine.monsters_json();
     let c_mons: serde_json::Value = serde_json::from_str(&c_mon_str).unwrap_or_default();
     if let Some(arr) = c_mons.as_array() {
         println!("  C: {} monsters", arr.len());
         for (i, m) in arr.iter().enumerate() {
-            println!("    C mon[{}]: mnum={} at ({},{}) hp={}/{} peaceful={} sleeping={}",
-                i, m["mnum"], m["x"], m["y"], m["hp"], m["hp_max"],
-                m["peaceful"], m["asleep"]);
+            println!(
+                "    C mon[{}]: mnum={} at ({},{}) hp={}/{} peaceful={} sleeping={}",
+                i, m["mnum"], m["x"], m["y"], m["hp"], m["hp_max"], m["peaceful"], m["asleep"]
+            );
         }
     }
 
     // Compare initial state (before any turns)
     let init_diffs = compare_unsynced(&rust_state, &c_engine, 0);
     println!("=== INIT STATE ===");
-    println!("  Rust: hp={}/{} en={}/{} ac={} nutr={} gold={} xlvl={}",
-        rust_state.player.hp, rust_state.player.hp_max,
-        rust_state.player.energy, rust_state.player.energy_max,
+    println!(
+        "  Rust: hp={}/{} en={}/{} ac={} nutr={} gold={} xlvl={}",
+        rust_state.player.hp,
+        rust_state.player.hp_max,
+        rust_state.player.energy,
+        rust_state.player.energy_max,
         rust_state.player.armor_class,
-        rust_state.player.nutrition, rust_state.player.gold,
-        rust_state.player.exp_level);
-    println!("  Rust attrs: str={} int={} wis={} dex={} con={} cha={}",
+        rust_state.player.nutrition,
+        rust_state.player.gold,
+        rust_state.player.exp_level
+    );
+    println!(
+        "  Rust attrs: str={} int={} wis={} dex={} con={} cha={}",
         rust_state.player.attr_current.get(Attribute::Strength),
         rust_state.player.attr_current.get(Attribute::Intelligence),
         rust_state.player.attr_current.get(Attribute::Wisdom),
         rust_state.player.attr_current.get(Attribute::Dexterity),
         rust_state.player.attr_current.get(Attribute::Constitution),
-        rust_state.player.attr_current.get(Attribute::Charisma));
-    println!("  C: hp={}/{} en={}/{} ac={} nutr={} gold={}",
-        c_hp, c_maxhp, c_engine.energy(), c_engine.max_energy(),
-        c_ac, c_nutrition, c_engine.gold());
+        rust_state.player.attr_current.get(Attribute::Charisma)
+    );
+    println!(
+        "  C: hp={}/{} en={}/{} ac={} nutr={} gold={}",
+        c_hp,
+        c_maxhp,
+        c_engine.energy(),
+        c_engine.max_energy(),
+        c_ac,
+        c_nutrition,
+        c_engine.gold()
+    );
     if !init_diffs.is_empty() {
         println!("=== INIT DIVERGENCE ({} diffs) ===", init_diffs.len());
         for d in &init_diffs {
@@ -186,14 +203,25 @@ fn test_true_sync_rest_100_turns() {
                     // Print surrounding state for first divergence
                     println!("=== FIRST GAMEPLAY DIVERGENCE at turn {} ===", turn);
                     let rs = rust_loop.state();
-                    println!("  Rust: pos=({},{}) hp={}/{} nutr={} ac={}",
-                        rs.player.pos.x, rs.player.pos.y,
-                        rs.player.hp, rs.player.hp_max,
-                        rs.player.nutrition, rs.player.armor_class);
+                    println!(
+                        "  Rust: pos=({},{}) hp={}/{} nutr={} ac={}",
+                        rs.player.pos.x,
+                        rs.player.pos.y,
+                        rs.player.hp,
+                        rs.player.hp_max,
+                        rs.player.nutrition,
+                        rs.player.armor_class
+                    );
                     let (cx, cy) = c_engine.position();
-                    println!("  C:    pos=({},{}) hp={}/{} nutr={} ac={}",
-                        cx, cy, c_engine.hp(), c_engine.max_hp(),
-                        c_engine.nutrition(), c_engine.armor_class());
+                    println!(
+                        "  C:    pos=({},{}) hp={}/{} nutr={} ac={}",
+                        cx,
+                        cy,
+                        c_engine.hp(),
+                        c_engine.max_hp(),
+                        c_engine.nutrition(),
+                        c_engine.armor_class()
+                    );
                 }
                 for d in &diffs {
                     println!("  {}", d);
@@ -212,7 +240,10 @@ fn test_true_sync_rest_100_turns() {
 
     // Report but don't fail yet — we're diagnosing
     if total_diffs > 0 {
-        println!("DIVERGENCE DETECTED — {} diffs (init + gameplay)", total_diffs);
+        println!(
+            "DIVERGENCE DETECTED — {} diffs (init + gameplay)",
+            total_diffs
+        );
     } else {
         println!("PERFECT PARITY — zero diffs!");
     }

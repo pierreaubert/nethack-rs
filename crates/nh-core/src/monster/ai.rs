@@ -305,6 +305,271 @@ impl MoveFlags {
     }
 }
 
+/// Determine where a monster BELIEVES the player is (set_apparxy from monmove.c:1537-1600)
+///
+/// Sets monster.mux and monster.muy to the apparent player location the monster
+/// will use as its movement target. For sighted monsters with no special conditions
+/// this is just the real player position. For blinded monsters there is a 1-in-3
+/// chance they still find the player; otherwise they pick a random nearby cell.
+///
+/// Simplified from C: we omit Underwater, Displaced, and passes_walls/can_ooze/can_fog
+/// checks that are not yet tracked. The RNG sequence for the blinded path is preserved:
+///   - `rng.rn2(3) == 0`  → 33 % chance of finding player despite blindness
+///   - If not found: loop picking `rng.rn2(3)` offsets until a valid cell is found
+///
+/// C Source: monmove.c:1537-1600
+pub fn set_apparxy(
+    monster_id: MonsterId,
+    level: &mut Level,
+    player: &You,
+    rng: &mut GameRng,
+) -> (i8, i8) {
+    use crate::dungeon::isok;
+
+    let (mx, my, is_blinded, is_tame) = {
+        let Some(monster) = level.monster(monster_id) else {
+            return (player.pos.x, player.pos.y);
+        };
+        (
+            monster.x,
+            monster.y,
+            monster.state.blinded,
+            monster.state.tame,
+        )
+    };
+
+    let px = player.pos.x;
+    let py = player.pos.y;
+
+    // Pets always know the true player position (mtame check in C)
+    // Also: if monster already has the correct position, no need to compute
+    let (prev_mux, prev_muy) = {
+        let monster = level.monster(monster_id).unwrap();
+        (monster.mux, monster.muy)
+    };
+
+    if is_tame || (prev_mux == px && prev_muy == py) {
+        if let Some(monster) = level.monster_mut(monster_id) {
+            monster.mux = px;
+            monster.muy = py;
+        }
+        return (px, py);
+    }
+
+    // If monster is not blinded and player is not invisible, monster can see
+    // the player directly (disp == 0 → goto found_you in C).
+    // We don't track player invisibility yet, so we treat it the same as sighted.
+    if !is_blinded {
+        if let Some(monster) = level.monster_mut(monster_id) {
+            monster.mux = px;
+            monster.muy = py;
+        }
+        return (px, py);
+    }
+
+    // Monster is blinded (disp == 1 in C).
+    // 1-in-3 chance the monster still finds the player.
+    let gotu = rng.rn2(3) == 0;
+
+    if gotu {
+        if let Some(monster) = level.monster_mut(monster_id) {
+            monster.mux = px;
+            monster.muy = py;
+        }
+        return (px, py);
+    }
+
+    // Pick a random cell within disp=1 of the real player position.
+    // C: do { mx = u.ux - disp + rn2(2*disp+1); my = u.uy - disp + rn2(2*disp+1); }
+    //    while (!isok || same_cell_as_monster || !accessible || !couldsee)
+    // disp == 1 → offset range is [-1, 0, +1] i.e. rn2(3) - 1
+    let disp: i8 = 1;
+    let mut try_cnt = 0i32;
+    let found_x;
+    let found_y;
+    loop {
+        try_cnt += 1;
+        if try_cnt > 200 {
+            // Safety valve: fall back to real player position
+            found_x = px;
+            found_y = py;
+            break;
+        }
+
+        let ox = rng.rn2((2 * disp as u32) + 1) as i8 - disp;
+        let oy = rng.rn2((2 * disp as u32) + 1) as i8 - disp;
+        let nx = px + ox;
+        let ny = py + oy;
+
+        if !isok(nx as i32, ny as i32) {
+            continue;
+        }
+        // Skip the monster's own cell (C: mx == mtmp->mx && my == mtmp->my)
+        if nx == mx && ny == my {
+            continue;
+        }
+        // Require couldsee (simplified: always true if isok; full impl would raytrace)
+        let couldsee = level
+            .couldsee
+            .get(nx as usize)
+            .and_then(|col| col.get(ny as usize))
+            .copied()
+            .unwrap_or(false);
+        if !couldsee {
+            continue;
+        }
+
+        found_x = nx;
+        found_y = ny;
+        break;
+    }
+
+    if let Some(monster) = level.monster_mut(monster_id) {
+        monster.mux = found_x;
+        monster.muy = found_y;
+    }
+    (found_x, found_y)
+}
+
+/// Check distance and scariness, potentially triggering flee (distfleeck from monmove.c:315-349).
+///
+/// C always consumes `rn2(5)` for the bravegremlin roll as the very first operation,
+/// even when the monster is never actually scared. `rn2(7)` and `rnd(10 or 100)` are only
+/// consumed when `scared` fires.
+///
+/// Returns `(inrange, nearby, scared)`.
+///
+/// C Source: monmove.c:315-349
+fn distfleeck(
+    monster_id: MonsterId,
+    level: &mut Level,
+    player: &You,
+    rng: &mut GameRng,
+) -> (bool, bool, bool) {
+    // bravegremlin: ALWAYS consumed first — matches C line order
+    let brave_gremlin = rng.rn2(5) == 0;
+
+    let (mx, my, mux, muy, is_blinded, can_see_invis) = {
+        let Some(monster) = level.monster(monster_id) else {
+            return (false, false, false);
+        };
+        (
+            monster.x,
+            monster.y,
+            monster.mux,
+            monster.muy,
+            monster.state.blinded,
+            monster.sees_invisible(),
+        )
+    };
+
+    // inrange: dist2(mx, my, mux, muy) <= BOLT_LIM^2  (BOLT_LIM = 8)
+    let dist_sq = (mx as i32 - mux as i32).pow(2) + (my as i32 - muy as i32).pow(2);
+    let in_range = dist_sq <= 64; // 8 * 8
+
+    // nearby: inrange && monnear — Chebyshev distance <= 1
+    let chebyshev = (mx as i32 - mux as i32)
+        .unsigned_abs()
+        .max((my as i32 - muy as i32).unsigned_abs());
+    let nearby = in_range && chebyshev <= 1;
+
+    if !nearby {
+        return (in_range, false, false);
+    }
+
+    // Determine the scare-check position: if monster cannot see the real player
+    // (blinded, or player is invisible and monster has no see-invisible), it uses
+    // its believed position (mux/muy). Otherwise it uses the true player position.
+    let player_invis = player.properties.has_invisibility();
+    let (seescaryx, seescaryy) = if is_blinded || (player_invis && !can_see_invis) {
+        (mux, muy)
+    } else {
+        (player.pos.x, player.pos.y)
+    };
+
+    // onscary: simplified — check Elbereth engraving or scare monster scroll at pos.
+    // (flees_light and in_your_sanctuary skipped as rare/complex)
+    let saw_scary = onscary_distfleeck(seescaryx, seescaryy, monster_id, level, player);
+
+    let scared = saw_scary
+        || (level
+            .monster(monster_id)
+            .is_some_and(|m| m.name.to_lowercase().contains("gremlin"))
+            && !brave_gremlin);
+    // Note: full C also checks flees_light(mtmp) && !bravegremlin and in_your_sanctuary;
+    // those are omitted here but brave_gremlin is wired in for the gremlin case.
+
+    if scared {
+        // monflee: set fleeing state and compute flee duration
+        // Consumes rn2(7) then rnd(10) or rnd(100)
+        let long_flee = rng.rn2(7) == 0;
+        let duration = (if long_flee { rng.rnd(100) } else { rng.rnd(10) }) as u16;
+        if let Some(monster) = level.monster_mut(monster_id) {
+            monster.state.fleeing = true;
+            monster.flee_timeout = duration;
+        }
+        (in_range, nearby, true)
+    } else {
+        (in_range, nearby, false)
+    }
+}
+
+/// Check whether a position is scary for a monster (onscary subset used by distfleeck).
+///
+/// Checks for Elbereth engravings and scare monster scrolls on the ground.
+/// This is simpler than the full `onscary` in monst.rs — it uses level data directly
+/// without the cell-flag path.
+fn onscary_distfleeck(x: i8, y: i8, monster_id: MonsterId, level: &Level, player: &You) -> bool {
+    let Some(monster) = level.monster(monster_id) else {
+        return false;
+    };
+
+    // Immune monsters are never scared
+    let name_lower = monster.name.to_lowercase();
+    if name_lower.contains("wizard of yendor")
+        || name_lower.contains("angel")
+        || name_lower == "death"
+        || name_lower == "famine"
+        || name_lower == "pestilence"
+        || monster.is_shopkeeper
+        || monster.is_priest
+    {
+        return false;
+    }
+
+    // Check for scare monster scroll on the ground at (x, y)
+    let has_scare_scroll = level.objects_at(x, y).iter().any(|obj| {
+        use crate::object::ObjectClass;
+        obj.class == ObjectClass::Scroll
+            && obj
+                .name
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains("scare monster")
+    });
+    if has_scare_scroll {
+        return true;
+    }
+
+    // Check for Elbereth engraving — player must be standing on it
+    if let Some(engr) = level.engr_at(x, y)
+        && engr.text.to_uppercase().contains("ELBERETH")
+        && player.pos.x == x
+        && player.pos.y == y
+        && !monster.is_shopkeeper
+        && !monster.is_guard
+        && !monster.state.blinded
+        && !monster.state.peaceful
+        && !name_lower.contains("human")
+        && !name_lower.contains("minotaur")
+    {
+        return true;
+    }
+
+    false
+}
+
 /// Main monster AI decision loop (dochug from monmove.c)
 ///
 /// This is the primary entry point for monster AI. It handles:
@@ -338,6 +603,15 @@ pub fn dochug(
         }
     }
 
+    // C: monmove.c:387-402 — STRAT_WAITFORU/STRAT_WAITMASK checks
+    // Quest monsters waiting for player, quest leaders talking.
+    // Stub: requires mstrategy field on Monster
+
+    // C: monmove.c:381-385 — m_arrival one-time action
+    // if (mtmp->mstrategy & STRAT_ARRIVE) { m_arrival(mtmp); }
+    // Resets STRAT_ARRIVE flag. Currently a no-op in C for most monsters.
+    // Stub: requires mstrategy field.
+
     // Line 1924-1932: Handle sleeping monsters (mon.c:1924-1932)
     // Try to wake based on proximity and disturbance
     {
@@ -357,6 +631,24 @@ pub fn dochug(
         && m.state.sleeping
     {
         wakeup(monster_id, level, false);
+    }
+
+    // C: monmove.c:412 — wipe dust engravings at monster position
+    // wipe_engr_at(mx, my, 1, FALSE) — removes 1 char from dust engravings
+    // No RNG consumed. Affects Elbereth mechanics.
+    if let Some(monster) = level.monster(monster_id) {
+        let mx = monster.x;
+        let my = monster.y;
+        // Remove 1 character from any dust engraving at this position
+        if let Some(idx) = level.engravings.iter().position(|e| e.x == mx && e.y == my) {
+            let eng = &mut level.engravings[idx];
+            if !eng.text.is_empty() {
+                eng.text.pop(); // Remove last character (simplified wipe_engr_at)
+            }
+            if eng.text.is_empty() {
+                level.engravings.remove(idx);
+            }
+        }
     }
 
     // Line 414-416 (monmove.c): confused monsters get unconfused with small probability
@@ -406,28 +698,61 @@ pub fn dochug(
         }
     }
 
+    // C: monmove.c:422-427 — fleeing monsters may randomly teleport
+    // RNG note: rn2(40) is consumed IFF mflee is true (C short-circuit on &&).
+    {
+        let is_fleeing = level.monster(monster_id).is_some_and(|m| m.state.fleeing);
+        if is_fleeing {
+            let rolled = rng.rn2(40) == 0;
+            if rolled {
+                let (can_tport, is_wiz) = level
+                    .monster(monster_id)
+                    .map(|m| {
+                        let can_tport = m.permonst().can_teleport();
+                        let is_wiz = m.name.to_lowercase().contains("wizard of yendor");
+                        (can_tport, is_wiz)
+                    })
+                    .unwrap_or((false, true));
+                if can_tport && !is_wiz && !level.flags.no_teleport {
+                    crate::action::teleport::rloc_monster(level, monster_id);
+                    return AiAction::Moved(
+                        level.monster(monster_id).map_or(0, |m| m.x),
+                        level.monster(monster_id).map_or(0, |m| m.y),
+                    );
+                }
+            }
+        }
+    }
+
+    // C: monmove.c:428-433 — shriek and medusa gaze
+    // Shriekers within 1 square: m_respond (aggravate/summon)
+    // Medusa in line of sight: m_respond (gaze attack)
+    // Both may consume RNG. Stub: requires m_respond implementation.
+    // TODO: implement m_respond for RNG parity with shriekers/medusa
+
+    // C: monmove.c:440-444 — release hero from peaceful monster grab/swallow
+    // if (mtmp == u.ustuck && mtmp->mpeaceful && !mtmp->mconf && !Conflict)
+    //     release_hero(mtmp); return 0;
+    // Stub: requires u.ustuck tracking
+
+    // Line 446 (monmove.c): set_apparxy() — determine where monster thinks player is
+    // Called before distfleeck so that mux/muy are valid for distance calculations.
+    let (appar_x, appar_y) = set_apparxy(monster_id, level, player, rng);
+
+    // C: monmove.c:454-455 — covetous monsters (quest nemesis, etc.) use tactics()
+    // May teleport to steal quest artifact. Exists in tactics.rs but not wired into dochug.
+    // Stub: wire in when covetous monster convergence is needed
+
     // ========== SECTION B: DISTANCE AND ITEM USAGE CHECKS ==========
 
-    // distfleeck() (monmove.c:314-349): check distance and scariness of attacks
-    // C always calls rn2(5) for bravegremlin check, even when result is unused
-    let _brave_gremlin = rng.rn2(5) == 0;
+    // distfleeck() (monmove.c:314-349): check distance, scariness, and trigger flee.
+    // rn2(5) is ALWAYS consumed first (bravegremlin), even when scared never fires.
+    let (in_range, nearby, scared) = distfleeck(monster_id, level, player, rng);
 
     // Line 1962-1972: Calculate distance-based decisions (mon.c:1962-1972)
-    let (in_range, nearby, can_use_healing) = {
+    let can_use_healing = {
         let monster = level.monster(monster_id).unwrap();
-        let dist_sq = ((monster.x as i32 - player.pos.x as i32).pow(2)
-            + (monster.y as i32 - player.pos.y as i32).pow(2)) as u32;
-
-        // BOLT_LIM is typically 12 squares (144 squared distance)
-        let in_range = dist_sq <= (12 * 12);
-
-        // Adjacent means within 1 square (distance <= 1)
-        let nearby = dist_sq <= 2; // 1 square diagonally = distance^2 of 2
-
-        // Check if monster has healing potions available
-        let has_healing = can_use_healing_item(monster);
-
-        (in_range, nearby, has_healing)
+        can_use_healing_item(monster)
     };
 
     // Line 1974-1985: Attempt defensive item usage (mon.c:1974-1985)
@@ -455,19 +780,68 @@ pub fn dochug(
         }
     }
 
+    // C: monmove.c:468-489 — Demonic blackmail
+    // nearby peaceful demons with MS_BRIBE sound attempt blackmail
+    // No RNG consumed in the basic check. Full implementation requires
+    // demon_talk() which is interactive. Stub for now.
+
+    // C: monmove.c:492-493 — watch guards check for player misbehavior
+    // Stub: requires watch_on_duty implementation
+
+    // C: monmove.c:495-543 — mind flayer psychic blast
+    {
+        let is_mind_flayer = level.monster(monster_id).is_some_and(|m| {
+            let name = m.permonst().name;
+            name == "mind flayer" || name == "master mind flayer"
+        });
+        if is_mind_flayer && rng.rn2(20) == 0 {
+            // Psychic blast triggered — would deal damage and affect nearby monsters.
+            // Full implementation requires sensemon, Blind_telepat, losehp, etc.
+            // The RNG calls inside: rn2(2), rn2(10), rnd(15) for player damage,
+            // then per-monster: rn2(2), rn2(10), rnd(15) for collateral.
+            // Stub: just consume the rn2(20) for now.
+            // TODO: implement full psychic blast for mind flayer parity
+        }
+    }
+
+    // C: monmove.c:549-568 — weapon wielding for nearby armed monsters
+    // Hostile monsters with AT_WEAP within sqrt(8) distance may wield items.
+    // mon_wield_item() consumes RNG for weapon selection.
+    // Stub: requires weapon_check field and mon_wield_item implementation.
+    // TODO: implement for armed monster RNG parity
+
+    // ========== SECTION B.5: UNDIRECTED SPELLCASTING CHECK (monmove.c:586-598) ==========
+
+    // C: if (dist2(mtmp->mx, mtmp->my, u.ux, u.uy) <= 49 && !mtmp->mspec_used)
+    //      for each mattk: if AT_MAGC && (AD_SPEL || AD_CLRC) && castmu(..., FALSE, FALSE)
+    //        { tmp = 3; break; }
+    // This fires BEFORE m_move for monsters with magic attacks (AT_MAGC + AD_SPEL/AD_CLRC)
+    // within 7 squares (dist2 <= 49). The condition check itself consumes no RNG.
+    // castmu() is only called when the monster has AT_MAGC attacks — common monsters
+    // (goblins, orcs, etc.) never reach castmu. Full castmu requires &mut GameState
+    // which dochug doesn't hold; wiring it in would require a signature change.
+    // TODO(castmu): implement for spell-casting monsters (liches, arch-liches, etc.)
+    //   by either threading GameState through dochug or extracting a castmu_level()
+    //   variant taking (&mut Level, &mut You, &mut GameRng).
+    // NOTE: Not implementing the return-early-on-cast here (tmp=3 branch) because
+    //   castmu is a stub. When castmu is fully wired, add:
+    //     if castmu_result.is_cast() { return AiAction::Waited; }
+
     // ========== SECTION C: NORMAL MOVEMENT DECISION ==========
 
     // Line 601 (monmove.c): Main movement decision via m_move
-    let result = dochug_movement(monster_id, level, player, nearby, in_range, rng);
+    // Pass appar_x/appar_y (from set_apparxy) as the movement target so blinded
+    // monsters pursue their believed player location rather than the true position.
+    let result = dochug_movement(
+        monster_id, level, player, appar_x, appar_y, nearby, in_range, scared, rng,
+    );
 
     // Line 612-613 (monmove.c): if (tmp != 2) distfleeck(mtmp, &inrange, &nearby, &scared)
-    // Second distfleeck call after m_move — calls rn2(5) for bravegremlin
-    // This is INSIDE the if(!nearby || ...) block at line 582, so it's only reached
-    // when the monster goes through m_move (not when it takes the nearby attack path).
-    // C: nearby hostile monsters skip the entire m_move+distfleeck2 block.
-    // AttackedPlayer = nearby attack path; Died = monster died (tmp==2)
+    // Second distfleeck call after m_move — only reached when monster went through
+    // m_move (not the nearby-attack path) and did not die.
+    // C: nearby hostile monsters skip this entire m_move+distfleeck2 block.
     if !matches!(result, AiAction::Died | AiAction::AttackedPlayer) {
-        let _brave_gremlin_2 = rng.rn2(5) == 0;
+        distfleeck(monster_id, level, player, rng);
     }
 
     result
@@ -572,43 +946,53 @@ fn dochug_movement(
     monster_id: MonsterId,
     level: &mut Level,
     player: &You,
+    appar_x: i8,
+    appar_y: i8,
     nearby: bool,
     _in_range: bool,
+    scared: bool,
     rng: &mut GameRng,
 ) -> AiAction {
     let monster = level.monster(monster_id).unwrap();
 
-    // Pet AI has special handling
+    // Pet AI has special handling (early return before m_move gate)
     if monster.state.tame {
         return pet_ai(monster_id, level, player, rng);
     }
 
-    // Peaceful monsters wander or follow player
-    if monster.state.peaceful {
-        if monster.is_adjacent(player.pos.x, player.pos.y) {
-            // Stay near player if tame
-            return AiAction::Waited;
+    // C monmove.c:574-579 "big if()" — determines whether monster enters the
+    // m_move (movement/wandering) path or the attack path.
+    //
+    // CRITICAL: Rust `||` short-circuits exactly like C's `||`.  The rn2 calls
+    // must only fire when no earlier condition was already true.
+    //
+    // Skipped vs C:
+    //   - leprechaun+gold check (no gold-inventory tracking yet)
+    //   - Conflict global flag (not tracked yet)
+    let should_use_m_move = !nearby
+        || monster.state.fleeing
+        || scared
+        || monster.state.confused
+        || monster.state.stunned
+        || (monster.state.invisible && rng.rn2(3) == 0)          // C: mtmp->minvis && !rn2(3)
+        || (monster.permonst().wanders() && rng.rn2(4) == 0)     // C: is_wanderer(mdat) && !rn2(4)
+        || (monster.state.blinded && rng.rn2(4) == 0)             // C: !mtmp->mcansee && !rn2(4)
+        || monster.state.peaceful;
+
+    if should_use_m_move {
+        // m_move path: wander/flee/approach based on individual state flags
+        if monster.state.fleeing {
+            return flee_from_player(monster_id, level, player, rng);
         }
-        return wander_randomly(monster_id, level, rng);
+        if monster.state.confused || monster.state.stunned {
+            return wander_randomly(monster_id, level, rng);
+        }
+        // Move towards monster's believed player position (mux/muy from set_apparxy)
+        move_towards(monster_id, level, appar_x, appar_y, rng)
+    } else {
+        // Attack path: nearby hostile monster that passed all wandering checks
+        AiAction::AttackedPlayer
     }
-
-    // Fleeing monsters move away from player
-    if monster.state.fleeing {
-        return flee_from_player(monster_id, level, player, rng);
-    }
-
-    // Confused monsters move randomly
-    if monster.state.confused {
-        return wander_randomly(monster_id, level, rng);
-    }
-
-    // Adjacent monsters attack player, others move closer
-    if nearby {
-        return AiAction::AttackedPlayer;
-    }
-
-    // Move towards player
-    move_towards(monster_id, level, player.pos.x, player.pos.y, rng)
 }
 
 /// Wrapper for dochug that handles occupation interruption (dochugw from monmove.c:1850-1868)
@@ -865,6 +1249,11 @@ fn move_towards(
     let my = monster.y;
     let mtrack = monster.mtrack;
     let no_diagonal = monster.no_diagonal_move;
+    // C: mon.c:1393-1396 — confused and blinded flags read before mfndpos
+    let monster_confused = monster.state.confused;
+    let monster_blinded = monster.state.blinded;
+    // C: mtrapseen bitmask — tracks which trap types this monster has seen
+    let monster_mtrapseen = monster.traps_seen;
     // C: can_open = !(nohands(ptr) || verysmall(ptr)) (monmove.c:780)
     // Monsters with hands that aren't very small can open closed doors.
     let pm = monster.permonst();
@@ -872,12 +1261,52 @@ fn move_towards(
     let verysmall = pm.size == crate::monster::MonsterSize::Tiny;
     let can_open = !nohands && !verysmall;
 
+    // C: monmove.c:822-823 — worm segment handling
+    // Worm monsters (wormno > 0) skip special NPC movement and use normal m_move.
+    // After movement, worm_move(mtmp) updates segments.
+    // Stub: requires wormno field and worm segment tracking.
+
+    // C: monmove.c:825-878 — special NPC movement (dog_move, shk_move, gd_move, pri_move)
+    // Rust has pet_ai, priest_ai, shopkeeper_ai, guard_ai stubs.
+    // RNG parity for these requires per-NPC audit against C implementations.
+    // NOTE: These are handled in dochug_movement before move_towards is called.
+
+    // C: monmove.c:808 — hides_under monsters stay put if standing on an object (90% chance)
+    // if (hides_under(ptr) && OBJ_AT(mtmp->mx, mtmp->my) && rn2(10)) return 0;
+    if pm.can_conceal() && !level.objects_at(mx, my).is_empty() && rng.rn2(10) != 0 {
+        return AiAction::Waited;
+    }
+
+    // C: monmove.c:890-898 — Tengu teleport
+    // if (ptr == &mons[PM_TENGU] && !rn2(5) && !mtmp->mcan && !tele_restrict(mtmp))
+    // RNG: rn2(5) consumed only when is_tengu; rn2(2) consumed only when hp>=7 && !peaceful
+    {
+        let is_tengu = pm.name == "tengu";
+        let is_cancelled = monster.state.cancelled;
+        if is_tengu && rng.rn2(5) == 0 && !is_cancelled {
+            // tele_restrict check: we skip it (not implemented); behave as if not restricted
+            let monster_hp = monster.hp;
+            let is_peaceful = monster.state.peaceful;
+            // C: if (mtmp->mhp < 7 || mtmp->mpeaceful || rn2(2))
+            // rn2(2) only consumed when hp >= 7 && !peaceful (C short-circuit)
+            let use_rloc = monster_hp < 7 || is_peaceful || rng.rn2(2) != 0;
+            // Both branches call rloc_monster; mnexto (teleport next to player) is stubbed as rloc
+            crate::action::teleport::rloc_monster(level, monster_id);
+            let (nx, ny) = level
+                .monster(monster_id)
+                .map(|m| (m.x, m.y))
+                .unwrap_or((mx, my));
+            let _ = use_rloc; // both arms do rloc; mnexto stubbed
+            return AiAction::Moved(nx, ny);
+        }
+    }
+
     // Calculate direction to target
     let _dx = (target_x - mx).signum();
     let _dy = (target_y - my).signum();
 
     // Confused monsters move randomly
-    if monster.state.confused {
+    if monster_confused {
         let (cdx, cdy) = random_direction(rng);
         let new_x = mx + cdx;
         let new_y = my + cdy;
@@ -898,7 +1327,197 @@ fn move_towards(
     // so rn2(10) is short-circuited. We always call lined_up_with_player.
     // The result determines item pickup interest, but the RNG side effect matters for parity.
     // NOTE: Is_rogue_level check omitted (we don't implement Rogue level yet)
-    let _in_line = lined_up_with_player(monster_id, level, target_x, target_y, rng);
+    let in_line = lined_up_with_player(monster_id, level, target_x, target_y, rng);
+
+    // C: monmove.c:906-938 — appr (approach direction) calculation
+    // appr=1: approach, appr=-1: flee, appr=0: wander randomly
+    //
+    // Base value from flee flag (C: appr = mtmp->mflee ? -1 : 1)
+    let mut appr: i32 = if monster.state.fleeing { -1 } else { 1 };
+
+    // C: if (mtmp->mconf || (u.uswallow && mtmp == u.ustuck)) appr = 0;
+    // Confused case is already handled above via early return (random move).
+    // The swallowed-engulfer case is handled by the engulf system; skip here.
+
+    // C: else { ... should_see + visibility conditions ... }
+    // (We are in the else branch: not confused, not engulfer-of-swallowed-player.)
+    {
+        // C: boolean should_see = (couldsee(omx, omy)
+        //        && (levl[gx][gy].lit || !levl[omx][omy].lit)
+        //        && (dist2(omx, omy, gx, gy) <= 36));
+        // couldsee(omx, omy) — can the player see the monster's current cell?
+        let monster_couldsee = level
+            .couldsee
+            .get(mx as usize)
+            .and_then(|col| col.get(my as usize))
+            .copied()
+            .unwrap_or(false);
+        let target_lit = level.cells[target_x as usize][target_y as usize].lit;
+        let monster_lit = level.cells[mx as usize][my as usize].lit;
+        let dist2_to_target =
+            (mx as i32 - target_x as i32).pow(2) + (my as i32 - target_y as i32).pow(2);
+        let should_see = monster_couldsee && (target_lit || !monster_lit) && dist2_to_target <= 36;
+
+        // C: if (!mtmp->mcansee ...) appr = 0;
+        // mcansee=false means blind. In Rust: blinded=true <=> !mcansee.
+        if monster.state.blinded {
+            appr = 0;
+        }
+        // C: || (should_see && Invis && !perceives(ptr) && rn2(11))
+        // Player invisibility (Invis) is not yet tracked; this branch cannot fire.
+        // When player invisibility is added, implement:
+        //   else if should_see && player.has_property(Property::Invisibility)
+        //       && !monster.sees_invisible() && rng.rn2(11) != 0 { appr = 0; }
+        // NOTE: rn2(11) MUST be called before the rn2(3) stalker/bat/light call below.
+        else if should_see {
+            // Invis not tracked yet -- no RNG consumed here.
+            // is_obj_mappear and u.uundetected checks omitted (not yet tracked).
+
+            // C: || (mtmp->mpeaceful && !mtmp->isshk)
+            if monster.state.peaceful && !monster.is_shopkeeper {
+                appr = 0;
+            }
+            // C: || ((monsndx(ptr) == PM_STALKER || ptr->mlet == S_BAT
+            //         || ptr->mlet == S_LIGHT) && !rn2(3))
+            // S_BAT = 'B', S_LIGHT = 'y' (glow/light monsters), stalker by name.
+            // RNG is consumed only when one of these types matches.
+            else if (pm.name == "stalker" || pm.symbol == 'B' || pm.symbol == 'y')
+                && rng.rn2(3) == 0
+            {
+                appr = 0;
+            }
+        } else {
+            // C: || (mtmp->mpeaceful && !mtmp->isshk) applies outside should_see too
+            if monster.state.peaceful && !monster.is_shopkeeper {
+                appr = 0;
+            }
+        }
+        // C: Leprechaun gold-flee (appr==-1 when has gold): skipped -- no gold tracking yet.
+        // C: monmove.c:930-938 — track following
+        // When monster can't see player but can track (dogs, etc.), follow player's
+        // movement trail via gettrack(). Changes gx/gy to a recent player position.
+        // Stub: requires player movement trail (utrack[]) and can_track() check.
+    }
+
+    // C: monmove.c:941-1063 — item-seeking behavior
+    // Hostile monsters not in direct combat scan nearby items and redirect gx/gy.
+    let mut gx = target_x;
+    let mut gy = target_y;
+    {
+        use crate::object::ObjectClass;
+
+        // C: likes_objs = (M2_COLLECT || is_armed(ptr))
+        let has_weapon_atk = pm
+            .attacks
+            .iter()
+            .any(|a| a.attack_type == crate::combat::AttackType::Weapon);
+        let likes_gold = pm.is_greedy();
+        let likes_gems = pm.collects_jewels();
+        let likes_objs = pm.collects() || has_weapon_atk;
+        let likes_magic = pm.wants_magic();
+        let likes_rock = pm.throws_rocks();
+        let uses_items = !pm.is_mindless() && !pm.is_animal();
+        // Simplified: assume pctload < 75 (monsters rarely overloaded)
+
+        // C: practical = {WEAPON_CLASS, ARMOR_CLASS, GEM_CLASS, FOOD_CLASS}
+        let is_practical = |c: ObjectClass| {
+            matches!(
+                c,
+                ObjectClass::Weapon | ObjectClass::Armor | ObjectClass::Gem | ObjectClass::Food
+            )
+        };
+        // C: magical = {AMULET_CLASS, POTION_CLASS, SCROLL_CLASS, WAND_CLASS, RING_CLASS, SPBOOK_CLASS}
+        let is_magical = |c: ObjectClass| {
+            matches!(
+                c,
+                ObjectClass::Amulet
+                    | ObjectClass::Potion
+                    | ObjectClass::Scroll
+                    | ObjectClass::Wand
+                    | ObjectClass::Ring
+                    | ObjectClass::Spellbook
+            )
+        };
+
+        let any_likes = likes_gold || likes_gems || likes_objs || likes_magic || likes_rock;
+
+        // C: if (appr != 1 || !in_line) { setlikes = TRUE; }
+        if any_likes && (appr != 1 || !in_line) {
+            const SQSRCHRADIUS: i32 = 5;
+            let mut minr = SQSRCHRADIUS;
+
+            // C: cut down search radius if player is closer
+            let dist_to_player = (target_x as i32 - mx as i32)
+                .abs()
+                .max((target_y as i32 - my as i32).abs());
+            if dist_to_player < SQSRCHRADIUS {
+                minr -= 1;
+            }
+
+            // C: monmove.c:983-984 — shop gate for item search
+            // Monsters in shops don't search for items unless rn2(25)==0.
+            // Missing: in_rooms(SHOPBASE) check. Item search always runs.
+            // RNG: rn2(25) only consumed when monster is in a shop.
+            // TODO: add shop proximity check
+
+            // Scan floor objects within minr distance
+            // C iterates fobj linked list; we iterate level.objects
+            for obj in &level.objects {
+                let xx = obj.x;
+                let yy = obj.y;
+
+                // Skip rocks (C: if (otmp->otyp == ROCK) continue)
+                // C: if (otmp->otyp == ROCK) continue — skip common rocks
+                if obj.object_type == crate::consts::ROCK {
+                    continue;
+                }
+
+                // Check within search radius
+                let dx = (xx as i32 - mx as i32).abs();
+                let dy = (yy as i32 - my as i32).abs();
+                if dx > minr || dy > minr {
+                    continue;
+                }
+
+                // C: monmove.c:1026 — searches_for_item for intelligent monsters
+                // uses_items monsters check if items are specifically useful (e.g. key for locked door).
+                // Simplified: we check class membership only.
+                // TODO: port searches_for_item for smarter item targeting
+
+                // Check if monster wants this object
+                let wanted = (likes_gold && obj.class == ObjectClass::Coin)
+                    || (likes_objs && is_practical(obj.class))
+                    || (likes_magic && is_magical(obj.class))
+                    || (uses_items
+                        && matches!(
+                            obj.class,
+                            ObjectClass::Weapon
+                                | ObjectClass::Armor
+                                | ObjectClass::Tool
+                                | ObjectClass::Food
+                                | ObjectClass::Amulet
+                                | ObjectClass::Ring
+                        ))
+                    || (likes_rock && obj.object_type == crate::BOULDER)
+                    || (likes_gems && obj.class == ObjectClass::Gem);
+
+                if wanted {
+                    // Update goal to nearest desired object
+                    let obj_dist = dx.max(dy); // distmin
+                    if obj_dist < minr {
+                        minr = obj_dist;
+                    }
+                    gx = xx;
+                    gy = yy;
+                    // If object is at monster's position, pick it up immediately
+                    if xx == mx && yy == my {
+                        // C: mmoved = 3; goto postmov — handled by pickup logic
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
     // Precompute current-cell diagonal door blocking (C: mon.c:1430)
     // Diagonal movement is blocked from/to doors unless doorway (D_NODOOR) or broken (D_BROKEN)
@@ -906,15 +1525,27 @@ fn move_towards(
     let now_door_blocks_diag = level.cells[mx as usize][my as usize].typ == CellType::Door
         && (level.cells[mx as usize][my as usize].flags & !DoorState::BROKEN.bits()) != 0;
 
-    // Enumerate all valid adjacent positions (C: mfndpos)
+    // Enumerate all valid adjacent positions (C: mfndpos from mon.c:1330-1572)
     // C iterates x-major, y-minor: for(nx=x-1..x+1) for(ny=y-1..y+1)
+    //
+    // Monster capability flags for position filtering
+    let throws_rocks = pm.throws_rocks();
+    let is_flyer = pm.is_flyer();
+    let is_floater = pm.is_floater();
+    let is_clinger = pm.is_clinger();
+    let is_swimmer = pm.is_swimmer();
+    let is_amorphous = pm.is_amorphous();
+    let wantpool = pm.symbol == ';'; // S_EEL
+    let poolok = (is_flyer || is_floater || is_clinger) || (is_swimmer && !wantpool);
+    let lavaok = is_flyer || is_floater || is_clinger || pm.can_survive_lava();
+
     let mut valid_positions: Vec<(i8, i8)> = Vec::new();
     for adj_dx in -1..=1_i8 {
         for adj_dy in -1..=1_i8 {
             if adj_dx == 0 && adj_dy == 0 {
                 continue;
             }
-            // Skip diagonal moves for grid bugs etc. (C: mon.c:1429)
+            // Skip diagonal moves for grid bugs etc. (C: mon.c:1429, NODIAG)
             if no_diagonal && adj_dx != 0 && adj_dy != 0 {
                 continue;
             }
@@ -923,46 +1554,191 @@ fn move_towards(
             if !level.is_valid_pos(nx, ny) {
                 continue;
             }
-            // Diagonal door check (C: mon.c:1428-1431)
-            // Cannot move diagonally from/to a door unless it's a doorway or broken
+            let ntyp = level.cells[nx as usize][ny as usize].typ;
+
+            // C: IS_ROCK check (mon.c:1406-1409) — skip rock/wall cells
+            if ntyp.is_rock() {
+                continue;
+            }
+
+            // C: Door check (mon.c:1417-1421)
+            if ntyp == CellType::Door {
+                let dmask = level.cells[nx as usize][ny as usize].flags;
+                let d_closed = dmask & DoorState::CLOSED.bits() != 0;
+                let d_locked = dmask & DoorState::LOCKED.bits() != 0;
+                // Skip closed doors unless monster can open them
+                if d_closed && !can_open {
+                    continue;
+                }
+                // Skip locked doors (would need UNLOCKDOOR flag)
+                if d_locked {
+                    continue;
+                }
+            }
+
+            // C: Diagonal door check (mon.c:1428-1431)
             if adj_dx != 0 && adj_dy != 0 {
                 if now_door_blocks_diag {
                     continue;
                 }
-                let target_cell = &level.cells[nx as usize][ny as usize];
-                if target_cell.typ == CellType::Door
-                    && (target_cell.flags & !DoorState::BROKEN.bits()) != 0
+                if ntyp == CellType::Door
+                    && (level.cells[nx as usize][ny as usize].flags & !DoorState::BROKEN.bits())
+                        != 0
                 {
                     continue;
                 }
                 // Tight squeeze check (C: mon.c:1523-1525)
-                // Cannot move diagonally if both adjacent cardinal cells are rock
-                // and the monster is too large to squeeze through
                 let corner1_rock = level.cells[mx as usize][ny as usize].typ.is_rock();
                 let corner2_rock = level.cells[nx as usize][my as usize].typ.is_rock();
                 if corner1_rock && corner2_rock && pm.is_big() {
-                    // cant_squeeze_thru: Large+ monsters cannot squeeze diagonally
-                    // between two rock walls (C: mon.c:1523-1525, bigmonst check)
                     continue;
                 }
             }
+
+            // C: Pool/lava check (mon.c:1439-1440)
+            // C: mon.c:1393-1396 — confused monsters get ALLOW_ALL, skipping pool/lava avoidance
+            let is_pool =
+                ntyp == CellType::Pool || ntyp == CellType::Moat || ntyp == CellType::Water;
+            let is_lava = ntyp == CellType::Lava;
+            if !monster_confused {
+                if is_pool && !wantpool && !poolok {
+                    continue;
+                }
+                if is_lava && !lavaok {
+                    continue;
+                }
+            }
+
+            // C: Player position check (mon.c:1463-1477)
+            // Skip player's cell — hostile monsters use ALLOW_U which we handle
+            // via the AttackedPlayer path in dochug, not in move_towards.
+            if nx == target_x && ny == target_y {
+                continue;
+            }
+
+            // C: Other monster check (mon.c:1479-1496)
+            if level.monster_at(nx, ny).is_some() {
+                // C: mon.c:1479-1496 — monster-monster interaction (ALLOW_M, ALLOW_MDISP)
+                // When another monster occupies a cell, check mm_aggression for attack
+                // and mm_displacement for pushing past. Currently simplified: skip all
+                // occupied cells. Full implementation would allow monster-monster combat
+                // and displacement.
+                //
+                // C: monmove.c:1131-1132 — should_displace check
+                // Determines if this monster should displace another to reach its goal.
+                // Currently monsters can't displace each other (cells with monsters are skipped).
+                // Stub: requires should_displace() and ALLOW_MDISP in mfndpos.
+                continue;
+            }
+
+            // C: mon.c:1393-1396 — confused monsters get ALLOW_ALL (can go anywhere)
+            // and ~NOTONL. Boulder, trap, and onscary avoidance is skipped for confused monsters.
+            if !monster_confused {
+                // C: Boulder check (mon.c:1512-1515)
+                // Boulders block movement unless monster throws rocks (ALLOW_ROCK)
+                if level
+                    .objects_at(nx, ny)
+                    .iter()
+                    .any(|o| o.object_type == crate::BOULDER)
+                {
+                    if !throws_rocks {
+                        continue;
+                    }
+                }
+
+                // C: mon.c:1499-1505 — temple sanctuary check (ALLOW_SANCT)
+                // Monsters can't enter player's temple unless they have ALLOW_SANCT.
+                // Stub: requires in_rooms() and in_your_sanctuary() implementation.
+
+                // C: mon.c:1507-1510 — garlic check (NOGARLIC)
+                // Undead monsters avoid cells with cloves of garlic.
+                // Stub: requires NOGARLIC flag and undead detection.
+
+                // C: mon.c:1517-1521 — unicorn line avoidance (NOTONL)
+                // Unicorns avoid cells on the same line as the player.
+                // Stub: requires NOTONL flag and onlineu() implementation.
+
+                // C: Trap avoidance (mon.c:1531-1561)
+                // Monsters only avoid traps they have previously seen (mtrapseen bitmask).
+                // The bit for a trap type is (1 << trap_type_index), where trap_type_index
+                // matches the C ttyp-1 ordering (Arrow=0, Dart=1, ...).
+                if let Some(trap) = level.trap_at(nx, ny) {
+                    use crate::dungeon::TrapType;
+                    let dominated = match trap.trap_type {
+                        // Rust/statue/vibrating-square traps are harmless to most
+                        TrapType::RustTrap | TrapType::Statue => false,
+                        // Pits/holes: flyers/floaters/clingers avoid in Sokoban only
+                        TrapType::Pit
+                        | TrapType::SpikedPit
+                        | TrapType::Hole
+                        | TrapType::TrapDoor => !is_flyer && !is_floater && !is_clinger,
+                        // Sleep gas: skip unless sleep-resistant
+                        TrapType::SleepingGas => true, // simplified: most goblins aren't resistant
+                        // Bear trap: skip if medium+ and solid
+                        TrapType::BearTrap => {
+                            pm.size as u8 > crate::monster::MonsterSize::Small as u8
+                                && !is_amorphous
+                                && !is_flyer
+                                && !is_floater
+                        }
+                        // Fire: skip unless fire-resistant
+                        TrapType::FireTrap => true, // simplified
+                        // Squeaky board: skip unless flyer
+                        TrapType::Squeaky => !is_flyer,
+                        // Web: skip unless amorphous or web-maker
+                        TrapType::Web => !is_amorphous,
+                        // Anti-magic: skip (simplified)
+                        TrapType::AntiMagic => true,
+                        // Other traps: generally dangerous
+                        _ => true,
+                    };
+                    // C: mon->mtrapseen & (1 << (ttyp-1)) — only avoid if monster has seen this trap.
+                    // Our TrapType variants map to the same ordinal positions as C's ttyp-1
+                    // (Arrow=0 corresponds to C ARROW_TRAP=1, bit = 1<<(1-1) = 1<<0).
+                    let trap_bit = 1u32 << (trap.trap_type as u32);
+                    if dominated && (monster_mtrapseen & trap_bit != 0) {
+                        continue; // Monster knows about this trap, avoid it
+                    }
+                }
+
+                // C: mon.c:1397-1398 — blind monsters get ALLOW_SSM (not scared by Elbereth)
+                // Relevant when per-cell onscary checks are added to mfndpos.
+
+                // C: mon.c:1458-1461 — onscary per-cell check
+                // Skip cells with Elbereth engravings or scare monster scrolls
+                // unless monster has ALLOW_SSM (blind or immune)
+                let is_scary =
+                    level.engravings.iter().any(|e| {
+                        e.x == nx && e.y == ny && e.text.to_uppercase().contains("ELBERETH")
+                    }) || level.objects_at(nx, ny).iter().any(|o| {
+                        o.class == crate::object::ObjectClass::Scroll
+                            && o.name
+                                .as_deref()
+                                .map_or(false, |n| n.to_lowercase().contains("scare monster"))
+                    });
+                if is_scary && !monster_blinded {
+                    continue;
+                }
+            }
+
+            // Cell must be walkable (room, corridor, open door, stairs, etc.)
             let walkable = level.is_walkable(nx, ny);
-            // C: mfndpos allows closed doors if OPENDOOR flag is set (monster can open doors)
-            // (mon.c:1417-1421). OPENDOOR only helps with D_CLOSED (0x04), NOT D_LOCKED (0x08).
-            // A locked door requires UNLOCKDOOR (key/wizard/rider) which we don't implement yet.
             let closed_door_ok = if !walkable && can_open {
-                let cell = &level.cells[nx as usize][ny as usize];
-                // Only D_CLOSED doors, NOT D_LOCKED
-                cell.typ == CellType::Door
-                    && cell.door_state().contains(DoorState::CLOSED)
-                    && !cell.door_state().contains(DoorState::LOCKED)
+                ntyp == CellType::Door
+                    && level.cells[nx as usize][ny as usize]
+                        .door_state()
+                        .contains(DoorState::CLOSED)
+                    && !level.cells[nx as usize][ny as usize]
+                        .door_state()
+                        .contains(DoorState::LOCKED)
             } else {
                 false
             };
-            let no_mon = level.monster_at(nx, ny).is_none();
-            if (walkable || closed_door_ok) && no_mon {
-                valid_positions.push((nx, ny));
+            if !walkable && !closed_door_ok {
+                continue;
             }
+
+            valid_positions.push((nx, ny));
         }
     }
 
@@ -971,57 +1747,159 @@ fn move_towards(
         return AiAction::Waited;
     }
 
+    // C: monmove.c:1109-1162 — candidate scoring loop
+    // C: nix=omx, niy=omy, nidist = dist2(nix,niy,gx,gy)
+    // Start with current position as baseline — candidates must be STRICTLY closer
+    let mut nix = mx;
+    let mut niy = my;
+    let nidist_init = (mx as i32 - gx as i32).pow(2) + (my as i32 - gy as i32).pow(2);
+    let mut nidist = nidist_init;
+    let mut mmoved = false;
+    let mut chcnt: u32 = 0;
+
+    // C: monmove.c:1121-1124 — shortsighted check (only on levels with shortsighted flag)
+    // if (!mtmp->mpeaceful && level.flags.shortsighted
+    //     && nidist > (couldsee(nix, niy) ? 144 : 36) && appr == 1)
+    //     appr = 0;
+    // nidist here is the initial distance from monster to goal (before candidate selection).
+    // nix/niy at this point are still omx/omy (= mx/my) — the couldsee is on the monster cell.
+    if !monster.state.peaceful && level.flags.shortsighted && appr == 1 {
+        let sight_limit = if level
+            .couldsee
+            .get(mx as usize)
+            .and_then(|col| col.get(my as usize))
+            .copied()
+            .unwrap_or(false)
+        {
+            144
+        } else {
+            36
+        };
+        if nidist_init > sight_limit {
+            appr = 0;
+        }
+    }
+
     // Track avoidance (C: monmove.c:1142-1148)
     // jcnt = min(MTSZ=4, cnt-1)
     let jcnt = 4.min(cnt.saturating_sub(1));
-
-    // Diagnostic logging for convergence debugging
-
-    let mut best_pos: Option<(i8, i8)> = None;
-    let mut best_dist = i32::MAX;
 
     for &(nx, ny) in &valid_positions {
         // Track avoidance: skip positions that match recent track entries
         // C: if (appr != 0) { for j in 0..jcnt: if match, rn2(4*(cnt-j)) -> skip }
         let mut skip = false;
-        for (j, &(tx, ty)) in mtrack.iter().enumerate().take(jcnt) {
-            if nx == tx && ny == ty {
-                let rng_arg = 4 * (cnt - j) as u32;
-                let rng_val = rng.rn2(rng_arg);
-                if rng_val != 0 {
-                    skip = true;
-                    break; // C: goto nxti — only break on skip
+        if appr != 0 {
+            for (j, &(tx, ty)) in mtrack.iter().enumerate().take(jcnt) {
+                if nx == tx && ny == ty {
+                    let rng_arg = 4 * (cnt - j) as u32;
+                    let rng_val = rng.rn2(rng_arg);
+                    if rng_val != 0 {
+                        skip = true;
+                        break; // C: goto nxti — only break on skip
+                    }
+                    // C: when rn2 returns 0 (keep), loop continues to check remaining track entries
                 }
-                // C: when rn2 returns 0 (keep), loop continues to check remaining track entries
-                // The position might match a later track entry and get skipped there
             }
         }
         if skip {
             continue;
         }
 
-        // For appr==1 (approaching), pick closest to target (deterministic, no RNG)
-        let dist = (nx as i32 - target_x as i32).pow(2) + (ny as i32 - target_y as i32).pow(2);
-        if dist < best_dist {
-            best_dist = dist;
-            best_pos = Some((nx, ny));
+        let ndist = (nx as i32 - gx as i32).pow(2) + (ny as i32 - gy as i32).pow(2);
+        let nearer = ndist < nidist;
+
+        // C: if ((appr == 1 && nearer) || (appr == -1 && !nearer)
+        //        || (!appr && !rn2(++chcnt)) || !mmoved)
+        let pick = match appr {
+            1 => nearer,
+            -1 => !nearer,
+            _ => {
+                chcnt += 1;
+                rng.rn2(chcnt) == 0
+            }
+        } || !mmoved;
+
+        if pick {
+            nix = nx;
+            niy = ny;
+            nidist = ndist;
+            mmoved = true;
         }
     }
 
-    if let Some((nx, ny)) = best_pos {
+    if mmoved && (nix != mx || niy != my) {
         // C: monmove.c:1304-1368 — open closed door after moving to it
         // Only D_CLOSED doors (not D_LOCKED) can be opened by can_open monsters
         if can_open {
-            let cell = &level.cells[nx as usize][ny as usize];
+            let cell = &level.cells[nix as usize][niy as usize];
             if cell.typ == CellType::Door
                 && cell.door_state().contains(DoorState::CLOSED)
                 && !cell.door_state().contains(DoorState::LOCKED)
             {
-                level.cells[nx as usize][ny as usize].set_door_state(DoorState::OPEN);
+                level.cells[nix as usize][niy as usize].set_door_state(DoorState::OPEN);
             }
         }
-        level.move_monster(monster_id, nx, ny);
-        AiAction::Moved(nx, ny)
+        // C: monmove.c:1277-1294 — vampire fog shift at doors
+        // Vampires transform to fog cloud to pass through closed/locked doors.
+        // Stub: requires vamp_shift and can_fog implementation.
+        level.move_monster(monster_id, nix, niy);
+
+        // C: monmove.c:1297-1301 — mintrap after movement
+        // Full mintrap applies trap effects and may consume RNG; stubbed here for now.
+        if let Some(trap) = level.trap_at(nix, niy) {
+            // TODO: implement full mintrap for RNG parity with trap effects
+            let _ = trap;
+        }
+
+        // C: monmove.c:1303-1370 — item pickup after movement (mpickgold / mpickstuff)
+        // mpickgold: monster picks up gold at the new cell (no RNG consumed for simple case).
+        // mpickstuff: monster picks up desirable items (no RNG for basic can_carry check).
+        {
+            use crate::object::ObjectClass;
+
+            let monster = level.monster(monster_id).unwrap();
+            let pm = monster.permonst();
+            let has_weapon_atk = pm
+                .attacks
+                .iter()
+                .any(|a| a.attack_type == crate::combat::AttackType::Weapon);
+            let likes_gold = pm.is_greedy();
+            let likes_objs = pm.collects() || has_weapon_atk;
+            let wants_items = likes_gold || likes_objs;
+
+            if wants_items {
+                // Collect indices of floor objects at the new position the monster wants.
+                let pickup_indices: Vec<usize> = level
+                    .objects
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, o)| o.x == nix && o.y == niy)
+                    .filter(|(_, o)| {
+                        (likes_gold && o.class == ObjectClass::Coin)
+                            || (likes_objs
+                                && matches!(
+                                    o.class,
+                                    ObjectClass::Weapon
+                                        | ObjectClass::Armor
+                                        | ObjectClass::Gem
+                                        | ObjectClass::Food
+                                ))
+                    })
+                    .map(|(i, _)| i)
+                    .collect();
+
+                // Transfer objects from floor to monster inventory.
+                // Iterate in reverse so removing by index doesn't invalidate earlier indices.
+                for &idx in pickup_indices.iter().rev() {
+                    let obj = level.objects.remove(idx);
+                    if let Some(m) = level.monster_mut(monster_id) {
+                        m.inventory.push(obj);
+                    }
+                }
+            }
+        }
+
+        AiAction::Moved(nix, niy)
     } else {
         AiAction::Waited
     }

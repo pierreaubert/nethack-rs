@@ -13,10 +13,7 @@ use nh_test::ffi::CGameEngineSubprocess as CGameEngine;
 use serial_test::serial;
 
 /// Helper: init both engines on the same C-exported level, skip movemon, reseed.
-fn setup_synced_engines(
-    seed: u64,
-    rng_reseed: u64,
-) -> (GameLoop, CGameEngine, LevelFixture) {
+fn setup_synced_engines(seed: u64, rng_reseed: u64) -> (GameLoop, CGameEngine, LevelFixture) {
     let mut c_engine = CGameEngine::new();
     c_engine
         .init("Valkyrie", "Human", 1, 0)
@@ -383,10 +380,7 @@ fn test_divergence_diagnosis_pipeline() {
                 let c_caller = c_entries[i]["caller"].as_str().unwrap_or("");
 
                 let r = &rust_turn_trace[i];
-                let match_str = if c_func == r.func
-                    && c_arg == r.arg
-                    && c_res == r.result
-                {
+                let match_str = if c_func == r.func && c_arg == r.arg && c_res == r.result {
                     "OK"
                 } else {
                     "DIFF"
@@ -394,9 +388,7 @@ fn test_divergence_diagnosis_pipeline() {
 
                 println!(
                     "  [{}] {} C:{}:{}({})={} | Rust:{}:{}({})={}",
-                    i, match_str,
-                    c_caller, c_func, c_arg, c_res,
-                    r.caller, r.func, r.arg, r.result,
+                    i, match_str, c_caller, c_func, c_arg, c_res, r.caller, r.func, r.arg, r.result,
                 );
             }
             if c_entries.len() != rust_turn_trace.len() {

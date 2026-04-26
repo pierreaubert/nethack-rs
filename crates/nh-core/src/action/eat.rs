@@ -1528,8 +1528,8 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
         }
 
         // C: if (u.uhs <= WEAK || rn2(20 - uhunger_div_by_10) >= 19)
-        let faint_check = old_state <= HungerState::Weak
-            || state.rng.rn2((20 - uhunger_div_by_10) as u32) >= 19;
+        let faint_check =
+            old_state <= HungerState::Weak || state.rng.rn2((20 - uhunger_div_by_10) as u32) >= 19;
 
         if faint_check {
             // C: if (!is_fainted() && multi >= 0)
@@ -1566,10 +1566,16 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
     // Rust applies/removes directly via attr_current to keep the model simple.
     if new_state >= HungerState::Weak && old_state < HungerState::Weak {
         // C: ATEMP(A_STR) = -1; — temporary str loss when becoming weak
-        state.player.attr_current.modify(crate::player::Attribute::Strength, -1);
+        state
+            .player
+            .attr_current
+            .modify(crate::player::Attribute::Strength, -1);
     } else if new_state < HungerState::Weak && old_state >= HungerState::Weak {
         // C: ATEMP(A_STR) = 0; — restore str when no longer weak
-        state.player.attr_current.modify(crate::player::Attribute::Strength, 1);
+        state
+            .player
+            .attr_current
+            .modify(crate::player::Attribute::Strength, 1);
     }
 
     // State transition messages
@@ -1637,10 +1643,13 @@ pub fn gethungry(state: &mut GameState) -> Vec<String> {
     // !Slow_digestion: only skip base hunger, not ring/amulet hunger
     // C: Unaware = multi < 0 && (unconscious() || is_fainted())
     let unaware = state.player.multi < 0
-        && (state.player.sleeping_timeout > 0
-            || crate::player::is_fainted(&state.player));
+        && (state.player.sleeping_timeout > 0 || crate::player::is_fainted(&state.player));
     // C short-circuits: !Unaware is checked first, rn2(10) only called if unaware
-    let aware_check = if !unaware { true } else { state.rng.rn2(10) == 0 };
+    let aware_check = if !unaware {
+        true
+    } else {
+        state.rng.rn2(10) == 0
+    };
     let has_slow_digestion = state.player.properties.has(Property::SlowDigestion);
     if aware_check && !has_slow_digestion {
         state.player.nutrition -= 1; // C: u.uhunger--

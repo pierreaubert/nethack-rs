@@ -352,7 +352,7 @@ impl RectManager {
                 if self.rects[i].intersects(r2) {
                     let intersecting = self.rects[i];
                     if let Some(intersection) = intersecting.intersection(r2) {
-                            self.split_rects(intersecting, &intersection);
+                        self.split_rects(intersecting, &intersection);
                     }
                 }
             }
