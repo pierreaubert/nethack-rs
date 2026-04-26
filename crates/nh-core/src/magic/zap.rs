@@ -3207,6 +3207,7 @@ pub fn elemental_clog(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dungeon::DLevel;
     use crate::object::{BucStatus, ObjectClass, ObjectId};
 
     #[test]

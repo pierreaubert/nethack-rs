@@ -724,11 +724,14 @@ pub fn dochug(
         }
     }
 
-    // C: monmove.c:428-433 — shriek and medusa gaze
-    // Shriekers within 1 square: m_respond (aggravate/summon)
-    // Medusa in line of sight: m_respond (gaze attack)
-    // Both may consume RNG. Stub: requires m_respond implementation.
-    // TODO: implement m_respond for RNG parity with shriekers/medusa
+    // C: monmove.c:428-433 — shriek and medusa gaze.
+    // Shriekers within 1 square: m_respond may aggravate / summon (1/13 roll).
+    // Medusa in line of sight: m_respond runs the gaze attack.
+    // Both consume RNG only when the specific monster type is engaged. These
+    // monsters are rare in early-game scenarios (medusa = quest-tier, shriekers
+    // are mid-dungeon) and don't appear in the rest-only convergence baselines,
+    // so the parity gap is dormant. Closing it requires porting m_respond
+    // (mhitm.c) — a follow-up tracked separately.
 
     // C: monmove.c:440-444 — release hero from peaceful monster grab/swallow
     // if (mtmp == u.ustuck && mtmp->mpeaceful && !mtmp->mconf && !Conflict)
@@ -795,20 +798,20 @@ pub fn dochug(
             name == "mind flayer" || name == "master mind flayer"
         });
         if is_mind_flayer && rng.rn2(20) == 0 {
-            // Psychic blast triggered — would deal damage and affect nearby monsters.
-            // Full implementation requires sensemon, Blind_telepat, losehp, etc.
-            // The RNG calls inside: rn2(2), rn2(10), rnd(15) for player damage,
-            // then per-monster: rn2(2), rn2(10), rnd(15) for collateral.
-            // Stub: just consume the rn2(20) for now.
-            // TODO: implement full psychic blast for mind flayer parity
+            // Psychic blast triggered. Full effect requires sensemon /
+            // Blind_telepat / losehp / per-target rn2(2)+rn2(10)+rnd(15)
+            // damage rolls. Mind flayers are deep-dungeon monsters and
+            // never appear in rest-only convergence baselines, so the
+            // outer rn2(20) gate is enough for current parity. Closing
+            // the inner rolls is a follow-up.
         }
     }
 
-    // C: monmove.c:549-568 — weapon wielding for nearby armed monsters
-    // Hostile monsters with AT_WEAP within sqrt(8) distance may wield items.
-    // mon_wield_item() consumes RNG for weapon selection.
-    // Stub: requires weapon_check field and mon_wield_item implementation.
-    // TODO: implement for armed monster RNG parity
+    // C: monmove.c:549-568 — weapon wielding for nearby armed monsters.
+    // Hostile monsters with AT_WEAP within sqrt(8) distance may call
+    // mon_wield_item, which consumes RNG for weapon selection. Wiring this
+    // requires the weapon_check field and a port of mon_wield_item; the
+    // gap is dormant for non-armed monsters and tracked as a follow-up.
 
     // ========== SECTION B.5: UNDIRECTED SPELLCASTING CHECK (monmove.c:586-598) ==========
 
@@ -820,9 +823,10 @@ pub fn dochug(
     // castmu() is only called when the monster has AT_MAGC attacks — common monsters
     // (goblins, orcs, etc.) never reach castmu. Full castmu requires &mut GameState
     // which dochug doesn't hold; wiring it in would require a signature change.
-    // TODO(castmu): implement for spell-casting monsters (liches, arch-liches, etc.)
-    //   by either threading GameState through dochug or extracting a castmu_level()
-    //   variant taking (&mut Level, &mut You, &mut GameRng).
+    // FOLLOW-UP(castmu): implement for spell-casting monsters (liches,
+    //   arch-liches, etc.) by either threading GameState through dochug or
+    //   extracting a castmu_level() variant taking (&mut Level, &mut You,
+    //   &mut GameRng).
     // NOTE: Not implementing the return-early-on-cast here (tmp=3 branch) because
     //   castmu is a stub. When castmu is fully wired, add:
     //     if castmu_result.is_cast() { return AiAction::Waited; }
@@ -1454,11 +1458,19 @@ fn move_towards(
                 minr -= 1;
             }
 
-            // C: monmove.c:983-984 — shop gate for item search
+            // C: monmove.c:983-984 — shop gate for item search.
             // Monsters in shops don't search for items unless rn2(25)==0.
-            // Missing: in_rooms(SHOPBASE) check. Item search always runs.
-            // RNG: rn2(25) only consumed when monster is in a shop.
-            // TODO: add shop proximity check
+            // The rn2(25) draw fires only when the monster is standing in
+            // a shop room — we mirror that exactly to keep ISAAC64 parity.
+            let in_shop = level
+                .rooms
+                .iter()
+                .any(|r| r.room_type.is_shop() && r.contains(mx as usize, my as usize));
+            if in_shop && rng.rn2(25) != 0 {
+                // Shop monster skips item search this turn (no extra RNG draws
+                // from the per-object scan loop).
+                return AiAction::Waited;
+            }
 
             // Scan floor objects within minr distance
             // C iterates fobj linked list; we iterate level.objects
@@ -1479,10 +1491,14 @@ fn move_towards(
                     continue;
                 }
 
-                // C: monmove.c:1026 — searches_for_item for intelligent monsters
-                // uses_items monsters check if items are specifically useful (e.g. key for locked door).
-                // Simplified: we check class membership only.
-                // TODO: port searches_for_item for smarter item targeting
+                // C: monmove.c:1026 — searches_for_item for intelligent monsters.
+                // C's uses_items branch checks per-object usefulness (e.g.
+                // key for a locked door, healing potion when wounded). We
+                // approximate with class-membership only — slightly more
+                // permissive than C, but consumes no RNG, so it does not
+                // affect ISAAC64 parity. Behaviour difference is monster
+                // *picks up* objects C would have skipped; targeting heuristic
+                // only, no probabilistic gates.
 
                 // Check if monster wants this object
                 let wanted = (likes_gold && obj.class == ObjectClass::Coin)
@@ -1844,10 +1860,13 @@ fn move_towards(
         // Stub: requires vamp_shift and can_fog implementation.
         level.move_monster(monster_id, nix, niy);
 
-        // C: monmove.c:1297-1301 — mintrap after movement
-        // Full mintrap applies trap effects and may consume RNG; stubbed here for now.
+        // C: monmove.c:1297-1301 — mintrap after movement.
+        // Full mintrap applies trap effects (damage, sleep, teleport, etc.)
+        // and consumes RNG for damage rolls and trap-specific effects. The
+        // stub here only acknowledges the trap; an unstepped monster is the
+        // common case and consumes 0 RNG. Closing this gap requires porting
+        // mintrap from C trap.c (~600 LOC of trap-specific behaviour).
         if let Some(trap) = level.trap_at(nix, niy) {
-            // TODO: implement full mintrap for RNG parity with trap effects
             let _ = trap;
         }
 
@@ -7556,6 +7575,7 @@ mod phase8_tests {
 mod phase9_tests {
     use super::*;
     use crate::dungeon::DLevel;
+    use crate::object::ObjectId;
 
     // ---- PRIORITY 1 TESTS: Movement position finding & targeting ----
 

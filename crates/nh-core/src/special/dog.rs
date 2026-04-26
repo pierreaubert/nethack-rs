@@ -971,6 +971,9 @@ pub fn litter(level: &mut Level, parent: &Monster, player: &You, rng: &mut GameR
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dungeon::DLevel;
+    use crate::monster::MonsterId;
+    use crate::object::ObjectId;
 
     fn test_pet() -> Monster {
         let mut m = Monster::new(MonsterId(1), 0, 5, 5);

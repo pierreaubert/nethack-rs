@@ -6208,6 +6208,7 @@ fn create_path(level: &mut Level, x1: usize, y1: usize, x2: usize, y2: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dungeon::DLevel;
 
     #[test]
     fn test_room_overlap() {

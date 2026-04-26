@@ -2766,6 +2766,7 @@ pub fn domindblast(player: &You, level: &mut Level, rng: &mut GameRng) -> Vec<St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dungeon::DLevel;
 
     #[test]
     fn test_spell_type_from_object() {

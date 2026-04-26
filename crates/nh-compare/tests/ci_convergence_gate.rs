@@ -49,10 +49,11 @@ fn ci_scenarios() -> Vec<CiScenario> {
             num_turns: 200,
             commands: rest_command,
             threshold: ConvergenceThreshold {
-                // Baseline (Feb 2026): critical=0, major=168
-                // As convergence improves, ratchet these down.
+                // Baseline (Apr 2026, after is_multigen fix): critical=0, major=42
+                // (was 168 before fixing the ammo skill-range boundary in
+                // mksobj_phantom_rng).
                 max_critical_diffs: 5,
-                max_major_diffs: 210,
+                max_major_diffs: 60,
             },
         },
         CiScenario {
@@ -65,9 +66,11 @@ fn ci_scenarios() -> Vec<CiScenario> {
             num_turns: 200,
             commands: rest_command,
             threshold: ConvergenceThreshold {
-                // Baseline (Feb 2026): critical=0, major=315
+                // Baseline (Apr 2026, after is_multigen fix): critical=0, major=210
+                // (was 315 before). Wizard remains the most divergent role —
+                // residual likely from spell-list / starting-spell RNG.
                 max_critical_diffs: 5,
-                max_major_diffs: 380,
+                max_major_diffs: 240,
             },
         },
         CiScenario {
@@ -80,9 +83,11 @@ fn ci_scenarios() -> Vec<CiScenario> {
             num_turns: 200,
             commands: rest_command,
             threshold: ConvergenceThreshold {
-                // Baseline (Feb 2026): critical=0, major=231
+                // Baseline (Apr 2026, after is_multigen fix): critical=0, major=42
+                // (was 231 before — the ammo fix was particularly large for
+                // Rogue, who starts with daggers and arrows).
                 max_critical_diffs: 5,
-                max_major_diffs: 280,
+                max_major_diffs: 60,
             },
         },
     ]

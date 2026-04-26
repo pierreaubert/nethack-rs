@@ -1993,7 +1993,7 @@ mod tests {
         obj.inv_letter = 'a';
         state.inventory.push(obj);
 
-        let result = do_eat(&mut state, 'a');
+        let result = do_eat(&mut state, Some('a'));
         assert!(matches!(result, ActionResult::Failed(_)));
     }
 
@@ -2005,7 +2005,7 @@ mod tests {
         let obj = make_food('a', otyp::FOOD_RATION, 800);
         state.inventory.push(obj);
 
-        let result = do_eat(&mut state, 'a');
+        let result = do_eat(&mut state, Some('a'));
         assert!(matches!(result, ActionResult::Success));
         assert!(state.player.nutrition > initial_nutrition);
     }
@@ -2058,7 +2058,7 @@ mod tests {
         let obj = make_food('a', otyp::CARROT, 50);
         state.inventory.push(obj);
 
-        let _ = do_eat(&mut state, 'a');
+        let _ = do_eat(&mut state, Some('a'));
         assert_eq!(state.player.blinded_timeout, 0);
     }
 

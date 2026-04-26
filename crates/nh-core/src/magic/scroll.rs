@@ -1399,6 +1399,7 @@ pub fn drag_ball(player: &mut You, new_x: i8, new_y: i8) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dungeon::DLevel;
 
     #[test]
     fn test_scroll_type_from_object() {

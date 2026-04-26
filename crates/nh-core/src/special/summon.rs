@@ -365,6 +365,8 @@ pub fn nasty(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::monster::MonsterId;
+    use crate::object::ObjectId;
 
     #[test]
     fn test_dosummon_insufficient_energy() {

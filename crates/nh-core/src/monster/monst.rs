@@ -1869,11 +1869,15 @@ pub const NORMAL_SPEED: i32 = 12;
 ///
 /// # Arguments
 /// * `mon` - The monster
+/// * `gallop_active` - True iff this monster is the player's steed AND the
+///   player is currently galloping AND we are inside player movement
+///   processing (C: `mon == u.usteed && u.ugallop && context.mv`). When true,
+///   consumes one extra `rn2(2)` draw to match C's RNG sequence.
 /// * `rng` - Random number generator
 ///
 /// # Returns
 /// Movement points for this turn
-pub fn mcalcmove(mon: &Monster, rng: &mut crate::rng::GameRng) -> i32 {
+pub fn mcalcmove(mon: &Monster, gallop_active: bool, rng: &mut crate::rng::GameRng) -> i32 {
     let mut mmove = mon.base_speed;
 
     // Apply speed modifiers
@@ -1887,6 +1891,15 @@ pub fn mcalcmove(mon: &Monster, rng: &mut crate::rng::GameRng) -> i32 {
             mmove = (4 * mmove + 2) / 3;
         }
         SpeedState::Normal => {}
+    }
+
+    // C mon.c:654-659: galloping steed gets ((rn2(2)?4:5)*mmove)/3.
+    // The rn2(2) MUST fire whenever this branch is entered to keep
+    // ISAAC64 parity with C, even when the multiplier doesn't change behaviour.
+    if gallop_active {
+        let coin = rng.rn2(2);
+        let mult = if coin != 0 { 4 } else { 5 };
+        mmove = (mult * mmove) / 3;
     }
 
     // Randomly round the monster's speed to a multiple of NORMAL_SPEED.
@@ -2511,7 +2524,7 @@ mod tests {
         mon.speed = SpeedState::Normal;
 
         let mut rng = crate::rng::GameRng::from_entropy();
-        let move_points = mcalcmove(&mon, &mut rng);
+        let move_points = mcalcmove(&mon, false, &mut rng);
 
         // Normal speed 12 should give 12 or 0 depending on randomization
         assert!(move_points == 0 || move_points == 12);
@@ -2524,7 +2537,7 @@ mod tests {
         mon.speed = SpeedState::Slow;
 
         let mut rng = crate::rng::GameRng::from_entropy();
-        let move_points = mcalcmove(&mon, &mut rng);
+        let move_points = mcalcmove(&mon, false, &mut rng);
 
         // Slow: (2 * 12 + 1) / 3 = 8, then randomized
         assert!(move_points == 0 || move_points == 12);
@@ -2537,7 +2550,7 @@ mod tests {
         mon.speed = SpeedState::Fast;
 
         let mut rng = crate::rng::GameRng::from_entropy();
-        let move_points = mcalcmove(&mon, &mut rng);
+        let move_points = mcalcmove(&mon, false, &mut rng);
 
         // Fast: (4 * 12 + 2) / 3 = 16, then randomized
         assert!(move_points == 12 || move_points == 24);

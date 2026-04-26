@@ -2538,11 +2538,26 @@ impl GameLoop {
         // Reallocate movement to monsters using mcalcmove (C: allmain.c:118-119)
         // mcalcmove applies speed modifiers and randomly rounds to NORMAL_SPEED
         // multiples using rn2(12), consuming 1 RNG call per monster per turn.
+        // C also fires an extra rn2(2) draw when this monster is the player's
+        // galloping steed during movement (mon.c:654-659); we mirror that here
+        // to keep ISAAC64 parity.
         {
+            let steed_id = state.player.steed;
+            // C `context.mv` is set during domove(); per-turn mcalcmove at
+            // allmain.c:118 runs after the player's command, so context.mv is
+            // still set when the player just moved. We approximate by gating
+            // on the galloping flag alone, which is itself only set during
+            // movement-initiated combat hasting.
+            let player_galloping = state.player.galloping;
             let monster_count = state.current_level.monsters.len();
             let mut movements = Vec::with_capacity(monster_count);
             for monster in &state.current_level.monsters {
-                movements.push(crate::monster::mcalcmove(monster, &mut state.rng));
+                let gallop_active = player_galloping && Some(monster.id) == steed_id;
+                movements.push(crate::monster::mcalcmove(
+                    monster,
+                    gallop_active,
+                    &mut state.rng,
+                ));
             }
             for (monster, movement) in state.current_level.monsters.iter_mut().zip(movements) {
                 monster.movement += movement as i16;

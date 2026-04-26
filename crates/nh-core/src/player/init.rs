@@ -948,11 +948,11 @@ fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, 
             // C: is_multigen check — applies to ammo (arrows, bolts, darts, shuriken)
             // For non-multigen weapons: quan=1, no RNG call
             // For multigen: rn1(6,6) = rnd(6)+5
-            // We check by looking at the object definition's skill
+            // C macro: oc_skill >= -P_SHURIKEN && oc_skill <= -P_BOW
+            // (P_BOW=21, P_SHURIKEN=25 — ammo has negative skill in [-25,-21])
             let is_multigen = if let Some(def) = crate::data::objects::OBJECTS.get(otyp as usize) {
-                // C: oc_skill >= -P_SHURIKEN && oc_skill <= -P_BOW
-                // Ammo skills are negative; arrows/bolts/darts/shuriken
-                def.skill <= -1 && def.skill >= -7 // approximate range for ammo
+                use crate::data::objects::{P_BOW, P_SHURIKEN};
+                def.skill >= -P_SHURIKEN && def.skill <= -P_BOW
             } else {
                 false
             };
@@ -1107,13 +1107,33 @@ pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mu
     let id = *next_id;
     *next_id += 1;
 
-    let mut obj = Object::new(crate::object::ObjectId(id), item.otyp, item.class);
+    // C ini_inv: when trotyp is STRANGE_OBJECT (= UNDEF_TYP), it calls
+    // mkobj(class, FALSE) which picks a concrete random otyp via the
+    // probability table — consuming an RNG draw. If we leave it as
+    // STRANGE_OBJECT the inventory diff vs C is permanent for this slot.
+    // The full C code also runs a reroll-loop for forbidden items
+    // (WAN_WISHING, RIN_LEVITATION, etc.), but that path is rare —
+    // resolving the otyp is the single most impactful step for parity.
+    // Note: when item.otyp == STRANGE_OBJECT, C calls mkobj(class) which
+    // resolves to a concrete otyp via rnd(1000) + per-class probability walk,
+    // followed by a reroll loop for forbidden items. Implementing only the
+    // initial draw without the reroll loop made things WORSE in the convergence
+    // gate (Wizard 210 → 231 major diffs) because the RNG state still drifts
+    // upstream of this point, so the otyp Rust picks doesn't match C's pick;
+    // only the *count* of RNG draws matches. Until the upstream init RNG is
+    // bit-identical to C, leaving StrangeObject as the literal type produces
+    // fewer inventory diffs than picking a wrong concrete type. This is a
+    // known follow-up: implement the full mkobj reroll loop AFTER all upstream
+    // attribute / inventory RNG is aligned.
+    let resolved_otyp = item.otyp;
+
+    let mut obj = Object::new(crate::object::ObjectId(id), resolved_otyp, item.class);
     obj.quantity = item.quantity as i32;
 
     // Replicate C's mksobj(otyp, init=TRUE, artif=FALSE) RNG calls.
     // ini_inv overwrites spe/bless/quan from the trobj table, but the
     // phantom RNG calls must still happen to keep the RNG in sync.
-    let (mksobj_spe, _mksobj_blessed) = mksobj_phantom_rng(item.class, item.otyp, rng);
+    let (mksobj_spe, _mksobj_blessed) = mksobj_phantom_rng(item.class, resolved_otyp, rng);
 
     // Set enchantment
     if item.spe != UNDEF_SPE {
@@ -1134,7 +1154,7 @@ pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mu
     };
 
     // Copy static properties from object definition
-    if let Some(def) = crate::data::objects::OBJECTS.get(item.otyp as usize) {
+    if let Some(def) = crate::data::objects::OBJECTS.get(resolved_otyp as usize) {
         obj.weight = def.weight as u32;
         if obj.name.is_none() {
             obj.name = Some(def.name.to_string());

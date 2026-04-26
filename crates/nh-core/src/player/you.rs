@@ -231,6 +231,7 @@ pub struct You {
     // Monster interactions
     pub grabbed_by: Option<MonsterId>,
     pub steed: Option<MonsterId>,
+    pub galloping: bool,
 
     // Religion
     pub god_anger: i32,
@@ -363,6 +364,7 @@ impl Default for You {
 
             grabbed_by: None,
             steed: None,
+            galloping: false,
 
             god_anger: 0,
             prayer_timeout: 0,
