@@ -1890,6 +1890,47 @@ impl GameLoop {
             }
         }
 
+        // Closed (but not locked) door: attempt to push/open it.
+        // Mirrors C hack.c domove_core path that calls doopen_indir() via
+        // flags.autoopen — fires rnl(20) vs (STR+DEX+CON)/3 and consumes a
+        // turn whether the door opens or not (matching C lock.c:722).
+        {
+            let cell = state.current_level.cell(new_x as usize, new_y as usize);
+            if cell.typ == crate::dungeon::CellType::Door {
+                let door_state = cell.door_state();
+                if door_state.contains(crate::dungeon::DoorState::CLOSED)
+                    && !door_state.contains(crate::dungeon::DoorState::LOCKED)
+                {
+                    use crate::player::Attribute;
+                    let str_val = state.player.attr_current.get(Attribute::Strength) as i32;
+                    let dex_val = state.player.attr_current.get(Attribute::Dexterity) as i32;
+                    let con_val = state.player.attr_current.get(Attribute::Constitution) as i32;
+                    let threshold = (str_val + dex_val + con_val) / 3;
+                    let roll = state.rng.rnl(20, state.player.luck) as i32;
+                    if roll < threshold {
+                        let cell_mut = state
+                            .current_level
+                            .cell_mut(new_x as usize, new_y as usize);
+                        cell_mut.set_door_state(crate::dungeon::DoorState::OPEN);
+                        state.message("The door opens.");
+                    } else {
+                        // Door resists — exercise STR (C: exercise(A_STR, TRUE))
+                        // which fires rn2(19) > ACURR(STR) ? +1 : +0 on AEXE.
+                        // Mirror the RNG draw to keep ISAAC64 in sync with C.
+                        let _exer = state.rng.rn2(19);
+                        state.message("The door resists!");
+                    }
+                    // C: doopen_indir consumes the rnl(20) draw but does NOT
+                    // by itself trigger the moveloop per-turn block. The FFI
+                    // mirrors this by gating post_command on u.umoved (which
+                    // stays FALSE for a door bump). So we return NoTime here:
+                    // the player doesn't move, no turn-end housekeeping fires,
+                    // only the rnl + optional exercise RNG draws are consumed.
+                    return ActionResult::NoTime;
+                }
+            }
+        }
+
         // Check if walkable
         if !state.current_level.is_walkable(new_x, new_y) {
             state.message("You cannot move there.");
