@@ -67,7 +67,6 @@ static volatile int ffi_in_post_command = 0;
 static volatile int ffi_player_died = 0;
 
 void nh_terminate(int status) {
-    fprintf(stderr, "FFI: nh_terminate(%d) called — player died or game ended\n", status);
     fflush(stderr);
     ffi_player_died = 1;
     if (ffi_in_post_command) {
@@ -320,21 +319,16 @@ void nh_ffi_set_dlevel(int dnum, int dlevel) {
 /* Force generation of a standard maze */
 void nh_ffi_generate_maze(void) {
 #ifdef REAL_NETHACK
-    fprintf(stderr, "FFI: nh_ffi_generate_maze()...\n");
     
     s_level *sp = Is_special(&u.uz);
     if (sp) {
-        fprintf(stderr, "FFI: Is_special! proto=%s, rndlevs=%d\n", sp->proto, (int)sp->rndlevs);
     }
     
     /* Setup level flags for maze */
     level.flags.is_maze_lev = TRUE;
     
-    fprintf(stderr, "FFI: x_maze_max=%d, y_maze_max=%d\n", x_maze_max, y_maze_max);
     makemaz("");
     
-    fprintf(stderr, "FFI: nh_ffi_generate_maze() complete. is_maze_lev=%d, corrmaze=%d\n", 
-            level.flags.is_maze_lev, level.flags.corrmaze);
     fflush(stderr);
 #endif
 }
@@ -375,12 +369,10 @@ void nh_ffi_cleanup_globals(void) {
 /* Initialize the game with character creation */
 int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
 #ifdef REAL_NETHACK
-    fprintf(stderr, "FFI: nh_ffi_init(%s, %s)...\n", role ? role : "NULL", race ? race : "NULL");
     fflush(stderr);
 
     static boolean global_initialized = FALSE;
     if (!global_initialized) {
-        fprintf(stderr, "FFI: Global NetHack initialization...\n");
         fflush(stderr);
         windowprocs = dummy_procs;
         
@@ -450,25 +442,10 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
     flags.initgend = flags.female;
     flags.initalign = alignment;
 
-    fprintf(stderr, "FFI: u_init()...\n");
-    fflush(stderr);
-    { extern unsigned long rng_call_counter;
-      fprintf(stderr, "C FFI: before u_init rng_calls=%lu\n", rng_call_counter);
-      fflush(stderr); }
     u_init();
-    { extern unsigned long rng_call_counter;
-      fprintf(stderr, "C FFI: after u_init rng_calls=%lu str=%d int=%d wis=%d dex=%d con=%d cha=%d\n",
-        rng_call_counter, ABASE(A_STR), ABASE(A_INT), ABASE(A_WIS), ABASE(A_DEX), ABASE(A_CON), ABASE(A_CHA));
-      fflush(stderr); }
 
     /* Fix ubirthday to a constant for reproducible antholemon() results */
     ubirthday = 0;
-
-    fprintf(stderr, "C FFI Rolled: Role=%s Race=%s HP=%d, Energy=%d\n", role, race, u.uhp, u.uen);
-    fflush(stderr);
-
-    fprintf(stderr, "C FFI: Init complete, player at (%d,%d)\n", u.ux, u.uy);
-    fflush(stderr);
 
     return 0;
 #else
@@ -586,8 +563,6 @@ static void nh_ffi_pre_generate_cleanup(void) {
 /* Generate level and place player on stairs (full newgame-like init) */
 int nh_ffi_generate_and_place(void) {
 #ifdef REAL_NETHACK
-    fprintf(stderr, "FFI: nh_ffi_generate_and_place() dnum=%d, dlevel=%d...\n",
-            u.uz.dnum, u.uz.dlevel);
     fflush(stderr);
 
     nh_ffi_pre_generate_cleanup();
@@ -621,8 +596,6 @@ int nh_ffi_generate_and_place(void) {
     /* Initialize monstermoves (matches C moveloop) */
     monstermoves = 1L;
 
-    fprintf(stderr, "FFI: nh_ffi_generate_and_place() complete. Player at (%d,%d), upstair=(%d,%d), dnstair=(%d,%d)\n",
-            u.ux, u.uy, xupstair, yupstair, xdnstair, ydnstair);
     fflush(stderr);
     return 0;
 #else
@@ -633,8 +606,6 @@ int nh_ffi_generate_and_place(void) {
 /* Generate a new level */
 int nh_ffi_generate_level(void) {
 #ifdef REAL_NETHACK
-    fprintf(stderr, "FFI: nh_ffi_generate_level() ledger=%d, dnum=%d, dlevel=%d, name=%s...\n",
-            ledger_no(&u.uz), u.uz.dnum, u.uz.dlevel, dungeons[u.uz.dnum].dname);
     fflush(stderr);
 
     /* Thorough cleanup of accumulated state from prior generations */
@@ -642,8 +613,6 @@ int nh_ffi_generate_level(void) {
 
     mklev();
 
-    fprintf(stderr, "FFI: nh_ffi_generate_level() complete. is_maze=%d, corrmaze=%d\n",
-            level.flags.is_maze_lev, level.flags.corrmaze);
     fflush(stderr);
     return 0;
 #else
@@ -1036,58 +1005,31 @@ static void ffi_post_command(void) {
 
         context.mon_moving = TRUE;
         if (!ffi_skip_movemon) {
-            extern unsigned long rng_call_counter;
-            unsigned long rng_movemon_start = rng_call_counter;
-            int movemon_rounds = 0;
             do {
                 monscanmove = movemon();
-                movemon_rounds++;
                 if (youmonst.movement >= NORMAL_SPEED)
                     break; /* hero gained movement from speed */
             } while (monscanmove);
-            fprintf(stderr, "  C SECTION movemon: %lu RNG calls (%d rounds)\n",
-                rng_call_counter - rng_movemon_start, movemon_rounds);
-            /* Print per-monster positions after movemon for debugging */
-            {
-                struct monst *mtmp;
-                int mi = 0;
-                for (mtmp = fmon; mtmp; mtmp = mtmp->nmon, mi++) {
-                    if (DEADMONSTER(mtmp)) continue;
-                    fprintf(stderr, "    C MON %d mnum=%d at (%d,%d) mux=(%d,%d) movement=%d sleeping=%d\n",
-                        mi, mtmp->mnum, mtmp->mx, mtmp->my,
-                        mtmp->mux, mtmp->muy, mtmp->movement,
-                        (int)mtmp->msleeping);
-                }
-            }
         }
         context.mon_moving = FALSE;
 
         if (!monscanmove && youmonst.movement < NORMAL_SPEED) {
             /* Both hero and monsters are out of steam — new turn */
             struct monst *mtmp;
-            extern unsigned long rng_call_counter;
-            unsigned long rng_sect;
 
-            rng_sect = rng_call_counter;
             mcalcdistress(); /* adjust monsters' trap, blind, etc */
-            fprintf(stderr, "  C SECTION mcalcdistress: %lu RNG calls\n", rng_call_counter - rng_sect);
 
             /* Reallocate movement to monsters */
-            rng_sect = rng_call_counter;
             for (mtmp = fmon; mtmp; mtmp = mtmp->nmon)
                 mtmp->movement += mcalcmove(mtmp);
-            fprintf(stderr, "  C SECTION mcalcmove: %lu RNG calls\n", rng_call_counter - rng_sect);
 
             /* Occasionally add another monster (C moveloop lines 124-128) */
-            rng_sect = rng_call_counter;
             if (!rn2(u.uevent.udemigod ? 25
                      : (depth(&u.uz) > depth(&stronghold_level)) ? 50
                        : 70))
                 (void) makemon((struct permonst *) 0, 0, 0, NO_MM_FLAGS);
-            fprintf(stderr, "  C SECTION spawn: %lu RNG calls\n", rng_call_counter - rng_sect);
 
             /* Calculate hero movement for this turn (C moveloop lines 131-169) */
-            rng_sect = rng_call_counter;
             if (u.usteed && u.umoved) {
                 moveamt = mcalcmove(u.usteed);
             } else {
@@ -1101,7 +1043,6 @@ static void ffi_post_command(void) {
                         moveamt += NORMAL_SPEED;
                 }
             }
-            fprintf(stderr, "  C SECTION speed: %lu RNG calls (Fast=%d VFast=%d)\n", rng_call_counter - rng_sect, (int)(!!Fast), (int)(!!Very_fast));
 
             switch (wtcap) {
             case UNENCUMBERED: break;
@@ -1123,18 +1064,15 @@ static void ffi_post_command(void) {
             /* once-per-turn things go here */
             /********************************/
 
-            rng_sect = rng_call_counter;
             if (Glib)
                 glibr();
             nh_timeout();
             run_regions();
-            fprintf(stderr, "  C SECTION timeout+regions: %lu RNG calls\n", rng_call_counter - rng_sect);
 
             if (u.ublesscnt)
                 u.ublesscnt--;
 
             /* HP regeneration (C moveloop lines 200-205) */
-            rng_sect = rng_call_counter;
             if (!u.uinvulnerable) {
                 if (!Upolyd ? (u.uhp < u.uhpmax)
                             : (u.mh < u.mhmax
@@ -1142,7 +1080,6 @@ static void ffi_post_command(void) {
                     ffi_regen_hp(wtcap);
                 }
             }
-            fprintf(stderr, "  C SECTION hp_regen: %lu RNG calls (hp=%d/%d)\n", rng_call_counter - rng_sect, u.uhp, u.uhpmax);
 
             /* Moving while encumbered costs HP (C moveloop lines 208-223) */
             if (wtcap > MOD_ENCUMBER && u.umoved) {
@@ -1157,7 +1094,6 @@ static void ffi_post_command(void) {
             }
 
             /* Energy regeneration (C moveloop lines 225-237) */
-            rng_sect = rng_call_counter;
             if (u.uen < u.uenmax
                 && ((wtcap < MOD_ENCUMBER
                      && (!(moves % ((MAXULEV + 8 - u.ulevel)
@@ -1168,12 +1104,8 @@ static void ffi_post_command(void) {
                 if (u.uen > u.uenmax)
                     u.uen = u.uenmax;
             }
-            fprintf(stderr, "  C SECTION energy_regen: %lu RNG calls (en=%d/%d moves=%ld freq=%d)\n",
-                rng_call_counter - rng_sect, u.uen, u.uenmax, moves,
-                (int)((MAXULEV + 8 - u.ulevel) * (Role_if(PM_WIZARD) ? 3 : 4) / 6));
 
             /* Teleportation check (C moveloop line 240) */
-            rng_sect = rng_call_counter;
             if (!u.uinvulnerable) {
                 if (Teleportation && !rn2(85)) {
                     xchar old_ux = u.ux, old_uy = u.uy;
@@ -1204,38 +1136,20 @@ static void ffi_post_command(void) {
                     }
                 }
             }
-            fprintf(stderr, "  C SECTION tele+poly: %lu RNG calls\n", rng_call_counter - rng_sect);
 
-            rng_sect = rng_call_counter;
             if (Searching && multi >= 0)
                 (void) dosearch0(1);
-            fprintf(stderr, "  C SECTION search: %lu RNG calls\n", rng_call_counter - rng_sect);
-            rng_sect = rng_call_counter;
             dosounds();
-            fprintf(stderr, "  C SECTION dosounds: %lu RNG calls\n", rng_call_counter - rng_sect);
-            rng_sect = rng_call_counter;
             do_storms();
-            fprintf(stderr, "  C SECTION do_storms: %lu RNG calls\n", rng_call_counter - rng_sect);
-            rng_sect = rng_call_counter;
             gethungry();
-            fprintf(stderr, "  C SECTION gethungry: %lu RNG calls\n", rng_call_counter - rng_sect);
-            rng_sect = rng_call_counter;
             age_spells();
-            fprintf(stderr, "  C SECTION age_spells: %lu RNG calls\n", rng_call_counter - rng_sect);
-            rng_sect = rng_call_counter;
             exerchk();
-            fprintf(stderr, "  C SECTION exerchk: %lu RNG calls\n", rng_call_counter - rng_sect);
-            rng_sect = rng_call_counter;
             invault();
             if (u.uhave.amulet)
                 amulet();
-            fprintf(stderr, "  C SECTION invault+amulet: %lu RNG calls\n", rng_call_counter - rng_sect);
 
-            rng_sect = rng_call_counter;
             if (!rn2(40 + (int) (ACURR(A_DEX) * 3)))
                 u_wipe_engr(rnd(3));
-            fprintf(stderr, "  C SECTION engrave: %lu RNG calls (dex=%d threshold=%d)\n",
-                rng_call_counter - rng_sect, (int)ACURR(A_DEX), 40 + (int)(ACURR(A_DEX) * 3));
             if (u.uevent.udemigod && !u.uinvulnerable) {
                 if (u.udg_cnt)
                     u.udg_cnt--;
@@ -1261,7 +1175,6 @@ static void ffi_post_command(void) {
 /* Execute a game command */
 int nh_ffi_exec_cmd(char cmd) {
 #ifdef REAL_NETHACK
-    fprintf(stderr, "C FFI Exec: '%c' Start Pos: (%d,%d)\n", cmd, u.ux, u.uy);
     fflush(stderr);
 
     int is_movement = 1;
@@ -1306,13 +1219,10 @@ int nh_ffi_exec_cmd(char cmd) {
         ffi_post_command();
     } else {
         /* Returned via longjmp from nh_terminate — player died */
-        fprintf(stderr, "C FFI Exec: '%c' — player died during post-turn processing\n", cmd);
         fflush(stderr);
     }
     ffi_in_post_command = 0;
 
-    fprintf(stderr, "C FFI Exec: '%c' End Pos: (%d,%d) moves=%ld died=%d\n",
-            cmd, u.ux, u.uy, moves, ffi_player_died);
     fflush(stderr);
     return ffi_player_died ? -2 : 0;
 #else
@@ -1486,7 +1396,6 @@ char* nh_ffi_get_inventory_json(void) {
     struct obj *otmp;
     for (otmp = invent; otmp && count < 1000; otmp = otmp->nobj) count++;
     
-    fprintf(stderr, "FFI: nh_ffi_get_inventory_json() found %d items.\n", count);
     fflush(stderr);
 
     size_t buf_size = (count + 1) * 1024 + 10;
@@ -1527,7 +1436,6 @@ char* nh_ffi_get_object_table_json(void) {
     char* json = (char*)malloc(buf_size);
     if (json == NULL) return NULL;
     
-    fprintf(stderr, "FFI: nh_ffi_get_object_table_json()...\n");
     fflush(stderr);
 
     strcpy(json, "[");
@@ -1727,7 +1635,6 @@ int nh_ffi_rng_rn2(int limit) {
 #ifdef REAL_NETHACK
     /* rn2() now traces via nh_ffi_rng_trace_hook, no duplicate needed */
     int r = rn2(limit);
-    fprintf(stderr, "FFI: rn2(%d) = %d\n", limit, r);
     return r;
 #else
     if (limit <= 0) return 0;
@@ -1740,7 +1647,6 @@ int nh_ffi_rng_rnd(int limit) {
 #ifdef REAL_NETHACK
     /* rnd() now traces via nh_ffi_rng_trace_hook, no duplicate needed */
     int r = rnd(limit);
-    fprintf(stderr, "FFI: rnd(%d) = %d\n", limit, r);
     return r;
 #else
     if (limit <= 0) return 1;

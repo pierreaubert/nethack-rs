@@ -77,11 +77,6 @@ pub fn generate_rooms_and_corridors(
 
     // make rooms until satisfied (makerooms() in C)
     while level.rooms.len() < super::mapseen::MAXNROFROOMS && rect_mgr.rnd_rect(rng).is_some() {
-        eprintln!(
-            "RS makerooms: iter nroom={} rng={}",
-            level.rooms.len(),
-            rng.call_count()
-        );
         // Vault check logic (mklev.c:229-240)
         if level.rooms.len() >= (super::mapseen::MAXNROFROOMS / 6)
             && rng.rn2(2) != 0
