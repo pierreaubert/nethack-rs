@@ -752,27 +752,23 @@ fn is_gender_compatible(_role: Role, _race: Race, _gender: Gender) -> bool {
 
 /// Internal helper: Check if alignment is compatible with role
 fn is_alignment_compatible(role: Role, alignment: super::AlignmentType) -> bool {
-    use super::AlignmentType;
-    match (role, alignment) {
-        // Lawful roles
-        (Role::Archeologist, AlignmentType::Lawful) => true,
-        (Role::Knight, AlignmentType::Lawful) => true,
-        (Role::Monk, AlignmentType::Lawful) => true,
-        (Role::Samurai, AlignmentType::Lawful) => true,
-        (Role::Caveman, AlignmentType::Lawful) => true,
-        // Chaotic roles
-        (Role::Rogue, AlignmentType::Chaotic) => true,
-        // Neutral roles or flexible
-        (Role::Barbarian, AlignmentType::Neutral) => true,
-        (Role::Healer, AlignmentType::Neutral) => true,
-        (Role::Ranger, AlignmentType::Neutral) => true,
-        (Role::Tourist, AlignmentType::Neutral) => true,
-        (Role::Valkyrie, AlignmentType::Neutral) => true,
-        (Role::Wizard, AlignmentType::Neutral) => true,
-        // Priest can be any alignment (depends on god)
-        (Role::Priest, _) => true,
-        // Allow any alignment for any role as default
-        _ => true,
+    use super::AlignmentType::*;
+    // Mirrors C `roles[].allow & ROLE_ALIGNMASK` from role.c (e.g.
+    // Archeologist allows Lawful|Neutral, Wizard allows Neutral|Chaotic, etc.)
+    match role {
+        Role::Archeologist => matches!(alignment, Lawful | Neutral),
+        Role::Barbarian => matches!(alignment, Neutral | Chaotic),
+        Role::Caveman => matches!(alignment, Lawful | Neutral),
+        Role::Healer => matches!(alignment, Neutral),
+        Role::Knight => matches!(alignment, Lawful),
+        Role::Monk => matches!(alignment, Lawful | Neutral | Chaotic),
+        Role::Priest => matches!(alignment, Lawful | Neutral | Chaotic),
+        Role::Ranger => matches!(alignment, Neutral | Chaotic),
+        Role::Rogue => matches!(alignment, Chaotic),
+        Role::Samurai => matches!(alignment, Lawful),
+        Role::Tourist => matches!(alignment, Neutral),
+        Role::Valkyrie => matches!(alignment, Lawful | Neutral),
+        Role::Wizard => matches!(alignment, Neutral | Chaotic),
     }
 }
 
@@ -1023,6 +1019,66 @@ pub fn clearrolefilter(filter: &mut RoleFilter) {
 // ============================================================================
 
 /// Initialize player role and attributes (role_init equivalent)
+/// RNG-faithful port of C's `role_init()` (role.c:2011). Replays the same
+/// ISAAC64 draws C makes between the FFI `init` call and `u_init()` entry,
+/// so Rust's `GameRng` reaches the role-specific u_init switch with bit-
+/// identical state.
+///
+/// The two RNG sources C role_init can hit:
+/// - `randalign(role, race)`: rn2(n) when alignment is invalid for the
+///   requested role/race. n is the count of valid alignments; if n == 1
+///   the rn2(1) consumes 0 raw draws (NetHack convention).
+/// - `quest_status.nemgend = (rn2(100) < 50)` for nemesis monsters with
+///   no explicit M2_MALE/M2_FEMALE/M2_NEUTER flag. From monst.c only the
+///   Archeologist's "Minion of Huhetotl" and the Wizard's "Dark One"
+///   trigger this draw — every other quest leader and nemesis has an
+///   explicit gender.
+///
+/// Returns the resolved alignment (after randalign repair, if any). Caller
+/// should plumb this back into the FFI `init` call so the C side does NOT
+/// also fire randalign — otherwise we'd double-spend the draw.
+pub fn role_init_rng(
+    rng: &mut crate::GameRng,
+    role: Role,
+    race: Race,
+    gender: Gender,
+    requested_alignment: super::AlignmentType,
+) -> super::AlignmentType {
+    use super::AlignmentType::*;
+    let alignment = if validalign(role, race, gender, requested_alignment) {
+        requested_alignment
+    } else {
+        // Mirror randalign(role, race): count valid alignments, draw rn2(n),
+        // pick the n'th. With our role/race compatibility table valid
+        // alignments are always a subset of {Lawful, Neutral, Chaotic}.
+        let valid: Vec<super::AlignmentType> = [Lawful, Neutral, Chaotic]
+            .into_iter()
+            .filter(|a| is_alignment_compatible(role, *a))
+            .collect();
+        if valid.is_empty() {
+            // Should not happen for any role in our enum.
+            requested_alignment
+        } else {
+            let idx = rng.rn2(valid.len() as u32) as usize;
+            valid[idx]
+        }
+    };
+
+    // Nemesis gender draw (role.c:2086-2087).
+    if nemesis_lacks_gender_flag(role) {
+        let _ = rng.rn2(100);
+    }
+
+    alignment
+}
+
+/// True when the role's quest nemesis has neither M2_MALE, M2_FEMALE, nor
+/// M2_NEUTER set in monst.c, causing `role_init()` to roll
+/// `rn2(100) < 50` for nemgend.
+fn nemesis_lacks_gender_flag(role: Role) -> bool {
+    matches!(role, Role::Archeologist | Role::Wizard)
+}
+
 pub fn role_init(
     player_name: &mut String,
     role: &mut Role,

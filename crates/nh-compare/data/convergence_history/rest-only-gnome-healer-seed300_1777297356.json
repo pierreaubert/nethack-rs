@@ -1,0 +1,11 @@
+{
+  "label": "rest-only-gnome-healer-seed300",
+  "seed": 300,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 0,
+  "critical_count": 0,
+  "major_count": 0,
+  "minor_count": 0,
+  "turn_diffs": []
+}

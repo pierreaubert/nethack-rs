@@ -121,6 +121,14 @@ pub fn okdoor(level: &Level, x: i32, y: i32) -> bool {
         return false;
     }
 
+    // C `okdoor` (mklev.c:1243-1250) also requires `doorindex < DOORMAX`
+    // (DOORMAX=120 from global.h). Without this, Rust keeps placing doors
+    // past the C-side cap, drifting downstream room/corridor cells.
+    const DOORMAX: usize = 120;
+    if level.door_positions.len() >= DOORMAX {
+        return false;
+    }
+
     // Must not be near another door
     !bydoor(level, x, y)
 }

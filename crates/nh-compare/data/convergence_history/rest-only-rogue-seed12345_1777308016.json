@@ -1,0 +1,517 @@
+{
+  "label": "rest-only-rogue-seed12345",
+  "seed": 12345,
+  "total_turns": 1000,
+  "first_critical_turn": null,
+  "turns_with_diffs": 41,
+  "critical_count": 0,
+  "major_count": 0,
+  "minor_count": 50,
+  "turn_diffs": [
+    {
+      "turn": 600,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 610,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 620,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 630,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 640,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 650,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 660,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 670,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 680,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 690,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 700,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 710,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 720,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 730,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 740,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 750,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 760,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 770,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 780,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 790,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 800,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 810,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 820,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 830,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 840,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 850,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 860,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 870,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 880,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 890,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 900,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 910,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-3",
+          "c_value": "-2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 920,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 930,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-16",
+          "c_value": "-12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 940,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-26",
+          "c_value": "-15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 950,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-28",
+          "c_value": "-16"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 960,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-30",
+          "c_value": "-20"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 970,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-31",
+          "c_value": "-21"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 980,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-34",
+          "c_value": "-25"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 990,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-35",
+          "c_value": "-25"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    },
+    {
+      "turn": 999,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-36",
+          "c_value": "-32"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "13",
+          "c_value": "14"
+        }
+      ]
+    }
+  ]
+}

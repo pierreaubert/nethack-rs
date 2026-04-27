@@ -100,23 +100,24 @@ pub fn generate_rooms_and_corridors(
         }
     }
 
-    // NetHack calls sort_rooms() immediately after makerooms()
-    // C uses qsort by lx only. For equal lx, macOS qsort reverses relative
-    // order (places later-created room first). We replicate by using reverse
-    // creation order as tiebreaker: since rooms are appended in creation order,
-    // reversing equal-lx groups matches C's observed behavior.
-    // Use (lx, reverse_index) as sort key.
+    // NetHack calls sort_rooms() immediately after makerooms().
+    // C `do_comp` (mklev.c:46-66) was patched to add a deterministic
+    // pointer-order tiebreaker for equal-lx rooms (qsort is unstable for
+    // ties; the pointer offset within the rooms[] array is the original
+    // creation order). Rust matches by doing a stable sort on lx —
+    // ties resolve by preserving original creation order (forward index).
     {
         let n = level.rooms.len();
         let mut indexed: Vec<(usize, usize)> = (0..n).map(|i| (level.rooms[i].x, i)).collect();
-        indexed.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+        // Stable sort by lx alone: equal-lx groups keep their original
+        // (forward creation) order. Matches the patched C `do_comp`.
+        indexed.sort_by(|a, b| a.0.cmp(&b.0));
         let permutation: Vec<usize> = indexed.iter().map(|&(_, i)| i).collect();
         let old_rooms = level.rooms.clone();
         for (new_idx, &old_idx) in permutation.iter().enumerate() {
             level.rooms[new_idx] = old_rooms[old_idx].clone();
         }
     }
-    for _rm in level.rooms.iter() {}
 
     // C places stairs BEFORE corridors (makelevel lines 710-728)
     let rooms_clone = level.rooms.clone();

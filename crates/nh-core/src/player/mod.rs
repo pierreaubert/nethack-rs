@@ -33,7 +33,7 @@ pub use role::{Gender, Race, Role};
 pub use role::{
     RoleFilter, build_plselection_prompt, clearrolefilter, gotrolefilter, monster_gender, ok_align,
     ok_gend, ok_race, pet_type, pick_align, pick_gend, pick_race, pick_role, plnamesuffix,
-    poly_gender, race_alignmentcount, rigid_role_checks, role_gendercount, role_init,
+    poly_gender, race_alignmentcount, rigid_role_checks, role_gendercount, role_init, role_init_rng,
     role_menu_extra, role_selection_prolog, root_plselection_prompt, setrolefilter, str2gend,
     str2race, str2role, validalign, validgend, validrace, validrole,
 };

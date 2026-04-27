@@ -416,6 +416,8 @@ pub enum ObjectType {
     Genocide = 306,
     GoldDetection = 309,
     FoodDetection = 310,
+    ScrollIdentify = 311,
+    ScrollMagicMapping = 312,
     Amnesia = 313,
     Earth = 315,
     Punishment = 316,

@@ -1532,9 +1532,14 @@ pub fn newuhs(state: &mut GameState, incr: bool) -> Vec<String> {
             if old_state != HungerState::Fainted && state.player.multi >= 0 {
                 let duration = (10 - uhunger_div_by_10).max(1);
                 messages.push("You faint from lack of food.".to_string());
-                // C: nomul(-duration)
-                state.player.multi = -duration;
-                state.player.multi_reason = Some("fainted from lack of food".to_string());
+                // C: nomul(-duration) — refuses to overwrite a more
+                // paralyzing existing multi. Critical for correct fainted-
+                // duration accounting at deeply-negative nutrition.
+                crate::player::nomul(
+                    &mut state.player,
+                    -duration,
+                    Some("fainted from lack of food".to_string()),
+                );
                 new_state = HungerState::Fainted;
             }
         } else {

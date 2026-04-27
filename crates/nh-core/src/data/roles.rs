@@ -321,8 +321,8 @@ static SAMURAI_ITEMS: &[StartingItem] = &[
 static TOURIST_ITEMS: &[StartingItem] = &[
     StartingItem::item(ObjectType::Dart, 2, 25, UNDEF_BLESS),
     StartingItem::new(None, UNDEF_SPE, 10, 0), // Random food
-    StartingItem::item(ObjectType::ExtraHealing, 0, 2, UNDEF_BLESS),
-    StartingItem::item(ObjectType::MagicMapping, 0, 4, UNDEF_BLESS),
+    StartingItem::item(ObjectType::PotionExtraHealing, 0, 2, UNDEF_BLESS),
+    StartingItem::item(ObjectType::ScrollMagicMapping, 0, 4, UNDEF_BLESS),
     StartingItem::item(ObjectType::HawaiianShirt, 0, 1, UNDEF_BLESS),
     StartingItem::item(ObjectType::ExpensiveCamera, UNDEF_SPE, 1, 0),
     StartingItem::item(ObjectType::CreditCard, 0, 1, 0),

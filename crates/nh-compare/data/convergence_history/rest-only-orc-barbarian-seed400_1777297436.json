@@ -1,0 +1,186 @@
+{
+  "label": "rest-only-orc-barbarian-seed400",
+  "seed": 400,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 6,
+  "critical_count": 0,
+  "major_count": 18,
+  "minor_count": 6,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "18",
+          "c_value": "16"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "4",
+          "c_value": "6"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=239 ench=0 buc=Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=263 ench=0 buc=Uncursed"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "18",
+          "c_value": "16"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "4",
+          "c_value": "6"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=239 ench=0 buc=Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=263 ench=0 buc=Uncursed"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "18",
+          "c_value": "16"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "4",
+          "c_value": "6"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=239 ench=0 buc=Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=263 ench=0 buc=Uncursed"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "18",
+          "c_value": "16"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "4",
+          "c_value": "6"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=239 ench=0 buc=Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=263 ench=0 buc=Uncursed"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "18",
+          "c_value": "16"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "4",
+          "c_value": "6"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=239 ench=0 buc=Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=263 ench=0 buc=Uncursed"
+        }
+      ]
+    },
+    {
+      "turn": 49,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "18",
+          "c_value": "16"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "4",
+          "c_value": "6"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=239 ench=0 buc=Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].extra_in_c",
+          "rust_value": "<none>",
+          "c_value": "otyp=263 ench=0 buc=Uncursed"
+        }
+      ]
+    }
+  ]
+}

@@ -588,7 +588,7 @@ static TOURIST_INV: &[StartingItem] = &[
         UNDEF_BLESS,
     ), // POT_EXTRA_HEALING
     StartingItem::new(
-        crate::data::objects::ObjectType::MagicMapping as i16,
+        crate::data::objects::ObjectType::ScrollMagicMapping as i16,
         0,
         ObjectClass::Scroll,
         4,
@@ -967,11 +967,56 @@ fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, 
             }
         }
         ObjectClass::Food => {
-            // Food items: FOOD_RATION is not CORPSE/EGG/TIN/SLIME_MOLD/KELP_FROND
-            // so the switch body is skipped. Then:
-            // if (otyp != CORPSE && otyp != MEAT_RING && otyp != KELP_FROND && !rn2(6))
-            //     quan = 2;
-            let _double = rng.rn2(6);
+            // C mksobj.c:819-885 FOOD_CLASS subtype switch. Each subtype
+            // has its own RNG cost; the post-switch `rn2(6)` for double-
+            // quantity fires for everything except CORPSE/MEAT_RING/
+            // KELP_FROND/SLIME_MOLD pudding-globs.
+            use crate::data::objects::ObjectType;
+            let is_corpse = otyp == ObjectType::Corpse as i16;
+            let is_egg = otyp == ObjectType::Egg as i16;
+            let is_tin = otyp == ObjectType::Tin as i16;
+            let is_kelp = otyp == ObjectType::KelpFrond as i16;
+            let is_meat_ring = otyp == ObjectType::MeatRing as i16;
+
+            if is_corpse {
+                // CORPSE: do { corpsenm = undead_to_corpse(rndmonnum()); }
+                // while (G_NOCORPSE && --tryct > 0). At game-start mvitals
+                // is zeroed so the G_NOCORPSE check never trips; just one
+                // rndmonst draw.
+                let _ = rndmonst_uinit(rng);
+            } else if is_egg {
+                // EGG: rn2(3); if 0, up to 200 iters of rndmonnum looking
+                // for can_be_hatched (M1_OVIPAROUS).
+                if rng.rn2(3) == 0 {
+                    let _ = rndmonst_uinit_hatchable(rng);
+                }
+            } else if is_tin {
+                // TIN: rn2(6); if 0 set SPINACH_TIN (corpsenm=NON_PM, spe=1).
+                // Else loop up to 200 iters of rndmonnum picking a corpse
+                // with cnutrit > 0 and !G_NOCORPSE (variable iteration
+                // count). Then `set_tin_variety(RANDOM_TIN)` does:
+                //   r = rn2(TTSZ-1)  // TTSZ=16 → rn2(15)
+                //   obj->spe = -(r + 1)  // range -15..-1
+                // Plus `blessorcurse(10)`.
+                if rng.rn2(6) == 0 {
+                    spe = 1; // SPINACH_TIN
+                } else {
+                    let _ = rndmonst_uinit_with_cnutrit(rng);
+                    let r = rng.rn2(15) as i8;
+                    spe = -(r + 1);
+                }
+                if rng.rn2(10) == 0 {
+                    blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
+                }
+            } else if is_kelp {
+                // KELP_FROND: quan = rnd(2)
+                let _ = rng.rn2(2);
+            }
+
+            // Post-switch double-quan roll for non-CORPSE/MEAT_RING/KELP.
+            if !is_corpse && !is_meat_ring && !is_kelp {
+                let _ = rng.rn2(6);
+            }
         }
         ObjectClass::Armor => {
             // C: if (rn2(10) && (special || !rn2(11))) { curse; spe=-rne(3) }
@@ -1266,6 +1311,12 @@ pub fn make_starting_object_full(
             (item.otyp, s, b)
         };
 
+    // C `inv_subs[]` race substitution (u_init.c:203-233, applied at
+    // u_init.c:1063-1072): non-Human races swap certain weapon/armor/food
+    // otyps to racial equivalents (Elven Dagger, Orcish Helm, etc.).
+    // No RNG cost — purely a post-mksobj otyp change.
+    let resolved_otyp = inv_subs_lookup(race, resolved_otyp);
+
     let mut obj = Object::new(crate::object::ObjectId(id), resolved_otyp, item.class);
     obj.quantity = item.quantity as i32;
 
@@ -1316,6 +1367,192 @@ pub fn make_starting_object_full(
 pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mut u32) -> Object {
     let mut state = StartingInvRerollState::default();
     make_starting_object_full(item, Role::Valkyrie, Race::Human, rng, next_id, &mut state)
+}
+
+/// True if the monster is filterable in/out for plan-A `rndmonst` at u_init
+/// time. C: !uncommon(mndx) — NOGEN/UNIQ/HELL excluded (we're not Inhell).
+fn rndmonst_valid_uinit(m: &crate::monster::PerMonst) -> bool {
+    use crate::data::monsters::{G_HELL, G_NOGEN, G_UNIQ};
+    (m.gen_flags & (G_NOGEN | G_UNIQ | G_HELL)) == 0
+}
+
+/// True if the monster's difficulty is in the [minmlev, maxmlev] band that
+/// `rndmonst` filters by at u_init time. After `u.ulevel = 1` is set
+/// (u_init.c:639) but before role-specific `ini_inv`:
+///   zlevel = level_difficulty() = 1
+///   minmlev = 1/6 = 0; maxmlev = (1+1)/2 = 1
+/// → keep monsters with difficulty in [0, 1].
+fn rndmonst_in_difficulty_band(m: &crate::monster::PerMonst) -> bool {
+    m.difficulty <= 1
+}
+
+/// Equivalent to C's `SPECIAL_PM` (PM_LONG_WORM_TAIL) — the upper bound of
+/// the normal-monster range that `rndmonst` walks. Verified by counting
+/// MONSTERS entries up to "long worm tail".
+const SPECIAL_PM_RUST: usize = 345;
+
+/// Sum of `(geno & G_FREQ)` weights for all monsters that pass the u_init
+/// filter. Mirrors C's `rndmonst_state.choice_count` recompute path with
+/// align_shift=0 (main dungeon AM_NONE at game start).
+fn level0_choice_count() -> u32 {
+    use crate::data::monsters::MONSTERS;
+    let mut sum = 0u32;
+    for m in MONSTERS.iter().take(SPECIAL_PM_RUST) {
+        if !rndmonst_in_difficulty_band(m) {
+            continue;
+        }
+        if !rndmonst_valid_uinit(m) {
+            continue;
+        }
+        sum += (m.gen_flags & 0x0007) as u32;
+    }
+    sum
+}
+
+/// One C `rndmonst()` call at u_init time: roll `rnd(choice_count)` then
+/// walk MONSTERS subtracting weights until non-positive. Falls back to
+/// C's plan-B `rn1(SPECIAL_PM - LOW_PM, LOW_PM)` retry loop when no
+/// monsters fit the difficulty band (shouldn't happen at u_init since
+/// newts/grid bugs sit in [0,1], but mirrored for completeness).
+fn rndmonst_uinit(rng: &mut GameRng) -> usize {
+    use crate::data::monsters::MONSTERS;
+    let total = level0_choice_count();
+    if total > 0 {
+        let mut ct = (rng.rn2(total) + 1) as i64;
+        for (i, m) in MONSTERS.iter().take(SPECIAL_PM_RUST).enumerate() {
+            if !rndmonst_in_difficulty_band(m) {
+                continue;
+            }
+            if !rndmonst_valid_uinit(m) {
+                continue;
+            }
+            ct -= (m.gen_flags & 0x0007) as i64;
+            if ct <= 0 {
+                return i;
+            }
+        }
+        return 0;
+    }
+    // Plan B: pick uniformly from [LOW_PM, SPECIAL_PM); retry if excluded.
+    for _ in 0..200 {
+        let i = rng.rn2(SPECIAL_PM_RUST as u32) as usize;
+        if let Some(m) = MONSTERS.get(i) {
+            if rndmonst_valid_uinit(m) {
+                return i;
+            }
+        }
+    }
+    0
+}
+
+/// Loop `rndmonst_uinit()` until landing on a monster with `corpse_nutrition
+/// > 0` (mirrors C TIN's loop predicate at mkobj.c:856).
+fn rndmonst_uinit_with_cnutrit(rng: &mut GameRng) -> usize {
+    use crate::data::monsters::MONSTERS;
+    for _ in 0..200 {
+        let mndx = rndmonst_uinit(rng);
+        if let Some(m) = MONSTERS.get(mndx) {
+            if m.corpse_nutrition > 0 {
+                return mndx;
+            }
+        } else {
+            return mndx;
+        }
+    }
+    0
+}
+
+/// Loop `rndmonst_uinit()` until landing on a hatchable monster (mirrors
+/// C EGG's loop predicate at mkobj.c:841 via `can_be_hatched`). Hatchable
+/// in C means the monster has M1_OVIPAROUS set, with a few special-case
+/// remappings (PM_SCORPIUS → PM_SCORPION, KILLER_BEE/GARGOYLE blocked).
+/// Approximation: just check OVIPAROUS — covers the vast majority of
+/// real cases; the special-case remappings don't affect the loop's RNG
+/// budget for any monster Rust might roll at u_init.
+fn rndmonst_uinit_hatchable(rng: &mut GameRng) -> usize {
+    use crate::data::monsters::MONSTERS;
+    use crate::monster::MonsterFlags;
+    for _ in 0..200 {
+        let mndx = rndmonst_uinit(rng);
+        if let Some(m) = MONSTERS.get(mndx) {
+            if m.flags.contains(MonsterFlags::OVIPAROUS) {
+                return mndx;
+            }
+        } else {
+            return mndx;
+        }
+    }
+    0
+}
+
+/// C `inv_subs[]` race substitution table (u_init.c:203-233). Maps a
+/// (race, item_otyp) pair to a racial-equivalent otyp. Returns the
+/// substituted otyp, or `otyp` unchanged if no substitution applies.
+fn inv_subs_lookup(race: Race, otyp: i16) -> i16 {
+    // Otyp constants from include/onames.h.
+    const ARROW: i16 = 1;
+    const ELVEN_ARROW: i16 = 2;
+    const ORCISH_ARROW: i16 = 3;
+    const CROSSBOW_BOLT: i16 = 6;
+    const SPEAR: i16 = 10;
+    const ELVEN_SPEAR: i16 = 11;
+    const ORCISH_SPEAR: i16 = 12;
+    const DWARVISH_SPEAR: i16 = 13;
+    const DAGGER: i16 = 17;
+    const ELVEN_DAGGER: i16 = 18;
+    const ORCISH_DAGGER: i16 = 19;
+    const SHORT_SWORD: i16 = 29;
+    const ELVEN_SHORT_SWORD: i16 = 30;
+    const ORCISH_SHORT_SWORD: i16 = 31;
+    const DWARVISH_SHORT_SWORD: i16 = 32;
+    const BOW: i16 = 65;
+    const ELVEN_BOW: i16 = 66;
+    const ORCISH_BOW: i16 = 67;
+    const CROSSBOW: i16 = 70;
+    const ELVEN_LEATHER_HELM: i16 = 71;
+    const ORCISH_HELM: i16 = 72;
+    const DWARVISH_IRON_HELM: i16 = 73;
+    const HELMET: i16 = 78;
+    const CHAIN_MAIL: i16 = 107;
+    const ORCISH_CHAIN_MAIL: i16 = 108;
+    const RING_MAIL: i16 = 111;
+    const ORCISH_RING_MAIL: i16 = 112;
+    const ELVEN_CLOAK: i16 = 118;
+    const CLOAK_OF_DISPLACEMENT: i16 = 128;
+    const SMALL_SHIELD: i16 = 129;
+    const ORCISH_SHIELD: i16 = 132;
+    const TRIPE_RATION: i16 = 239;
+    const LEMBAS_WAFER: i16 = 266;
+    const CRAM_RATION: i16 = 267;
+
+    match (race, otyp) {
+        (Race::Elf, DAGGER) => ELVEN_DAGGER,
+        (Race::Elf, SPEAR) => ELVEN_SPEAR,
+        (Race::Elf, SHORT_SWORD) => ELVEN_SHORT_SWORD,
+        (Race::Elf, BOW) => ELVEN_BOW,
+        (Race::Elf, ARROW) => ELVEN_ARROW,
+        (Race::Elf, HELMET) => ELVEN_LEATHER_HELM,
+        (Race::Elf, CLOAK_OF_DISPLACEMENT) => ELVEN_CLOAK,
+        (Race::Elf, CRAM_RATION) => LEMBAS_WAFER,
+        (Race::Orc, DAGGER) => ORCISH_DAGGER,
+        (Race::Orc, SPEAR) => ORCISH_SPEAR,
+        (Race::Orc, SHORT_SWORD) => ORCISH_SHORT_SWORD,
+        (Race::Orc, BOW) => ORCISH_BOW,
+        (Race::Orc, ARROW) => ORCISH_ARROW,
+        (Race::Orc, HELMET) => ORCISH_HELM,
+        (Race::Orc, SMALL_SHIELD) => ORCISH_SHIELD,
+        (Race::Orc, RING_MAIL) => ORCISH_RING_MAIL,
+        (Race::Orc, CHAIN_MAIL) => ORCISH_CHAIN_MAIL,
+        (Race::Orc, CRAM_RATION) => TRIPE_RATION,
+        (Race::Orc, LEMBAS_WAFER) => TRIPE_RATION,
+        (Race::Dwarf, SPEAR) => DWARVISH_SPEAR,
+        (Race::Dwarf, SHORT_SWORD) => DWARVISH_SHORT_SWORD,
+        (Race::Dwarf, HELMET) => DWARVISH_IRON_HELM,
+        (Race::Dwarf, LEMBAS_WAFER) => CRAM_RATION,
+        (Race::Gnome, BOW) => CROSSBOW,
+        (Race::Gnome, ARROW) => CROSSBOW_BOLT,
+        _ => otyp,
+    }
 }
 
 /// True when `otyp` is forbidden as a starting random pick. Mirrors the C
@@ -1400,8 +1637,53 @@ fn is_forbidden_starting_otyp(
         if HIGH_LEVEL_SPELLBOOKS.contains(&otyp) {
             return true;
         }
+        // C `restricted_spell_discipline(otyp)` (u_init.c:911-968): forbids
+        // any spellbook whose `oc_skill` doesn't appear in the role's skill
+        // table. Without this, a Priest can roll SPE_FORCE_BOLT (an attack
+        // spell, not in Priest's skill list) which C would have rerolled.
+        if let Some(def) = crate::data::objects::OBJECTS.get(otyp as usize) {
+            let spell_skill = def.skill;
+            if is_spell_skill(spell_skill) && !role_has_spell_skill(role, spell_skill) {
+                return true;
+            }
+        }
     }
     false
+}
+
+/// True if `p_skill` is one of the spell-school skill IDs (P_ATTACK_SPELL ..
+/// P_MATTER_SPELL = 29..35).
+fn is_spell_skill(p_skill: i8) -> bool {
+    use crate::data::objects::*;
+    matches!(
+        p_skill,
+        x if x == P_ATTACK_SPELL
+            || x == P_HEALING_SPELL
+            || x == P_DIVINATION_SPELL
+            || x == P_ENCHANTMENT_SPELL
+            || x == P_CLERIC_SPELL
+            || x == P_ESCAPE_SPELL
+            || x == P_MATTER_SPELL
+    )
+}
+
+/// True if `role`'s skill table includes the spell-school SkillType
+/// corresponding to the given `p_skill` constant.
+fn role_has_spell_skill(role: Role, p_skill: i8) -> bool {
+    use crate::data::objects::*;
+    let want = match p_skill {
+        x if x == P_ATTACK_SPELL => SkillType::AttackSpells,
+        x if x == P_HEALING_SPELL => SkillType::HealingSpells,
+        x if x == P_DIVINATION_SPELL => SkillType::DivinationSpells,
+        x if x == P_ENCHANTMENT_SPELL => SkillType::EnchantmentSpells,
+        x if x == P_CLERIC_SPELL => SkillType::ClericalSpells,
+        x if x == P_ESCAPE_SPELL => SkillType::EscapeSpells,
+        x if x == P_MATTER_SPELL => SkillType::MatterSpells,
+        _ => return true,
+    };
+    skill_table_for_role(role)
+        .iter()
+        .any(|(s, _)| *s == want)
 }
 
 /// Update the cross-call nocreate state after accepting a random pick.
@@ -1618,41 +1900,36 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             let obj = make_starting_object_full(&per_item, role, race, rng, next_id, reroll);
             pending.push(obj);
         }
-        if single_stack {
-            // Group consecutive units with identical (otyp, spe, buc) into
-            // merged stacks (mirrors C addinv merge rules).
-            let mut groups: Vec<Object> = Vec::new();
-            for obj in pending {
-                if let Some(last) = groups.last_mut() {
-                    if last.object_type == obj.object_type
-                        && last.enchantment == obj.enchantment
-                        && last.buc == obj.buc
-                    {
-                        last.quantity += 1;
-                        continue;
-                    }
-                }
+        // C `addinv` merges by (otyp, spe, blessed, cursed, ...) anywhere
+        // in inventory — not just adjacent units. For random-otyp stacks
+        // (Tourist's 10 foods, Wizard's 2 rings) repeats produced by the
+        // reroll loop should collapse into stacks just like in C. Group all
+        // pending units by (otyp, spe, buc), then push one Object per group
+        // with the accumulated quantity.
+        let mut groups: Vec<Object> = Vec::new();
+        for obj in pending {
+            if let Some(existing) = groups.iter_mut().find(|g| {
+                g.object_type == obj.object_type
+                    && g.enchantment == obj.enchantment
+                    && g.buc == obj.buc
+            }) {
+                existing.quantity += 1;
+            } else {
                 let mut o = obj;
                 o.quantity = 1;
                 groups.push(o);
             }
-            for mut obj in groups {
-                obj.inv_letter = *letter as char;
-                if *letter < b'z' {
-                    *letter += 1;
-                }
-                inv.push(obj);
+        }
+        // For fixed-otyp stacks (single_stack=true) the grouping above can
+        // also produce multiple entries when BUC roll varies across units
+        // (e.g. 4 healing potions where one rolled blessed → 2 entries).
+        let _ = single_stack;
+        for mut obj in groups {
+            obj.inv_letter = *letter as char;
+            if *letter < b'z' {
+                *letter += 1;
             }
-        } else {
-            // Random-otyp stack: each unit is its own object (different
-            // otyps usually preclude merging).
-            for mut obj in pending {
-                obj.inv_letter = *letter as char;
-                if *letter < b'z' {
-                    *letter += 1;
-                }
-                inv.push(obj);
-            }
+            inv.push(obj);
         }
     };
 
@@ -2056,7 +2333,7 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                     UNDEF_BLESS,
                 ),
                 StartingItem::new(
-                    ObjectType::MagicMapping as i16,
+                    ObjectType::ScrollMagicMapping as i16,
                     0,
                     ObjectClass::Scroll,
                     4,
@@ -2136,6 +2413,47 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                 add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
+    }
+
+    // Race-specific extras (C: u_init.c:802-868). Runs AFTER the role-
+    // specific switch but BEFORE roll_attributes.
+    match race {
+        Race::Elf => {
+            // Elf Priests/Wizards get a random non-magic instrument.
+            // C: trotyp[] = { WOODEN_FLUTE, TOOLED_HORN, WOODEN_HARP, BELL,
+            //                 BUGLE, LEATHER_DRUM }; rn2(6) selects.
+            if matches!(role, Role::Priest | Role::Wizard) {
+                const ELF_INSTRUMENTS: &[i16] = &[
+                    222, // WOODEN_FLUTE
+                    225, // TOOLED_HORN
+                    227, // WOODEN_HARP
+                    229, // BELL
+                    231, // BUGLE
+                    232, // LEATHER_DRUM
+                ];
+                let idx = rng.rn2(ELF_INSTRUMENTS.len() as u32) as usize;
+                let instrument_otyp = ELF_INSTRUMENTS[idx];
+                let item =
+                    StartingItem::new(instrument_otyp, 0, ObjectClass::Tool, 1, 0);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
+            }
+        }
+        Race::Orc => {
+            // Orcs (other than Wizards) get extra random food to compensate
+            // for inferior racial equipment. C: ini_inv(Xtra_food) =
+            // { UNDEF_TYP, UNDEF_SPE, FOOD_CLASS, 2, 0 }.
+            if !matches!(role, Role::Wizard) {
+                let item = StartingItem::new(
+                    ObjectType::StrangeObject as i16,
+                    UNDEF_SPE,
+                    ObjectClass::Food,
+                    2,
+                    0,
+                );
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
+            }
+        }
+        _ => {}
     }
 
     // Roll attributes (C: init_attr(75)) - happens after inventory in C

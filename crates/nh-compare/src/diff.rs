@@ -237,6 +237,27 @@ fn diff_field<T: PartialEq + core::fmt::Display>(
 }
 
 fn diff_items(diffs: &mut Vec<StateDiff>, rust: &[ItemSnapshot], c: &[ItemSnapshot]) {
+    // Report unmatched trailing slots so the diagnostic shows what C has
+    // beyond Rust (or vice versa) when counts disagree.
+    if rust.len() < c.len() {
+        for (j, item) in c.iter().enumerate().skip(rust.len()) {
+            diffs.push(StateDiff {
+                severity: Severity::Major,
+                field: format!("inventory[{}].extra_in_c", j),
+                rust_value: "<none>".into(),
+                c_value: format!("otyp={} ench={} buc={}", item.object_type, item.enchantment, item.buc),
+            });
+        }
+    } else if c.len() < rust.len() {
+        for (j, item) in rust.iter().enumerate().skip(c.len()) {
+            diffs.push(StateDiff {
+                severity: Severity::Major,
+                field: format!("inventory[{}].extra_in_rust", j),
+                rust_value: format!("otyp={} ench={} buc={}", item.object_type, item.enchantment, item.buc),
+                c_value: "<none>".into(),
+            });
+        }
+    }
     let count = rust.len().min(c.len());
     for i in 0..count {
         let prefix = format!("inventory[{}]", i);

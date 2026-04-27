@@ -1,0 +1,122 @@
+{
+  "label": "rest-only-valkyrie-seed42",
+  "seed": 42,
+  "total_turns": 1000,
+  "first_critical_turn": null,
+  "turns_with_diffs": 10,
+  "critical_count": 0,
+  "major_count": 0,
+  "minor_count": 10,
+  "turn_diffs": [
+    {
+      "turn": 910,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-1",
+          "c_value": "-2"
+        }
+      ]
+    },
+    {
+      "turn": 920,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-3",
+          "c_value": "-8"
+        }
+      ]
+    },
+    {
+      "turn": 930,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-5",
+          "c_value": "-11"
+        }
+      ]
+    },
+    {
+      "turn": 940,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-8",
+          "c_value": "-13"
+        }
+      ]
+    },
+    {
+      "turn": 950,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-10",
+          "c_value": "-23"
+        }
+      ]
+    },
+    {
+      "turn": 960,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-11",
+          "c_value": "-30"
+        }
+      ]
+    },
+    {
+      "turn": 970,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-12",
+          "c_value": "-32"
+        }
+      ]
+    },
+    {
+      "turn": 980,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-14",
+          "c_value": "-41"
+        }
+      ]
+    },
+    {
+      "turn": 990,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-15",
+          "c_value": "-42"
+        }
+      ]
+    },
+    {
+      "turn": 999,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "-17",
+          "c_value": "-46"
+        }
+      ]
+    }
+  ]
+}

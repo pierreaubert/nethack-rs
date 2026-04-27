@@ -273,16 +273,10 @@ impl GameState {
     ) -> Self {
         // 1. Create player with identity and racial intrinsics
         let mut player = You::new(name, role, race, gender);
-        player.alignment.typ = alignment;
-        player.original_alignment = alignment;
-
-        // 1a. C role_init() phantom RNG: when the quest leader or nemesis
-        // monster has no fixed gender flag, C fires `rn2(100) < 50` to pick
-        // one (role.c:2070, 2091). We mirror those phantom draws here so
-        // the ISAAC64 sequence at u_init entry matches C.
-        for _ in 0..role_init_phantom_rng_count(role) {
-            let _ = rng.rn2(100);
-        }
+        let resolved_alignment =
+            crate::player::role_init_rng(&mut rng, role, race, gender, alignment);
+        player.alignment.typ = resolved_alignment;
+        player.original_alignment = resolved_alignment;
 
         // 2. Initialize HP, energy, skills, gold, prayer timeout, and INVENTORY
         // (MATCHES C: u_init handles all character initialization including items)
@@ -3547,6 +3541,7 @@ pub fn create_score_entry(state: &GameState, death_reason: &str, how: DeathHow) 
 /// How many phantom `rn2(100)` calls C's `role_init` fires for this role
 /// to settle quest leader / nemesis gender (role.c:2070, 2091). One call
 /// per quest mon whose permonst doesn't have is_male/is_female/is_neuter.
+#[allow(dead_code)]
 fn role_init_phantom_rng_count(role: Role) -> u32 {
     // C `role_init()` (role.c:2011+) can consume up to 2 rn2 draws before
     // the role-specific u_init switch:

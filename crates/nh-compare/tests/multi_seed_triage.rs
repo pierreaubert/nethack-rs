@@ -341,10 +341,21 @@ fn multi_seed_triage_100() {
     );
     println!("========================================\n");
 
-    // This test is informational — it should never fail.
-    // The CI convergence gate handles regression thresholds.
-    // But we do assert the test ran successfully.
     assert!(all_results.len() == 100, "Should have tested 100 seeds");
+
+    // Tier 5 regression gate — perfect-seed count must not drop below the
+    // ratcheted floor. Increase this number every time we land a fix that
+    // pushes more seeds to bit-perfect. Mismatched seeds are dominated by
+    // C qsort tiebreaker semantics for equal-lx rooms (qsort is unstable;
+    // macOS-vs-other-platform behavior diverges) — full sort parity
+    // requires C-side stable-sort patches.
+    const PERFECT_FLOOR: u64 = 35;
+    assert!(
+        perfect_seeds >= PERFECT_FLOOR,
+        "Map-gen regression: {}/100 perfect seeds, floor is {}",
+        perfect_seeds,
+        PERFECT_FLOOR
+    );
 }
 
 /// Quick single-seed diagnostic — run with:

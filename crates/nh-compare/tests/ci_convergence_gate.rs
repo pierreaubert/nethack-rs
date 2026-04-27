@@ -26,7 +26,9 @@ struct CiScenario {
     role: &'static str,
     rust_role: Role,
     race: Race,
+    race_str: &'static str,
     gender: Gender,
+    alignment: nh_core::player::AlignmentType,
     num_turns: usize,
     commands: fn(usize) -> Command,
     threshold: ConvergenceThreshold,
@@ -45,8 +47,10 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Valkyrie",
             rust_role: Role::Valkyrie,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Female,
-            num_turns: 200,
+            alignment: nh_core::player::AlignmentType::Lawful,
+            num_turns: 1000,
             commands: rest_command,
             threshold: ConvergenceThreshold {
                 // After UNDEF_BLESS uses mksobj_blessed and Armor mksobj
@@ -61,8 +65,10 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Wizard",
             rust_role: Role::Wizard,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
-            num_turns: 200,
+            alignment: nh_core::player::AlignmentType::Neutral,
+            num_turns: 1000,
             commands: rest_command,
             threshold: ConvergenceThreshold {
                 // After porting C u_init.c:1033 post-mksobj rule (charged
@@ -78,8 +84,10 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Rogue",
             rust_role: Role::Rogue,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
-            num_turns: 200,
+            alignment: nh_core::player::AlignmentType::Chaotic,
+            num_turns: 1000,
             commands: rest_command,
             threshold: ConvergenceThreshold {
                 // After Armor mksobj blessed tracking + UNDEF_BLESS fix.
@@ -96,7 +104,9 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Archeologist",
             rust_role: Role::Archeologist,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Lawful,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
@@ -110,7 +120,9 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Barbarian",
             rust_role: Role::Barbarian,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Neutral,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
@@ -124,7 +136,9 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Caveman",
             rust_role: Role::Caveman,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Lawful,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
@@ -138,7 +152,9 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Healer",
             rust_role: Role::Healer,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Neutral,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
@@ -152,7 +168,9 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Knight",
             rust_role: Role::Knight,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Lawful,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
@@ -166,15 +184,14 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Monk",
             rust_role: Role::Monk,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Lawful,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
-                // Residual: 1-extra inventory slot from a split potion or
-                // spellbook stack when BUC roll differs across the 3 healing
-                // potions or 1 randomly-rolled spellbook.
                 max_critical_diffs: 5,
-                max_major_diffs: 35,
+                max_major_diffs: 5,
             },
         },
         CiScenario {
@@ -183,13 +200,15 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Priest",
             rust_role: Role::Priest,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Lawful,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
-                // Residual: 2 random spellbook picks diverge by 1 slot —
-                // RNG cascade from upstream rng-call drift in the random-otyp
-                // reroll loop.
+                // Residual: 2 random spellbook picks diverge by 1 RNG call
+                // — cascade in `select_object_type` reroll loop. Needs
+                // per-rn2 trace alignment with C `mkobj`'s rerolls.
                 max_critical_diffs: 5,
                 max_major_diffs: 25,
             },
@@ -200,7 +219,9 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Ranger",
             rust_role: Role::Ranger,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Neutral,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
@@ -214,7 +235,9 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Samurai",
             rust_role: Role::Samurai,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Lawful,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
@@ -228,16 +251,151 @@ fn ci_scenarios() -> Vec<CiScenario> {
             role: "Tourist",
             rust_role: Role::Tourist,
             race: Race::Human,
+            race_str: "Human",
             gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Neutral,
             num_turns: 50,
             commands: rest_command,
             threshold: ConvergenceThreshold {
-                // Residual: Tourist has the largest random-otyp footprint
-                // (10 random foods + 4 random scrolls). The reroll loop's
-                // RNG cost differs from C in subtle ways — needs per-rn2
-                // trace alignment.
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
+            },
+        },
+        // ─────────────────────────────────────────────────────────────────
+        // Tier 3 — race × gender × seed matrix.
+        //
+        // Each non-Human race exercises the `inv_subs[]` substitution path
+        // (DAGGER → ELVEN_DAGGER, SPEAR → DWARVISH_SPEAR, etc.). Female
+        // gender exercises `urole.femalenum` paths and any female-only
+        // monster spawning. Multi-seed catches seed-specific RNG-cascade
+        // edge cases that single-seed runs miss.
+        // ─────────────────────────────────────────────────────────────────
+        CiScenario {
+            label: "rest-only-elf-wizard-seed100",
+            seed: 100,
+            role: "Wizard",
+            rust_role: Role::Wizard,
+            race: Race::Elf,
+            race_str: "Elf",
+            gender: Gender::Female,
+            alignment: nh_core::player::AlignmentType::Chaotic,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
+            },
+        },
+        CiScenario {
+            label: "rest-only-dwarf-valkyrie-seed200",
+            seed: 200,
+            role: "Valkyrie",
+            rust_role: Role::Valkyrie,
+            race: Race::Dwarf,
+            race_str: "Dwarf",
+            gender: Gender::Female,
+            alignment: nh_core::player::AlignmentType::Lawful,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
+            },
+        },
+        CiScenario {
+            label: "rest-only-gnome-healer-seed300",
+            seed: 300,
+            role: "Healer",
+            rust_role: Role::Healer,
+            race: Race::Gnome,
+            race_str: "Gnome",
+            gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Neutral,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
+            },
+        },
+        CiScenario {
+            label: "rest-only-orc-barbarian-seed400",
+            seed: 400,
+            role: "Barbarian",
+            rust_role: Role::Barbarian,
+            race: Race::Orc,
+            race_str: "Orc",
+            gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Chaotic,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
+            },
+        },
+        CiScenario {
+            label: "rest-only-female-priest-seed500",
+            seed: 500,
+            role: "Priest",
+            rust_role: Role::Priest,
+            race: Race::Human,
+            race_str: "Human",
+            gender: Gender::Female,
+            alignment: nh_core::player::AlignmentType::Chaotic,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
                 max_critical_diffs: 5,
-                max_major_diffs: 90,
+                max_major_diffs: 30,
+            },
+        },
+        CiScenario {
+            label: "rest-only-elf-ranger-seed600",
+            seed: 600,
+            role: "Ranger",
+            rust_role: Role::Ranger,
+            race: Race::Elf,
+            race_str: "Elf",
+            gender: Gender::Male,
+            alignment: nh_core::player::AlignmentType::Chaotic,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
+            },
+        },
+        CiScenario {
+            label: "rest-only-wizard-seed700",
+            seed: 700,
+            role: "Wizard",
+            rust_role: Role::Wizard,
+            race: Race::Human,
+            race_str: "Human",
+            gender: Gender::Female,
+            alignment: nh_core::player::AlignmentType::Neutral,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 5,
+                max_major_diffs: 30,
+            },
+        },
+        CiScenario {
+            label: "rest-only-tourist-seed800",
+            seed: 800,
+            role: "Tourist",
+            rust_role: Role::Tourist,
+            race: Race::Human,
+            race_str: "Human",
+            gender: Gender::Female,
+            alignment: nh_core::player::AlignmentType::Neutral,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
             },
         },
     ]
@@ -386,8 +544,18 @@ fn run_scenario(scenario: &CiScenario) -> ConvergenceReport {
     // g_seed=42 (the default) regardless of scenario, producing a
     // character that differs from Rust's seed-derived character.
     let _ = c_engine.set_seed(scenario.seed);
+    let align_idx = match scenario.alignment {
+        nh_core::player::AlignmentType::Lawful => 0,
+        nh_core::player::AlignmentType::Neutral => 1,
+        nh_core::player::AlignmentType::Chaotic => 2,
+    };
+    let gender_idx = match scenario.gender {
+        nh_core::player::Gender::Male => 0,
+        nh_core::player::Gender::Female => 1,
+        nh_core::player::Gender::Neuter => 2,
+    };
     c_engine
-        .init(scenario.role, "Human", 0, 0)
+        .init(scenario.role, scenario.race_str, gender_idx, align_idx)
         .expect("C engine init failed");
     c_engine
         .reset(scenario.seed)
@@ -401,7 +569,7 @@ fn run_scenario(scenario: &CiScenario) -> ConvergenceReport {
         scenario.rust_role,
         scenario.race,
         scenario.gender,
-        scenario.rust_role.default_alignment(),
+        scenario.alignment,
     );
     rust_state.player.pos.x = cx as i8;
     rust_state.player.pos.y = cy as i8;

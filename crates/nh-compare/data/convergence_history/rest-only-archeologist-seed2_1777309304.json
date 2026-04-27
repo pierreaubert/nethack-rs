@@ -1,0 +1,144 @@
+{
+  "label": "rest-only-archeologist-seed2",
+  "seed": 2,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 6,
+  "critical_count": 0,
+  "major_count": 0,
+  "minor_count": 17,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "3",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "20",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "13",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "889",
+          "c_value": "892"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "20",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "15",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "879",
+          "c_value": "884"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "20",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "15",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "869",
+          "c_value": "877"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "20",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "15",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "859",
+          "c_value": "868"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "20",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 49,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "15",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "850",
+          "c_value": "863"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "20",
+          "c_value": "18"
+        }
+      ]
+    }
+  ]
+}
