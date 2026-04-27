@@ -1,0 +1,114 @@
+{
+  "label": "rest-only-barbarian-seed3",
+  "seed": 3,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 6,
+  "critical_count": 0,
+  "major_count": 12,
+  "minor_count": 0,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "38",
+          "c_value": "28"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "27",
+          "c_value": "29"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "38",
+          "c_value": "28"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "27",
+          "c_value": "29"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "38",
+          "c_value": "28"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "27",
+          "c_value": "29"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "38",
+          "c_value": "28"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "27",
+          "c_value": "29"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "38",
+          "c_value": "28"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "27",
+          "c_value": "29"
+        }
+      ]
+    },
+    {
+      "turn": 49,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "38",
+          "c_value": "28"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "27",
+          "c_value": "29"
+        }
+      ]
+    }
+  ]
+}

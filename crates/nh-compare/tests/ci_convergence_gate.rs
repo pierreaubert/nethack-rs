@@ -49,11 +49,10 @@ fn ci_scenarios() -> Vec<CiScenario> {
             num_turns: 200,
             commands: rest_command,
             threshold: ConvergenceThreshold {
-                // Baseline (Apr 2026, after is_multigen fix): critical=0, major=42
-                // (was 168 before fixing the ammo skill-range boundary in
-                // mksobj_phantom_rng).
+                // After UNDEF_BLESS uses mksobj_blessed and Armor mksobj
+                // properly tracks blessed across all branches. Valkyrie: 0.
                 max_critical_diffs: 5,
-                max_major_diffs: 60,
+                max_major_diffs: 5,
             },
         },
         CiScenario {
@@ -66,11 +65,11 @@ fn ci_scenarios() -> Vec<CiScenario> {
             num_turns: 200,
             commands: rest_command,
             threshold: ConvergenceThreshold {
-                // Baseline (Apr 2026, after is_multigen fix): critical=0, major=210
-                // (was 315 before). Wizard remains the most divergent role —
-                // residual likely from spell-list / starting-spell RNG.
+                // After porting C u_init.c:1033 post-mksobj rule (charged
+                // ring spe<=0 → rne(3)), Wizard inventory bit-perfect with C.
+                // Major diffs: 0.
                 max_critical_diffs: 5,
-                max_major_diffs: 240,
+                max_major_diffs: 5,
             },
         },
         CiScenario {
@@ -83,11 +82,162 @@ fn ci_scenarios() -> Vec<CiScenario> {
             num_turns: 200,
             commands: rest_command,
             threshold: ConvergenceThreshold {
-                // Baseline (Apr 2026, after is_multigen fix): critical=0, major=42
-                // (was 231 before — the ammo fix was particularly large for
-                // Rogue, who starts with daggers and arrows).
+                // After Armor mksobj blessed tracking + UNDEF_BLESS fix.
+                // Rogue: 0.
                 max_critical_diffs: 5,
-                max_major_diffs: 60,
+                max_major_diffs: 5,
+            },
+        },
+        // Remaining 10 roles — baseline thresholds permissive (500/500);
+        // ratchet down as drift root causes are fixed per role.
+        CiScenario {
+            label: "rest-only-archeologist-seed2",
+            seed: 2,
+            role: "Archeologist",
+            rust_role: Role::Archeologist,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
+            },
+        },
+        CiScenario {
+            label: "rest-only-barbarian-seed3",
+            seed: 3,
+            role: "Barbarian",
+            rust_role: Role::Barbarian,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
+            },
+        },
+        CiScenario {
+            label: "rest-only-caveman-seed4",
+            seed: 4,
+            role: "Caveman",
+            rust_role: Role::Caveman,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 5,
+                max_major_diffs: 5,
+            },
+        },
+        CiScenario {
+            label: "rest-only-healer-seed5",
+            seed: 5,
+            role: "Healer",
+            rust_role: Role::Healer,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 0,
+                max_major_diffs: 0,
+            },
+        },
+        CiScenario {
+            label: "rest-only-knight-seed6",
+            seed: 6,
+            role: "Knight",
+            rust_role: Role::Knight,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 5,
+                max_major_diffs: 5,
+            },
+        },
+        CiScenario {
+            label: "rest-only-monk-seed7",
+            seed: 7,
+            role: "Monk",
+            rust_role: Role::Monk,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                // Residual: 1-extra inventory slot from a split potion or
+                // spellbook stack when BUC roll differs across the 3 healing
+                // potions or 1 randomly-rolled spellbook.
+                max_critical_diffs: 5,
+                max_major_diffs: 35,
+            },
+        },
+        CiScenario {
+            label: "rest-only-priest-seed8",
+            seed: 8,
+            role: "Priest",
+            rust_role: Role::Priest,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                // Residual: 2 random spellbook picks diverge by 1 slot —
+                // RNG cascade from upstream rng-call drift in the random-otyp
+                // reroll loop.
+                max_critical_diffs: 5,
+                max_major_diffs: 25,
+            },
+        },
+        CiScenario {
+            label: "rest-only-ranger-seed9",
+            seed: 9,
+            role: "Ranger",
+            rust_role: Role::Ranger,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 5,
+                max_major_diffs: 5,
+            },
+        },
+        CiScenario {
+            label: "rest-only-samurai-seed10",
+            seed: 10,
+            role: "Samurai",
+            rust_role: Role::Samurai,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                max_critical_diffs: 5,
+                max_major_diffs: 5,
+            },
+        },
+        CiScenario {
+            label: "rest-only-tourist-seed11",
+            seed: 11,
+            role: "Tourist",
+            rust_role: Role::Tourist,
+            race: Race::Human,
+            gender: Gender::Male,
+            num_turns: 50,
+            commands: rest_command,
+            threshold: ConvergenceThreshold {
+                // Residual: Tourist has the largest random-otyp footprint
+                // (10 random foods + 4 random scrolls). The reroll loop's
+                // RNG cost differs from C in subtle ways — needs per-rn2
+                // trace alignment.
+                max_critical_diffs: 5,
+                max_major_diffs: 90,
             },
         },
     ]
@@ -95,6 +245,28 @@ fn ci_scenarios() -> Vec<CiScenario> {
 
 fn rust_snapshot(gs: &GameState, turn: u64) -> GameSnapshot {
     let p = &gs.player;
+    // C represents starting gold as an inventory entry with otyp=410 (GoldPiece)
+    // pushed to the *front* of the inventory list. Mirror that here so structural
+    // comparison aligns with C.
+    let mut inventory: Vec<ItemSnapshot> = Vec::new();
+    if p.gold > 0 {
+        inventory.push(ItemSnapshot {
+            object_type: 410,
+            class: "Coin".into(),
+            quantity: p.gold,
+            enchantment: 0,
+            buc: "Uncursed".into(),
+            weight: p.gold as u32,
+        });
+    }
+    inventory.extend(gs.inventory.iter().map(|o| ItemSnapshot {
+        object_type: o.object_type,
+        class: format!("{:?}", o.class),
+        quantity: o.quantity,
+        enchantment: o.enchantment,
+        buc: format!("{:?}", o.buc),
+        weight: o.weight,
+    }));
     GameSnapshot {
         turn,
         player: PlayerSnapshot {
@@ -119,33 +291,13 @@ fn rust_snapshot(gs: &GameState, turn: u64) -> GameSnapshot {
             dungeon_num: p.level.dungeon_num as i32,
             status_effects: vec![],
         },
-        inventory: gs
-            .inventory
-            .iter()
-            .map(|o| ItemSnapshot {
-                object_type: o.object_type,
-                class: format!("{:?}", o.class),
-                quantity: o.quantity,
-                enchantment: o.enchantment,
-                buc: format!("{:?}", o.buc),
-                weight: o.weight,
-            })
-            .collect(),
-        monsters: gs
-            .current_level
-            .monsters
-            .iter()
-            .map(|m| MonsterSnapshot {
-                monster_type: m.monster_type,
-                x: m.x as i32,
-                y: m.y as i32,
-                hp: m.hp,
-                hp_max: m.hp_max,
-                peaceful: m.state.peaceful,
-                sleeping: m.state.sleeping,
-                alive: m.state.alive,
-            })
-            .collect(),
+        inventory,
+        // C FFI in this test harness doesn't run mklev, so it always reports
+        // 0 monsters. Comparing Rust's fully-generated level monsters against
+        // an empty C list produces structural noise unrelated to convergence.
+        // Skip Rust's level monsters here to keep the gate focused on
+        // player/inventory/turn-state parity.
+        monsters: Vec::new(),
         source: "rust".into(),
     }
 }
@@ -229,6 +381,11 @@ fn c_snapshot(engine: &CGameEngine, turn: u64) -> GameSnapshot {
 
 fn run_scenario(scenario: &CiScenario) -> ConvergenceReport {
     let mut c_engine = CGameEngine::new();
+    // Pre-set g_seed before init so C's u_init() uses the same seed as
+    // Rust's GameRng::new(scenario.seed). Without this, C inits with
+    // g_seed=42 (the default) regardless of scenario, producing a
+    // character that differs from Rust's seed-derived character.
+    let _ = c_engine.set_seed(scenario.seed);
     c_engine
         .init(scenario.role, "Human", 0, 0)
         .expect("C engine init failed");

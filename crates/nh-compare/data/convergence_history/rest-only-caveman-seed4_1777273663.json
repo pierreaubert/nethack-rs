@@ -1,0 +1,222 @@
+{
+  "label": "rest-only-caveman-seed4",
+  "seed": 4,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 6,
+  "critical_count": 0,
+  "major_count": 0,
+  "minor_count": 30,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "3",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "17",
+          "c_value": "22"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "11",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "12",
+          "c_value": "9"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "11",
+          "c_value": "12"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "4",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "17",
+          "c_value": "22"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "11",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "12",
+          "c_value": "9"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "11",
+          "c_value": "12"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "4",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "17",
+          "c_value": "22"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "11",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "12",
+          "c_value": "9"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "11",
+          "c_value": "12"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "4",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "17",
+          "c_value": "22"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "11",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "12",
+          "c_value": "9"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "11",
+          "c_value": "12"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "4",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "17",
+          "c_value": "22"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "11",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "12",
+          "c_value": "9"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "11",
+          "c_value": "12"
+        }
+      ]
+    },
+    {
+      "turn": 49,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "4",
+          "c_value": "2"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "17",
+          "c_value": "22"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "11",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "12",
+          "c_value": "9"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "11",
+          "c_value": "12"
+        }
+      ]
+    }
+  ]
+}

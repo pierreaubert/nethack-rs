@@ -7,7 +7,7 @@
 use crate::compat::*;
 
 use crate::object::{BucStatus, Object, ObjectClass};
-use crate::player::{Attribute, Attributes, Role, SkillLevel, SkillSet, SkillType, You};
+use crate::player::{Attribute, Attributes, Race, Role, SkillLevel, SkillSet, SkillType, You};
 use crate::rng::GameRng;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -203,14 +203,14 @@ static HEALER_INV: &[StartingItem] = &[
         0,
     ), // STETHOSCOPE
     StartingItem::new(
-        crate::data::objects::ObjectType::Healing as i16,
+        crate::data::objects::ObjectType::PotionHealing as i16,
         0,
         ObjectClass::Potion,
         4,
         UNDEF_BLESS,
     ), // POT_HEALING
     StartingItem::new(
-        crate::data::objects::ObjectType::ExtraHealing as i16,
+        crate::data::objects::ObjectType::PotionExtraHealing as i16,
         0,
         ObjectClass::Potion,
         4,
@@ -344,7 +344,7 @@ static MONK_INV: &[StartingItem] = &[
         UNDEF_BLESS,
     ), // Random scroll
     StartingItem::new(
-        crate::data::objects::ObjectType::Healing as i16,
+        crate::data::objects::ObjectType::PotionHealing as i16,
         0,
         ObjectClass::Potion,
         3,
@@ -581,7 +581,7 @@ static TOURIST_INV: &[StartingItem] = &[
         0,
     ), // Random food
     StartingItem::new(
-        crate::data::objects::ObjectType::ExtraHealing as i16,
+        crate::data::objects::ObjectType::PotionExtraHealing as i16,
         0,
         ObjectClass::Potion,
         2,
@@ -945,11 +945,6 @@ fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, 
 
     match class {
         ObjectClass::Weapon => {
-            // C: is_multigen check — applies to ammo (arrows, bolts, darts, shuriken)
-            // For non-multigen weapons: quan=1, no RNG call
-            // For multigen: rn1(6,6) = rnd(6)+5
-            // C macro: oc_skill >= -P_SHURIKEN && oc_skill <= -P_BOW
-            // (P_BOW=21, P_SHURIKEN=25 — ammo has negative skill in [-25,-21])
             let is_multigen = if let Some(def) = crate::data::objects::OBJECTS.get(otyp as usize) {
                 use crate::data::objects::{P_BOW, P_SHURIKEN};
                 def.skill >= -P_SHURIKEN && def.skill <= -P_BOW
@@ -957,29 +952,19 @@ fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, 
                 false
             };
             if is_multigen {
-                let _quan = rng.rnd(6) + 5; // rn1(6,6)
+                let _quan = rng.rnd(6) + 5;
             }
-
-            // Enchantment/BUC
             if rng.rn2(11) == 0 {
-                // Positive enchantment
                 spe = rne(rng, 3) as i8;
                 blessed = rng.rn2(2) as i8;
             } else if rng.rn2(10) == 0 {
-                // Cursed with negative enchantment
                 spe = -(rne(rng, 3) as i8);
-            } else {
-                // blessorcurse(10): rn2(10), if ==0 then rn2(2)
-                if rng.rn2(10) == 0 {
-                    blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
-                }
+            } else if rng.rn2(10) == 0 {
+                blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
             }
-
-            // is_poisonable check — same definition as is_multigen in 3.6.7
             if is_multigen {
                 let _poison = rng.rn2(100);
             }
-            // artif=FALSE, no rn2(20)
         }
         ObjectClass::Food => {
             // Food items: FOOD_RATION is not CORPSE/EGG/TIN/SLIME_MOLD/KELP_FROND
@@ -1014,16 +999,17 @@ fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, 
             };
 
             if first_branch {
-                // curse + negative enchant
+                // curse + negative enchant; C: curse(otmp) → blessed=0,cursed=1
                 spe = -(rne(rng, 3) as i8);
+                blessed = -1;
             } else if rng.rn2(10) == 0 {
-                // NOTE: this is a NEW rn2(10) call (else-if branch)
+                // C: blessed = rn2(2); spe = rne(3) (no curse)
                 blessed = rng.rn2(2) as i8;
                 spe = rne(rng, 3) as i8;
             } else {
-                // blessorcurse(10)
+                // C: blessorcurse(10) — if rn2(10)==0: rn2(2) ? bless : curse
                 if rng.rn2(10) == 0 {
-                    let _buc = rng.rn2(2);
+                    blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
                 }
             }
             // artif=FALSE, no rn2(40)
@@ -1056,8 +1042,7 @@ fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, 
                 // C: spe=1, age=rn1(500,1000), blessorcurse(5)
                 let _age = rng.rnd(500) + 999; // rn1(500,1000)
                 if rng.rn2(5) == 0 {
-                    // blessorcurse triggered
-                    let _buc = rng.rn2(2);
+                    blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
                 }
             }
             // SACK: mkbox_cnts — may make RNG calls for box contents
@@ -1065,8 +1050,19 @@ fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, 
             // Skip for now — SACK contents generation is complex
         }
         ObjectClass::Wand => {
-            // C: spe = rn1(5, nodir ? 11 : 4), blessorcurse(17)
-            spe = (rng.rnd(5) + 3) as i8; // rn1(5,4) for directed wands
+            // C mksobj.c: spe = rn1(5, nodir ? 11 : 4); WAN_WISHING uses rnd(3).
+            // Direction comes from objects[otyp].oc_dir == NODIR.
+            const WAN_WISHING: i16 = 387;
+            if otyp == WAN_WISHING {
+                spe = rng.rnd(3) as i8;
+            } else {
+                let nodir = crate::data::objects::OBJECTS
+                    .get(otyp as usize)
+                    .map(|d| d.direction == crate::object::DirectionType::None)
+                    .unwrap_or(false);
+                let bias = if nodir { 11 } else { 4 };
+                spe = (rng.rnd(5) + (bias - 1)) as i8;
+            }
             // blessorcurse(17)
             if rng.rn2(17) == 0 {
                 blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
@@ -1075,13 +1071,94 @@ fn mksobj_phantom_rng(class: ObjectClass, otyp: i16, rng: &mut GameRng) -> (i8, 
         ObjectClass::Potion | ObjectClass::Scroll
             // blessorcurse(4)
             if rng.rn2(4) == 0 => {
-                let _buc = rng.rn2(2);
+                blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
             }
         ObjectClass::Spellbook
             // blessorcurse(17)
             if rng.rn2(17) == 0 => {
-                let _buc = rng.rn2(2);
+                blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
             }
+        ObjectClass::Ring => {
+            // C mkobj.c:1028-1051. Two paths based on oc_charged:
+            //   charged (6 rings: adornment, gain strength, gain con,
+            //            increase accuracy, increase damage, protection):
+            //     blessorcurse(3); rn2(10); if non-zero: rn2(10) and either
+            //     bcsign-rne or rn2(2)+rne; if spe==0: rn2(4)+rn2(3);
+            //     if spe<0: rn2(5).
+            //   non-charged (22 rings):
+            //     if rn2(10) && otyp in {TELEPORT, POLYMORPH, AGGRAVATE,
+            //                            HUNGER}: curse;
+            //     else blessorcurse(10).
+            const FIRST_RING: i16 = 150;
+            const FIRST_NON_CHARGED_RING: i16 = 156;
+            let oc_charged = otyp >= FIRST_RING && otyp < FIRST_NON_CHARGED_RING;
+            if oc_charged {
+                // blessorcurse(3): rn2(3); if 0: rn2(2)
+                let bc_outer = rng.rn2(3);
+                let mut blessed_local = 0i8;
+                let mut cursed_local = false;
+                if bc_outer == 0 {
+                    if rng.rn2(2) == 0 {
+                        cursed_local = true;
+                    } else {
+                        blessed_local = 1;
+                    }
+                }
+                let mut spe_local = 0i32;
+                if rng.rn2(10) != 0 {
+                    if rng.rn2(10) != 0 && (blessed_local != 0 || cursed_local) {
+                        let bcsign = if blessed_local != 0 { 1 } else { -1 };
+                        spe_local = bcsign * rne(rng, 3) as i32;
+                    } else {
+                        spe_local = if rng.rn2(2) != 0 {
+                            rne(rng, 3) as i32
+                        } else {
+                            -(rne(rng, 3) as i32)
+                        };
+                    }
+                }
+                if spe_local == 0 {
+                    spe_local = rng.rn2(4) as i32 - rng.rn2(3) as i32;
+                }
+                if spe_local < 0 && rng.rn2(5) != 0 {
+                    cursed_local = true;
+                }
+                spe = spe_local as i8;
+                blessed = if cursed_local { -1 } else { blessed_local };
+            } else {
+                const RIN_HUNGER: i16 = 161;
+                const RIN_AGGRAVATE_MONSTER: i16 = 162;
+                const RIN_TELEPORTATION: i16 = 171;
+                const RIN_POLYMORPH: i16 = 173;
+                let outer = rng.rn2(10);
+                let curse_otype = matches!(
+                    otyp,
+                    RIN_TELEPORTATION | RIN_POLYMORPH | RIN_AGGRAVATE_MONSTER | RIN_HUNGER
+                );
+                if outer != 0 && curse_otype {
+                    blessed = -1;
+                } else if rng.rn2(10) == 0 {
+                    blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
+                }
+            }
+        }
+        ObjectClass::Amulet => {
+            // C mkobj.c:967-976: rn2(10) + matches strangulation/change/sleep
+            // → curse, else blessorcurse(10).
+            const AMULET_OF_STRANGULATION: i16 = 180;
+            const AMULET_OF_CHANGE: i16 = 183;
+            const AMULET_OF_RESTFUL_SLEEP: i16 = 181;
+            let outer = rng.rn2(10);
+            let curse_otype = matches!(
+                otyp,
+                AMULET_OF_STRANGULATION | AMULET_OF_CHANGE | AMULET_OF_RESTFUL_SLEEP
+            );
+            if outer != 0 && curse_otype {
+                blessed = -1;
+            } else if rng.rn2(10) == 0 {
+                blessed = if rng.rn2(2) == 0 { -1 } else { 1 };
+            }
+        }
         _ => {}
     }
 
@@ -1100,38 +1177,97 @@ fn rne(rng: &mut GameRng, x: u32) -> u32 {
     tmp
 }
 
-/// Convert a starting item descriptor into an Object (C: ini_inv per-item logic)
-pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mut u32) -> Object {
+/// Cross-call reroll state for `make_starting_object`, mirroring C's static
+/// `nocreate{,2,3,4}` in u_init.c:1007-1010. A picked polymorph item bans
+/// its dual on the next pick (so the player never starts with both
+/// polymorph and polymorph-control); rings/spellbooks ban repeats of
+/// themselves (no two of the same ring/spellbook).
+#[derive(Default, Clone, Copy)]
+pub struct StartingInvRerollState {
+    pub nocreate: i16,
+    pub nocreate2: i16,
+    pub nocreate3: i16,
+    pub nocreate4: i16,
+}
+
+/// Convert a starting item descriptor into an Object (C: ini_inv per-item logic).
+///
+/// `role` and `race` drive the role/race-specific forbidden-item exclusions in
+/// the random-otype reroll loop (C u_init.c:1023-1047). `reroll_state` carries
+/// the cross-call nocreate1-4 state.
+pub fn make_starting_object_full(
+    item: &StartingItem,
+    role: Role,
+    race: Race,
+    rng: &mut GameRng,
+    next_id: &mut u32,
+    reroll_state: &mut StartingInvRerollState,
+) -> Object {
     let id = *next_id;
     *next_id += 1;
 
-    // C ini_inv: when trotyp is STRANGE_OBJECT (= UNDEF_TYP), it calls
-    // mkobj(class, FALSE) which picks a concrete random otyp via the
-    // probability table — consuming an RNG draw. If we leave it as
-    // STRANGE_OBJECT the inventory diff vs C is permanent for this slot.
-    // The full C code also runs a reroll-loop for forbidden items
-    // (WAN_WISHING, RIN_LEVITATION, etc.), but that path is rare —
-    // resolving the otyp is the single most impactful step for parity.
-    // Note: when item.otyp == STRANGE_OBJECT, C calls mkobj(class) which
-    // resolves to a concrete otyp via rnd(1000) + per-class probability walk,
-    // followed by a reroll loop for forbidden items. Implementing only the
-    // initial draw without the reroll loop made things WORSE in the convergence
-    // gate (Wizard 210 → 231 major diffs) because the RNG state still drifts
-    // upstream of this point, so the otyp Rust picks doesn't match C's pick;
-    // only the *count* of RNG draws matches. Until the upstream init RNG is
-    // bit-identical to C, leaving StrangeObject as the literal type produces
-    // fewer inventory diffs than picking a wrong concrete type. This is a
-    // known follow-up: implement the full mkobj reroll loop AFTER all upstream
-    // attribute / inventory RNG is aligned.
-    let resolved_otyp = item.otyp;
+    use crate::data::objects::ObjectType;
+    // C: mkobj(class) calls rnd(1000) + the full per-class init in a single
+    // function call. If the result is forbidden, dealloc and call mkobj
+    // again — meaning each reroll consumes BOTH rnd(1000) and the per-class
+    // RNG block. We mirror that exactly: call select_object_type AND
+    // mksobj_phantom_rng on every iteration. Only the LAST iteration's
+    // (spe, blessed) values are kept for the final object.
+    let trace_obj = std::env::var("NH_TRACE_INIT").is_ok();
+    let (resolved_otyp, mksobj_spe, mksobj_blessed) =
+        if item.otyp == ObjectType::StrangeObject as i16 {
+            let bases = crate::object::ClassBases::compute(crate::data::objects::OBJECTS);
+            let mut last_otyp = item.otyp;
+            let mut last_spe = 0i8;
+            let mut last_blessed = 0i8;
+            for iter in 0..64 {
+                let candidate = crate::object::select_object_type(
+                    crate::data::objects::OBJECTS,
+                    &bases,
+                    rng,
+                    item.class,
+                )
+                .map(|i| i as i16)
+                .unwrap_or(item.otyp);
+                if trace_obj {
+                    eprintln!("RS reroll iter={} class={:?} candidate={} rng_after_select={}",
+                        iter, item.class, candidate, rng.call_count());
+                }
+                last_otyp = candidate;
+                let (s, b) = mksobj_phantom_rng(item.class, candidate, rng);
+                last_spe = s;
+                last_blessed = b;
+                if trace_obj {
+                    eprintln!("RS reroll iter={} after_mksobj rng={} forbidden={}",
+                        iter, rng.call_count(),
+                        is_forbidden_starting_otyp(candidate, item.class, role, race, reroll_state));
+                }
+                if !is_forbidden_starting_otyp(candidate, item.class, role, race, reroll_state) {
+                    update_nocreate_state(candidate, item.class, reroll_state);
+                    break;
+                }
+            }
+            // C u_init.c:1033 — "Don't start with +0 or negative rings":
+            // if (objects[otyp].oc_charged && obj->spe <= 0) obj->spe = rne(3);
+            // This consumes RNG and must fire whenever the starting random
+            // ring is charged and rolled non-positive enchant.
+            if item.class == ObjectClass::Ring {
+                const FIRST_RING: i16 = 150;
+                const FIRST_NON_CHARGED_RING: i16 = 156;
+                let oc_charged =
+                    last_otyp >= FIRST_RING && last_otyp < FIRST_NON_CHARGED_RING;
+                if oc_charged && last_spe <= 0 {
+                    last_spe = rne(rng, 3) as i8;
+                }
+            }
+            (last_otyp, last_spe, last_blessed)
+        } else {
+            let (s, b) = mksobj_phantom_rng(item.class, item.otyp, rng);
+            (item.otyp, s, b)
+        };
 
     let mut obj = Object::new(crate::object::ObjectId(id), resolved_otyp, item.class);
     obj.quantity = item.quantity as i32;
-
-    // Replicate C's mksobj(otyp, init=TRUE, artif=FALSE) RNG calls.
-    // ini_inv overwrites spe/bless/quan from the trobj table, but the
-    // phantom RNG calls must still happen to keep the RNG in sync.
-    let (mksobj_spe, _mksobj_blessed) = mksobj_phantom_rng(item.class, resolved_otyp, rng);
 
     // Set enchantment
     if item.spe != UNDEF_SPE {
@@ -1142,13 +1278,21 @@ pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mu
     }
 
     // Set BUC status
-    // In C, ini_inv always sets obj->cursed = 0, and only overrides blessed
-    // if trbless != UNDEF_BLESS. Since mksobj starts objects uncursed by default,
-    // UNDEF_BLESS effectively means "uncursed" in C.
+    // C u_init.c:1093,1105 — `obj->cursed = 0` (always), then
+    // `if (trbless != UNDEF_BLESS) obj->blessed = trbless`. So for non-UNDEF
+    // trobj entries we honor trbless; for UNDEF_BLESS we keep mksobj's
+    // blessed value (which can be 0 or 1 depending on the in-class roll).
     obj.buc = match item.bless {
         0 => BucStatus::Uncursed,
         1 => BucStatus::Blessed,
-        _ => BucStatus::Uncursed, // UNDEF_BLESS = uncursed (C: obj->cursed = 0)
+        _ => {
+            // UNDEF_BLESS: cursed forced to 0 by C; blessed kept from mksobj.
+            if mksobj_blessed > 0 {
+                BucStatus::Blessed
+            } else {
+                BucStatus::Uncursed
+            }
+        }
     };
 
     // Copy static properties from object definition
@@ -1166,15 +1310,147 @@ pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mu
     obj
 }
 
+/// Backward-compatible entry that uses neutral role/race defaults — preserved
+/// for callers that don't yet thread role/race through. Consumers that DO have
+/// the role/race (init_inventory, ini_inv) should call `make_starting_object_full`.
+pub fn make_starting_object(item: &StartingItem, rng: &mut GameRng, next_id: &mut u32) -> Object {
+    let mut state = StartingInvRerollState::default();
+    make_starting_object_full(item, Role::Valkyrie, Race::Human, rng, next_id, &mut state)
+}
+
+/// True when `otyp` is forbidden as a starting random pick. Mirrors the C
+/// u_init.c:1023-1047 `while` condition.
+///
+/// Currently unused — see the gap note in `make_starting_object_full`. Kept
+/// in source so the reroll loop can be re-enabled once the OBJECTS array is
+/// realigned to C's onames.h indices.
+#[allow(dead_code)]
+fn is_forbidden_starting_otyp(
+    otyp: i16,
+    class: ObjectClass,
+    role: Role,
+    race: Race,
+    state: &StartingInvRerollState,
+) -> bool {
+    // C ID constants (from include/onames.h)
+    const WAN_WISHING: i16 = 387;
+    const RIN_LEVITATION: i16 = 160;
+    const RIN_HUNGER: i16 = 161;
+    const RIN_AGGRAVATE_MONSTER: i16 = 162;
+    const RIN_POISON_RESISTANCE: i16 = 165;
+    const POT_HALLUCINATION: i16 = 279;
+    const POT_ACID: i16 = 295;
+    const SCR_ENCHANT_WEAPON: i16 = 303;
+    const SCR_AMNESIA: i16 = 313;
+    const SCR_FIRE: i16 = 314;
+    const SCR_BLANK_PAPER: i16 = 339;
+    const SPE_FORCE_BOLT: i16 = 350;
+    const SPE_BLANK_PAPER: i16 = 380;
+    const WAN_NOTHING: i16 = 388;
+
+    if otyp == WAN_WISHING
+        || otyp == state.nocreate
+        || otyp == state.nocreate2
+        || otyp == state.nocreate3
+        || otyp == state.nocreate4
+        || otyp == RIN_LEVITATION
+        || otyp == POT_HALLUCINATION
+        || otyp == POT_ACID
+        || otyp == SCR_AMNESIA
+        || otyp == SCR_FIRE
+        || otyp == SCR_BLANK_PAPER
+        || otyp == SPE_BLANK_PAPER
+        || otyp == RIN_AGGRAVATE_MONSTER
+        || otyp == RIN_HUNGER
+        || otyp == WAN_NOTHING
+    {
+        return true;
+    }
+    // Race-specific: orcs already have poison resistance
+    if otyp == RIN_POISON_RESISTANCE && race == Race::Orc {
+        return true;
+    }
+    // Role-specific: Monks don't use weapons; Wizards already have force bolt
+    if otyp == SCR_ENCHANT_WEAPON && role == Role::Monk {
+        return true;
+    }
+    if otyp == SPE_FORCE_BOLT && role == Role::Wizard {
+        return true;
+    }
+    // Spellbook level filter (C: oc_level > 3). ObjClassDef doesn't expose
+    // oc_level, so we hard-code the high-level spellbook IDs from
+    // NetHack-3.6.7/src/objects.c via onames.h:
+    if class == ObjectClass::Spellbook {
+        const HIGH_LEVEL_SPELLBOOKS: &[i16] = &[
+            340, // SPE_DIG (5)
+            342, // SPE_FIREBALL (4)
+            343, // SPE_CONE_OF_COLD (4)
+            345, // SPE_FINGER_OF_DEATH (7)
+            364, // SPE_LEVITATION (4)
+            366, // SPE_RESTORE_ABILITY (4)
+            367, // SPE_INVISIBILITY (4)
+            368, // SPE_DETECT_TREASURE (4)
+            370, // SPE_MAGIC_MAPPING (5)
+            372, // SPE_TURN_UNDEAD (6)
+            373, // SPE_POLYMORPH (6)
+            374, // SPE_TELEPORT_AWAY (6)
+            375, // SPE_CREATE_FAMILIAR (6)
+            376, // SPE_CANCELLATION (7)
+        ];
+        if HIGH_LEVEL_SPELLBOOKS.contains(&otyp) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Update the cross-call nocreate state after accepting a random pick.
+/// Mirrors u_init.c:1063-1076. Currently unused — see gap note above.
+#[allow(dead_code)]
+fn update_nocreate_state(
+    otyp: i16,
+    class: ObjectClass,
+    state: &mut StartingInvRerollState,
+) {
+    const WAN_POLYMORPH: i16 = 394;
+    const RIN_POLYMORPH: i16 = 173;
+    const POT_POLYMORPH: i16 = 291;
+    const RIN_POLYMORPH_CONTROL: i16 = 174;
+    const SPE_POLYMORPH: i16 = 373;
+
+    match otyp {
+        WAN_POLYMORPH | RIN_POLYMORPH | POT_POLYMORPH => {
+            state.nocreate = RIN_POLYMORPH_CONTROL;
+        }
+        RIN_POLYMORPH_CONTROL => {
+            state.nocreate = RIN_POLYMORPH;
+            state.nocreate2 = SPE_POLYMORPH;
+            state.nocreate3 = POT_POLYMORPH;
+        }
+        _ => {}
+    }
+    if class == ObjectClass::Ring || class == ObjectClass::Spellbook {
+        state.nocreate4 = otyp;
+    }
+}
+
 /// Initialize a player's starting inventory (C: u_init inventory section)
 pub fn init_inventory(rng: &mut GameRng, role: Role) -> Vec<Object> {
     let items = starting_inventory(role);
     let mut inventory = Vec::with_capacity(items.len());
     let mut next_id: u32 = 1;
     let mut letter = b'a';
+    let mut reroll = StartingInvRerollState::default();
 
     for item in items {
-        let mut obj = make_starting_object(item, rng, &mut next_id);
+        let mut obj = make_starting_object_full(
+            item,
+            role,
+            Race::Human,
+            rng,
+            &mut next_id,
+            &mut reroll,
+        );
         obj.inv_letter = letter as char;
         if letter < b'z' {
             letter += 1;
@@ -1258,8 +1534,6 @@ fn roll_attributes(player: &mut You, rng: &mut GameRng) {
 pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object> {
     let role = player.role;
 
-    // Set initial HP and Energy (C: u_init calls newhp/newpw)
-    // We set ulevel=0 temporarily to trigger initial HP logic in newhp
     let old_level = player.exp_level;
     player.exp_level = 0;
     player.hp_max = crate::player::you::newhp(player, rng);
@@ -1289,19 +1563,97 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
     let mut inventory = Vec::new();
     let mut next_id: u32 = 1;
     let mut letter = b'a';
+    let mut reroll = StartingInvRerollState::default();
+    let race = player.race;
 
     // Helper closure to add an item
+    let trace = std::env::var("NH_TRACE_INIT").is_ok();
     let add_item = |inv: &mut Vec<Object>,
                     item: &StartingItem,
                     rng: &mut GameRng,
                     next_id: &mut u32,
-                    letter: &mut u8| {
-        let mut obj = make_starting_object(item, rng, next_id);
-        obj.inv_letter = *letter as char;
-        if *letter < b'z' {
-            *letter += 1;
+                    letter: &mut u8,
+                    reroll: &mut StartingInvRerollState| {
+        // C ini_inv (u_init.c:1155-1163) decrements `trop->trquan` and loops
+        // `continue` to make a similar object — meaning each unit in the stack
+        // is a separate `mksobj` call. Only Weapon/Tool/Coin classes
+        // short-circuit (they set `obj->quan = trquan; trquan = 1`).
+        //
+        // For RNG correctness we make `trquan` mksobj_phantom calls. For
+        // **explicit-otyp** stacks (e.g. POT_HEALING ×4), C creates 4 objects
+        // that share the same otyp/spe/buc and merge in addinv → we present
+        // one Object with quantity=trquan. For **random-otyp** stacks (e.g.
+        // Wizard's "2 random rings"), each call produces a different otyp
+        // → no merge → emit each as its own Object.
+        let single_stack = matches!(
+            item.class,
+            ObjectClass::Weapon | ObjectClass::Tool | ObjectClass::Coin
+        ) || item.otyp != ObjectType::StrangeObject as i16;
+        let calls = if matches!(
+            item.class,
+            ObjectClass::Weapon | ObjectClass::Tool | ObjectClass::Coin
+        ) {
+            1
+        } else {
+            item.quantity.max(1)
+        };
+        // For explicit-otyp stacks (single_stack=true), units share the same
+        // otyp but mksobj's blessorcurse roll can produce different BUC for
+        // each unit. C's `addinv` merges only same-(otyp,spe,buc,...) objects,
+        // so a 4-stack with one blessed unit appears as TWO inventory
+        // entries (3-uncursed + 1-blessed). Mirror that by tracking per-unit
+        // mksobj outputs and grouping consecutive identicals.
+        let mut pending: Vec<Object> = Vec::new();
+        for k in 0..calls {
+            if trace {
+                eprintln!(
+                    "RS add_item: class={:?} otyp={} qty={} k={} rng={}",
+                    item.class, item.otyp, item.quantity, k, rng.call_count()
+                );
+            }
+            let mut per_item = *item;
+            if calls > 1 {
+                per_item.quantity = 1;
+            }
+            let obj = make_starting_object_full(&per_item, role, race, rng, next_id, reroll);
+            pending.push(obj);
         }
-        inv.push(obj);
+        if single_stack {
+            // Group consecutive units with identical (otyp, spe, buc) into
+            // merged stacks (mirrors C addinv merge rules).
+            let mut groups: Vec<Object> = Vec::new();
+            for obj in pending {
+                if let Some(last) = groups.last_mut() {
+                    if last.object_type == obj.object_type
+                        && last.enchantment == obj.enchantment
+                        && last.buc == obj.buc
+                    {
+                        last.quantity += 1;
+                        continue;
+                    }
+                }
+                let mut o = obj;
+                o.quantity = 1;
+                groups.push(o);
+            }
+            for mut obj in groups {
+                obj.inv_letter = *letter as char;
+                if *letter < b'z' {
+                    *letter += 1;
+                }
+                inv.push(obj);
+            }
+        } else {
+            // Random-otyp stack: each unit is its own object (different
+            // otyps usually preclude merging).
+            for mut obj in pending {
+                obj.inv_letter = *letter as char;
+                if *letter < b'z' {
+                    *letter += 1;
+                }
+                inv.push(obj);
+            }
+        }
     };
 
     use crate::data::objects::ObjectType;
@@ -1311,17 +1663,17 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
         Role::Archeologist => {
             let base_items = starting_inventory(role);
             for item in base_items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
             // Optional extras (C: u_init.c:669-674)
             if rng.rn2(10) == 0 {
                 let item =
                     StartingItem::new(ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             } else if rng.rn2(4) == 0 {
                 let item =
                     StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             } else if rng.rn2(10) == 0 {
                 let item = StartingItem::new(
                     ObjectType::MagicMarker as i16,
@@ -1330,7 +1682,7 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                     1,
                     0,
                 );
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Barbarian => {
@@ -1362,19 +1714,19 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                     StartingItem::new(ObjectType::FoodRation as i16, 0, ObjectClass::Food, 1, 0),
                 ];
                 for item in items {
-                    add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                    add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
                 }
             } else {
                 let base_items = starting_inventory(role);
                 for item in base_items {
-                    add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                    add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
                 }
             }
             // Optional lamp (C: u_init.c:685-686)
             if rng.rn2(6) == 0 {
                 let item =
                     StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Caveman => {
@@ -1412,7 +1764,7 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                 ),
             ];
             for item in items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Healer => {
@@ -1420,27 +1772,31 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
             player.gold = (rng.rnd(1000) + 1000) as i32; // rn1(1000, 1001) = 1001..2000
             let base_items = starting_inventory(role);
             for item in base_items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
             // Optional lamp (C: u_init.c:699-700)
             if rng.rn2(25) == 0 {
                 let item =
                     StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Knight => {
             let base_items = starting_inventory(role);
             for item in base_items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Monk => {
             // C: select spellbook type rn2(90)/30 → [0..2] (u_init.c:715)
+            // C M_spell array (u_init.c:713): SPE_HEALING, SPE_PROTECTION,
+            // SPE_SLEEP. NOTE: SPE_SLEEP=344 (the spellbook), distinct from
+            // WAN_SLEEP=404. Earlier code used `ObjectType::Sleep` which is
+            // the wand otyp — silently wrong for Monk's starting spellbook.
             let spell_choices = [
                 ObjectType::Healing,
                 ObjectType::Protection,
-                ObjectType::Sleep,
+                ObjectType::SpellbookSleep,
             ];
             let spell_idx = (rng.rn2(90) / 30) as usize;
             let spell_type = spell_choices[spell_idx.min(2)];
@@ -1468,7 +1824,7 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                     UNDEF_BLESS,
                 ),
                 StartingItem::new(
-                    ObjectType::Healing as i16,
+                    ObjectType::PotionHealing as i16,
                     0,
                     ObjectClass::Potion,
                     3,
@@ -1498,7 +1854,7 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                 ),
             ];
             for item in items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
             // Optional extras (C: u_init.c:717-720)
             if rng.rn2(5) == 0 {
@@ -1509,17 +1865,17 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                     1,
                     0,
                 );
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             } else if rng.rn2(10) == 0 {
                 let item =
                     StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Priest => {
             let base_items = starting_inventory(role);
             for item in base_items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
             // Optional extras (C: u_init.c:729-732)
             if rng.rn2(10) == 0 {
@@ -1530,11 +1886,11 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                     1,
                     0,
                 );
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             } else if rng.rn2(10) == 0 {
                 let item =
                     StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Ranger => {
@@ -1580,7 +1936,7 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                 StartingItem::new(ObjectType::CramRation as i16, 0, ObjectClass::Food, 4, 0),
             ];
             for item in items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Rogue => {
@@ -1613,13 +1969,13 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                 StartingItem::new(ObjectType::Sack as i16, 0, ObjectClass::Tool, 1, 0),
             ];
             for item in items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
             // Optional blindfold (C: u_init.c:753-754)
             if rng.rn2(5) == 0 {
                 let item =
                     StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Samurai => {
@@ -1663,13 +2019,13 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                 ),
             ];
             for item in items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
             // Optional blindfold (C: u_init.c:761-762)
             if rng.rn2(5) == 0 {
                 let item =
                     StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Tourist => {
@@ -1693,7 +2049,7 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                     0,
                 ),
                 StartingItem::new(
-                    ObjectType::ExtraHealing as i16,
+                    ObjectType::PotionExtraHealing as i16,
                     0,
                     ObjectClass::Potion,
                     2,
@@ -1723,19 +2079,19 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                 StartingItem::new(ObjectType::CreditCard as i16, 0, ObjectClass::Tool, 1, 0),
             ];
             for item in items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
             // Optional extras (C: u_init.c:771-778)
             if rng.rn2(25) == 0 {
                 let item =
                     StartingItem::new(ObjectType::TinOpener as i16, 0, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             } else if rng.rn2(25) == 0 {
                 let item = StartingItem::new(ObjectType::Leash as i16, 0, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             } else if rng.rn2(25) == 0 {
                 let item = StartingItem::new(ObjectType::Towel as i16, 0, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             } else if rng.rn2(25) == 0 {
                 let item = StartingItem::new(
                     ObjectType::MagicMarker as i16,
@@ -1744,27 +2100,26 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                     1,
                     0,
                 );
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Valkyrie => {
             let base_items = starting_inventory(role);
             for item in base_items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
             // Optional lamp (C: u_init.c:783-784)
             if rng.rn2(6) == 0 {
                 let item =
                     StartingItem::new(ObjectType::OilLamp as i16, 1, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
         Role::Wizard => {
             let base_items = starting_inventory(role);
             for item in base_items {
-                add_item(&mut inventory, item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, item, rng, &mut next_id, &mut letter, &mut reroll);
             }
-            // Optional extras (C: u_init.c:791-794)
             if rng.rn2(5) == 0 {
                 let item = StartingItem::new(
                     ObjectType::MagicMarker as i16,
@@ -1773,12 +2128,12 @@ pub fn u_init(player: &mut crate::player::You, rng: &mut GameRng) -> Vec<Object>
                     1,
                     0,
                 );
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
             if rng.rn2(5) == 0 {
                 let item =
                     StartingItem::new(ObjectType::Blindfold as i16, 0, ObjectClass::Tool, 1, 0);
-                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter);
+                add_item(&mut inventory, &item, rng, &mut next_id, &mut letter, &mut reroll);
             }
         }
     }

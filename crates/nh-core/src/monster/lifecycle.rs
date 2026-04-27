@@ -647,10 +647,13 @@ mod tests {
         let mut rng = GameRng::new(42);
 
         let id1 = add_test_monster(&mut level, "goblin", 1, 5);
-        let id2 = add_test_monster(&mut level, "goblin", 1, 5);
-        // Adjust second monster position
-        level.monster_mut(id2).unwrap().x = 8;
-        level.monster_grid[8][5] = Some(id2);
+        // Add second goblin at a non-colliding position (add_test_monster's
+        // default (7,5) is occupied by id1).
+        let mut mon2 = Monster::new(MonsterId(0), 1, 8, 5);
+        mon2.name = "goblin".to_string();
+        mon2.hp = 5;
+        mon2.hp_max = 5;
+        let id2 = level.add_monster(mon2);
 
         mondead(&mut level, id1, &mut vitals, &monsters_db, &mut rng);
         mondead(&mut level, id2, &mut vitals, &monsters_db, &mut rng);

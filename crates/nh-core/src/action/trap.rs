@@ -1914,7 +1914,7 @@ mod tests {
         for seed in 0..1000u64 {
             let mut state = GameState::new(GameRng::new(seed));
             // Clear level monsters and set player at known position
-            state.current_level.monsters.clear();
+            state.current_level.clear_monsters();
             state.player.pos.x = 10;
             state.player.pos.y = 10;
             let cha_before = state

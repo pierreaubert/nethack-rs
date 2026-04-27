@@ -1578,7 +1578,7 @@ mod tests {
 
     #[test]
     fn test_obj_property_helm_of_telepathy() {
-        assert_eq!(obj_property(78), Some(Property::Telepathy));
+        assert_eq!(obj_property(81), Some(Property::Telepathy));
     }
 
     #[test]
@@ -1740,7 +1740,7 @@ mod tests {
     #[test]
     fn test_helmet_on_telepathy() {
         let mut state = GameState::new(GameRng::from_entropy());
-        let obj = make_armor_item(78); // helm of telepathy
+        let obj = make_armor_item(81); // helm of telepathy (C: HELM_OF_TELEPATHY=81)
         helmet_on(&mut state, &obj);
         assert!(state.player.properties.has(Property::Telepathy));
     }
@@ -1748,7 +1748,7 @@ mod tests {
     #[test]
     fn test_helmet_off_telepathy() {
         let mut state = GameState::new(GameRng::from_entropy());
-        let obj = make_armor_item(78);
+        let obj = make_armor_item(81);
         helmet_on(&mut state, &obj);
         helmet_off(&mut state, &obj);
         assert!(!state.player.properties.has(Property::Telepathy));
@@ -1762,7 +1762,7 @@ mod tests {
         let int_before = state.player.attr_current.get(Attribute::Intelligence);
         let wis_before = state.player.attr_current.get(Attribute::Wisdom);
 
-        let mut obj = make_armor_item(76); // helm of brilliance
+        let mut obj = make_armor_item(79); // helm of brilliance
         obj.enchantment = 3;
         helmet_on(&mut state, &obj);
 
@@ -1783,7 +1783,7 @@ mod tests {
 
         let int_before = state.player.attr_current.get(Attribute::Intelligence);
 
-        let mut obj = make_armor_item(76);
+        let mut obj = make_armor_item(79);
         obj.enchantment = 2;
         helmet_on(&mut state, &obj);
         assert_eq!(
@@ -1804,7 +1804,7 @@ mod tests {
         state.player.attr_current.set(Attribute::Charisma, 10);
         let cha_before = state.player.attr_current.get(Attribute::Charisma);
 
-        let obj = make_armor_item(81); // cornuthaum
+        let obj = make_armor_item(75); // cornuthaum
         helmet_on(&mut state, &obj);
 
         // Wizard gets +1 CHA
@@ -1821,7 +1821,7 @@ mod tests {
         state.player.attr_current.set(Attribute::Charisma, 10);
         let cha_before = state.player.attr_current.get(Attribute::Charisma);
 
-        let obj = make_armor_item(81);
+        let obj = make_armor_item(75);
         helmet_on(&mut state, &obj);
 
         // Non-wizard gets -1 CHA
@@ -1920,8 +1920,8 @@ mod tests {
     #[test]
     fn test_all_helm_properties_match_data() {
         let cases: &[(i16, &str, Option<Property>)] = &[
-            (78, "helm of telepathy", Some(Property::Telepathy)),
-            (81, "cornuthaum", Some(Property::Clairvoyant)),
+            (81, "helm of telepathy", Some(Property::Telepathy)),
+            (75, "cornuthaum", Some(Property::Clairvoyant)),
         ];
         for &(idx, expected_name, expected_prop) in cases {
             let def = obj_def(idx).unwrap_or_else(|| panic!("no obj at index {idx}"));

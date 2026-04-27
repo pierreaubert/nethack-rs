@@ -6452,10 +6452,13 @@ mod tests {
     #[test]
     fn test_m_lined_up_same_position() {
         let mut level = Level::new(DLevel::main_dungeon_start());
-        let mut monster1 = Monster::new(MonsterId(1), 0, 5, 5);
-        let mut monster2 = Monster::new(MonsterId(2), 0, 5, 5);
-        level.add_monster(monster1);
-        level.add_monster(monster2);
+        // Both monsters at (5,5) — bypass add_monster's grid uniqueness
+        // check since this test explicitly verifies the "same position"
+        // edge case.
+        let monster1 = Monster::new(MonsterId(1), 0, 5, 5);
+        let monster2 = Monster::new(MonsterId(2), 0, 5, 5);
+        level.monsters.push(monster1);
+        level.monsters.push(monster2);
 
         // Monsters at same position shouldn't be lined up (can't attack self)
         let result = m_lined_up(MonsterId(1), MonsterId(2), &level);

@@ -1,0 +1,114 @@
+{
+  "label": "rest-only-priest-seed8",
+  "seed": 8,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 6,
+  "critical_count": 0,
+  "major_count": 6,
+  "minor_count": 6,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "7",
+          "c_value": "9"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "7",
+          "c_value": "9"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "7",
+          "c_value": "9"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "7",
+          "c_value": "9"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "7",
+          "c_value": "9"
+        }
+      ]
+    },
+    {
+      "turn": 49,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "7",
+          "c_value": "9"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,369 @@
+{
+  "label": "rest-only-rogue-seed12345",
+  "seed": 12345,
+  "total_turns": 200,
+  "first_critical_turn": null,
+  "turns_with_diffs": 21,
+  "critical_count": 0,
+  "major_count": 42,
+  "minor_count": 0,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "4",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "5",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "6",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "6",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "6",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 50,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "6",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 60,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "6",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 70,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "6",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 80,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 90,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 100,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 110,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 120,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 130,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 140,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 150,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 160,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 170,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 180,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 190,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    },
+    {
+      "turn": 199,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[2].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "monsters.count",
+          "rust_value": "7",
+          "c_value": "0"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,870 @@
+{
+  "label": "rest-only-healer-seed5",
+  "seed": 5,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 6,
+  "critical_count": 0,
+  "major_count": 108,
+  "minor_count": 30,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "8",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "9",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "12",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "16",
+          "c_value": "17"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "22",
+          "c_value": "410"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "136",
+          "c_value": "22"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].enchantment",
+          "rust_value": "1",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].object_type",
+          "rust_value": "212",
+          "c_value": "136"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].enchantment",
+          "rust_value": "0",
+          "c_value": "1"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[3].object_type",
+          "rust_value": "348",
+          "c_value": "212"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].object_type",
+          "rust_value": "365",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "404",
+          "c_value": "283"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].enchantment",
+          "rust_value": "8",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "348",
+          "c_value": "404"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].enchantment",
+          "rust_value": "0",
+          "c_value": "4"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "365",
+          "c_value": "348"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "379",
+          "c_value": "365"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].object_type",
+          "rust_value": "252",
+          "c_value": "379"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "8",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "9",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "12",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "16",
+          "c_value": "17"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "22",
+          "c_value": "410"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "136",
+          "c_value": "22"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].enchantment",
+          "rust_value": "1",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].object_type",
+          "rust_value": "212",
+          "c_value": "136"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].enchantment",
+          "rust_value": "0",
+          "c_value": "1"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[3].object_type",
+          "rust_value": "348",
+          "c_value": "212"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].object_type",
+          "rust_value": "365",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "404",
+          "c_value": "283"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].enchantment",
+          "rust_value": "8",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "348",
+          "c_value": "404"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].enchantment",
+          "rust_value": "0",
+          "c_value": "4"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "365",
+          "c_value": "348"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "379",
+          "c_value": "365"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].object_type",
+          "rust_value": "252",
+          "c_value": "379"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "8",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "9",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "12",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "16",
+          "c_value": "17"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "22",
+          "c_value": "410"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "136",
+          "c_value": "22"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].enchantment",
+          "rust_value": "1",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].object_type",
+          "rust_value": "212",
+          "c_value": "136"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].enchantment",
+          "rust_value": "0",
+          "c_value": "1"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[3].object_type",
+          "rust_value": "348",
+          "c_value": "212"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].object_type",
+          "rust_value": "365",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "404",
+          "c_value": "283"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].enchantment",
+          "rust_value": "8",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "348",
+          "c_value": "404"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].enchantment",
+          "rust_value": "0",
+          "c_value": "4"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "365",
+          "c_value": "348"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "379",
+          "c_value": "365"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].object_type",
+          "rust_value": "252",
+          "c_value": "379"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "8",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "9",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "12",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "16",
+          "c_value": "17"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "22",
+          "c_value": "410"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "136",
+          "c_value": "22"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].enchantment",
+          "rust_value": "1",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].object_type",
+          "rust_value": "212",
+          "c_value": "136"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].enchantment",
+          "rust_value": "0",
+          "c_value": "1"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[3].object_type",
+          "rust_value": "348",
+          "c_value": "212"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].object_type",
+          "rust_value": "365",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "404",
+          "c_value": "283"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].enchantment",
+          "rust_value": "8",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "348",
+          "c_value": "404"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].enchantment",
+          "rust_value": "0",
+          "c_value": "4"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "365",
+          "c_value": "348"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "379",
+          "c_value": "365"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].object_type",
+          "rust_value": "252",
+          "c_value": "379"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "8",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "9",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "12",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "16",
+          "c_value": "17"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "22",
+          "c_value": "410"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "136",
+          "c_value": "22"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].enchantment",
+          "rust_value": "1",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].object_type",
+          "rust_value": "212",
+          "c_value": "136"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].enchantment",
+          "rust_value": "0",
+          "c_value": "1"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[3].object_type",
+          "rust_value": "348",
+          "c_value": "212"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].object_type",
+          "rust_value": "365",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "404",
+          "c_value": "283"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].enchantment",
+          "rust_value": "8",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "348",
+          "c_value": "404"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].enchantment",
+          "rust_value": "0",
+          "c_value": "4"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "365",
+          "c_value": "348"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "379",
+          "c_value": "365"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].object_type",
+          "rust_value": "252",
+          "c_value": "379"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 49,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.strength",
+          "rust_value": "8",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "9",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "12",
+          "c_value": "10"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "16",
+          "c_value": "17"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[0].object_type",
+          "rust_value": "22",
+          "c_value": "410"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].object_type",
+          "rust_value": "136",
+          "c_value": "22"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[1].enchantment",
+          "rust_value": "1",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].object_type",
+          "rust_value": "212",
+          "c_value": "136"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[2].enchantment",
+          "rust_value": "0",
+          "c_value": "1"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[3].object_type",
+          "rust_value": "348",
+          "c_value": "212"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[4].object_type",
+          "rust_value": "365",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "404",
+          "c_value": "283"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].enchantment",
+          "rust_value": "8",
+          "c_value": "0"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "348",
+          "c_value": "404"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].enchantment",
+          "rust_value": "0",
+          "c_value": "4"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].buc",
+          "rust_value": "Blessed",
+          "c_value": "Uncursed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "365",
+          "c_value": "348"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "379",
+          "c_value": "365"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].object_type",
+          "rust_value": "252",
+          "c_value": "379"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[9].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    }
+  ]
+}

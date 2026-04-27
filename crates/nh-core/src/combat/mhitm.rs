@@ -1142,9 +1142,22 @@ pub fn mdisplacem(
         }
     }
 
-    // Swap positions via grid-safe API
-    level.move_monster(attacker_id, dx, dy);
-    level.move_monster(defender_id, ax, ay);
+    // Swap positions atomically. `level.move_monster` rejects occupied
+    // destinations, so a sequential pair of moves would fail with two
+    // monsters facing each other. Clear both grid cells first, then update
+    // each monster's coords and re-register.
+    level.monster_grid[ax as usize][ay as usize] = None;
+    level.monster_grid[dx as usize][dy as usize] = None;
+    if let Some(atk) = level.monster_mut(attacker_id) {
+        atk.x = dx;
+        atk.y = dy;
+    }
+    if let Some(def) = level.monster_mut(defender_id) {
+        def.x = ax;
+        def.y = ay;
+    }
+    level.monster_grid[dx as usize][dy as usize] = Some(attacker_id);
+    level.monster_grid[ax as usize][ay as usize] = Some(defender_id);
 
     MmResult::HIT
 }

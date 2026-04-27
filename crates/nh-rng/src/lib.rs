@@ -98,6 +98,11 @@ impl Isaac64 {
     ///
     /// Used for RNG synchronization: export the C engine's ISAAC64 context
     /// and reconstruct an identical Rust Isaac64 to achieve bit-perfect parity.
+    /// Export internal state as tuple (n, r, m, a, b, c, call_count) for diagnostics.
+    pub fn export_c_fields(&self) -> (usize, Vec<u64>, Vec<u64>, u64, u64, u64, u64) {
+        (self.n, self.r.clone(), self.m.clone(), self.a, self.b, self.c, self.call_count)
+    }
+
     pub fn from_c_fields(
         n: usize,
         r: Vec<u64>,
@@ -307,41 +312,36 @@ impl Isaac64 {
         val
     }
 
-    /// Returns a random value in [0, n) using rejection sampling to match C's
-    /// isaac64_next_uint. Rejects values in the top partial bucket to eliminate
-    /// modulo bias and — critically — to consume the same number of raw u64s as C.
+    /// Returns a random value in [0, n) — plain modulo, matching C's
+    /// NetHack 3.6.7 rn2() exactly (rnd.c:74-90):
+    ///     rng_call_counter++;
+    ///     raw = isaac64_next_uint64(...);
+    ///     return raw % x;
+    /// No rejection sampling. Earlier versions of this function did
+    /// rejection-sample to match a putative C `isaac64_next_uint`, but
+    /// 3.6.7's rn2 has no such loop, and the rejection caused per-call
+    /// value divergence with C even though raw-u64 counts matched.
     pub fn next_uint(&mut self, n: u64) -> u64 {
         if n == 0 {
             return 0;
         }
         // Match C: rn2(1) returns 0 WITHOUT consuming a raw u64.
-        // C code: if (x <= 1) return 0; — no isaac64_next_uint64 call.
         if n == 1 {
             return 0;
         }
-        // Rejection sampling matching C's loop:
-        //   do { r = next_u64(); v = r % n; d = r - v; }
-        //   while (((d + n - 1) & MASK) < d);
-        // This rejects raw values in the top partial bucket [floor(2^64/n)*n, 2^64).
-        loop {
-            let raw = self.next_u64();
-            let v = raw % n;
-            let d = raw - v;
-            // Accept unless d + n - 1 wraps around (top partial bucket)
-            if d.wrapping_add(n).wrapping_sub(1) >= d {
-                if self.tracing {
-                    self.trace.push(RngTraceEntry {
-                        seq: self.call_count - 1,
-                        func: "next_uint",
-                        arg: n,
-                        result: v,
-                        raw,
-                        caller: self.caller,
-                    });
-                }
-                return v;
-            }
+        let raw = self.next_u64();
+        let v = raw % n;
+        if self.tracing {
+            self.trace.push(RngTraceEntry {
+                seq: self.call_count - 1,
+                func: "next_uint",
+                arg: n,
+                result: v,
+                raw,
+                caller: self.caller,
+            });
         }
+        v
     }
 
     /// Returns a random value in [0, x) - matches rn2(x)

@@ -2435,12 +2435,32 @@ mod tests {
 
     #[test]
     fn test_altar_wrath_non_coaligned_reduces_luck() {
-        let mut state = make_state_with_altar();
-        state.player.alignment.typ = AlignmentType::Lawful; // altar is Neutral
-        state.player.luck = 5;
-        altar_wrath(&mut state, 5, 5);
-        // Should reduce luck
-        assert!(state.player.luck < 5);
+        // Probabilistic: at luck=5 the reduce-chance is rn2(11) > 0 (≈91%).
+        // A single seed can roll the 1/11 no-op branch, so check that
+        // *most* seeds reduce luck.
+        let mut reductions = 0;
+        for seed in 0..30u64 {
+            let mut state = GameState::new(GameRng::new(seed));
+            state.player.pos = Position::new(5, 5);
+            for x in 1..20 {
+                for y in 1..10 {
+                    *state.current_level.cell_mut(x, y) = Cell::floor();
+                }
+            }
+            let cell = state.current_level.cell_mut(5, 5);
+            cell.typ = CellType::Altar;
+            cell.flags = 0;
+            state.player.alignment.typ = AlignmentType::Lawful;
+            state.player.luck = 5;
+            altar_wrath(&mut state, 5, 5);
+            if state.player.luck < 5 {
+                reductions += 1;
+            }
+        }
+        assert!(
+            reductions >= 20,
+            "Expected luck reduction in most of 30 seeds (≈91% rate); got {reductions}/30"
+        );
     }
 
     #[test]

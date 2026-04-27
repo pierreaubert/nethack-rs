@@ -1,0 +1,324 @@
+{
+  "label": "rest-only-monk-seed7",
+  "seed": 7,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 6,
+  "critical_count": 0,
+  "major_count": 36,
+  "minor_count": 11,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "3",
+          "c_value": "5"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "9",
+          "c_value": "10"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "268",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "252",
+          "c_value": "268"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "253",
+          "c_value": "252"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "264",
+          "c_value": "253"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "3",
+          "c_value": "5"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "889",
+          "c_value": "892"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "9",
+          "c_value": "10"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "268",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "252",
+          "c_value": "268"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "253",
+          "c_value": "252"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "264",
+          "c_value": "253"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "3",
+          "c_value": "5"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "879",
+          "c_value": "883"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "9",
+          "c_value": "10"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "268",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "252",
+          "c_value": "268"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "253",
+          "c_value": "252"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "264",
+          "c_value": "253"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "3",
+          "c_value": "5"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "869",
+          "c_value": "877"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "9",
+          "c_value": "10"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "268",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "252",
+          "c_value": "268"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "253",
+          "c_value": "252"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "264",
+          "c_value": "253"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "3",
+          "c_value": "5"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "859",
+          "c_value": "870"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "9",
+          "c_value": "10"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "268",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "252",
+          "c_value": "268"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "253",
+          "c_value": "252"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "264",
+          "c_value": "253"
+        }
+      ]
+    },
+    {
+      "turn": 49,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "3",
+          "c_value": "5"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "850",
+          "c_value": "863"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory.count",
+          "rust_value": "9",
+          "c_value": "10"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].object_type",
+          "rust_value": "268",
+          "c_value": "282"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[5].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[6].object_type",
+          "rust_value": "252",
+          "c_value": "268"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[7].object_type",
+          "rust_value": "253",
+          "c_value": "252"
+        },
+        {
+          "severity": "Major",
+          "field": "inventory[8].object_type",
+          "rust_value": "264",
+          "c_value": "253"
+        }
+      ]
+    }
+  ]
+}

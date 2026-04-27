@@ -1,0 +1,258 @@
+{
+  "label": "rest-only-knight-seed6",
+  "seed": 6,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 6,
+  "critical_count": 0,
+  "major_count": 0,
+  "minor_count": 36,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "5",
+          "c_value": "4"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "9",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "17",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "5",
+          "c_value": "4"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "9",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "17",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "5",
+          "c_value": "4"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "9",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "17",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "5",
+          "c_value": "4"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "9",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "17",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "5",
+          "c_value": "4"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "9",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "17",
+          "c_value": "18"
+        }
+      ]
+    },
+    {
+      "turn": 49,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.energy",
+          "rust_value": "5",
+          "c_value": "4"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.intelligence",
+          "rust_value": "7",
+          "c_value": "8"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.wisdom",
+          "rust_value": "17",
+          "c_value": "15"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.dexterity",
+          "rust_value": "9",
+          "c_value": "12"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.constitution",
+          "rust_value": "10",
+          "c_value": "11"
+        },
+        {
+          "severity": "Minor",
+          "field": "player.charisma",
+          "rust_value": "17",
+          "c_value": "18"
+        }
+      ]
+    }
+  ]
+}

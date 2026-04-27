@@ -1062,7 +1062,7 @@ mod tests {
         let mut state = make_test_state();
         let mut caster = make_caster(10);
         caster.state.cancelled = true;
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(caster);
 
         let attack = spell_attack(true);
@@ -1075,7 +1075,7 @@ mod tests {
         let mut state = make_test_state();
         let mut caster = make_caster(10);
         caster.spec_used = 5;
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(caster);
 
         let attack = spell_attack(true);
@@ -1086,7 +1086,7 @@ mod tests {
     #[test]
     fn test_castmu_sets_cooldown() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
 
         let attack = spell_attack(true);
@@ -1116,7 +1116,7 @@ mod tests {
         let mut caster = make_caster(10);
         caster.hp = 20;
         caster.hp_max = 50;
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(caster);
 
         let result = m_cure_self(&mut state, 0, 10);
@@ -1128,7 +1128,7 @@ mod tests {
     #[test]
     fn test_m_cure_self_at_full_hp() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
 
         let result = m_cure_self(&mut state, 0, 10);
@@ -1138,7 +1138,7 @@ mod tests {
     #[test]
     fn test_cast_wizard_psi_bolt_damage() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         let initial_hp = state.player.hp;
 
@@ -1150,7 +1150,7 @@ mod tests {
     #[test]
     fn test_cast_wizard_psi_bolt_magic_resistance() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         state
             .player
@@ -1166,7 +1166,7 @@ mod tests {
     #[test]
     fn test_cast_wizard_stun() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         assert!(!state.player.is_stunned());
 
@@ -1179,7 +1179,7 @@ mod tests {
         let mut state = make_test_state();
         let mut caster = make_caster(10);
         caster.speed = SpeedState::Normal;
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(caster);
 
         cast_wizard_spell(&mut state, 0, 0, MageSpell::HasteSelf);
@@ -1192,7 +1192,7 @@ mod tests {
         let mut caster = make_caster(10);
         caster.state.invisible = false;
         caster.state.invis_blocked = false;
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(caster);
 
         cast_wizard_spell(&mut state, 0, 0, MageSpell::Disappear);
@@ -1202,7 +1202,7 @@ mod tests {
     #[test]
     fn test_cast_cleric_geyser() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         let initial_hp = state.player.hp;
 
@@ -1213,7 +1213,7 @@ mod tests {
     #[test]
     fn test_cast_cleric_confuse() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         assert!(!state.player.is_confused());
 
@@ -1224,7 +1224,7 @@ mod tests {
     #[test]
     fn test_cast_cleric_paralyze() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
 
         cast_cleric_spell(&mut state, 0, 0, ClericSpell::Paralyze);
@@ -1234,7 +1234,7 @@ mod tests {
     #[test]
     fn test_cast_cleric_paralyze_with_free_action() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         state
             .player
@@ -1248,7 +1248,7 @@ mod tests {
     #[test]
     fn test_cast_cleric_blind() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         assert!(!state.player.is_blind());
 
@@ -1259,7 +1259,7 @@ mod tests {
     #[test]
     fn test_cast_cleric_open_wounds() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         let initial_hp = state.player.hp;
 
@@ -1270,7 +1270,7 @@ mod tests {
     #[test]
     fn test_cast_cleric_fire_pillar_with_fire_res() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         state
             .player
@@ -1285,7 +1285,7 @@ mod tests {
     #[test]
     fn test_cast_cleric_lightning_with_reflection() {
         let mut state = make_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
         state.current_level.monsters.push(make_caster(10));
         state
             .player

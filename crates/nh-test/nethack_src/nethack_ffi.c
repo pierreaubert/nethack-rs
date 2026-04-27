@@ -413,7 +413,7 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
     /* Set default dungeon level */
     u.uz.dnum = 0;
     u.uz.dlevel = 1;
-    
+
     /* Setup dummy window system if not already done */
     windowprocs = dummy_procs;
 
@@ -422,7 +422,7 @@ int nh_ffi_init(const char* role, const char* race, int gender, int alignment) {
     int race_idx = str2race(race ? race : "Human");
     if (role_idx < 0) role_idx = 0;
     if (race_idx < 0) race_idx = 0;
-    
+
     flags.initrole = role_idx;
     flags.initrace = race_idx;
     flags.initgend = gender;
@@ -494,22 +494,17 @@ void nh_ffi_free(void) {
 /* Reset game to initial state */
 int nh_ffi_reset(unsigned long seed) {
 #ifdef REAL_NETHACK
-    /* Reseed the RNG and re-initialize character creation.
-       We call cleanup_globals then u_init to get fresh character stats
-       from the new seed. */
     g_seed = seed;
     init_isaac64(seed, rn2);
     init_isaac64(seed, rn2_on_display_rng);
     { extern unsigned long rng_call_counter; rng_call_counter = 0; }
 
     /* Don't re-call u_init() — calling it twice causes massive inventory
-       duplication due to stale C global state that leaks between u_init calls.
-       Instead, just reseed RNG and keep the character from init().
-       Tests sync stats from Rust via set_state() anyway. */
+       duplication due to stale C global state that leaks between u_init calls. */
     moves = 1L;
     multi = 0;
-    youmonst.movement = NORMAL_SPEED; /* match allmain.c:79 — prevents double gethungry */
-    context.next_attrib_check = 600L; /* match allmain.c:590 */
+    youmonst.movement = NORMAL_SPEED;
+    context.next_attrib_check = 600L;
     return 0;
 #else
     (void)seed;
@@ -1713,6 +1708,10 @@ void nh_ffi_set_rng_caller(const char *caller) {
 }
 
 static void rng_trace_record(const char *func, unsigned long arg, unsigned long result) {
+    if (getenv("NH_TRACE_INIT")) {
+        extern unsigned long rng_call_counter;
+        fprintf(stderr, "C %s(%lu)=%lu rng=%lu\n", func, arg, result, rng_call_counter);
+    }
     if (!g_rng_tracing) return;
     unsigned long idx = g_rng_trace_count % RNG_TRACE_SIZE;
     g_rng_trace[idx].seq = g_rng_trace_count;

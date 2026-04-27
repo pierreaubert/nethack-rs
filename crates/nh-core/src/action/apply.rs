@@ -3056,7 +3056,7 @@ mod tests {
     #[test]
     fn test_use_bell_scares_monsters() {
         let mut state = create_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
 
         // Add a monster nearby
         let mut monster = Monster::new(MonsterId(1), 11, 10, 11);
@@ -3076,7 +3076,7 @@ mod tests {
     #[test]
     fn test_use_camera_blinds_monsters() {
         let mut state = create_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
 
         // Add a monster nearby (within 3 squares of player at 10,10)
         let mut monster = Monster::new(MonsterId(1), 11, 10, 11);
@@ -3224,7 +3224,7 @@ mod tests {
     #[test]
     fn test_leashable_requires_tame() {
         let mut state = create_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
 
         // Untamed monster adjacent to player at (10, 10)
         let mut monster = Monster::new(MonsterId(1), 11, 10, 11);
@@ -3241,7 +3241,7 @@ mod tests {
     #[test]
     fn test_leashable_requires_proximity() {
         let mut state = create_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
 
         // Tame monster far away
         let mut monster = Monster::new(MonsterId(1), 11, 20, 20);
@@ -3259,7 +3259,7 @@ mod tests {
     #[test]
     fn test_m_unleash() {
         let mut state = create_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
 
         let mut monster = Monster::new(MonsterId(1), 11, 10, 11);
         monster.state.tame = true;
@@ -3276,7 +3276,7 @@ mod tests {
     #[test]
     fn test_unleash_all() {
         let mut state = create_test_state();
-        state.current_level.monsters.clear();
+        state.current_level.clear_monsters();
 
         for i in 0..3 {
             let mut monster = Monster::new(MonsterId(i as u32 + 1), 11, 10 + i as i8, 10);
@@ -3357,7 +3357,7 @@ mod tests {
         let mut tame_count = 0;
         for seed in 0..50u64 {
             let mut state = GameState::new(GameRng::new(seed));
-            state.current_level.monsters.clear();
+            state.current_level.clear_monsters();
 
             let mut fig = Object::new(ObjectId(1), 0, ObjectClass::Tool);
             fig.buc = BucStatus::Blessed;
@@ -3381,7 +3381,7 @@ mod tests {
         let mut hostile_count = 0;
         for seed in 0..50u64 {
             let mut state = GameState::new(GameRng::new(seed));
-            state.current_level.monsters.clear();
+            state.current_level.clear_monsters();
 
             let mut fig = Object::new(ObjectId(1), 0, ObjectClass::Tool);
             fig.buc = BucStatus::Cursed;
@@ -3412,7 +3412,7 @@ mod tests {
         let mut scared_count = 0;
         for seed in 0..30u64 {
             let mut state = GameState::new(GameRng::new(seed));
-            state.current_level.monsters.clear();
+            state.current_level.clear_monsters();
             let mut monster = Monster::new(MonsterId(1), 11, 10, 11);
             monster.name = "kobold".to_string();
             state.current_level.add_monster(monster);

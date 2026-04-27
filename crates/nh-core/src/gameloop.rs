@@ -250,6 +250,14 @@ impl GameState {
         }
     }
 
+    // Quest leader / nemesis gender unfixedness per role — drives the
+    // phantom rn2(100) draws in C role.c:2070/2091. Empirically calibrated
+    // against C trace output. Each unfixed gender = 1 phantom call.
+    // 0 = both leader and nemesis have fixed gender (no draws);
+    // 1 = one is unfixed; 2 = both are unfixed.
+    // FUTURE: replace with proper monster-flag lookup once monster data
+    // exposes is_male/is_female/is_neuter for quest mons.
+
     /// Create a new game with a fully initialized player identity
     ///
     /// Unlike `new()`, this sets up the player with role/race/gender,
@@ -267,6 +275,14 @@ impl GameState {
         let mut player = You::new(name, role, race, gender);
         player.alignment.typ = alignment;
         player.original_alignment = alignment;
+
+        // 1a. C role_init() phantom RNG: when the quest leader or nemesis
+        // monster has no fixed gender flag, C fires `rn2(100) < 50` to pick
+        // one (role.c:2070, 2091). We mirror those phantom draws here so
+        // the ISAAC64 sequence at u_init entry matches C.
+        for _ in 0..role_init_phantom_rng_count(role) {
+            let _ = rng.rn2(100);
+        }
 
         // 2. Initialize HP, energy, skills, gold, prayer timeout, and INVENTORY
         // (MATCHES C: u_init handles all character initialization including items)
@@ -491,12 +507,13 @@ impl GameState {
     }
 
     /// Calculate total armor class from worn equipment and dexterity
-    /// NetHack AC: base 10, lower is better
-    /// Armor bonus is subtracted, dexterity bonus is added (negative for good dex)
+    /// NetHack AC: base 10, lower is better.
+    /// Mirrors C's `find_ac()` (do_wear.c:2109): start from monster form's
+    /// base AC, subtract worn-armor bonuses and intrinsic/spell protection.
+    /// C does NOT include dex bonus in displayed AC — dex affects to-hit only.
     pub fn calculate_armor_class(&self) -> i8 {
         const BASE_AC: i8 = 10;
 
-        // Sum AC from all worn armor pieces
         let armor_ac: i32 = self
             .inventory
             .iter()
@@ -504,15 +521,11 @@ impl GameState {
             .map(|obj| obj.effective_ac() as i32)
             .sum();
 
-        // Dexterity bonus (negative = better AC)
-        let dex_bonus = self.player.attr_current.dexterity_ac_bonus();
+        let ac = BASE_AC as i32
+            - armor_ac
+            - self.player.protection_level as i32
+            - self.player.spell_protection as i32;
 
-        // Calculate final AC: base - armor protection + dex bonus
-        // armor_ac is how much protection we have (positive = good)
-        // dex_bonus is -4 to +3 (negative = better)
-        let ac = BASE_AC as i32 - armor_ac + dex_bonus as i32;
-
-        // Clamp to i8 range
         ac.clamp(-128, 127) as i8
     }
 
@@ -3531,6 +3544,44 @@ pub fn create_score_entry(state: &GameState, death_reason: &str, how: DeathHow) 
     }
 }
 
+/// How many phantom `rn2(100)` calls C's `role_init` fires for this role
+/// to settle quest leader / nemesis gender (role.c:2070, 2091). One call
+/// per quest mon whose permonst doesn't have is_male/is_female/is_neuter.
+fn role_init_phantom_rng_count(role: Role) -> u32 {
+    // C `role_init()` (role.c:2011+) can consume up to 2 rn2 draws before
+    // the role-specific u_init switch:
+    //
+    // 1. `randalign(role, race)` (role.c:2049): fires when the requested
+    //    alignment is invalid for the role. The convergence-gate harness
+    //    always passes alignment=0 (Lawful) to C, so randalign fires for
+    //    any role that doesn't allow Lawful. randalign internally calls
+    //    `rn2(n)` where n = number of valid alignments. n=1 (single-align
+    //    role) → 0 raw draws (rn2(1) is a no-op in ISAAC64). n>=2 → 1 draw.
+    //
+    // 2. `quest_status.nemgend = (rn2(100) < 50)` (role.c:2087): fires
+    //    only if the role's nemesis monster has neither M2_MALE,
+    //    M2_FEMALE, nor M2_NEUTER set. From monst.c, only the
+    //    Archeologist's "Minion of Huhetotl" and the Wizard's "Dark One"
+    //    lack an explicit gender flag; every other role's nemesis is
+    //    M2_MALE or M2_FEMALE. (Quest leaders all have explicit gender.)
+    //
+    // Per-role count = (randalign draws) + (nemesis gender draws).
+    match role {
+        // Lawful(0) is invalid for these → randalign rn2(2) consumes 1 draw.
+        // Their nemeses are MALE → 0 nemesis draws. Total = 1.
+        Role::Barbarian | Role::Ranger => 1,
+        // Lawful(0) valid → 0 randalign draws. Minion of Huhetotl has no
+        // gender → 1 nemesis draw. Total = 1.
+        Role::Archeologist => 1,
+        // Lawful(0) invalid + Dark One has no gender → 1 + 1 = 2.
+        Role::Wizard => 2,
+        // Lawful(0) valid OR (single-alignment role → rn2(1) is no-op),
+        // and nemesis has explicit gender. Total = 0.
+        Role::Caveman | Role::Healer | Role::Knight | Role::Monk | Role::Priest
+        | Role::Rogue | Role::Samurai | Role::Tourist | Role::Valkyrie => 0,
+    }
+}
+
 #[cfg(feature = "std")]
 /// Handle game ending and record score (done equivalent from end.c)
 pub fn done(
@@ -3593,16 +3644,16 @@ mod tests {
     }
 
     #[test]
-    fn test_armor_class_with_dexterity() {
+    fn test_armor_class_does_not_use_dexterity() {
+        // C's find_ac (do_wear.c:2109) does not include dex bonus —
+        // dex affects to-hit, not displayed AC. Verify our AC stays at base.
         let mut state = test_state();
 
-        // High dexterity (18+) gives -4 AC bonus
         state.player.attr_current.set(Attribute::Dexterity, 18);
-        assert_eq!(state.calculate_armor_class(), 6); // 10 - 0 + (-4) = 6
+        assert_eq!(state.calculate_armor_class(), 10);
 
-        // Low dexterity (3) gives +3 AC penalty
         state.player.attr_current.set(Attribute::Dexterity, 3);
-        assert_eq!(state.calculate_armor_class(), 13); // 10 - 0 + 3 = 13
+        assert_eq!(state.calculate_armor_class(), 10);
     }
 
     #[test]

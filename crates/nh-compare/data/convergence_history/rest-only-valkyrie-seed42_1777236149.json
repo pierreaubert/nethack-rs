@@ -1,0 +1,243 @@
+{
+  "label": "rest-only-valkyrie-seed42",
+  "seed": 42,
+  "total_turns": 200,
+  "first_critical_turn": null,
+  "turns_with_diffs": 21,
+  "critical_count": 0,
+  "major_count": 21,
+  "minor_count": 0,
+  "turn_diffs": [
+    {
+      "turn": 0,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 50,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 60,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 70,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 80,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 90,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 100,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 110,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 120,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 130,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 140,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 150,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 160,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 170,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 180,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 190,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    },
+    {
+      "turn": 199,
+      "diffs": [
+        {
+          "severity": "Major",
+          "field": "inventory[1].buc",
+          "rust_value": "Uncursed",
+          "c_value": "Blessed"
+        }
+      ]
+    }
+  ]
+}

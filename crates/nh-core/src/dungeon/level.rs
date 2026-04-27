@@ -525,6 +525,15 @@ impl Level {
         }
     }
 
+    /// Clear all monsters from the level, resetting both the `monsters` Vec
+    /// and the `monster_grid` spatial index. Use this instead of
+    /// `monsters.clear()` to avoid stale grid references that crash later
+    /// `add_monster` calls with "grid already has MonsterId" panics.
+    pub fn clear_monsters(&mut self) {
+        self.monsters.clear();
+        self.monster_grid = default_monster_grid();
+    }
+
     /// Rebuild spatial index grids from objects/monsters vectors after deserialization.
     /// The object_grid, monster_grid, and visible grids are #[serde(skip)] so they
     /// deserialize as empty defaults. This must be called after any deserialization.

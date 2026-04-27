@@ -1,0 +1,67 @@
+{
+  "label": "rest-only-samurai-seed10",
+  "seed": 10,
+  "total_turns": 50,
+  "first_critical_turn": null,
+  "turns_with_diffs": 5,
+  "critical_count": 0,
+  "major_count": 0,
+  "minor_count": 5,
+  "turn_diffs": [
+    {
+      "turn": 10,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "889",
+          "c_value": "893"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "879",
+          "c_value": "885"
+        }
+      ]
+    },
+    {
+      "turn": 30,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "869",
+          "c_value": "877"
+        }
+      ]
+    },
+    {
+      "turn": 40,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "859",
+          "c_value": "870"
+        }
+      ]
+    },
+    {
+      "turn": 49,
+      "diffs": [
+        {
+          "severity": "Minor",
+          "field": "player.nutrition",
+          "rust_value": "850",
+          "c_value": "864"
+        }
+      ]
+    }
+  ]
+}

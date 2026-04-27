@@ -96,58 +96,98 @@ impl ClassBases {
     }
 }
 
+/// Class span (first index, last+1 index) within OBJECTS.
+fn class_span(objects: &[ObjClassDef], bases: &ClassBases, class: ObjectClass) -> (usize, usize) {
+    let first = bases.get(class);
+    let mut last = first;
+    while last < objects.len() && objects[last].class == class {
+        last += 1;
+    }
+    (first, last)
+}
+
+/// Compute the runtime-adjusted oc_prob for an entry, mirroring C's
+/// `init_objects()` (o_init.c:165-176): when the raw per-class sum is 0,
+/// every entry gets `(1000 + i - first) / (last - first)`. Otherwise the
+/// raw value is returned unchanged. C asserts the per-class sum is either
+/// 0 or 1000, but Rust's data tables have a few near-1000 sums (Tool 1013,
+/// Weapon 987, Armor 998) due to porting drift; we treat those as the
+/// authoritative weight rather than panicking, since C's `error()` would
+/// only fire in debug builds.
+pub fn adjusted_prob(
+    objects: &[ObjClassDef],
+    bases: &ClassBases,
+    class: ObjectClass,
+    idx: usize,
+) -> i32 {
+    let (first, last) = class_span(objects, bases, class);
+    if last <= first {
+        return 0;
+    }
+    let raw_sum: i32 = objects[first..last]
+        .iter()
+        .map(|o| o.probability as i32)
+        .sum();
+    // C's init_objects asserts sum == 0 or sum == 1000. Only when sum
+    // is exactly 0 does it redistribute equally; otherwise raw values are
+    // authoritative. Anonymous placeholders (prob=0) stay 0 in either case.
+    if objects[idx].name.starts_with("__anon_") {
+        return 0;
+    }
+    if raw_sum == 0 {
+        // Match C's exact init_objects formula (o_init.c:170-171):
+        //   oc_prob[i] = (1000 + i - first) / (last - first)
+        // This produces e.g. for 28 rings: 8 entries get 35, 20 entries get 36
+        // (sum = 1000 exactly, vs naive 1000/n which under-counts).
+        let span = (last - first) as i32;
+        if span == 0 {
+            return 0;
+        }
+        (1000 + (idx - first) as i32) / span
+    } else {
+        objects[idx].probability as i32
+    }
+}
+
 /// Select a random object type index from OBJECTS for the given class.
-/// Uses the probability field in ObjClassDef for weighted selection.
-///
-/// This mirrors NetHack's mkobj() selection:
+/// Mirrors NetHack's mkobj.c:251-269 exactly:
 /// ```c
-/// i = bases[(int) oclass];
-/// while ((prob -= objects[i].oc_prob) > 0)
-///     i++;
+/// prob = rnd(1000);
+/// i = bases[oclass];
+/// while ((prob -= objects[i].oc_prob) > 0) i++;
 /// ```
+/// `objects[i].oc_prob` is the runtime-adjusted value (see `adjusted_prob`).
 pub fn select_object_type(
     objects: &[ObjClassDef],
     bases: &ClassBases,
     rng: &mut GameRng,
     class: ObjectClass,
 ) -> Option<usize> {
-    let base = bases.get(class);
-
-    // Sum probabilities for this class
-    let mut total_prob: i32 = 0;
-    let mut count = 0;
-    for obj in objects.iter().skip(base) {
-        if obj.class != class {
-            break;
-        }
-        if obj.probability > 0 {
-            total_prob += obj.probability as i32;
-            count += 1;
-        }
-    }
-
-    if total_prob == 0 || count == 0 {
+    let (first, last) = class_span(objects, bases, class);
+    if last <= first {
         return None;
     }
-
-    // Roll random number from 1 to total_prob (NetHack uses rnd, not rn2)
-    let mut prob = (rng.rn2(total_prob as u32) + 1) as i32;
-
-    // Find the object
-    for (i, obj) in objects.iter().enumerate().skip(base) {
-        if obj.class != class {
-            break;
+    // C: prob = rnd(1000) → 1..=1000. Always one rn2(1000) draw regardless of
+    // per-class sum, to keep ISAAC64 parity with C.
+    let mut prob: i32 = (rng.rn2(1000) + 1) as i32;
+    let mut idx = first;
+    while idx < last {
+        prob -= adjusted_prob(objects, bases, class, idx);
+        if prob <= 0 {
+            return Some(idx);
         }
-        if obj.probability > 0 {
-            prob -= obj.probability as i32;
-            if prob <= 0 {
-                return Some(i);
-            }
+        idx += 1;
+    }
+    // Roll fell past the class range — walk back to the last non-anonymous
+    // entry. (C would panic via `panic("probtype error...")`; we degrade.)
+    let mut fallback = last;
+    while fallback > first {
+        fallback -= 1;
+        if !objects[fallback].name.starts_with("__anon_") {
+            return Some(fallback);
         }
     }
-
-    // Fallback to first object of class
-    Some(base)
+    Some(first)
 }
 
 /// Probability entry for random object class selection
